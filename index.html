@@ -73,6 +73,10 @@
   .disc { width: 56px; height: 56px; border-radius: 50%; background: var(--plate); color: var(--plate-ink); display: inline-flex; align-items: center; justify-content: center; font-family: var(--display); font-weight: 800; font-size: 25px; flex-shrink: 0; box-shadow: inset 0 0 0 2.5px rgba(20,16,2,.9), inset 0 0 0 5.5px var(--plate), 0 1px 3px rgba(0,0,0,.18); }
   .disc.sm { width: 40px; height: 40px; font-size: 18px; box-shadow: inset 0 0 0 2px rgba(20,16,2,.9), inset 0 0 0 4px var(--plate), 0 1px 2px rgba(0,0,0,.15); }
   .disc.big { width: 96px; height: 96px; font-size: 44px; box-shadow: inset 0 0 0 4px rgba(20,16,2,.9), inset 0 0 0 9px var(--plate), 0 3px 8px rgba(0,0,0,.22); }
+  /* White disc = a drawn pill; yellow plate = vehicle number. Never mixed. */
+  .disc.pillc { background: #fbfbf5; color: var(--ink); box-shadow: inset 0 0 0 2.5px rgba(23,24,28,.85), inset 0 0 0 5.5px #fbfbf5, 0 1px 3px rgba(0,0,0,.18); }
+  .disc.sm.pillc { box-shadow: inset 0 0 0 2px rgba(23,24,28,.85), inset 0 0 0 4px #fbfbf5, 0 1px 2px rgba(0,0,0,.15); }
+  .disc.big.pillc { box-shadow: inset 0 0 0 4px rgba(23,24,28,.85), inset 0 0 0 9px #fbfbf5, 0 3px 8px rgba(0,0,0,.22); }
   @keyframes pop { 0% { transform: scale(.2) rotate(-18deg); opacity: 0; } 65% { transform: scale(1.12) rotate(3deg); } 100% { transform: scale(1) rotate(0); opacity: 1; } }
   .pop { animation: pop .55s cubic-bezier(.2,1.4,.4,1) both; }
 
@@ -792,7 +796,7 @@ function renderDone(driver, drawn) {
     const pos = racers.findIndex(r => r.id === driver.id) + 1;
     const pt = posText(pos);
     h += '<div class="rcard"><div class="rcls">' + esc(x.cls.name) + '</div>'
-      + '<div class="disc big pop" style="animation-delay:' + (i * 0.22) + 's">' + x.pill + '</div>'
+      + '<div class="disc big pillc pop" style="animation-delay:' + (i * 0.22) + 's">' + x.pill + '</div>'
       + '<div class="rpos">P' + pos + '</div>'
       + '<div class="rrow">Row ' + pt.row + ' · ' + pt.side + ' · Pill #' + x.pill + '</div></div>';
   });
@@ -816,12 +820,18 @@ function resetReg() {
 // ---------- Lineups: starting grid + heats, one view ----------
 function setGridStyle(s) { S.settings.gridStyle = s; save(); renderGrid(); }
 
+function discNum(num) {
+  const s = String(num);   // vehicle number on the plate; shrink for long numbers like 123x
+  const f = s.length <= 2 ? '' : ' style="font-size:' + (s.length === 3 ? 13 : 11) + 'px"';
+  return '<div class="disc sm"' + f + '>' + esc(s) + '</div>';
+}
 function gridMarkup(racers, single) {
+  const sub = r => r.tag || ('Pill #' + r.pill);
   if (single) {
     let h = '<div class="hb">';
     racers.forEach((r, i) => {
-      h += '<div class="hr"><div class="pnum">P' + (i + 1) + '</div><div class="disc sm">' + r.pill + '</div>'
-        + '<div class="nm"><b>' + esc(r.name) + '</b> <span>#' + esc(r.num) + '</span></div>'
+      h += '<div class="hr"><div class="pnum">P' + (i + 1) + '</div>' + discNum(r.num)
+        + '<div class="nm"><b>' + esc(r.name) + '</b> <span>' + esc(sub(r)) + '</span></div>'
         + (i === 0 ? '<span class="poletag" style="position:static"></span>' : '') + '</div>';
     });
     return h + '</div>';
@@ -832,8 +842,8 @@ function gridMarkup(racers, single) {
     h += '<div class="slot ' + (pos % 2 ? 'inside' : 'outside') + (pos === 1 ? ' pole' : '') + '">'
       + (pos % 2 ? '<span class="rowlbl">Row ' + pt.row + '</span>' : '')
       + (pos === 1 ? '<span class="poletag"></span>' : '')
-      + '<div class="posn">P' + pos + '</div><div class="disc sm">' + r.pill + '</div>'
-      + '<div class="who"><b>' + esc(r.name) + '</b><span>#' + esc(r.num) + '</span></div></div>';
+      + '<div class="posn">P' + pos + '</div>' + discNum(r.num)
+      + '<div class="who"><b>' + esc(r.name) + '</b><span>' + esc(sub(r)) + '</span></div></div>';
   });
   return h + '</div>';
 }
@@ -869,7 +879,7 @@ function renderGrid() {
     // once every heat finish is entered, the main-event grids post here too
     if (classComplete(cls.id)) {
       const fd = featureData(cls.id);
-      const toRow = s => ({ name: s.name, num: s.num, pill: s.pts });   // disc shows the heat total — the "race pill"
+      const toRow = s => ({ name: s.name, num: s.num, tag: 'Heat total ' + s.pts });
       if (fd.bmain.length) {
         h += '<div class="slbl">B-main — lined up by heat total · top ' + fd.transfers + ' transfer</div>' + gridMarkup(fd.bmain.map(toRow), single);
         if (fd.transferred.length >= fd.transfers) {
@@ -1519,7 +1529,7 @@ function renderEntryList() {
   if (!rows.length) { el.innerHTML = '<p class="empty">No entries match “' + esc(q) + '”.</p>'; return; }
   el.innerHTML = '<table><thead><tr><th>Driver</th><th>#</th><th>Class</th><th>Pill</th><th></th></tr></thead><tbody>'
     + rows.map(r => '<tr><td style="font-weight:600">' + esc(r.name) + '</td><td>#' + esc(r.num) + '</td><td style="color:var(--muted)">' + esc(r.cls) + '</td>'
-      + '<td><span class="disc sm" style="width:32px;height:32px;font-size:14px">' + r.pill + '</span></td>'
+      + '<td><span class="disc sm pillc" style="width:32px;height:32px;font-size:14px">' + r.pill + '</span></td>'
       + '<td style="text-align:right"><button class="btn btn-sm btn-danger" onclick="delEntry(' + r.i + ')">Remove</button></td></tr>').join('')
     + '</tbody></table>';
 }
@@ -1569,7 +1579,7 @@ function tvSlides() {
     }
     if (classComplete(cls.id)) {
       const fd = featureData(cls.id);
-      const toRow = s => ({ name: s.name, num: s.num, pill: s.pts });
+      const toRow = s => ({ name: s.name, num: s.num, tag: 'Heat total ' + s.pts });
       if (fd.bmain.length) {
         slides.push({ title: cls.name, sub: 'B-main — top ' + fd.transfers + ' transfer', racers: fd.bmain.map(toRow) });
         if (fd.transferred.length >= fd.transfers) slides.push({ title: cls.name, sub: '🏁 Feature lineup', racers: [...fd.locked, ...fd.transferred].map(toRow) });
@@ -1589,10 +1599,12 @@ function tvGridMarkup(racers, single) {
   h += '<div class="' + (single ? 'tv-list' : 'tv-grid2') + '">';
   racers.forEach((r, i) => {
     const pos = i + 1;
+    const len = String(r.num).length;
+    const df = len <= 2 ? 0.42 : len === 3 ? 0.33 : 0.26;   // vehicle number on the plate, shrunk for long numbers
     h += '<div class="tv-slot' + (pos === 1 ? ' pole' : '') + '" style="font-size:' + fs.toFixed(2) + 'vh">'
       + '<span class="tv-pos">P' + pos + '</span>'
-      + '<span class="tv-disc" style="width:' + disc.toFixed(2) + 'vh;height:' + disc.toFixed(2) + 'vh;font-size:' + (disc * 0.42).toFixed(2) + 'vh">' + r.pill + '</span>'
-      + '<span class="tv-nm">' + esc(r.name) + '</span><span class="tv-num">#' + esc(r.num) + '</span></div>';
+      + '<span class="tv-disc" style="width:' + disc.toFixed(2) + 'vh;height:' + disc.toFixed(2) + 'vh;font-size:' + (disc * df).toFixed(2) + 'vh">' + esc(String(r.num)) + '</span>'
+      + '<span class="tv-nm">' + esc(r.name) + '</span><span class="tv-num">' + esc(r.tag || 'Pill ' + r.pill) + '</span></div>';
   });
   return h + '</div>';
 }
