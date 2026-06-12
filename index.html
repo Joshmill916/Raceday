@@ -203,6 +203,7 @@
     <button class="active" onclick="nav('signup')">Sign up</button>
     <button onclick="nav('grid')">Lineups</button>
     <button onclick="nav('results')">Results</button>
+    <button onclick="nav('points')">Points</button>
     <button onclick="nav('admin')">Admin</button>
   </div>
 
@@ -275,6 +276,13 @@
     <div id="resultsContent"></div>
   </div>
 
+  <!-- POINTS SERIES -->
+  <div id="page-points" class="page">
+    <h2>Points series</h2>
+    <p class="sub">Season standings by class. Feature finishes earn the points set in Admin — today counts live once finishes are entered, and past race days count from history.</p>
+    <div id="pointsContent"></div>
+  </div>
+
   <!-- ADMIN -->
   <div id="page-admin" class="page">
     <div style="display:flex;align-items:center;gap:10px;flex-wrap:wrap">
@@ -322,6 +330,21 @@
         <div><label>Max in B-main</label><input type="number" id="mBMain" min="2" max="30" onchange="saveSett()" /></div>
         <div><label>B-main transfers</label><input type="number" id="mTrans" min="0" max="10" onchange="saveSett()" /></div>
       </div>
+    </div>
+
+    <div class="slbl">Points series</div>
+    <div class="card">
+      <div style="display:flex;gap:12px;flex-wrap:wrap;align-items:flex-end">
+        <div style="flex:3;min-width:220px">
+          <label>Points by feature finish — 1st, 2nd, 3rd…</label>
+          <input id="ptsTable" type="text" placeholder="10, 8, 6, 5, 4, 3, 2, 1" onchange="savePoints()" autocomplete="off" />
+        </div>
+        <div style="flex:1;min-width:110px">
+          <label>Everyone else</label>
+          <input id="ptsBeyond" type="number" min="0" max="999" onchange="savePoints()" />
+        </div>
+      </div>
+      <p style="font-size:12px;color:var(--muted);margin-top:8px">Feature finish decides points. Make the list as long as your biggest feature — anyone finishing past it, not making the feature, or scoring DNF/DNS/DQ gets the "everyone else" value (use it for show-up points, or 0). Classes count by default; untick "counts toward the points series" on the Results tab for non-points days.</p>
     </div>
 
     <div class="slbl">Today's entries</div>
@@ -419,8 +442,8 @@ function defaults() {
       { id: 2, name: 'Senior 100cc', maxPill: 100 },
       { id: 3, name: 'Open Shifter', maxPill: 100 }
     ],
-    settings: { maxHeat: 8, maxBMain: 12, maxFeature: 20, transfers: 2, gridStyle: 'double' },
-    raceDay: { date: today(), entries: [], heatResults: {} },  // entries: {driverId, classId, pill}
+    settings: { maxHeat: 8, maxBMain: 12, maxFeature: 20, transfers: 2, gridStyle: 'double', points: { table: [10, 8, 6, 5, 4, 3, 2, 1], beyond: 0 } },
+    raceDay: { date: today(), entries: [], heatResults: {}, pointsRace: {} },  // entries: {driverId, classId, pill}
     nextId: 100
   };
 }
@@ -431,6 +454,8 @@ function migrate(s) {
   if (!s.classLib) s.classLib = s.classes.map(c => ({ name: c.name, maxPill: c.maxPill || 100 }));
   if (s.license === undefined) s.license = null;
   if (!s.trialDays) s.trialDays = [];
+  if (!s.settings.points) s.settings.points = { table: [10, 8, 6, 5, 4, 3, 2, 1], beyond: 0 };
+  if (!s.raceDay.pointsRace) s.raceDay.pointsRace = {};
   return s;
 }
 function load() {
@@ -478,7 +503,7 @@ function nav(p) {
   document.querySelectorAll('.page').forEach(el => el.classList.remove('active'));
   document.querySelectorAll('#mainNav button').forEach(b => b.classList.remove('active'));
   document.getElementById('page-' + p).classList.add('active');
-  const idx = ['signup','grid','results','admin'].indexOf(p);
+  const idx = ['signup','grid','results','points','admin'].indexOf(p);
   document.querySelectorAll('#mainNav button')[idx].classList.add('active');
   render(p);
 }
@@ -486,6 +511,7 @@ function render(p) {
   if (p === 'signup') renderRosterPick();
   if (p === 'grid') renderGrid();
   if (p === 'results') renderResults();
+  if (p === 'points') renderPoints();
   if (p === 'admin') renderAdmin();
   checkDayBanner();
   renderLicBanner();
@@ -505,7 +531,7 @@ function newRaceDay() {
     if (!confirm("Start a new race day? Today's entries and results are archived to Race day history, then the board is cleared. The driver book and classes are kept.")) return;
   }
   archiveDay();
-  S.raceDay = { date: today(), entries: [], heatResults: {} };
+  S.raceDay = { date: today(), entries: [], heatResults: {}, pointsRace: {} };
   save();
   resetReg();
   render(curPage);
@@ -961,6 +987,91 @@ function featureData(clsId) {
   return { locked, bmain, transferred: finished.slice(0, transfers), transfers };
 }
 
+// ---------- Points series ----------
+// Feature finish decides points: table[pos-1]; anyone past the table (or
+// DNF/DNS/DQ, or not in the feature) gets the "everyone else" value.
+function isPointsRace(clsId) { return S.raceDay.pointsRace[clsId] !== false; }
+function togglePointsRace(clsId, on) { S.raceDay.pointsRace[clsId] = !!on; save(); renderClassResults(clsId); }
+function featureFinish(clsId) {
+  const fd = featureData(clsId);
+  const res = getRes(clsId);
+  const field = fd.bmain.length ? [...fd.locked, ...fd.transferred] : fd.locked;
+  return field.filter(r => typeof res['ft_' + r.id] === 'number')
+    .sort((a, b) => res['ft_' + a.id] - res['ft_' + b.id])
+    .map(r => ({ id: r.id, name: r.name, num: r.num, fin: res['ft_' + r.id] }));
+}
+function dayPoints(clsId) {
+  if (!isPointsRace(clsId)) return null;
+  const fin = featureFinish(clsId);
+  if (!fin.length) return null;
+  const { table, beyond } = S.settings.points;
+  const pts = {};
+  classRacers(clsId).forEach(r => { pts[r.id] = beyond; });
+  fin.forEach(f => { pts[f.id] = f.fin >= 1 && f.fin <= table.length ? table[f.fin - 1] : beyond; });
+  return pts;
+}
+function seriesClassNames() {
+  const names = new Map();   // series are keyed by class name, stable across class re-creation
+  S.classes.forEach(c => names.set(c.name.toLowerCase(), c.name));
+  S.history.forEach(hd => hd.classes.forEach(c => { if (c.points) names.set(c.name.toLowerCase(), c.name); }));
+  return [...names.values()];
+}
+function seriesStandings(className) {
+  const key = className.toLowerCase();
+  const agg = {};
+  const add = (driverId, name, num, pts) => {
+    const k = driverId != null ? 'd' + driverId : 'n' + String(name).toLowerCase();
+    if (!agg[k]) agg[k] = { name, num, pts: 0, days: 0 };
+    agg[k].pts += pts; agg[k].days++; agg[k].name = name; agg[k].num = num;
+  };
+  S.history.forEach(hd => hd.classes.forEach(c => {
+    if (c.name.toLowerCase() !== key || !c.points) return;
+    c.points.forEach(p => add(p.driverId, p.name, p.num, p.pts));
+  }));
+  const cls = S.classes.find(c => c.name.toLowerCase() === key);
+  if (cls) {
+    const dp = dayPoints(cls.id);
+    if (dp) classRacers(cls.id).forEach(r => add(r.id, r.name, r.num, dp[r.id] || 0));
+  }
+  return Object.values(agg).sort((a, b) => b.pts - a.pts || a.name.localeCompare(b.name));
+}
+function savePoints() {
+  const t = document.getElementById('ptsTable').value.split(/[\s,]+/).map(x => parseInt(x)).filter(n => !isNaN(n) && n >= 0);
+  if (t.length) S.settings.points.table = t;
+  S.settings.points.beyond = Math.max(0, parseInt(document.getElementById('ptsBeyond').value) || 0);
+  save(); renderPointsInputs();
+}
+function renderPointsInputs() {
+  document.getElementById('ptsTable').value = S.settings.points.table.join(', ');
+  document.getElementById('ptsBeyond').value = S.settings.points.beyond;
+}
+let ptsTab = null, ptsNames = [];
+function renderPoints() {
+  const el = document.getElementById('pointsContent');
+  ptsNames = seriesClassNames();
+  if (!ptsNames.length) { el.innerHTML = '<p class="empty">No classes yet — set up classes in Admin first.</p>'; return; }
+  if (!ptsTab || !ptsNames.includes(ptsTab)) ptsTab = ptsNames[0];
+  let h = '<div class="tab-row">' + ptsNames.map((n, i) =>
+    '<button class="tab' + (n === ptsTab ? ' on' : '') + '" onclick="ptsTab=ptsNames[' + i + '];renderPoints()">' + esc(n) + '</button>').join('') + '</div>';
+  const cls = S.classes.find(c => c.name.toLowerCase() === ptsTab.toLowerCase());
+  if (cls && classRacers(cls.id).length) {
+    h += '<p class="sub" style="margin-bottom:12px">' + (isPointsRace(cls.id)
+      ? (dayPoints(cls.id) ? "🟢 Today is a points race — today's feature finishes are counted below." : '🟡 Today is a points race — it counts here once feature finishes are entered on the Results tab.')
+      : '⚪ Today is not a points race for this class (toggle on the Results tab).') + '</p>';
+  }
+  const rows = seriesStandings(ptsTab);
+  if (!rows.length) {
+    h += '<p class="empty">No points yet — they appear once feature finishes are entered on the Results tab, and add up as race days are archived.</p>';
+  } else {
+    h += '<div class="card"><table><thead><tr><th></th><th>Driver</th><th>#</th><th>Points</th><th>Races</th></tr></thead><tbody>'
+      + rows.map((r, i) => '<tr><td style="font-weight:800;font-family:var(--display)">' + (i + 1) + '</td>'
+        + '<td style="font-weight:600">' + esc(r.name) + '</td><td>#' + esc(r.num) + '</td>'
+        + '<td><span class="pts-badge">' + r.pts + '</span></td><td style="color:var(--muted)">' + r.days + '</td></tr>').join('')
+      + '</tbody></table></div>';
+  }
+  el.innerHTML = h;
+}
+
 function finSelect(clsId, rk, n, val) {
   let o = '<option value="">—</option>';
   for (let i = 1; i <= n; i++) o += '<option value="' + i + '"' + (val == i ? ' selected' : '') + '>' + i + '</option>';
@@ -985,12 +1096,16 @@ function heatEntryBlock(clsId, set, heats, label, invClass) {
 
 function renderClassResults(clsId) {
   const el = document.getElementById('resBody');
+  if (!el) return;   // results pane not on screen
   const racers = classRacers(clsId);
   if (!racers.length) { el.innerHTML = '<p class="empty">No drivers in this class.</p>'; return; }
   const set1 = buildHeats(racers, S.settings.maxHeat);
   const set2 = set1.map(heat => [...heat].reverse());
   const res = getRes(clsId);
-  let h = heatEntryBlock(clsId, 'h1', set1, 'Set 1 heats — pill order', '');
+  let h = '<label style="display:flex;align-items:center;gap:8px;margin:0 0 6px;font-size:13.5px;font-weight:600;cursor:pointer">'
+    + '<input type="checkbox" style="width:18px;height:18px"' + (isPointsRace(clsId) ? ' checked' : '') + ' onchange="togglePointsRace(' + clsId + ',this.checked)">'
+    + 'Today counts toward the points series</label>';
+  h += heatEntryBlock(clsId, 'h1', set1, 'Set 1 heats — pill order', '');
   h += heatEntryBlock(clsId, 'h2', set2, 'Set 2 heats — inverted', ' inv');
 
   const standings = calcStandings(clsId);
@@ -1017,22 +1132,29 @@ function renderClassResults(clsId) {
     h += '</div>';
   }
 
-  h += '<div class="slbl">Feature lineup</div><div class="hb"><div class="hh feat"><span>🏁 Feature</span><small>'
-    + (fd.bmain.length ? fd.locked.length + ' on heat totals + ' + fd.transfers + ' from the B-main' : 'lined up by heat totals') + '</small></div>';
+  const ftField = fd.locked.length + (fd.bmain.length ? fd.transfers : 0);
+  const dp = dayPoints(clsId);
+  const ftRow = (s, pos, tag) => {
+    const fin = res['ft_' + s.id];
+    return '<div class="hr"><div class="pnum">P' + pos + '</div>'
+      + '<div class="nm"><b>' + esc(s.name) + '</b> <span>#' + esc(s.num) + '</span></div>'
+      + tag
+      + (dp && fin != null ? '<span class="transfer-tag">+' + (typeof fin === 'number' ? dp[s.id] : S.settings.points.beyond) + ' pts</span>' : '')
+      + finSelect(clsId, 'ft_' + s.id, ftField, fin) + '</div>';
+  };
+  h += '<div class="slbl">Feature lineup &amp; finish</div><div class="hb"><div class="hh feat"><span>🏁 Feature</span><small>'
+    + (fd.bmain.length ? fd.locked.length + ' on heat totals + ' + fd.transfers + ' from the B-main' : 'lined up by heat totals')
+    + (isPointsRace(clsId) ? ' · finishes award series points' : '') + '</small></div>';
   let pos = 0;
   fd.locked.forEach(s => {
-    pos++; const pt = posText(pos);
-    h += '<div class="hr"><div class="pnum">P' + pos + '</div>'
-      + '<div class="nm"><b>' + esc(s.name) + '</b> <span>#' + esc(s.num) + '</span></div>'
-      + '<span class="pts-badge">' + s.pts + '</span><small style="color:var(--muted)">Row ' + pt.row + ' · ' + pt.side + '</small></div>';
+    pos++;
+    h += ftRow(s, pos, '<span class="pts-badge">' + s.pts + '</span>');
   });
   if (fd.bmain.length) {
     for (let t = 0; t < fd.transfers; t++) {
-      pos++; const pt = posText(pos); const r = fd.transferred[t];
+      pos++; const r = fd.transferred[t];
       if (r) {
-        h += '<div class="hr"><div class="pnum">P' + pos + '</div>'
-          + '<div class="nm"><b>' + esc(r.name) + '</b> <span>#' + esc(r.num) + '</span></div>'
-          + '<span class="transfer-tag">B-main P' + res['bm_' + r.id] + '</span><small style="color:var(--muted)">Row ' + pt.row + ' · ' + pt.side + '</small></div>';
+        h += ftRow(r, pos, '<span class="transfer-tag">B-main P' + res['bm_' + r.id] + '</span>');
       } else {
         h += '<div class="hr"><div class="pnum">P' + pos + '</div><div class="nm tbd">B-main transfer — pick the B-main finishes to fill this spot</div></div>';
       }
@@ -1054,10 +1176,14 @@ function buildSnapshot() {
     const standings = calcStandings(cls.id);
     if (!standings.length) return;
     const fd = featureData(cls.id);
+    const dp = dayPoints(cls.id);
     snap.classes.push({
       name: cls.name,
       standings: standings.map((s, i) => ({ pos: i + 1, name: s.name, num: s.num, pill: s.pill, f1: s.f1 != null ? s.f1 : '', f2: s.f2 != null ? s.f2 : '', pts: s.scored ? s.pts : '' })),
-      feature: [...fd.locked, ...fd.transferred].map(s => ({ name: s.name, num: s.num }))
+      feature: [...fd.locked, ...fd.transferred].map(s => ({ name: s.name, num: s.num })),
+      featureFinish: featureFinish(cls.id).map(f => ({ driverId: f.id, name: f.name, num: f.num, fin: f.fin })),
+      pointsRace: isPointsRace(cls.id),
+      points: dp ? classRacers(cls.id).map(r => ({ driverId: r.id, name: r.name, num: r.num, pts: dp[r.id] || 0 })) : null
     });
   });
   return snap;
@@ -1213,7 +1339,7 @@ function removeLogo() {
 
 // ---------- Admin ----------
 function renderAdmin() {
-  renderClsList(); renderClsLib(); renderQuickAdd(); renderEntryList(); renderRosterList(); renderHistory(); renderPinCard(); renderLicCard();
+  renderClsList(); renderClsLib(); renderQuickAdd(); renderEntryList(); renderRosterList(); renderHistory(); renderPinCard(); renderLicCard(); renderPointsInputs();
   document.getElementById('trackName').value = S.track.name;
   const prev = document.getElementById('logoPrev');
   if (S.track.logo) { prev.src = S.track.logo; prev.style.display = ''; }
@@ -1531,7 +1657,7 @@ function seedDemo() {
   if (!confirm('Load a demo race day with 25 sample drivers? Current entries are archived to history first (driver book is kept).')) return;
   archiveDay();
   const demoNames = ['Ava Brooks','Ben Carter','Cody Diaz','Dana Evans','Eli Ford','Finn Gray','Gia Hall','Hank Irwin','Ivy James','Jax King','Kya Lane','Leo Moss','Mia Nash','Noah Otis','Opal Pratt','Quinn Reed','Rio Sands','Sky Tate','Tess Uri','Uma Vance','Vic Webb','Wes Xu','Yara York','Zane Zell','Pat Quick'];
-  S.raceDay = { date: today(), entries: [], heatResults: {} };
+  S.raceDay = { date: today(), entries: [], heatResults: {}, pointsRace: {} };
   demoNames.forEach((name, i) => {
     let d = findRosterMatch(name);
     if (!d) { d = { id: S.nextId++, name, num: String(i + 1) }; S.roster.push(d); }
