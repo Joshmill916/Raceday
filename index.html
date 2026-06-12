@@ -1604,7 +1604,7 @@ function tvGridMarkup(racers, single) {
     h += '<div class="tv-slot' + (pos === 1 ? ' pole' : '') + '" style="font-size:' + fs.toFixed(2) + 'vh">'
       + '<span class="tv-pos">P' + pos + '</span>'
       + '<span class="tv-disc" style="width:' + disc.toFixed(2) + 'vh;height:' + disc.toFixed(2) + 'vh;font-size:' + (disc * df).toFixed(2) + 'vh">' + esc(String(r.num)) + '</span>'
-      + '<span class="tv-nm">' + esc(r.name) + '</span><span class="tv-num">' + esc(r.tag || 'Pill ' + r.pill) + '</span></div>';
+      + '<span class="tv-nm">' + esc(r.name) + '</span>' + (r.tag ? '<span class="tv-num">' + esc(r.tag) + '</span>' : '') + '</div>';
   });
   return h + '</div>';
 }
