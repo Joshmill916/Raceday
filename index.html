@@ -816,12 +816,18 @@ function resetReg() {
 // ---------- Lineups: starting grid + heats, one view ----------
 function setGridStyle(s) { S.settings.gridStyle = s; save(); renderGrid(); }
 
+function discNum(num) {
+  const s = String(num);   // vehicle number on the plate; shrink for long numbers like 123x
+  const f = s.length <= 2 ? '' : ' style="font-size:' + (s.length === 3 ? 13 : 11) + 'px"';
+  return '<div class="disc sm"' + f + '>' + esc(s) + '</div>';
+}
 function gridMarkup(racers, single) {
+  const sub = r => r.tag || ('Pill #' + r.pill);
   if (single) {
     let h = '<div class="hb">';
     racers.forEach((r, i) => {
-      h += '<div class="hr"><div class="pnum">P' + (i + 1) + '</div><div class="disc sm">' + r.pill + '</div>'
-        + '<div class="nm"><b>' + esc(r.name) + '</b> <span>#' + esc(r.num) + '</span></div>'
+      h += '<div class="hr"><div class="pnum">P' + (i + 1) + '</div>' + discNum(r.num)
+        + '<div class="nm"><b>' + esc(r.name) + '</b> <span>' + esc(sub(r)) + '</span></div>'
         + (i === 0 ? '<span class="poletag" style="position:static"></span>' : '') + '</div>';
     });
     return h + '</div>';
@@ -832,8 +838,8 @@ function gridMarkup(racers, single) {
     h += '<div class="slot ' + (pos % 2 ? 'inside' : 'outside') + (pos === 1 ? ' pole' : '') + '">'
       + (pos % 2 ? '<span class="rowlbl">Row ' + pt.row + '</span>' : '')
       + (pos === 1 ? '<span class="poletag"></span>' : '')
-      + '<div class="posn">P' + pos + '</div><div class="disc sm">' + r.pill + '</div>'
-      + '<div class="who"><b>' + esc(r.name) + '</b><span>#' + esc(r.num) + '</span></div></div>';
+      + '<div class="posn">P' + pos + '</div>' + discNum(r.num)
+      + '<div class="who"><b>' + esc(r.name) + '</b><span>' + esc(sub(r)) + '</span></div></div>';
   });
   return h + '</div>';
 }
@@ -869,7 +875,7 @@ function renderGrid() {
     // once every heat finish is entered, the main-event grids post here too
     if (classComplete(cls.id)) {
       const fd = featureData(cls.id);
-      const toRow = s => ({ name: s.name, num: s.num, pill: s.pts });   // disc shows the heat total — the "race pill"
+      const toRow = s => ({ name: s.name, num: s.num, tag: 'Heat total ' + s.pts });
       if (fd.bmain.length) {
         h += '<div class="slbl">B-main — lined up by heat total · top ' + fd.transfers + ' transfer</div>' + gridMarkup(fd.bmain.map(toRow), single);
         if (fd.transferred.length >= fd.transfers) {
@@ -1569,7 +1575,7 @@ function tvSlides() {
     }
     if (classComplete(cls.id)) {
       const fd = featureData(cls.id);
-      const toRow = s => ({ name: s.name, num: s.num, pill: s.pts });
+      const toRow = s => ({ name: s.name, num: s.num, tag: 'Total ' + s.pts });
       if (fd.bmain.length) {
         slides.push({ title: cls.name, sub: 'B-main — top ' + fd.transfers + ' transfer', racers: fd.bmain.map(toRow) });
         if (fd.transferred.length >= fd.transfers) slides.push({ title: cls.name, sub: '🏁 Feature lineup', racers: [...fd.locked, ...fd.transferred].map(toRow) });
@@ -1589,10 +1595,12 @@ function tvGridMarkup(racers, single) {
   h += '<div class="' + (single ? 'tv-list' : 'tv-grid2') + '">';
   racers.forEach((r, i) => {
     const pos = i + 1;
+    const len = String(r.num).length;
+    const df = len <= 2 ? 0.42 : len === 3 ? 0.33 : 0.26;   // vehicle number on the plate, shrunk for long numbers
     h += '<div class="tv-slot' + (pos === 1 ? ' pole' : '') + '" style="font-size:' + fs.toFixed(2) + 'vh">'
       + '<span class="tv-pos">P' + pos + '</span>'
-      + '<span class="tv-disc" style="width:' + disc.toFixed(2) + 'vh;height:' + disc.toFixed(2) + 'vh;font-size:' + (disc * 0.42).toFixed(2) + 'vh">' + r.pill + '</span>'
-      + '<span class="tv-nm">' + esc(r.name) + '</span><span class="tv-num">#' + esc(r.num) + '</span></div>';
+      + '<span class="tv-disc" style="width:' + disc.toFixed(2) + 'vh;height:' + disc.toFixed(2) + 'vh;font-size:' + (disc * df).toFixed(2) + 'vh">' + esc(String(r.num)) + '</span>'
+      + '<span class="tv-nm">' + esc(r.name) + '</span><span class="tv-num">' + esc(r.tag || 'Pill ' + r.pill) + '</span></div>';
   });
   return h + '</div>';
 }
