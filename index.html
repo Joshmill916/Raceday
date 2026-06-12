@@ -195,6 +195,10 @@
         <label>Driver name</label>
         <input id="dName" type="text" placeholder="Full name" autocomplete="off" oninput="suggest()" />
         <div class="sugg" id="suggBox"></div>
+        <div id="rosterPick" style="display:none">
+          <label>Raced here before? Tap your name — no typing needed</label>
+          <div class="sugg" id="rosterPickList" style="max-height:172px;overflow-y:auto"></div>
+        </div>
         <label>Vehicle number</label>
         <input id="dNum" type="text" inputmode="numeric" placeholder="e.g. 47" maxlength="4" autocomplete="off" />
         <div id="e1" class="err" style="display:none"></div>
@@ -276,6 +280,7 @@
       </div>
       <p style="font-size:12px;color:var(--muted);margin-top:8px">"Pills" is the highest pill number in that class's draw (pills run 1 up to this number).</p>
       <div id="clsList" style="margin-top:12px"></div>
+      <div id="clsLib"></div>
     </div>
 
     <div class="slbl">Race format</div>
@@ -290,6 +295,13 @@
 
     <div class="slbl">Today's entries</div>
     <div class="card">
+      <label>Quick add from the driver book</label>
+      <div style="display:flex;gap:8px;flex-wrap:wrap">
+        <select id="qaDriver" style="flex:2;min-width:170px;width:auto"></select>
+        <select id="qaClass" style="flex:1.4;min-width:130px;width:auto"></select>
+        <button class="btn btn-primary" onclick="quickAdd()">Add + draw pill</button>
+      </div>
+      <hr class="divider">
       <input id="entrySearch" type="text" placeholder="Find a driver — search name, vehicle #, or class" oninput="renderEntryList()" autocomplete="off" />
       <div id="entryList" style="margin-top:12px"></div>
       <p style="font-size:12px;color:var(--muted);margin-top:8px">Removing an entry pulls that driver from that class only — the pill goes back in the draw and their other classes are untouched.</p>
@@ -337,6 +349,11 @@ function defaults() {
     track: { name: '', logo: '' },                // track identity: logo is a data URL
     adminPin: '',                                 // empty = Admin tab is open to everyone
     history: [],                                  // archived race days (newest first)
+    classLib: [                                   // every class name ever used: {name, maxPill}
+      { name: 'Junior 80cc', maxPill: 100 },
+      { name: 'Senior 100cc', maxPill: 100 },
+      { name: 'Open Shifter', maxPill: 100 }
+    ],
     roster: [],                                   // persistent driver book: {id, name, num}
     classes: [
       { id: 1, name: 'Junior 80cc', maxPill: 100 },
@@ -352,6 +369,7 @@ function migrate(s) {
   if (!s.track) s.track = { name: '', logo: '' };
   if (!s.history) s.history = [];
   if (s.adminPin == null) s.adminPin = '';
+  if (!s.classLib) s.classLib = s.classes.map(c => ({ name: c.name, maxPill: c.maxPill || 100 }));
   return s;
 }
 function load() {
@@ -404,6 +422,7 @@ function nav(p) {
   render(p);
 }
 function render(p) {
+  if (p === 'signup') renderRosterPick();
   if (p === 'grid') renderGrid();
   if (p === 'results') renderResults();
   if (p === 'admin') renderAdmin();
@@ -477,11 +496,21 @@ function removePin() {
 function suggest() {
   const q = document.getElementById('dName').value.trim().toLowerCase();
   const box = document.getElementById('suggBox');
-  if (q.length < 2) { box.innerHTML = ''; return; }
+  renderRosterPick();
+  if (q.length < 1) { box.innerHTML = ''; return; }
   const hits = S.roster.filter(d => d.name.toLowerCase().includes(q) || String(d.num) === q).slice(0, 5);
   box.innerHTML = hits.map(d =>
     '<button onclick="pickRoster(' + d.id + ')"><b>' + esc(d.name) + '</b>&nbsp; #' + esc(d.num) + '</button>'
   ).join('');
+}
+function renderRosterPick() {
+  const wrap = document.getElementById('rosterPick');
+  if (!S.roster.length || document.getElementById('dName').value.trim()) { wrap.style.display = 'none'; return; }
+  wrap.style.display = '';
+  document.getElementById('rosterPickList').innerHTML = [...S.roster]
+    .sort((a, b) => a.name.localeCompare(b.name))
+    .map(d => '<button onclick="pickRoster(' + d.id + ')"><b>' + esc(d.name) + '</b>&nbsp; #' + esc(d.num) + '</button>')
+    .join('');
 }
 function pickRoster(id) {
   const d = driverById(id);
@@ -489,6 +518,7 @@ function pickRoster(id) {
   document.getElementById('dName').value = d.name;
   document.getElementById('dNum').value = d.num;
   document.getElementById('suggBox').innerHTML = '';
+  step2();   // returning driver: skip straight to class picking
 }
 function step2() {
   const name = document.getElementById('dName').value.trim();
@@ -580,6 +610,7 @@ function resetReg() {
   document.getElementById('suggBox').innerHTML = '';
   document.getElementById('e1').style.display = 'none';
   document.getElementById('e2').style.display = 'none';
+  renderRosterPick();
   showStep(1);
   if (curPage === 'signup') document.getElementById('dName').focus();
 }
@@ -1006,7 +1037,7 @@ function removeLogo() {
 
 // ---------- Admin ----------
 function renderAdmin() {
-  renderClsList(); renderEntryList(); renderRosterList(); renderHistory(); renderPinCard();
+  renderClsList(); renderClsLib(); renderQuickAdd(); renderEntryList(); renderRosterList(); renderHistory(); renderPinCard();
   document.getElementById('trackName').value = S.track.name;
   const prev = document.getElementById('logoPrev');
   if (S.track.logo) { prev.src = S.track.logo; prev.style.display = ''; }
@@ -1054,27 +1085,79 @@ function renderClsList() {
       + '<button class="btn btn-sm btn-danger" onclick="delClass(' + c.id + ')">Remove</button></div>';
   }).join('');
 }
+function rememberClass(name, maxPill) {
+  const hit = S.classLib.find(x => x.name.toLowerCase() === name.toLowerCase());
+  if (hit) { hit.name = name; hit.maxPill = maxPill; }
+  else S.classLib.push({ name, maxPill });
+}
 function setClassMax(id, val) {
   const c = classById(id); if (!c) return;
   const used = pillsUsed(id).size;
   c.maxPill = Math.max(2, used, parseInt(val) || 100);
+  rememberClass(c.name, c.maxPill);
   save(); renderClsList();
 }
 function addClass() {
   const nameEl = document.getElementById('newClass'), maxEl = document.getElementById('newClassMax');
   const name = nameEl.value.trim();
   if (!name) return;
-  S.classes.push({ id: Date.now(), name, maxPill: Math.max(2, parseInt(maxEl.value) || 100) });
+  const maxPill = Math.max(2, parseInt(maxEl.value) || 100);
+  S.classes.push({ id: Date.now(), name, maxPill });
+  rememberClass(name, maxPill);
   nameEl.value = ''; maxEl.value = '100';
-  save(); renderClsList();
+  save(); renderClsList(); renderClsLib();
 }
 function delClass(id) {
   const cnt = classRacers(id).length;
-  if (!confirm('Remove this class?' + (cnt ? ' ' + cnt + " of today's entries in it will be removed too." : ''))) return;
+  if (!confirm('Remove this class?' + (cnt ? ' ' + cnt + " of today's entries in it will be removed too." : '') + ' Its name stays under saved classes for one-tap re-adding.')) return;
   S.classes = S.classes.filter(c => c.id !== id);
   S.raceDay.entries = S.raceDay.entries.filter(e => e.classId !== id);
   delete S.raceDay.heatResults[resKey(id)];
   save(); renderAdmin();
+}
+function renderClsLib() {
+  const el = document.getElementById('clsLib');
+  const active = new Set(S.classes.map(c => c.name.toLowerCase()));
+  const lib = S.classLib.map((x, i) => ({ ...x, i })).filter(x => !active.has(x.name.toLowerCase()));
+  if (!lib.length) { el.innerHTML = ''; return; }
+  el.innerHTML = '<label style="margin-top:14px">Saved classes — tap to re-add</label><div class="sugg">'
+    + lib.map(x => '<button onclick="readdClass(' + x.i + ')">+ <b>' + esc(x.name) + '</b></button>').join('')
+    + '</div>';
+}
+function readdClass(i) {
+  const x = S.classLib[i]; if (!x) return;
+  if (S.classes.some(c => c.name.toLowerCase() === x.name.toLowerCase())) return;
+  S.classes.push({ id: Date.now(), name: x.name, maxPill: Math.max(2, x.maxPill || 100) });
+  save(); renderAdmin();
+}
+
+// Quick entry: returning driver + class, one tap, pill drawn automatically
+function renderQuickAdd() {
+  document.getElementById('qaDriver').innerHTML = S.roster.length
+    ? [...S.roster].sort((a, b) => a.name.localeCompare(b.name))
+        .map(d => '<option value="' + d.id + '">' + esc(d.name) + ' — #' + esc(d.num) + '</option>').join('')
+    : '<option value="">No saved drivers yet</option>';
+  document.getElementById('qaClass').innerHTML = S.classes.length
+    ? S.classes.map(c => '<option value="' + c.id + '">' + esc(c.name) + '</option>').join('')
+    : '<option value="">No classes set up</option>';
+}
+function quickAdd() {
+  const d = driverById(parseInt(document.getElementById('qaDriver').value));
+  const c = classById(parseInt(document.getElementById('qaClass').value));
+  if (!d || !c) { alert('Pick a driver and a class first.'); return; }
+  if (S.raceDay.entries.some(e => e.driverId === d.id && e.classId === c.id)) { alert(d.name + ' is already entered in ' + c.name + ' today.'); return; }
+  const clash = S.raceDay.entries.find(e => {
+    if (e.classId !== c.id || e.driverId === d.id) return false;
+    const o = driverById(e.driverId);
+    return o && String(o.num).toLowerCase() === String(d.num).toLowerCase();
+  });
+  if (clash) { alert('Number #' + d.num + ' is already racing in ' + c.name + ' — change one of the numbers first.'); return; }
+  const pill = drawPill(c.id);
+  if (pill === null) { alert('All pills are taken in ' + c.name + ' — raise its pill count above.'); return; }
+  S.raceDay.entries.push({ driverId: d.id, classId: c.id, pill });
+  save();
+  renderAdmin();
+  alert('🏁 ' + d.name + ' is in ' + c.name + ' — pill #' + pill);
 }
 function renderEntryList() {
   const el = document.getElementById('entryList');
@@ -1143,6 +1226,7 @@ function seedDemo() {
 // ---------- Live sync across tabs + init ----------
 window.addEventListener('storage', e => { if (e.key === KEY) { S = load(); renderHeader(); render(curPage); } });
 renderHeader();
+renderRosterPick();
 checkDayBanner();
 renderGrid();
 </script>
