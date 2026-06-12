@@ -1579,7 +1579,7 @@ function tvSlides() {
     }
     if (classComplete(cls.id)) {
       const fd = featureData(cls.id);
-      const toRow = s => ({ name: s.name, num: s.num, tag: 'Heat total ' + s.pts });
+      const toRow = s => ({ name: s.name, num: s.num });   // TV shows positions and vehicle numbers only
       if (fd.bmain.length) {
         slides.push({ title: cls.name, sub: 'B-main — top ' + fd.transfers + ' transfer', racers: fd.bmain.map(toRow) });
         if (fd.transferred.length >= fd.transfers) slides.push({ title: cls.name, sub: '🏁 Feature lineup', racers: [...fd.locked, ...fd.transferred].map(toRow) });
