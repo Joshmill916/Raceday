@@ -164,8 +164,13 @@
 
 <div class="container">
   <div class="header">
-    <div class="brand">Race<em>Day</em></div>
-    <div class="tag">Driver registration &amp; live starting lineups</div>
+    <div style="display:flex;align-items:center;gap:14px">
+      <img id="hdrLogo" alt="Track logo" style="display:none;height:46px;max-width:130px;object-fit:contain">
+      <div>
+        <div class="brand" id="hdrBrand">Race<em>Day</em></div>
+        <div class="tag" id="hdrTag">Driver registration &amp; live starting lineups</div>
+      </div>
+    </div>
   </div>
   <div class="checker"></div>
 
@@ -237,7 +242,30 @@
 
   <!-- ADMIN -->
   <div id="page-admin" class="page">
-    <h2>Admin</h2>
+    <div style="display:flex;align-items:center;gap:10px;flex-wrap:wrap">
+      <h2 style="margin-bottom:0">Admin</h2>
+      <button class="btn btn-sm" id="lockBtn" onclick="lockAdmin()" style="margin-left:auto;display:none">🔒 Lock admin</button>
+    </div>
+
+    <div class="slbl">Track identity</div>
+    <div class="card">
+      <div style="display:flex;gap:20px;align-items:flex-start;flex-wrap:wrap">
+        <div style="flex:1;min-width:220px">
+          <label>Track name</label>
+          <input id="trackName" type="text" placeholder="e.g. Riverside Kart Speedway" onchange="saveTrack()" />
+        </div>
+        <div>
+          <label>Track logo</label>
+          <div style="display:flex;align-items:center;gap:10px;flex-wrap:wrap">
+            <img id="logoPrev" alt="Logo preview" style="display:none;height:52px;max-width:130px;object-fit:contain;border:1px solid var(--line);border-radius:8px;background:#fff;padding:4px">
+            <button class="btn btn-sm" onclick="document.getElementById('logoFile').click()">Upload logo</button>
+            <button class="btn btn-sm btn-danger" id="logoRemove" style="display:none" onclick="removeLogo()">Remove</button>
+            <input id="logoFile" type="file" accept="image/*" style="display:none" onchange="uploadLogo(this)">
+          </div>
+        </div>
+      </div>
+      <p style="font-size:12px;color:var(--muted);margin-top:10px">The name and logo show in the header and on printed lineups.</p>
+    </div>
 
     <div class="slbl">Race classes</div>
     <div class="card">
@@ -261,10 +289,32 @@
     </div>
 
     <div class="slbl">Today's entries</div>
-    <div class="card" id="entryList"></div>
+    <div class="card">
+      <input id="entrySearch" type="text" placeholder="Find a driver — search name, vehicle #, or class" oninput="renderEntryList()" autocomplete="off" />
+      <div id="entryList" style="margin-top:12px"></div>
+      <p style="font-size:12px;color:var(--muted);margin-top:8px">Removing an entry pulls that driver from that class only — the pill goes back in the draw and their other classes are untouched.</p>
+    </div>
 
     <div class="slbl">Driver book <span style="font-weight:500;text-transform:none;letter-spacing:0">— saved across race days</span></div>
     <div class="card" id="rosterList"></div>
+
+    <div class="slbl">Backup &amp; export</div>
+    <div class="card">
+      <div style="display:flex;gap:10px;flex-wrap:wrap">
+        <button class="btn" onclick="exportBackup()">⬇ Download full backup</button>
+        <button class="btn" onclick="document.getElementById('importFile').click()">⬆ Restore from backup</button>
+        <input id="importFile" type="file" accept=".json,application/json" style="display:none" onchange="importBackup(this)">
+        <button class="btn" onclick="exportEntriesCSV()">Entries → CSV</button>
+        <button class="btn" onclick="exportResultsCSV()">Results → CSV</button>
+      </div>
+      <p style="font-size:12px;color:var(--muted);margin-top:8px">This app stores everything in this browser only. Download a backup now and then — restoring it on any device brings back the driver book, classes, settings, history, and today's race day.</p>
+    </div>
+
+    <div class="slbl">Race day history</div>
+    <div class="card" id="historyList"></div>
+
+    <div class="slbl">Admin PIN</div>
+    <div class="card" id="pinCard"></div>
 
     <div class="slbl">Danger zone</div>
     <div class="card">
@@ -273,7 +323,7 @@
         <button class="btn" onclick="seedDemo()">Load demo race day</button>
         <button class="btn btn-danger" onclick="resetAll()">Erase everything</button>
       </div>
-      <p style="font-size:12px;color:var(--muted);margin-top:8px">A new race day clears today's entries, pills, and results — the driver book and classes are kept. Erase everything wipes the driver book too.</p>
+      <p style="font-size:12px;color:var(--muted);margin-top:8px">A new race day archives today's entries and results to history, then clears the board — the driver book and classes are kept. Erase everything wipes the driver book, history, and track settings too.</p>
     </div>
   </div>
 </div>
@@ -284,6 +334,9 @@ const KEY = 'raceday_v1';
 function today() { const d = new Date(); return d.getFullYear()+'-'+String(d.getMonth()+1).padStart(2,'0')+'-'+String(d.getDate()).padStart(2,'0'); }
 function defaults() {
   return {
+    track: { name: '', logo: '' },                // track identity: logo is a data URL
+    adminPin: '',                                 // empty = Admin tab is open to everyone
+    history: [],                                  // archived race days (newest first)
     roster: [],                                   // persistent driver book: {id, name, num}
     classes: [
       { id: 1, name: 'Junior 80cc', maxPill: 100 },
@@ -295,8 +348,14 @@ function defaults() {
     nextId: 100
   };
 }
+function migrate(s) {
+  if (!s.track) s.track = { name: '', logo: '' };
+  if (!s.history) s.history = [];
+  if (s.adminPin == null) s.adminPin = '';
+  return s;
+}
 function load() {
-  try { const raw = localStorage.getItem(KEY); if (raw) { const s = JSON.parse(raw); if (s && s.raceDay && s.classes) return s; } } catch(e) {}
+  try { const raw = localStorage.getItem(KEY); if (raw) { const s = JSON.parse(raw); if (s && s.raceDay && s.classes) return migrate(s); } } catch(e) {}
   return defaults();
 }
 function save() { try { localStorage.setItem(KEY, JSON.stringify(S)); } catch(e) {} }
@@ -335,6 +394,7 @@ function buildHeats(racers, max) {
 
 // ---------- Navigation ----------
 function nav(p) {
+  if (p === 'admin' && !adminOk()) return;
   curPage = p;
   document.querySelectorAll('.page').forEach(el => el.classList.remove('active'));
   document.querySelectorAll('#mainNav button').forEach(b => b.classList.remove('active'));
@@ -359,22 +419,58 @@ function checkDayBanner() {
   } else { b.style.display = 'none'; }
 }
 function newRaceDay() {
+  if (!adminOk()) return;
   if (S.raceDay.entries.length || Object.keys(S.raceDay.heatResults).length) {
-    if (!confirm("Start a new race day? Today's entries, pills, and results will be cleared. The driver book and classes are kept.")) return;
+    if (!confirm("Start a new race day? Today's entries and results are archived to Race day history, then the board is cleared. The driver book and classes are kept.")) return;
   }
+  archiveDay();
   S.raceDay = { date: today(), entries: [], heatResults: {} };
   save();
   resetReg();
   render(curPage);
 }
 function resetAll() {
-  if (!confirm('Erase EVERYTHING — driver book, classes, settings, and all results? This cannot be undone.')) return;
-  if (!confirm('Last check: this wipes the saved driver book too. Erase it all?')) return;
+  if (!confirm('Erase EVERYTHING — driver book, classes, settings, history, and all results? This cannot be undone.')) return;
+  if (!confirm('Last check: this wipes the saved driver book and race day history too. Erase it all?')) return;
   localStorage.removeItem(KEY);
+  sessionStorage.removeItem('rd_admin_ok');
   S = defaults();
   save();
+  renderHeader();
   resetReg();
   render(curPage);
+}
+
+// ---------- Admin PIN ----------
+function adminOk() {
+  if (!S.adminPin || sessionStorage.getItem('rd_admin_ok') === '1') return true;
+  const t = prompt('Enter the admin PIN');
+  if (t === null) return false;
+  if (t === S.adminPin) { sessionStorage.setItem('rd_admin_ok', '1'); return true; }
+  alert('Wrong PIN.');
+  return false;
+}
+function lockAdmin() {
+  sessionStorage.removeItem('rd_admin_ok');
+  nav('signup');
+}
+function setPin() {
+  const p1 = prompt(S.adminPin ? 'Choose a new admin PIN (4–8 digits)' : 'Choose an admin PIN (4–8 digits)');
+  if (p1 === null) return;
+  if (!/^\d{4,8}$/.test(p1)) { alert('The PIN must be 4–8 digits.'); return; }
+  const p2 = prompt('Type it again to confirm');
+  if (p2 !== p1) { if (p2 !== null) alert("The PINs didn't match — nothing was changed."); return; }
+  S.adminPin = p1;
+  sessionStorage.setItem('rd_admin_ok', '1');
+  save();
+  renderAdmin();
+}
+function removePin() {
+  if (prompt('Enter the current PIN to remove it') !== S.adminPin) { alert('Wrong PIN.'); return; }
+  S.adminPin = '';
+  sessionStorage.removeItem('rd_admin_ok');
+  save();
+  renderAdmin();
 }
 
 // ---------- Sign-up ----------
@@ -570,7 +666,11 @@ function printHeats() {
     + 'table{width:100%;border-collapse:collapse;margin-bottom:12px}'
     + 'th,td{border:1px solid #bbb;padding:6px 8px;text-align:left}th{background:#eee;font-weight:700}'
     + '.inv td{background:#fffbe8}.inv th{background:#f3e6bd}'
-    + '</style></head><body><h1>Heat Assignments</h1><p>Generated: ' + new Date().toLocaleString() + '</p>';
+    + '.phead{display:flex;align-items:center;gap:14px;margin-bottom:4px}.phead img{height:54px;max-width:140px;object-fit:contain}'
+    + '</style></head><body><div class="phead">'
+    + (S.track.logo ? '<img src="' + S.track.logo + '" alt="">' : '')
+    + '<h1>' + (S.track.name ? esc(S.track.name) + ' — ' : '') + 'Heat Assignments</h1></div>'
+    + '<p>Race day: ' + esc(S.raceDay.date) + ' · Generated: ' + new Date().toLocaleString() + '</p>';
   S.classes.forEach(cls => {
     const racers = classRacers(cls.id);
     if (!racers.length) return;
@@ -739,13 +839,200 @@ function renderClassResults(clsId) {
   el.innerHTML = h;
 }
 
+// ---------- Snapshots, history & export ----------
+// A snapshot freezes today's standings so history survives later class/roster edits.
+function buildSnapshot() {
+  const snap = { date: S.raceDay.date, savedAt: Date.now(), classes: [] };
+  S.classes.forEach(cls => {
+    const standings = calcStandings(cls.id);
+    if (!standings.length) return;
+    const fd = featureData(cls.id);
+    snap.classes.push({
+      name: cls.name,
+      standings: standings.map((s, i) => ({ pos: i + 1, name: s.name, num: s.num, pill: s.pill, f1: s.f1 != null ? s.f1 : '', f2: s.f2 != null ? s.f2 : '', pts: s.scored ? s.pts : '' })),
+      feature: [...fd.locked, ...fd.transferred].map(s => ({ name: s.name, num: s.num }))
+    });
+  });
+  return snap;
+}
+function archiveDay() {
+  const snap = buildSnapshot();
+  if (!snap.classes.length) return;
+  S.history.unshift(snap);
+  if (S.history.length > 60) S.history.length = 60;
+}
+
+let histOpen = null;
+function renderHistory() {
+  const el = document.getElementById('historyList');
+  if (!S.history.length) { el.innerHTML = '<p class="empty">Nothing archived yet — a finished race day lands here when you start a new one.</p>'; return; }
+  el.innerHTML = S.history.map((hd, i) => {
+    const drivers = hd.classes.reduce((n, c) => n + c.standings.length, 0);
+    let h = '<div style="border-bottom:1px solid #f0f0eb;padding:10px 0">'
+      + '<div style="display:flex;align-items:center;gap:10px;flex-wrap:wrap">'
+      + '<b style="font-family:var(--display);font-size:16px">' + esc(hd.date) + '</b>'
+      + '<span style="font-size:12px;color:var(--muted)">' + hd.classes.length + (hd.classes.length === 1 ? ' class' : ' classes') + ' · ' + drivers + ' entries</span>'
+      + '<span style="margin-left:auto;display:flex;gap:6px">'
+      + '<button class="btn btn-sm" onclick="toggleHist(' + i + ')">' + (histOpen === i ? 'Hide' : 'View') + '</button>'
+      + '<button class="btn btn-sm" onclick="histCSV(' + i + ')">CSV</button>'
+      + '<button class="btn btn-sm btn-danger" onclick="delHist(' + i + ')">Delete</button></span></div>';
+    if (histOpen === i) {
+      hd.classes.forEach(c => {
+        h += '<div class="slbl" style="margin:12px 0 6px">' + esc(c.name) + '</div>'
+          + '<table><thead><tr><th>Pos</th><th>Driver</th><th>#</th><th>Pill</th><th>H1</th><th>H2</th><th>Total</th></tr></thead><tbody>'
+          + c.standings.map(s =>
+            '<tr><td>' + s.pos + '</td><td style="font-weight:600">' + esc(s.name) + '</td><td>#' + esc(s.num) + '</td><td>' + s.pill + '</td>'
+            + '<td>' + (s.f1 === '' ? '·' : esc(String(s.f1))) + '</td><td>' + (s.f2 === '' ? '·' : esc(String(s.f2))) + '</td><td>' + (s.pts === '' ? '—' : s.pts) + '</td></tr>').join('')
+          + '</tbody></table>';
+      });
+    }
+    return h + '</div>';
+  }).join('');
+}
+function toggleHist(i) { histOpen = histOpen === i ? null : i; renderHistory(); }
+function delHist(i) {
+  if (!confirm('Delete the archived race day from ' + S.history[i].date + '? This cannot be undone.')) return;
+  S.history.splice(i, 1);
+  histOpen = null;
+  save();
+  renderHistory();
+}
+function histCSV(i) { const hd = S.history[i]; downloadFile('raceday-results-' + hd.date + '.csv', snapCSV(hd), 'text/csv'); }
+
+function csvCell(v) { v = String(v == null ? '' : v); return /[",\n]/.test(v) ? '"' + v.replace(/"/g, '""') + '"' : v; }
+function csvRows(rows) { return rows.map(r => r.map(csvCell).join(',')).join('\n'); }
+function downloadFile(name, content, type) {
+  const a = document.createElement('a');
+  a.href = URL.createObjectURL(new Blob([content], { type }));
+  a.download = name;
+  document.body.appendChild(a);
+  a.click();
+  a.remove();
+  setTimeout(() => URL.revokeObjectURL(a.href), 1000);
+}
+function snapCSV(hd) {
+  const rows = [['Class', 'Pos', 'Driver', 'Vehicle #', 'Pill', 'Heat 1', 'Heat 2', 'Total']];
+  hd.classes.forEach(c => c.standings.forEach(s => rows.push([c.name, s.pos, s.name, s.num, s.pill, s.f1, s.f2, s.pts])));
+  return csvRows(rows);
+}
+function exportResultsCSV() {
+  const snap = buildSnapshot();
+  if (!snap.classes.length) { alert('No entries to export yet.'); return; }
+  downloadFile('raceday-results-' + snap.date + '.csv', snapCSV(snap), 'text/csv');
+}
+function exportEntriesCSV() {
+  if (!S.raceDay.entries.length) { alert('No entries to export yet.'); return; }
+  const rows = [['Driver', 'Vehicle #', 'Class', 'Pill']];
+  [...S.raceDay.entries]
+    .map(e => {
+      const d = driverById(e.driverId) || { name: '?', num: '?' };
+      const c = classById(e.classId) || { name: '?' };
+      return [d.name, d.num, c.name, e.pill];
+    })
+    .sort((a, b) => a[2].localeCompare(b[2]) || a[3] - b[3])
+    .forEach(r => rows.push(r));
+  downloadFile('raceday-entries-' + S.raceDay.date + '.csv', csvRows(rows), 'text/csv');
+}
+function exportBackup() {
+  downloadFile('raceday-backup-' + today() + '.json', JSON.stringify(S, null, 2), 'application/json');
+}
+function importBackup(input) {
+  const f = input.files && input.files[0];
+  input.value = '';
+  if (!f) return;
+  const fr = new FileReader();
+  fr.onload = () => {
+    let s;
+    try { s = JSON.parse(fr.result); } catch (e) { alert("That file isn't a RaceDay backup."); return; }
+    if (!s || !s.raceDay || !s.classes) { alert("That file isn't a RaceDay backup."); return; }
+    if (!confirm('Restore this backup? Everything currently in the app will be replaced by the backup\'s contents.')) return;
+    S = migrate(s);
+    save();
+    renderHeader();
+    resetReg();
+    render(curPage);
+  };
+  fr.readAsText(f);
+}
+
+// ---------- Track identity ----------
+function renderHeader() {
+  const img = document.getElementById('hdrLogo');
+  if (S.track.logo) { img.src = S.track.logo; img.style.display = ''; }
+  else { img.removeAttribute('src'); img.style.display = 'none'; }
+  const brand = document.getElementById('hdrBrand');
+  if (S.track.name) {
+    brand.textContent = S.track.name;
+    document.getElementById('hdrTag').textContent = 'RaceDay — driver registration & live starting lineups';
+  } else {
+    brand.innerHTML = 'Race<em>Day</em>';
+    document.getElementById('hdrTag').textContent = 'Driver registration & live starting lineups';
+  }
+}
+function saveTrack() {
+  S.track.name = document.getElementById('trackName').value.trim();
+  save();
+  renderHeader();
+}
+function uploadLogo(input) {
+  const f = input.files && input.files[0];
+  input.value = '';
+  if (!f) return;
+  const img = new Image();
+  const url = URL.createObjectURL(f);
+  img.onload = () => {
+    URL.revokeObjectURL(url);
+    const scale = Math.min(1, 256 / Math.max(img.width, img.height));
+    const c = document.createElement('canvas');
+    c.width = Math.max(1, Math.round(img.width * scale));
+    c.height = Math.max(1, Math.round(img.height * scale));
+    c.getContext('2d').drawImage(img, 0, 0, c.width, c.height);
+    const data = c.toDataURL('image/png');
+    if (data.length > 400000) { alert('That image is too heavy to store in the browser — try a simpler or smaller logo.'); return; }
+    S.track.logo = data;
+    save();
+    renderHeader();
+    renderAdmin();
+  };
+  img.onerror = () => { URL.revokeObjectURL(url); alert("Couldn't read that file as an image."); };
+  img.src = url;
+}
+function removeLogo() {
+  S.track.logo = '';
+  save();
+  renderHeader();
+  renderAdmin();
+}
+
 // ---------- Admin ----------
 function renderAdmin() {
-  renderClsList(); renderEntryList(); renderRosterList();
+  renderClsList(); renderEntryList(); renderRosterList(); renderHistory(); renderPinCard();
+  document.getElementById('trackName').value = S.track.name;
+  const prev = document.getElementById('logoPrev');
+  if (S.track.logo) { prev.src = S.track.logo; prev.style.display = ''; }
+  else { prev.removeAttribute('src'); prev.style.display = 'none'; }
+  document.getElementById('logoRemove').style.display = S.track.logo ? '' : 'none';
   document.getElementById('mHeat').value = S.settings.maxHeat;
   document.getElementById('mBMain').value = S.settings.maxBMain;
   document.getElementById('mFeat').value = S.settings.maxFeature;
   document.getElementById('mTrans').value = S.settings.transfers;
+}
+function renderPinCard() {
+  const el = document.getElementById('pinCard');
+  if (S.adminPin) {
+    el.innerHTML = '<div style="display:flex;gap:10px;flex-wrap:wrap;align-items:center">'
+      + '<span style="font-size:13.5px">🔒 The Admin tab is PIN-protected on this device.</span>'
+      + '<span style="margin-left:auto;display:flex;gap:6px">'
+      + '<button class="btn btn-sm" onclick="setPin()">Change PIN</button>'
+      + '<button class="btn btn-sm btn-danger" onclick="removePin()">Remove PIN</button></span></div>'
+      + '<p style="font-size:12px;color:var(--muted);margin-top:8px">If the PIN is forgotten, clearing this site\'s browser data resets it — along with everything else, so keep a backup.</p>';
+  } else {
+    el.innerHTML = '<div style="display:flex;gap:10px;flex-wrap:wrap;align-items:center">'
+      + '<span style="font-size:13.5px">No PIN set — anyone using this device can open Admin.</span>'
+      + '<button class="btn btn-sm btn-primary" style="margin-left:auto" onclick="setPin()">Set admin PIN</button></div>'
+      + '<p style="font-size:12px;color:var(--muted);margin-top:8px">Handy when drivers sign themselves up on this device — they\'ll see the sign-up and lineups, but Admin asks for the PIN.</p>';
+  }
+  document.getElementById('lockBtn').style.display = S.adminPin ? '' : 'none';
 }
 function saveSett() {
   S.settings.maxHeat = parseInt(document.getElementById('mHeat').value) || 8;
@@ -792,11 +1079,14 @@ function delClass(id) {
 function renderEntryList() {
   const el = document.getElementById('entryList');
   if (!S.raceDay.entries.length) { el.innerHTML = '<p class="empty">No entries yet today.</p>'; return; }
+  const q = document.getElementById('entrySearch').value.trim().toLowerCase();
   const rows = S.raceDay.entries.map((e, i) => {
     const d = driverById(e.driverId) || { name: '?', num: '?' };
     const c = classById(e.classId) || { name: '?' };
     return { i, name: d.name, num: d.num, cls: c.name, pill: e.pill };
-  }).sort((a, b) => a.cls.localeCompare(b.cls) || a.pill - b.pill);
+  }).filter(r => !q || r.name.toLowerCase().includes(q) || String(r.num).toLowerCase().includes(q) || r.cls.toLowerCase().includes(q))
+    .sort((a, b) => a.cls.localeCompare(b.cls) || a.pill - b.pill);
+  if (!rows.length) { el.innerHTML = '<p class="empty">No entries match “' + esc(q) + '”.</p>'; return; }
   el.innerHTML = '<table><thead><tr><th>Driver</th><th>#</th><th>Class</th><th>Pill</th><th></th></tr></thead><tbody>'
     + rows.map(r => '<tr><td style="font-weight:600">' + esc(r.name) + '</td><td>#' + esc(r.num) + '</td><td style="color:var(--muted)">' + esc(r.cls) + '</td>'
       + '<td><span class="disc sm" style="width:32px;height:32px;font-size:14px">' + r.pill + '</span></td>'
@@ -831,7 +1121,8 @@ function delRoster(id) {
 
 // ---------- Demo data (for showing the app to a track) ----------
 function seedDemo() {
-  if (!confirm('Load a demo race day with 25 sample drivers? Current entries will be replaced (driver book is kept).')) return;
+  if (!confirm('Load a demo race day with 25 sample drivers? Current entries are archived to history first (driver book is kept).')) return;
+  archiveDay();
   const demoNames = ['Ava Brooks','Ben Carter','Cody Diaz','Dana Evans','Eli Ford','Finn Gray','Gia Hall','Hank Irwin','Ivy James','Jax King','Kya Lane','Leo Moss','Mia Nash','Noah Otis','Opal Pratt','Quinn Reed','Rio Sands','Sky Tate','Tess Uri','Uma Vance','Vic Webb','Wes Xu','Yara York','Zane Zell','Pat Quick'];
   S.raceDay = { date: today(), entries: [], heatResults: {} };
   demoNames.forEach((name, i) => {
@@ -850,7 +1141,8 @@ function seedDemo() {
 }
 
 // ---------- Live sync across tabs + init ----------
-window.addEventListener('storage', e => { if (e.key === KEY) { S = load(); render(curPage); } });
+window.addEventListener('storage', e => { if (e.key === KEY) { S = load(); renderHeader(); render(curPage); } });
+renderHeader();
 checkDayBanner();
 renderGrid();
 </script>
