@@ -148,6 +148,31 @@
   .empty { font-size: 13.5px; color: var(--muted); padding: 14px 0; }
   .inline-num { width: 84px; padding: 6px 8px; font-size: 14px; border-radius: 8px; border: 1.5px solid #d4d4cf; font-family: inherit; }
 
+  /* TV display mode — sized in vh/vw so it reads from across the room */
+  #tvOverlay { display:none; position:fixed; inset:0; z-index:100; background:#101114; color:#fff; flex-direction:column; }
+  #tvOverlay.on { display:flex; }
+  #tvSlide { flex:1; padding:3vh 4vw 1vh; overflow:hidden; }
+  .tv-h { display:flex; align-items:baseline; gap:2vw; font-family:var(--display); text-transform:uppercase; margin-bottom:2.2vh; flex-wrap:wrap; }
+  .tv-h span:first-child { font-weight:800; font-size:6vh; letter-spacing:.03em; line-height:1; }
+  .tv-sub { color:var(--plate); font-weight:700; font-size:3.2vh; letter-spacing:.05em; }
+  .tv-lanes { display:grid; grid-template-columns:1fr 1fr; gap:2vw; margin-bottom:1vh; }
+  .tv-lanes span { text-align:center; color:#9a9da6; font-family:var(--display); font-weight:700; font-size:2.2vh; text-transform:uppercase; letter-spacing:.12em; }
+  .tv-grid2 { display:grid; grid-template-columns:1fr 1fr; gap:1.6vh 2vw; }
+  .tv-list { display:flex; flex-direction:column; gap:1.3vh; }
+  .tv-slot { display:flex; align-items:center; gap:1.4vw; background:#1d1f25; border:1px solid #2c2f37; border-radius:1.6vh; padding:1vh 1.4vw; min-width:0; }
+  .tv-slot.pole { box-shadow:0 0 0 .45vh var(--plate); }
+  .tv-pos { font-family:var(--display); font-weight:800; color:var(--plate); width:2.4em; flex-shrink:0; }
+  .tv-disc { border-radius:50%; background:var(--plate); color:var(--plate-ink); display:inline-flex; align-items:center; justify-content:center; font-family:var(--display); font-weight:800; flex-shrink:0; box-shadow:inset 0 0 0 .35vh rgba(20,16,2,.9), inset 0 0 0 .8vh var(--plate); }
+  .tv-nm { font-weight:700; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; flex:1; }
+  .tv-num { color:#9a9da6; flex-shrink:0; }
+  .tv-empty { display:flex; align-items:center; justify-content:center; height:100%; font-family:var(--display); font-weight:700; font-size:5vh; color:#9a9da6; text-transform:uppercase; text-align:center; }
+  #tvFoot { display:flex; align-items:center; gap:1.5vw; padding:1.2vh 4vw 2vh; color:#9a9da6; font-size:2.4vh; }
+  #tvFoot img { height:5vh; max-width:14vw; object-fit:contain; display:none; }
+  #tvTrack { font-family:var(--display); font-weight:700; text-transform:uppercase; letter-spacing:.05em; color:#fff; }
+  #tvCtl { position:fixed; bottom:4vh; left:50%; transform:translateX(-50%); display:flex; gap:10px; opacity:0; pointer-events:none; transition:opacity .25s; }
+  #tvCtl.show { opacity:1; pointer-events:auto; }
+  #tvCtl button { font-size:17px; padding:14px 22px; border-radius:12px; border:none; background:rgba(255,255,255,.94); color:#1a1b1e; cursor:pointer; font-family:inherit; font-weight:700; }
+
   @media (max-width: 560px) {
     .hr > small { display: none; }
     .hr { gap: 7px; padding: 8px 10px; }
@@ -185,6 +210,8 @@
     <span id="dayBannerText"></span>
     <button class="btn btn-sm btn-primary" onclick="newRaceDay()">Start today's race day</button>
   </div>
+
+  <div id="licBanner" class="banner" style="display:none"></div>
 
   <!-- SIGN UP -->
   <div id="page-signup" class="page active">
@@ -227,9 +254,13 @@
   <div id="page-grid" class="page">
     <div style="display:flex;align-items:center;gap:10px;flex-wrap:wrap">
       <h2 style="margin-bottom:0">Lineups</h2>
-      <button class="btn btn-sm" onclick="printHeats()" style="margin-left:auto">🖨 Print / save PDF</button>
+      <span style="margin-left:auto;display:flex;gap:8px">
+        <button class="btn btn-sm btn-primary" onclick="openTV()">📺 TV display</button>
+        <button class="btn btn-sm" onclick="printHeats()">🖨 Print / save PDF</button>
+      </span>
     </div>
-    <p class="sub">Lowest pill starts up front. Set 2 runs inverted. Spots update live as drivers draw.</p>
+    <p class="sub">Lowest pill starts up front. Set 2 runs inverted. Spots update live as drivers draw.<br>
+    <span style="font-size:12px">📺 TV display fills the screen with rotating lineups — plug this device into a TV with an HDMI cable, or cast it (Chrome menu → Cast, or your tablet's screen mirroring).</span></p>
     <div class="view-toggle" id="viewToggle">
       <button id="vtDouble" onclick="setGridStyle('double')">Double file</button>
       <button id="vtSingle" onclick="setGridStyle('single')">Single file</button>
@@ -333,6 +364,9 @@
     <div class="slbl">Admin PIN</div>
     <div class="card" id="pinCard"></div>
 
+    <div class="slbl">License</div>
+    <div class="card" id="licCard"></div>
+
     <div class="slbl">Danger zone</div>
     <div class="card">
       <div style="display:flex;gap:10px;flex-wrap:wrap">
@@ -345,6 +379,24 @@
   </div>
 </div>
 
+<!-- TV display overlay: no interface, one visual -->
+<div id="tvOverlay" onclick="tvShowCtl()">
+  <div id="tvSlide"></div>
+  <div id="tvFoot">
+    <img id="tvLogo" alt="">
+    <span id="tvTrack"></span>
+    <span id="tvLockTag" style="display:none">🔒 locked</span>
+    <span id="tvPage" style="margin-left:auto"></span>
+    <span id="tvClock"></span>
+  </div>
+  <div id="tvCtl">
+    <button onclick="tvPrev(event)">⏮ Prev</button>
+    <button id="tvLockBtn" onclick="tvToggleLock(event)">🔒 Lock screen</button>
+    <button onclick="tvNext(event)">Next ⏭</button>
+    <button onclick="closeTV(event)">✕ Exit</button>
+  </div>
+</div>
+
 <script>
 // ---------- State ----------
 const KEY = 'raceday_v1';
@@ -354,6 +406,8 @@ function defaults() {
     track: { name: '', logo: '' },                // track identity: logo is a data URL
     adminPin: '',                                 // empty = Admin tab is open to everyone
     history: [],                                  // archived race days (newest first)
+    license: null,                                // {code, name, exp: 'YYYYMM' or '0'} once activated
+    trialDays: [],                                // dates that used a free-trial race day
     classLib: [                                   // every class name ever used: {name, maxPill}
       { name: 'Junior 80cc', maxPill: 100 },
       { name: 'Senior 100cc', maxPill: 100 },
@@ -375,6 +429,8 @@ function migrate(s) {
   if (!s.history) s.history = [];
   if (s.adminPin == null) s.adminPin = '';
   if (!s.classLib) s.classLib = s.classes.map(c => ({ name: c.name, maxPill: c.maxPill || 100 }));
+  if (s.license === undefined) s.license = null;
+  if (!s.trialDays) s.trialDays = [];
   return s;
 }
 function load() {
@@ -432,6 +488,7 @@ function render(p) {
   if (p === 'results') renderResults();
   if (p === 'admin') renderAdmin();
   checkDayBanner();
+  renderLicBanner();
 }
 
 // ---------- Race day handling ----------
@@ -458,11 +515,119 @@ function resetAll() {
   if (!confirm('Last check: this wipes the saved driver book and race day history too. Erase it all?')) return;
   localStorage.removeItem(KEY);
   sessionStorage.removeItem('rd_admin_ok');
+  const keep = { license: S.license, trialDays: S.trialDays };   // erasing data doesn't erase the license — or reset the trial
   S = defaults();
+  S.license = keep.license;
+  S.trialDays = keep.trialDays;
   save();
   renderHeader();
   resetReg();
   render(curPage);
+}
+
+// ---------- License & free trial ----------
+// Casual protection for handing the app to tracks: an access code unlocks
+// unlimited race days; without one, TRIAL_DAYS race days run free, then
+// new entries stop (viewing, results, history, and exports keep working).
+const TRIAL_DAYS = 3;
+const LIC_SALT = 'rd-pitlane-2026';
+const MASTER_HASH = 'E71YPW';   // licHash of the owner passphrase; never store the passphrase itself
+
+function licHash(str) {
+  let h = 2166136261;
+  for (let i = 0; i < str.length; i++) { h ^= str.charCodeAt(i); h = Math.imul(h, 16777619); }
+  return (h >>> 0).toString(36).toUpperCase();
+}
+function licCheck(name, exp) { return licHash(name + '|' + exp + '|' + LIC_SALT).slice(0, 4); }
+function licStatus() {
+  if (S.license) {
+    const exp = String(S.license.exp);
+    const curYM = today().slice(0, 7).replace('-', '');
+    return { licensed: true, name: S.license.name, exp, expired: exp !== '0' && curYM > exp };
+  }
+  return { licensed: false, expired: false };
+}
+function canEnter() {
+  const st = licStatus();
+  if (st.licensed) return !st.expired;
+  return S.trialDays.includes(S.raceDay.date) || S.trialDays.length < TRIAL_DAYS;
+}
+function consumeTrialDay() {
+  if (S.license) return;
+  if (!S.trialDays.includes(S.raceDay.date)) { S.trialDays.push(S.raceDay.date); renderLicBanner(); }
+}
+function entryBlockedMsg() {
+  return licStatus().licensed
+    ? "This track's license has expired — contact the app owner to renew. Lineups, results, and exports still work."
+    : 'The free trial (' + TRIAL_DAYS + ' race days) has ended — contact the app owner for an access code. Lineups, results, and exports still work.';
+}
+function fmtExp(exp) { return exp === '0' ? 'forever' : 'until ' + exp.slice(0, 4) + '-' + exp.slice(4); }
+function renderLicBanner() {
+  const b = document.getElementById('licBanner');
+  const st = licStatus();
+  if (st.licensed && !st.expired) { b.style.display = 'none'; return; }
+  b.style.display = '';
+  if (!st.licensed && canEnter()) {
+    b.style.cssText = '';
+    b.textContent = '🏁 Free trial — ' + S.trialDays.length + ' of ' + TRIAL_DAYS + ' race days used. An access code (Admin → License) unlocks unlimited race days.';
+  } else {
+    b.style.cssText = 'background:var(--pit-red-bg);border-color:#f0c4c0;color:var(--pit-red)';
+    b.textContent = '🔒 ' + entryBlockedMsg();
+  }
+}
+function activateLic() {
+  const inp = document.getElementById('licCode');
+  const v = inp.value.trim();
+  if (!v) return;
+  if (licHash(v) === MASTER_HASH) { genOpen = true; inp.value = ''; renderLicCard(); return; }
+  const parts = v.toUpperCase().split('-');
+  if (parts.length !== 3 || !/^[A-Z0-9]+$/.test(parts[0]) || !/^(0|\d{6})$/.test(parts[1]) || licCheck(parts[0], parts[1]) !== parts[2]) {
+    alert("That code isn't valid — check it character by character and try again."); return;
+  }
+  S.license = { code: parts.join('-'), name: parts[0], exp: parts[1] };
+  save();
+  renderLicCard(); renderLicBanner();
+  alert('✅ Activated — licensed to ' + parts[0] + ', ' + fmtExp(parts[1]) + '.');
+}
+function removeLic() {
+  if (!confirm('Remove this license? The app goes back to free-trial rules on this device.')) return;
+  S.license = null;
+  save();
+  renderLicCard(); renderLicBanner();
+}
+let genOpen = false;
+function genCode() {
+  const name = document.getElementById('genName').value.replace(/[^a-z0-9]/gi, '').toUpperCase();
+  const expRaw = document.getElementById('genExp').value.trim();
+  if (!name) { alert('Enter a track name first.'); return; }
+  const exp = expRaw ? expRaw.replace('-', '') : '0';
+  if (exp !== '0' && !/^\d{6}$/.test(exp)) { alert('Pick an expiry month, or leave it blank for a forever code.'); return; }
+  document.getElementById('genOut').innerHTML = '<b style="font-size:18px;letter-spacing:.05em">' + esc(name + '-' + exp + '-' + licCheck(name, exp)) + '</b>'
+    + '<div style="font-size:12px;color:var(--muted);margin-top:4px">Text this code to the track — they enter it under Admin → License. ' + (exp === '0' ? 'It never expires.' : 'It works through ' + exp.slice(0, 4) + '-' + exp.slice(4) + '.') + '</div>';
+}
+function renderLicCard() {
+  const el = document.getElementById('licCard');
+  const st = licStatus();
+  let h;
+  if (st.licensed) {
+    h = '<div style="display:flex;gap:10px;flex-wrap:wrap;align-items:center">'
+      + '<span style="font-size:13.5px">' + (st.expired ? '⚠️ License for <b>' + esc(st.name) + '</b> expired ' : '✅ Licensed to <b>' + esc(st.name) + '</b> — ') + esc(fmtExp(st.exp)) + '</span>'
+      + '<button class="btn btn-sm btn-danger" style="margin-left:auto" onclick="removeLic()">Remove license</button></div>';
+  } else {
+    h = '<p style="font-size:13.5px;margin-bottom:10px">Free trial — <b>' + S.trialDays.length + ' of ' + TRIAL_DAYS + '</b> race days used. Enter an access code to unlock unlimited race days on this device.</p>'
+      + '<div style="display:flex;gap:8px;flex-wrap:wrap">'
+      + '<input id="licCode" type="text" placeholder="Access code (e.g. RIVERSIDE-0-AB12)" style="flex:1;min-width:200px" autocomplete="off">'
+      + '<button class="btn btn-primary" onclick="activateLic()">Activate</button></div>';
+  }
+  if (genOpen) {
+    h += '<hr class="divider"><div class="slbl" style="margin-top:0">Code generator — owner only</div>'
+      + '<div style="display:flex;gap:8px;flex-wrap:wrap;align-items:flex-end">'
+      + '<div style="flex:2;min-width:160px"><label>Track name</label><input id="genName" type="text" placeholder="e.g. Riverside" autocomplete="off"></div>'
+      + '<div style="flex:1;min-width:140px"><label>Expires (blank = forever)</label><input id="genExp" type="month"></div>'
+      + '<button class="btn btn-go" onclick="genCode()">Generate</button></div>'
+      + '<div id="genOut" style="margin-top:12px"></div>';
+  }
+  el.innerHTML = h;
 }
 
 // ---------- Admin PIN ----------
@@ -555,6 +720,7 @@ function register() {
   const sel = S.classes.filter(c => { const e = document.getElementById('ch' + c.id); return e && e.classList.contains('on'); });
   const err = document.getElementById('e2');
   if (!sel.length) { err.style.display = ''; err.textContent = 'Tap at least one class to race in.'; return; }
+  if (!canEnter()) { err.style.display = ''; err.textContent = entryBlockedMsg(); return; }
 
   // vehicle number must be unique within each selected class
   const match = findRosterMatch(cur.name);
@@ -578,6 +744,7 @@ function register() {
   else { driver = { id: S.nextId++, name: cur.name, num: cur.num }; S.roster.push(driver); }
 
   // one pill per class, no repeats within a class
+  consumeTrialDay();
   const drawn = [];
   sel.forEach(c => {
     const pill = drawPill(c.id);
@@ -1046,7 +1213,7 @@ function removeLogo() {
 
 // ---------- Admin ----------
 function renderAdmin() {
-  renderClsList(); renderClsLib(); renderQuickAdd(); renderEntryList(); renderRosterList(); renderHistory(); renderPinCard();
+  renderClsList(); renderClsLib(); renderQuickAdd(); renderEntryList(); renderRosterList(); renderHistory(); renderPinCard(); renderLicCard();
   document.getElementById('trackName').value = S.track.name;
   const prev = document.getElementById('logoPrev');
   if (S.track.logo) { prev.src = S.track.logo; prev.style.display = ''; }
@@ -1154,6 +1321,7 @@ function lastDayPairs() {
   return pairs;
 }
 function refillLastDay() {
+  if (!canEnter()) { alert(entryBlockedMsg()); return; }
   const pairs = lastDayPairs();
   if (!pairs || !pairs.length) { alert('No archived race day to copy from yet — this works from your Race day history.'); return; }
   if (!confirm("Re-enter everyone from the last race day (" + S.history[0].date + ")? Each entry gets a fresh pill draw.")) return;
@@ -1175,6 +1343,7 @@ function refillLastDay() {
     S.raceDay.entries.push({ driverId: d.id, classId: c.id, pill });
     added++;
   });
+  if (added) consumeTrialDay();
   save();
   renderAdmin();
   alert('🏁 Re-entered ' + added + (added === 1 ? ' entry' : ' entries') + ' with fresh pills.'
@@ -1192,6 +1361,7 @@ function renderQuickAdd() {
     : '<option value="">No classes set up</option>';
 }
 function quickAdd() {
+  if (!canEnter()) { alert(entryBlockedMsg()); return; }
   const d = driverById(parseInt(document.getElementById('qaDriver').value));
   const c = classById(parseInt(document.getElementById('qaClass').value));
   if (!d || !c) { alert('Pick a driver and a class first.'); return; }
@@ -1204,6 +1374,7 @@ function quickAdd() {
   if (clash) { alert('Number #' + d.num + ' is already racing in ' + c.name + ' — change one of the numbers first.'); return; }
   const pill = drawPill(c.id);
   if (pill === null) { alert('All pills are taken in ' + c.name + ' — raise its pill count above.'); return; }
+  consumeTrialDay();
   S.raceDay.entries.push({ driverId: d.id, classId: c.id, pill });
   save();
   renderAdmin();
@@ -1252,6 +1423,109 @@ function delRoster(id) {
   save(); renderAdmin();
 }
 
+// ---------- TV display: no interface, one visual ----------
+let tvOn = false, tvIdx = 0, tvLocked = false, tvTimer = null, tvCtlTimer = null;
+const TV_SECS = 12;
+
+function tvSlides() {
+  const slides = [];
+  S.classes.forEach(cls => {
+    const racers = classRacers(cls.id);
+    if (!racers.length) return;
+    const set1 = buildHeats(racers, S.settings.maxHeat);
+    const set2 = set1.map(h => [...h].reverse());
+    if (set1.length === 1) {
+      slides.push({ title: cls.name, sub: 'Starting grid — Set 1', racers: set1[0] });
+      slides.push({ title: cls.name, sub: 'Set 2 — inverted', racers: set2[0] });
+    } else {
+      set1.forEach((h, i) => slides.push({ title: cls.name, sub: 'Heat ' + (i + 1) + ' — Set 1', racers: h }));
+      set2.forEach((h, i) => slides.push({ title: cls.name, sub: 'Heat ' + (i + 1) + ' — Set 2 · inverted', racers: h }));
+    }
+    if (classComplete(cls.id)) {
+      const fd = featureData(cls.id);
+      const toRow = s => ({ name: s.name, num: s.num, pill: s.pts });
+      if (fd.bmain.length) {
+        slides.push({ title: cls.name, sub: 'B-main — top ' + fd.transfers + ' transfer', racers: fd.bmain.map(toRow) });
+        if (fd.transferred.length >= fd.transfers) slides.push({ title: cls.name, sub: '🏁 Feature lineup', racers: [...fd.locked, ...fd.transferred].map(toRow) });
+      } else {
+        slides.push({ title: cls.name, sub: '🏁 Feature lineup', racers: fd.locked.map(toRow) });
+      }
+    }
+  });
+  return slides;
+}
+
+function tvGridMarkup(racers, single) {
+  const rows = single ? racers.length : Math.ceil(racers.length / 2);
+  const fs = Math.min(5.2, 70 / rows * 0.42);   // scale type so any field size fills the screen
+  const disc = Math.min(8.5, 70 / rows * 0.6);
+  let h = single ? '' : '<div class="tv-lanes"><span>Inside line</span><span>Outside line</span></div>';
+  h += '<div class="' + (single ? 'tv-list' : 'tv-grid2') + '">';
+  racers.forEach((r, i) => {
+    const pos = i + 1;
+    h += '<div class="tv-slot' + (pos === 1 ? ' pole' : '') + '" style="font-size:' + fs.toFixed(2) + 'vh">'
+      + '<span class="tv-pos">P' + pos + '</span>'
+      + '<span class="tv-disc" style="width:' + disc.toFixed(2) + 'vh;height:' + disc.toFixed(2) + 'vh;font-size:' + (disc * 0.42).toFixed(2) + 'vh">' + r.pill + '</span>'
+      + '<span class="tv-nm">' + esc(r.name) + '</span><span class="tv-num">#' + esc(r.num) + '</span></div>';
+  });
+  return h + '</div>';
+}
+
+function tvRender() {
+  if (!tvOn) return;
+  document.getElementById('tvTrack').textContent = S.track.name || 'RaceDay';
+  const logo = document.getElementById('tvLogo');
+  if (S.track.logo) { logo.src = S.track.logo; logo.style.display = ''; } else { logo.style.display = 'none'; }
+  document.getElementById('tvClock').textContent = new Date().toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' });
+  document.getElementById('tvLockTag').style.display = tvLocked ? '' : 'none';
+  const sl = document.getElementById('tvSlide');
+  const slides = tvSlides();
+  if (!slides.length) {
+    sl.innerHTML = '<div class="tv-empty">🏁 Lineups appear here as drivers sign up</div>';
+    document.getElementById('tvPage').textContent = '';
+    return;
+  }
+  tvIdx = ((tvIdx % slides.length) + slides.length) % slides.length;
+  const s = slides[tvIdx];
+  sl.innerHTML = '<div class="tv-h"><span>' + esc(s.title) + '</span><span class="tv-sub">' + esc(s.sub) + '</span></div>'
+    + tvGridMarkup(s.racers, S.settings.gridStyle === 'single');
+  document.getElementById('tvPage').textContent = (tvIdx + 1) + ' / ' + slides.length;
+}
+
+function tvTick() { if (!tvLocked) tvIdx++; tvRender(); }
+function openTV() {
+  tvOn = true; tvIdx = 0; tvLocked = false;
+  document.getElementById('tvLockBtn').textContent = '🔒 Lock screen';
+  document.getElementById('tvOverlay').classList.add('on');
+  if (document.documentElement.requestFullscreen) document.documentElement.requestFullscreen().catch(() => {});
+  tvRender();
+  clearInterval(tvTimer);
+  tvTimer = setInterval(tvTick, TV_SECS * 1000);
+}
+function closeTV(ev) {
+  if (ev) ev.stopPropagation();
+  tvOn = false;
+  clearInterval(tvTimer);
+  document.getElementById('tvOverlay').classList.remove('on');
+  document.getElementById('tvCtl').classList.remove('show');
+  if (document.fullscreenElement && document.exitFullscreen) document.exitFullscreen().catch(() => {});
+}
+function tvShowCtl() {
+  const c = document.getElementById('tvCtl');
+  c.classList.add('show');
+  clearTimeout(tvCtlTimer);
+  tvCtlTimer = setTimeout(() => c.classList.remove('show'), 4000);
+}
+function tvPrev(ev) { ev.stopPropagation(); tvIdx--; tvRender(); tvShowCtl(); }
+function tvNext(ev) { ev.stopPropagation(); tvIdx++; tvRender(); tvShowCtl(); }
+function tvToggleLock(ev) {
+  ev.stopPropagation();
+  tvLocked = !tvLocked;
+  document.getElementById('tvLockBtn').textContent = tvLocked ? '🔓 Unlock rotation' : '🔒 Lock screen';
+  tvRender(); tvShowCtl();
+}
+document.addEventListener('keydown', e => { if (tvOn && e.key === 'Escape') closeTV(); });
+
 // ---------- Demo data (for showing the app to a track) ----------
 function seedDemo() {
   if (!confirm('Load a demo race day with 25 sample drivers? Current entries are archived to history first (driver book is kept).')) return;
@@ -1274,10 +1548,11 @@ function seedDemo() {
 }
 
 // ---------- Live sync across tabs + init ----------
-window.addEventListener('storage', e => { if (e.key === KEY) { S = load(); renderHeader(); render(curPage); } });
+window.addEventListener('storage', e => { if (e.key === KEY) { S = load(); renderHeader(); render(curPage); if (tvOn) tvRender(); } });
 renderHeader();
 renderRosterPick();
 checkDayBanner();
+renderLicBanner();
 renderGrid();
 </script>
 </body>
