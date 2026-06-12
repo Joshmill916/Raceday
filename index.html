@@ -295,6 +295,11 @@
 
     <div class="slbl">Today's entries</div>
     <div class="card">
+      <div style="display:flex;gap:10px;flex-wrap:wrap;align-items:center">
+        <button class="btn" onclick="refillLastDay()">↻ Re-enter last race day's field</button>
+        <span style="font-size:12px;color:var(--muted)">Everyone from the last archived day, fresh pill draws.</span>
+      </div>
+      <hr class="divider">
       <label>Quick add from the driver book</label>
       <div style="display:flex;gap:8px;flex-wrap:wrap">
         <select id="qaDriver" style="flex:2;min-width:170px;width:auto"></select>
@@ -873,7 +878,11 @@ function renderClassResults(clsId) {
 // ---------- Snapshots, history & export ----------
 // A snapshot freezes today's standings so history survives later class/roster edits.
 function buildSnapshot() {
-  const snap = { date: S.raceDay.date, savedAt: Date.now(), classes: [] };
+  const snap = {
+    date: S.raceDay.date, savedAt: Date.now(), classes: [],
+    // raw driver/class pairs so a later race day can re-enter the same field
+    pairs: S.raceDay.entries.map(e => ({ driverId: e.driverId, classId: e.classId, className: (classById(e.classId) || {}).name }))
+  };
   S.classes.forEach(cls => {
     const standings = calcStandings(cls.id);
     if (!standings.length) return;
@@ -1129,6 +1138,47 @@ function readdClass(i) {
   if (S.classes.some(c => c.name.toLowerCase() === x.name.toLowerCase())) return;
   S.classes.push({ id: Date.now(), name: x.name, maxPill: Math.max(2, x.maxPill || 100) });
   save(); renderAdmin();
+}
+
+// Re-enter the whole field from the most recent archived race day, fresh pills
+function lastDayPairs() {
+  const hd = S.history[0];
+  if (!hd) return null;
+  if (hd.pairs) return hd.pairs;
+  // archives saved before pairs existed: rebuild from the standings by name
+  const pairs = [];
+  hd.classes.forEach(c => c.standings.forEach(s => {
+    const d = S.roster.find(r => r.name.toLowerCase() === s.name.toLowerCase());
+    if (d) pairs.push({ driverId: d.id, className: c.name });
+  }));
+  return pairs;
+}
+function refillLastDay() {
+  const pairs = lastDayPairs();
+  if (!pairs || !pairs.length) { alert('No archived race day to copy from yet — this works from your Race day history.'); return; }
+  if (!confirm("Re-enter everyone from the last race day (" + S.history[0].date + ")? Each entry gets a fresh pill draw.")) return;
+  let added = 0, skipped = 0;
+  pairs.forEach(p => {
+    const d = driverById(p.driverId);
+    let c = p.classId != null ? classById(p.classId) : null;
+    if (!c && p.className) c = S.classes.find(x => x.name.toLowerCase() === p.className.toLowerCase());
+    if (!d || !c) { skipped++; return; }
+    if (S.raceDay.entries.some(e => e.driverId === d.id && e.classId === c.id)) { skipped++; return; }
+    const clash = S.raceDay.entries.some(e => {
+      if (e.classId !== c.id || e.driverId === d.id) return false;
+      const o = driverById(e.driverId);
+      return o && String(o.num).toLowerCase() === String(d.num).toLowerCase();
+    });
+    if (clash) { skipped++; return; }
+    const pill = drawPill(c.id);
+    if (pill === null) { skipped++; return; }
+    S.raceDay.entries.push({ driverId: d.id, classId: c.id, pill });
+    added++;
+  });
+  save();
+  renderAdmin();
+  alert('🏁 Re-entered ' + added + (added === 1 ? ' entry' : ' entries') + ' with fresh pills.'
+    + (skipped ? ' Skipped ' + skipped + ' (already entered, removed from the book, or no pills left).' : ''));
 }
 
 // Quick entry: returning driver + class, one tap, pill drawn automatically
