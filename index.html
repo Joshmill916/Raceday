@@ -1,0 +1,858 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>RaceDay — Registration & Live Lineups</title>
+<link href="https://fonts.googleapis.com/css2?family=Saira+Condensed:wght@600;700;800&display=swap" rel="stylesheet">
+<style>
+  :root {
+    --asphalt: #17181c;
+    --asphalt-2: #24262c;
+    --paper: #f4f4f1;
+    --card: #ffffff;
+    --ink: #1a1b1e;
+    --muted: #6b6e76;
+    --line: #e3e3de;
+    --plate: #ffd449;      /* number-plate yellow */
+    --plate-ink: #161408;
+    --flag-green: #0e8a4d;
+    --flag-green-bg: #e7f6ee;
+    --pit-red: #c8372d;
+    --pit-red-bg: #fdeeec;
+    --display: 'Saira Condensed', 'Arial Narrow', sans-serif;
+    --body: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+  }
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  html { -webkit-text-size-adjust: 100%; }
+  body { font-family: var(--body); background: var(--paper); color: var(--ink); font-size: 15px; line-height: 1.45; }
+  .container { max-width: 860px; margin: 0 auto; padding: 0 0 80px; }
+
+  /* Header */
+  .header { background: var(--asphalt); color: #fff; padding: 18px 22px 14px; }
+  .header .brand { font-family: var(--display); font-weight: 800; font-size: 26px; letter-spacing: 0.04em; text-transform: uppercase; }
+  .header .brand em { font-style: normal; color: var(--plate); }
+  .header .tag { font-size: 12px; color: #9a9da6; margin-top: 1px; }
+  .checker { height: 10px; background: repeating-conic-gradient(#101114 0% 25%, #f4f4f1 0% 50%) 0 0 / 20px 20px; }
+
+  /* Nav */
+  .nav { background: var(--card); border-bottom: 1px solid var(--line); display: flex; overflow-x: auto; position: sticky; top: 0; z-index: 20; }
+  .nav button { padding: 13px 18px; border: none; background: transparent; color: var(--muted); font-size: 14px; font-family: var(--display); font-weight: 700; text-transform: uppercase; letter-spacing: 0.05em; cursor: pointer; border-bottom: 3px solid transparent; white-space: nowrap; }
+  .nav button.active { color: var(--ink); border-bottom-color: var(--plate); }
+  .nav button:hover:not(.active) { background: #fafaf8; }
+
+  .page { display: none; padding: 22px 20px; }
+  .page.active { display: block; }
+  h2 { font-family: var(--display); font-weight: 800; font-size: 28px; text-transform: uppercase; letter-spacing: 0.02em; margin-bottom: 2px; }
+  h3 { font-family: var(--display); font-weight: 700; font-size: 19px; text-transform: uppercase; letter-spacing: 0.03em; margin-bottom: 8px; }
+  h3 .count { font-family: var(--body); font-size: 12px; font-weight: 500; color: var(--muted); text-transform: none; letter-spacing: 0; }
+  .sub { font-size: 14px; color: var(--muted); margin-bottom: 18px; }
+  .card { background: var(--card); border: 1px solid var(--line); border-radius: 14px; padding: 18px 20px; margin-bottom: 14px; }
+  .slbl { font-family: var(--display); font-size: 13px; font-weight: 700; color: #8a8d94; text-transform: uppercase; letter-spacing: 0.09em; margin: 20px 0 8px; }
+
+  /* Forms */
+  label { font-size: 12.5px; color: #555; display: block; margin: 16px 0 5px; font-weight: 600; }
+  label:first-child { margin-top: 0; }
+  input[type="text"], input[type="number"], select { width: 100%; padding: 12px 14px; border-radius: 10px; border: 1.5px solid #d4d4cf; background: #fff; color: var(--ink); font-size: 17px; font-family: inherit; outline: none; transition: border-color .15s; }
+  input:focus, select:focus { border-color: var(--ink); }
+  .btn { display: inline-flex; align-items: center; justify-content: center; gap: 7px; padding: 12px 20px; border-radius: 10px; border: 1.5px solid #d4d4cf; background: #fff; color: var(--ink); font-size: 15px; font-weight: 600; cursor: pointer; font-family: inherit; transition: background .15s; }
+  .btn:hover { background: #f6f6f3; }
+  .btn-primary { background: var(--asphalt); color: #fff; border-color: var(--asphalt); }
+  .btn-primary:hover { background: var(--asphalt-2); }
+  .btn-go { background: var(--plate); color: var(--plate-ink); border-color: var(--plate); font-family: var(--display); font-weight: 800; font-size: 17px; text-transform: uppercase; letter-spacing: 0.04em; }
+  .btn-go:hover { background: #ffdd6e; }
+  .btn-sm { padding: 6px 12px; font-size: 13px; border-radius: 8px; }
+  .btn-danger { border-color: #f0c4c0; color: var(--pit-red); background: var(--pit-red-bg); }
+  .btn-danger:hover { background: #fadfdb; }
+  .btn-block { width: 100%; margin-top: 16px; }
+  .err { background: var(--pit-red-bg); color: var(--pit-red); border: 1px solid #f0c4c0; border-radius: 10px; padding: 10px 14px; font-size: 13.5px; margin-top: 12px; }
+  .banner { background: #fff8df; border: 1px solid #efdd9a; color: #6b5410; border-radius: 12px; padding: 12px 16px; font-size: 13.5px; margin: 16px 20px 0; display: flex; align-items: center; gap: 12px; flex-wrap: wrap; }
+  .banner .btn { margin-left: auto; }
+
+  /* Pill disc — the signature element */
+  .disc { width: 56px; height: 56px; border-radius: 50%; background: var(--plate); color: var(--plate-ink); display: inline-flex; align-items: center; justify-content: center; font-family: var(--display); font-weight: 800; font-size: 25px; flex-shrink: 0; box-shadow: inset 0 0 0 2.5px rgba(20,16,2,.9), inset 0 0 0 5.5px var(--plate), 0 1px 3px rgba(0,0,0,.18); }
+  .disc.sm { width: 40px; height: 40px; font-size: 18px; box-shadow: inset 0 0 0 2px rgba(20,16,2,.9), inset 0 0 0 4px var(--plate), 0 1px 2px rgba(0,0,0,.15); }
+  .disc.big { width: 96px; height: 96px; font-size: 44px; box-shadow: inset 0 0 0 4px rgba(20,16,2,.9), inset 0 0 0 9px var(--plate), 0 3px 8px rgba(0,0,0,.22); }
+  @keyframes pop { 0% { transform: scale(.2) rotate(-18deg); opacity: 0; } 65% { transform: scale(1.12) rotate(3deg); } 100% { transform: scale(1) rotate(0); opacity: 1; } }
+  .pop { animation: pop .55s cubic-bezier(.2,1.4,.4,1) both; }
+
+  /* Suggestion chips (returning drivers) */
+  .sugg { display: flex; gap: 8px; flex-wrap: wrap; margin-top: 8px; }
+  .sugg button { border: 1.5px solid var(--line); background: #fafaf8; border-radius: 99px; padding: 8px 14px; font-size: 14px; cursor: pointer; font-family: inherit; }
+  .sugg button b { font-weight: 700; }
+  .sugg button:hover { border-color: var(--ink); }
+
+  /* Class chips */
+  .chip { display: inline-flex; align-items: center; gap: 7px; padding: 11px 18px; border-radius: 12px; font-size: 16px; font-weight: 600; border: 2px solid #d4d4cf; background: #fff; margin: 4px 6px 4px 0; cursor: pointer; color: #555; user-select: none; transition: all .12s; }
+  .chip.on { background: var(--asphalt); color: #fff; border-color: var(--asphalt); }
+  .chip.on::before { content: '✓'; color: var(--plate); font-weight: 800; }
+  .chip.off { opacity: .45; cursor: not-allowed; text-decoration: line-through; }
+
+  /* Reveal cards */
+  .reveal { display: grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); gap: 12px; margin-top: 14px; }
+  .rcard { background: var(--card); border: 1.5px solid var(--line); border-radius: 16px; padding: 18px; text-align: center; }
+  .rcard .rcls { font-family: var(--display); font-weight: 700; font-size: 16px; text-transform: uppercase; letter-spacing: .04em; margin-bottom: 12px; }
+  .rcard .rpos { font-family: var(--display); font-weight: 800; font-size: 34px; margin-top: 12px; line-height: 1; }
+  .rcard .rrow { font-size: 13px; color: var(--muted); margin-top: 4px; }
+  .bigmsg { font-family: var(--display); font-weight: 800; font-size: 32px; text-transform: uppercase; }
+
+  /* Grid view */
+  .gsec { margin-bottom: 30px; }
+  .lane-labels { display: grid; grid-template-columns: 1fr 1fr; gap: 14px; margin: 8px 0 6px; }
+  .lane-labels span { font-family: var(--display); font-size: 12px; font-weight: 700; color: #8a8d94; text-transform: uppercase; letter-spacing: .1em; text-align: center; }
+  .grid2 { display: grid; grid-template-columns: 1fr 1fr; gap: 10px 14px; align-items: start; }
+  .slot { background: var(--card); border: 1.5px solid var(--line); border-radius: 12px; padding: 9px 12px; display: flex; align-items: center; gap: 10px; position: relative; min-height: 60px; }
+  .slot.outside { transform: translateY(16px); }
+  .slot.pole { border-color: var(--plate); box-shadow: 0 0 0 2px var(--plate); }
+  .slot .posn { font-family: var(--display); font-weight: 800; font-size: 19px; width: 34px; flex-shrink: 0; }
+  .slot .who { flex: 1; min-width: 0; line-height: 1.25; }
+  .slot .who b { display: block; font-size: 14.5px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .slot .who span { font-size: 12px; color: var(--muted); }
+  .slot .rowlbl { position: absolute; top: -7px; left: 10px; background: var(--paper); font-size: 10px; font-weight: 700; color: #8a8d94; padding: 0 6px; text-transform: uppercase; letter-spacing: .06em; }
+  .poletag { position: absolute; top: -9px; right: 10px; background: repeating-conic-gradient(#111 0% 25%, #fff 0% 50%) 0 0 / 8px 8px; color: #fff; font-size: 0; width: 34px; height: 14px; border-radius: 3px; border: 1px solid #111; }
+  .heat-cap { display: flex; align-items: baseline; gap: 8px; font-family: var(--display); font-weight: 700; font-size: 15px; text-transform: uppercase; letter-spacing: .04em; margin: 16px 0 2px; }
+  .heat-cap small { font-family: var(--body); font-weight: 500; font-size: 11.5px; color: var(--muted); text-transform: none; letter-spacing: 0; }
+  .heat-cap.inv span { background: #fdf3d7; color: #6b5410; padding: 1px 8px; border-radius: 6px; }
+  .view-toggle { display: inline-flex; border: 1.5px solid var(--line); border-radius: 10px; overflow: hidden; margin-bottom: 6px; }
+  .view-toggle button { border: none; background: #fff; padding: 8px 16px; font-size: 13px; font-weight: 600; cursor: pointer; color: var(--muted); font-family: inherit; }
+  .view-toggle button.on { background: var(--asphalt); color: #fff; }
+
+  /* Lists / heats */
+  .hb { border: 1.5px solid var(--line); border-radius: 12px; margin-bottom: 12px; overflow: hidden; background: var(--card); }
+  .hh { padding: 9px 14px; background: #f1f1ec; font-family: var(--display); font-weight: 700; font-size: 14px; text-transform: uppercase; letter-spacing: .04em; display: flex; justify-content: space-between; align-items: center; gap: 8px; }
+  .hh small { font-family: var(--body); font-weight: 500; font-size: 11.5px; color: var(--muted); text-transform: none; letter-spacing: 0; }
+  .hh.inv { background: #fdf3d7; color: #6b5410; }
+  .hh.bmain { background: var(--flag-green-bg); color: var(--flag-green); }
+  .hh.feat { background: var(--asphalt); color: var(--plate); }
+  .hr { display: flex; align-items: center; padding: 8px 14px; border-top: 1px solid #f0f0eb; gap: 10px; font-size: 14px; }
+  .hr .pnum { font-family: var(--display); font-weight: 800; font-size: 15px; width: 30px; color: #8a8d94; flex-shrink: 0; }
+  .hr .nm { flex: 1; min-width: 0; overflow: hidden; white-space: nowrap; text-overflow: ellipsis; }
+  .hr .nm b { font-size: 14.5px; }
+  .hr .nm span { color: var(--muted); font-size: 12.5px; }
+  .pts-badge { padding: 3px 10px; border-radius: 99px; font-size: 12px; font-weight: 700; background: #fff4dc; color: #7a4f00; white-space: nowrap; flex-shrink: 0; }
+  .transfer-tag { font-size: 11px; padding: 3px 9px; border-radius: 99px; background: var(--flag-green-bg); color: var(--flag-green); font-weight: 700; white-space: nowrap; flex-shrink: 0; }
+  .tbd { color: #b0b2b8; font-style: italic; }
+  .fin-sel { width: 74px; padding: 7px 6px; font-size: 14px; border-radius: 8px; border: 1.5px solid #d4d4cf; font-family: inherit; flex-shrink: 0; background: #fff; }
+  .pts-input { width: 48px; padding: 6px 3px; font-size: 14px; text-align: center; border-radius: 8px; border: 1.5px solid #d4d4cf; font-family: inherit; flex-shrink: 0; }
+  .tab-row { display: flex; gap: 7px; margin-bottom: 16px; flex-wrap: wrap; }
+  .tab { padding: 7px 16px; border-radius: 99px; font-size: 13px; font-weight: 600; border: 1.5px solid #d4d4cf; background: #fff; color: #555; cursor: pointer; font-family: inherit; }
+  .tab.on { background: var(--asphalt); color: #fff; border-color: var(--asphalt); }
+
+  table { width: 100%; border-collapse: collapse; font-size: 14px; }
+  th { text-align: left; padding: 8px 10px; font-weight: 700; color: #777; border-bottom: 1px solid var(--line); font-size: 12px; text-transform: uppercase; letter-spacing: .04em; }
+  td { padding: 9px 10px; border-bottom: 1px solid #f0f0eb; vertical-align: middle; }
+  tr:last-child td { border-bottom: none; }
+  .g3 { display: grid; grid-template-columns: repeat(3, 1fr); gap: 12px; }
+  .g4 { display: grid; grid-template-columns: repeat(4, 1fr); gap: 12px; }
+  .divider { border: none; border-top: 1px solid #ebebe6; margin: 18px 0; }
+  .empty { font-size: 13.5px; color: var(--muted); padding: 14px 0; }
+  .inline-num { width: 84px; padding: 6px 8px; font-size: 14px; border-radius: 8px; border: 1.5px solid #d4d4cf; font-family: inherit; }
+
+  @media (max-width: 560px) {
+    .hr > small { display: none; }
+    .hr { gap: 7px; padding: 8px 10px; }
+    .g3, .g4 { grid-template-columns: 1fr 1fr; }
+    .nav button { padding: 11px 13px; font-size: 13px; }
+    .slot .posn { width: 26px; font-size: 16px; }
+    .slot { padding: 8px 9px; gap: 7px; }
+    .disc.sm { width: 34px; height: 34px; font-size: 16px; }
+  }
+  @media (prefers-reduced-motion: reduce) { * { animation: none !important; transition: none !important; } }
+</style>
+</head>
+<body>
+
+<div class="container">
+  <div class="header">
+    <div class="brand">Race<em>Day</em></div>
+    <div class="tag">Driver registration &amp; live starting lineups</div>
+  </div>
+  <div class="checker"></div>
+
+  <div class="nav" id="mainNav">
+    <button class="active" onclick="nav('signup')">Sign up</button>
+    <button onclick="nav('grid')">Lineups</button>
+    <button onclick="nav('results')">Results</button>
+    <button onclick="nav('admin')">Admin</button>
+  </div>
+
+  <div id="dayBanner" class="banner" style="display:none">
+    <span id="dayBannerText"></span>
+    <button class="btn btn-sm btn-primary" onclick="newRaceDay()">Start today's race day</button>
+  </div>
+
+  <!-- SIGN UP -->
+  <div id="page-signup" class="page active">
+    <div id="s1">
+      <h2>Driver sign-up</h2>
+      <p class="sub">Type your name and vehicle number. If you've raced here before, tap your name when it appears.</p>
+      <div class="card">
+        <label>Driver name</label>
+        <input id="dName" type="text" placeholder="Full name" autocomplete="off" oninput="suggest()" />
+        <div class="sugg" id="suggBox"></div>
+        <label>Vehicle number</label>
+        <input id="dNum" type="text" inputmode="numeric" placeholder="e.g. 47" maxlength="4" autocomplete="off" />
+        <div id="e1" class="err" style="display:none"></div>
+        <button class="btn btn-go btn-block" onclick="step2()">Next — pick your classes →</button>
+      </div>
+    </div>
+
+    <div id="s2" style="display:none">
+      <h2>Pick your classes</h2>
+      <p class="sub">Tap every class you're running today. You'll draw one pill for each.</p>
+      <div class="card" id="chips"></div>
+      <div id="e2" class="err" style="display:none"></div>
+      <div style="display:flex;gap:10px;margin-top:14px">
+        <button class="btn" onclick="showStep(1)">← Back</button>
+        <button class="btn btn-go" style="flex:1" onclick="register()">Draw my pills</button>
+      </div>
+    </div>
+
+    <div id="s3" style="display:none">
+      <div id="doneBox"></div>
+      <button class="btn btn-block" onclick="resetReg()">Sign up the next driver</button>
+    </div>
+  </div>
+
+  <!-- LINEUPS: starting grid + heats -->
+  <div id="page-grid" class="page">
+    <div style="display:flex;align-items:center;gap:10px;flex-wrap:wrap">
+      <h2 style="margin-bottom:0">Lineups</h2>
+      <button class="btn btn-sm" onclick="printHeats()" style="margin-left:auto">🖨 Print / save PDF</button>
+    </div>
+    <p class="sub">Lowest pill starts up front. Set 2 runs inverted. Spots update live as drivers draw.</p>
+    <div class="view-toggle" id="viewToggle">
+      <button id="vtDouble" onclick="setGridStyle('double')">Double file</button>
+      <button id="vtSingle" onclick="setGridStyle('single')">Single file</button>
+    </div>
+    <div id="gridContent"></div>
+  </div>
+
+  <!-- RESULTS -->
+  <div id="page-results" class="page">
+    <h2>Results &amp; lineups</h2>
+    <p class="sub">Enter finishing positions from both heat sets. Standings, the B-main, and the feature lineup build themselves.</p>
+    <div id="resultsContent"></div>
+  </div>
+
+  <!-- ADMIN -->
+  <div id="page-admin" class="page">
+    <h2>Admin</h2>
+
+    <div class="slbl">Race classes</div>
+    <div class="card">
+      <div style="display:flex;gap:8px;flex-wrap:wrap">
+        <input id="newClass" type="text" placeholder="Class name (e.g. Junior 80cc)" style="flex:2;min-width:180px" />
+        <input id="newClassMax" type="number" placeholder="Pills" title="Highest pill number" value="100" min="2" max="999" style="width:90px" />
+        <button class="btn btn-primary" onclick="addClass()">Add class</button>
+      </div>
+      <p style="font-size:12px;color:var(--muted);margin-top:8px">"Pills" is the highest pill number in that class's draw (pills run 1 up to this number).</p>
+      <div id="clsList" style="margin-top:12px"></div>
+    </div>
+
+    <div class="slbl">Race format</div>
+    <div class="card">
+      <div class="g4">
+        <div><label>Max karts per heat</label><input type="number" id="mHeat" min="2" max="30" onchange="saveSett()" /></div>
+        <div><label>Max in feature</label><input type="number" id="mFeat" min="2" max="40" onchange="saveSett()" /></div>
+        <div><label>Max in B-main</label><input type="number" id="mBMain" min="2" max="30" onchange="saveSett()" /></div>
+        <div><label>B-main transfers</label><input type="number" id="mTrans" min="0" max="10" onchange="saveSett()" /></div>
+      </div>
+    </div>
+
+    <div class="slbl">Today's entries</div>
+    <div class="card" id="entryList"></div>
+
+    <div class="slbl">Driver book <span style="font-weight:500;text-transform:none;letter-spacing:0">— saved across race days</span></div>
+    <div class="card" id="rosterList"></div>
+
+    <div class="slbl">Danger zone</div>
+    <div class="card">
+      <div style="display:flex;gap:10px;flex-wrap:wrap">
+        <button class="btn" onclick="newRaceDay()">🏁 Start a new race day</button>
+        <button class="btn" onclick="seedDemo()">Load demo race day</button>
+        <button class="btn btn-danger" onclick="resetAll()">Erase everything</button>
+      </div>
+      <p style="font-size:12px;color:var(--muted);margin-top:8px">A new race day clears today's entries, pills, and results — the driver book and classes are kept. Erase everything wipes the driver book too.</p>
+    </div>
+  </div>
+</div>
+
+<script>
+// ---------- State ----------
+const KEY = 'raceday_v1';
+function today() { const d = new Date(); return d.getFullYear()+'-'+String(d.getMonth()+1).padStart(2,'0')+'-'+String(d.getDate()).padStart(2,'0'); }
+function defaults() {
+  return {
+    roster: [],                                   // persistent driver book: {id, name, num}
+    classes: [
+      { id: 1, name: 'Junior 80cc', maxPill: 100 },
+      { id: 2, name: 'Senior 100cc', maxPill: 100 },
+      { id: 3, name: 'Open Shifter', maxPill: 100 }
+    ],
+    settings: { maxHeat: 8, maxBMain: 12, maxFeature: 20, transfers: 2, gridStyle: 'double' },
+    raceDay: { date: today(), entries: [], heatResults: {} },  // entries: {driverId, classId, pill}
+    nextId: 100
+  };
+}
+function load() {
+  try { const raw = localStorage.getItem(KEY); if (raw) { const s = JSON.parse(raw); if (s && s.raceDay && s.classes) return s; } } catch(e) {}
+  return defaults();
+}
+function save() { try { localStorage.setItem(KEY, JSON.stringify(S)); } catch(e) {} }
+
+let S = load();
+let cur = null;          // driver mid-signup: {name, num}
+let curPage = 'signup';
+let resTab = null;       // selected class on results page
+
+// ---------- Helpers ----------
+function esc(s) { return String(s).replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c])); }
+function driverById(id) { return S.roster.find(d => d.id === id); }
+function classById(id) { return S.classes.find(c => c.id === id); }
+function classRacers(clsId) {
+  return S.raceDay.entries.filter(e => e.classId === clsId)
+    .map(e => { const d = driverById(e.driverId) || { name: '?', num: '?' }; return { id: e.driverId, name: d.name, num: d.num, pill: e.pill }; })
+    .sort((a, b) => a.pill - b.pill);
+}
+function pillsUsed(clsId) { return new Set(S.raceDay.entries.filter(e => e.classId === clsId).map(e => e.pill)); }
+function drawPill(clsId) {
+  const cls = classById(clsId);
+  const used = pillsUsed(clsId);
+  const pool = [];
+  for (let p = 1; p <= (cls.maxPill || 100); p++) if (!used.has(p)) pool.push(p);
+  if (!pool.length) return null;
+  return pool[Math.floor(Math.random() * pool.length)];
+}
+function posText(pos) { return { row: Math.ceil(pos / 2), side: pos % 2 === 1 ? 'Inside' : 'Outside' }; }
+function buildHeats(racers, max) {
+  if (!racers.length) return [];
+  const n = Math.ceil(racers.length / max);
+  const heats = Array.from({ length: n }, () => []);
+  racers.forEach((r, i) => heats[i % n].push(r));   // racers already sorted by pill
+  return heats;
+}
+
+// ---------- Navigation ----------
+function nav(p) {
+  curPage = p;
+  document.querySelectorAll('.page').forEach(el => el.classList.remove('active'));
+  document.querySelectorAll('#mainNav button').forEach(b => b.classList.remove('active'));
+  document.getElementById('page-' + p).classList.add('active');
+  const idx = ['signup','grid','results','admin'].indexOf(p);
+  document.querySelectorAll('#mainNav button')[idx].classList.add('active');
+  render(p);
+}
+function render(p) {
+  if (p === 'grid') renderGrid();
+  if (p === 'results') renderResults();
+  if (p === 'admin') renderAdmin();
+  checkDayBanner();
+}
+
+// ---------- Race day handling ----------
+function checkDayBanner() {
+  const b = document.getElementById('dayBanner');
+  if (S.raceDay.date !== today() && (S.raceDay.entries.length || Object.keys(S.raceDay.heatResults).length)) {
+    document.getElementById('dayBannerText').textContent = 'These entries are from ' + S.raceDay.date + '.';
+    b.style.display = '';
+  } else { b.style.display = 'none'; }
+}
+function newRaceDay() {
+  if (S.raceDay.entries.length || Object.keys(S.raceDay.heatResults).length) {
+    if (!confirm("Start a new race day? Today's entries, pills, and results will be cleared. The driver book and classes are kept.")) return;
+  }
+  S.raceDay = { date: today(), entries: [], heatResults: {} };
+  save();
+  resetReg();
+  render(curPage);
+}
+function resetAll() {
+  if (!confirm('Erase EVERYTHING — driver book, classes, settings, and all results? This cannot be undone.')) return;
+  if (!confirm('Last check: this wipes the saved driver book too. Erase it all?')) return;
+  localStorage.removeItem(KEY);
+  S = defaults();
+  save();
+  resetReg();
+  render(curPage);
+}
+
+// ---------- Sign-up ----------
+function suggest() {
+  const q = document.getElementById('dName').value.trim().toLowerCase();
+  const box = document.getElementById('suggBox');
+  if (q.length < 2) { box.innerHTML = ''; return; }
+  const hits = S.roster.filter(d => d.name.toLowerCase().includes(q) || String(d.num) === q).slice(0, 5);
+  box.innerHTML = hits.map(d =>
+    '<button onclick="pickRoster(' + d.id + ')"><b>' + esc(d.name) + '</b>&nbsp; #' + esc(d.num) + '</button>'
+  ).join('');
+}
+function pickRoster(id) {
+  const d = driverById(id);
+  if (!d) return;
+  document.getElementById('dName').value = d.name;
+  document.getElementById('dNum').value = d.num;
+  document.getElementById('suggBox').innerHTML = '';
+}
+function step2() {
+  const name = document.getElementById('dName').value.trim();
+  const num = document.getElementById('dNum').value.trim();
+  const err = document.getElementById('e1');
+  if (!name || !num) { err.style.display = ''; err.textContent = 'Please enter both a name and a vehicle number.'; return; }
+  if (!/^\d{1,4}[a-zA-Z]?$/.test(num)) { err.style.display = ''; err.textContent = 'Vehicle number should be 1–4 digits (a trailing letter is OK, like 7x).'; return; }
+  err.style.display = 'none';
+  cur = { name, num };
+  renderChips();
+  showStep(2);
+}
+function showStep(n) { [1,2,3].forEach(i => document.getElementById('s' + i).style.display = i === n ? '' : 'none'); }
+function findRosterMatch(name) { return S.roster.find(d => d.name.toLowerCase() === name.toLowerCase()); }
+
+function renderChips() {
+  const el = document.getElementById('chips');
+  if (!S.classes.length) { el.innerHTML = '<p class="empty">No classes are set up yet — ask the admin to add classes first.</p>'; return; }
+  const match = findRosterMatch(cur.name);
+  const enteredIds = match ? S.raceDay.entries.filter(e => e.driverId === match.id).map(e => e.classId) : [];
+  el.innerHTML = S.classes.map(c => {
+    const already = enteredIds.includes(c.id);
+    if (already) return '<span class="chip off" title="Already entered today">' + esc(c.name) + ' — entered</span>';
+    return '<span class="chip" id="ch' + c.id + '" onclick="this.classList.toggle(\'on\')">' + esc(c.name) + '</span>';
+  }).join('');
+}
+
+function register() {
+  const sel = S.classes.filter(c => { const e = document.getElementById('ch' + c.id); return e && e.classList.contains('on'); });
+  const err = document.getElementById('e2');
+  if (!sel.length) { err.style.display = ''; err.textContent = 'Tap at least one class to race in.'; return; }
+
+  // vehicle number must be unique within each selected class
+  const match = findRosterMatch(cur.name);
+  for (const c of sel) {
+    const clash = S.raceDay.entries.find(e => {
+      if (e.classId !== c.id) return false;
+      const d = driverById(e.driverId);
+      return d && String(d.num).toLowerCase() === cur.num.toLowerCase() && (!match || e.driverId !== match.id);
+    });
+    if (clash) { err.style.display = ''; err.textContent = 'Number #' + cur.num + ' is already racing in ' + classById(c.id).name + '. Pick a different number for that class.'; return; }
+  }
+  // make sure every selected class still has pills left
+  for (const c of sel) {
+    if (drawPill(c.id) === null) { err.style.display = ''; err.textContent = 'All pills are taken in ' + c.name + '. The admin can raise that class\'s pill count.'; return; }
+  }
+  err.style.display = 'none';
+
+  // save / update the driver book
+  let driver = match;
+  if (driver) { driver.num = cur.num; driver.name = cur.name; }
+  else { driver = { id: S.nextId++, name: cur.name, num: cur.num }; S.roster.push(driver); }
+
+  // one pill per class, no repeats within a class
+  const drawn = [];
+  sel.forEach(c => {
+    const pill = drawPill(c.id);
+    S.raceDay.entries.push({ driverId: driver.id, classId: c.id, pill });
+    drawn.push({ cls: c, pill });
+  });
+  save();
+  renderDone(driver, drawn);
+  showStep(3);
+}
+
+function renderDone(driver, drawn) {
+  const first = esc(driver.name.split(' ')[0]);
+  let h = '<div class="bigmsg">🏁 You\'re on the grid, ' + first + '!</div>'
+    + '<p class="sub">#' + esc(driver.num) + ' — here\'s your pill and starting spot for each class. Spots can shift as more drivers draw.</p>'
+    + '<div class="reveal">';
+  drawn.forEach((x, i) => {
+    const racers = classRacers(x.cls.id);
+    const pos = racers.findIndex(r => r.id === driver.id) + 1;
+    const pt = posText(pos);
+    h += '<div class="rcard"><div class="rcls">' + esc(x.cls.name) + '</div>'
+      + '<div class="disc big pop" style="animation-delay:' + (i * 0.22) + 's">' + x.pill + '</div>'
+      + '<div class="rpos">P' + pos + '</div>'
+      + '<div class="rrow">Row ' + pt.row + ' · ' + pt.side + ' · Pill #' + x.pill + '</div></div>';
+  });
+  h += '</div>'
+    + '<div style="margin-top:14px"><button class="btn btn-primary" onclick="nav(\'grid\')">See the full grid →</button></div>';
+  document.getElementById('doneBox').innerHTML = h;
+}
+
+function resetReg() {
+  cur = null;
+  document.getElementById('dName').value = '';
+  document.getElementById('dNum').value = '';
+  document.getElementById('suggBox').innerHTML = '';
+  document.getElementById('e1').style.display = 'none';
+  document.getElementById('e2').style.display = 'none';
+  showStep(1);
+  if (curPage === 'signup') document.getElementById('dName').focus();
+}
+
+// ---------- Lineups: starting grid + heats, one view ----------
+function setGridStyle(s) { S.settings.gridStyle = s; save(); renderGrid(); }
+
+function gridMarkup(racers, single) {
+  if (single) {
+    let h = '<div class="hb">';
+    racers.forEach((r, i) => {
+      h += '<div class="hr"><div class="pnum">P' + (i + 1) + '</div><div class="disc sm">' + r.pill + '</div>'
+        + '<div class="nm"><b>' + esc(r.name) + '</b> <span>#' + esc(r.num) + '</span></div>'
+        + (i === 0 ? '<span class="poletag" style="position:static"></span>' : '') + '</div>';
+    });
+    return h + '</div>';
+  }
+  let h = '<div class="lane-labels"><span>Inside line</span><span>Outside line</span></div><div class="grid2">';
+  racers.forEach((r, i) => {
+    const pos = i + 1; const pt = posText(pos);
+    h += '<div class="slot ' + (pos % 2 ? 'inside' : 'outside') + (pos === 1 ? ' pole' : '') + '">'
+      + (pos % 2 ? '<span class="rowlbl">Row ' + pt.row + '</span>' : '')
+      + (pos === 1 ? '<span class="poletag"></span>' : '')
+      + '<div class="posn">P' + pos + '</div><div class="disc sm">' + r.pill + '</div>'
+      + '<div class="who"><b>' + esc(r.name) + '</b><span>#' + esc(r.num) + '</span></div></div>';
+  });
+  return h + '</div>';
+}
+
+function renderGrid() {
+  document.getElementById('vtDouble').classList.toggle('on', S.settings.gridStyle !== 'single');
+  document.getElementById('vtSingle').classList.toggle('on', S.settings.gridStyle === 'single');
+  const el = document.getElementById('gridContent');
+  if (!S.classes.length) { el.innerHTML = '<p class="empty">No classes set up yet.</p>'; return; }
+  const single = S.settings.gridStyle === 'single';
+  let h = '';
+  S.classes.forEach(cls => {
+    const racers = classRacers(cls.id);
+    h += '<section class="gsec"><h3>' + esc(cls.name) + ' <span class="count">· ' + racers.length + ' entered</span></h3>';
+    if (!racers.length) { h += '<p class="empty">No drivers yet — first to sign up takes the pole.</p></section>'; return; }
+    const set1 = buildHeats(racers, S.settings.maxHeat);
+    const set2 = set1.map(heat => [...heat].reverse());
+    if (set1.length === 1) {
+      // whole class fits in one heat: the grid IS the heat
+      h += '<div class="slbl" style="margin-top:6px">Starting grid — set 1</div>' + gridMarkup(racers, single);
+      h += '<div class="slbl">Set 2 — inverted</div>' + gridMarkup(set2[0], single);
+    } else {
+      h += '<div class="slbl" style="margin-top:6px">Full field — pill draw order</div>' + gridMarkup(racers, single);
+      h += '<div class="slbl">Set 1 heats</div>';
+      set1.forEach((heat, hi) => {
+        h += '<div class="heat-cap"><span>Heat ' + (hi + 1) + '</span><small>' + heat.length + ' karts</small></div>' + gridMarkup(heat, single);
+      });
+      h += '<div class="slbl">Set 2 heats — inverted</div>';
+      set2.forEach((heat, hi) => {
+        h += '<div class="heat-cap inv"><span>Heat ' + (hi + 1) + '</span><small>' + heat.length + ' karts · inverted</small></div>' + gridMarkup(heat, single);
+      });
+    }
+    // once every heat finish is entered, the main-event grids post here too
+    if (classComplete(cls.id)) {
+      const fd = featureData(cls.id);
+      const toRow = s => ({ name: s.name, num: s.num, pill: s.pts });   // disc shows the heat total — the "race pill"
+      if (fd.bmain.length) {
+        h += '<div class="slbl">B-main — lined up by heat total · top ' + fd.transfers + ' transfer</div>' + gridMarkup(fd.bmain.map(toRow), single);
+        if (fd.transferred.length >= fd.transfers) {
+          h += '<div class="slbl">🏁 Feature lineup</div>' + gridMarkup([...fd.locked, ...fd.transferred].map(toRow), single);
+        } else {
+          h += '<p class="empty">The feature grid posts here once the B-main finishes are entered on the Results tab.</p>';
+        }
+      } else {
+        h += '<div class="slbl">🏁 Feature lineup — by heat total (low wins)</div>' + gridMarkup(fd.locked.map(toRow), single);
+      }
+    }
+    h += '</section>';
+  });
+  el.innerHTML = h;
+}
+
+function printHeats() {
+  const max = S.settings.maxHeat;
+  let html = '<!DOCTYPE html><html><head><title>Heat Assignments</title><style>'
+    + 'body{font-family:Arial,sans-serif;font-size:12px;padding:24px;color:#000}'
+    + 'h1{font-size:20px;margin-bottom:4px}h2{font-size:15px;margin:20px 0 6px;border-bottom:2px solid #000;padding-bottom:4px}'
+    + 'h3{font-size:13px;margin:12px 0 4px}p{color:#555;font-size:11px;margin-bottom:8px}'
+    + 'table{width:100%;border-collapse:collapse;margin-bottom:12px}'
+    + 'th,td{border:1px solid #bbb;padding:6px 8px;text-align:left}th{background:#eee;font-weight:700}'
+    + '.inv td{background:#fffbe8}.inv th{background:#f3e6bd}'
+    + '</style></head><body><h1>Heat Assignments</h1><p>Generated: ' + new Date().toLocaleString() + '</p>';
+  S.classes.forEach(cls => {
+    const racers = classRacers(cls.id);
+    if (!racers.length) return;
+    const set1 = buildHeats(racers, max);
+    const set2 = set1.map(heat => [...heat].reverse());
+    html += '<h2>' + esc(cls.name) + ' — ' + racers.length + ' drivers</h2>';
+    [['Set 1 — pill order', set1, ''], ['Set 2 — inverted', set2, ' class="inv"']].forEach(([title, set, cl]) => {
+      html += '<h3>' + title + '</h3>';
+      set.forEach((heat, hi) => {
+        html += '<p><strong>Heat ' + (hi + 1) + '</strong> (' + heat.length + ' karts)</p>'
+          + '<table' + cl + '><tr><th>Pos</th><th>Driver</th><th>Vehicle #</th><th>Pill</th><th>Grid spot</th></tr>';
+        heat.forEach((r, i) => {
+          const pt = posText(i + 1);
+          html += '<tr><td>' + (i + 1) + '</td><td>' + esc(r.name) + '</td><td>#' + esc(r.num) + '</td><td>' + r.pill + '</td><td>Row ' + pt.row + ' — ' + pt.side + '</td></tr>';
+        });
+        html += '</table>';
+      });
+    });
+  });
+  html += '</body></html>';
+  const w = window.open('', '_blank');
+  if (w) { w.document.write(html); w.document.close(); setTimeout(() => w.print(), 400); }
+}
+
+// ---------- Results ----------
+function renderResults() {
+  const el = document.getElementById('resultsContent');
+  const withRacers = S.classes.filter(c => classRacers(c.id).length);
+  if (!withRacers.length) { el.innerHTML = '<p class="empty">No drivers registered yet.</p>'; return; }
+  if (!resTab || !withRacers.find(c => c.id === resTab)) resTab = withRacers[0].id;
+  let h = '<div class="tab-row">' + withRacers.map(c =>
+    '<button class="tab' + (c.id === resTab ? ' on' : '') + '" onclick="resTab=' + c.id + ';renderResults()">' + esc(c.name) + '</button>'
+  ).join('') + '</div><div id="resBody"></div>';
+  el.innerHTML = h;
+  renderClassResults(resTab);
+}
+
+function resKey(clsId) { return 'cls' + clsId; }
+function getRes(clsId) { const k = resKey(clsId); if (!S.raceDay.heatResults[k]) S.raceDay.heatResults[k] = {}; return S.raceDay.heatResults[k]; }
+function saveResult(clsId, rk, val) {
+  const res = getRes(clsId);
+  if (val === '' || val == null) delete res[rk];
+  else if (val === 'DNF' || val === 'DNS' || val === 'DQ') res[rk] = val;
+  else { const n = parseInt(val); if (n > 0) res[rk] = n; else delete res[rk]; }
+  save();
+  renderClassResults(clsId);
+}
+
+// Low points: your finish IS your score. DNF/DNS/DQ score worse than last place.
+function finPoints(v, heatSize) {
+  if (v === 'DNF') return heatSize + 1;
+  if (v === 'DNS') return heatSize + 2;
+  if (v === 'DQ') return heatSize + 3;
+  return v;
+}
+function finLabel(v) { return v == null ? '·' : v; }
+
+// Sum of both heat finishes = the driver's "race pill". Low wins; ties go to the original pill draw.
+function calcStandings(clsId) {
+  const racers = classRacers(clsId);
+  const set1 = buildHeats(racers, S.settings.maxHeat);
+  const heatOf = {};
+  set1.forEach((heat, hi) => heat.forEach(r => { heatOf[r.id] = hi; }));
+  const res = getRes(clsId);
+  return racers.map(r => {
+    const hi = heatOf[r.id], n = set1[hi].length;
+    const f1 = res['h1_' + hi + '_' + r.id], f2 = res['h2_' + hi + '_' + r.id];
+    const scored = (f1 != null ? 1 : 0) + (f2 != null ? 1 : 0);
+    const pts = (f1 != null ? finPoints(f1, n) : 0) + (f2 != null ? finPoints(f2, n) : 0);
+    return { ...r, pts, scored, f1, f2 };
+  }).sort((a, b) => (b.scored - a.scored) || (a.pts - b.pts) || (a.pill - b.pill));
+}
+function classComplete(clsId) { const s = calcStandings(clsId); return s.length > 0 && s.every(x => x.scored === 2); }
+
+function featureData(clsId) {
+  const standings = calcStandings(clsId);
+  const { maxFeature, maxBMain, transfers } = S.settings;
+  if (standings.length <= maxFeature) return { locked: standings, bmain: [], transferred: [], transfers };
+  const lockCount = Math.max(0, maxFeature - transfers);
+  const locked = standings.slice(0, lockCount);
+  const bmain = standings.slice(lockCount, lockCount + maxBMain);
+  const res = getRes(clsId);
+  const finished = bmain.filter(r => typeof res['bm_' + r.id] === 'number' && res['bm_' + r.id] > 0)
+    .sort((a, b) => res['bm_' + a.id] - res['bm_' + b.id]);
+  return { locked, bmain, transferred: finished.slice(0, transfers), transfers };
+}
+
+function finSelect(clsId, rk, n, val) {
+  let o = '<option value="">—</option>';
+  for (let i = 1; i <= n; i++) o += '<option value="' + i + '"' + (val == i ? ' selected' : '') + '>' + i + '</option>';
+  ['DNF', 'DNS', 'DQ'].forEach(c => { o += '<option value="' + c + '"' + (val === c ? ' selected' : '') + '>' + c + '</option>'; });
+  return '<select class="fin-sel" onchange="saveResult(' + clsId + ',\'' + rk + '\',this.value)">' + o + '</select>';
+}
+
+function heatEntryBlock(clsId, set, heats, label, invClass) {
+  const res = getRes(clsId);
+  let h = '<div class="slbl">' + label + '</div>';
+  heats.forEach((heat, hi) => {
+    h += '<div class="hb"><div class="hh' + invClass + '"><span>Heat ' + (hi + 1) + '</span><small>pick each driver\'s finish</small></div>';
+    heat.forEach(r => {
+      const rk = set + '_' + hi + '_' + r.id;
+      h += '<div class="hr"><div class="nm"><b>' + esc(r.name) + '</b> <span>#' + esc(r.num) + '</span></div>'
+        + finSelect(clsId, rk, heat.length, res[rk]) + '</div>';
+    });
+    h += '</div>';
+  });
+  return h;
+}
+
+function renderClassResults(clsId) {
+  const el = document.getElementById('resBody');
+  const racers = classRacers(clsId);
+  if (!racers.length) { el.innerHTML = '<p class="empty">No drivers in this class.</p>'; return; }
+  const set1 = buildHeats(racers, S.settings.maxHeat);
+  const set2 = set1.map(heat => [...heat].reverse());
+  const res = getRes(clsId);
+  let h = heatEntryBlock(clsId, 'h1', set1, 'Set 1 heats — pill order', '');
+  h += heatEntryBlock(clsId, 'h2', set2, 'Set 2 heats — inverted', ' inv');
+
+  const standings = calcStandings(clsId);
+  h += '<div class="slbl">Heat totals — the "race pill"</div><div class="hb"><div class="hh"><span>Standings</span><small>finishes added up · low wins · ties go to the pill draw</small></div>';
+  standings.forEach((s, i) => {
+    const detail = finLabel(s.f1) + ' + ' + finLabel(s.f2);
+    h += '<div class="hr"><div class="pnum">' + (i + 1) + '</div>'
+      + '<div class="nm"><b>' + esc(s.name) + '</b> <span>#' + esc(s.num) + ' · heats: ' + detail + '</span></div>'
+      + (s.scored < 2 ? '<span class="transfer-tag" style="background:#fdf3d7;color:#6b5410">' + s.scored + ' of 2</span>' : '')
+      + '<span class="pts-badge">' + (s.scored ? s.pts : '—') + '</span></div>';
+  });
+  h += '</div>';
+
+  const fd = featureData(clsId);
+  if (fd.bmain.length) {
+    h += '<div class="slbl">B-main</div><div class="hb"><div class="hh bmain"><span>B-main lineup</span><small>top ' + fd.transfers + ' finishers transfer</small></div>';
+    fd.bmain.forEach((r, i) => {
+      const made = fd.transferred.some(t => t.id === r.id);
+      h += '<div class="hr"><div class="pnum">' + (i + 1) + '</div>'
+        + '<div class="nm"><b>' + esc(r.name) + '</b> <span>#' + esc(r.num) + ' · total ' + r.pts + '</span></div>'
+        + (made ? '<span class="transfer-tag">→ Feature</span>' : '')
+        + finSelect(clsId, 'bm_' + r.id, fd.bmain.length, res['bm_' + r.id]) + '</div>';
+    });
+    h += '</div>';
+  }
+
+  h += '<div class="slbl">Feature lineup</div><div class="hb"><div class="hh feat"><span>🏁 Feature</span><small>'
+    + (fd.bmain.length ? fd.locked.length + ' on heat totals + ' + fd.transfers + ' from the B-main' : 'lined up by heat totals') + '</small></div>';
+  let pos = 0;
+  fd.locked.forEach(s => {
+    pos++; const pt = posText(pos);
+    h += '<div class="hr"><div class="pnum">P' + pos + '</div>'
+      + '<div class="nm"><b>' + esc(s.name) + '</b> <span>#' + esc(s.num) + '</span></div>'
+      + '<span class="pts-badge">' + s.pts + '</span><small style="color:var(--muted)">Row ' + pt.row + ' · ' + pt.side + '</small></div>';
+  });
+  if (fd.bmain.length) {
+    for (let t = 0; t < fd.transfers; t++) {
+      pos++; const pt = posText(pos); const r = fd.transferred[t];
+      if (r) {
+        h += '<div class="hr"><div class="pnum">P' + pos + '</div>'
+          + '<div class="nm"><b>' + esc(r.name) + '</b> <span>#' + esc(r.num) + '</span></div>'
+          + '<span class="transfer-tag">B-main P' + res['bm_' + r.id] + '</span><small style="color:var(--muted)">Row ' + pt.row + ' · ' + pt.side + '</small></div>';
+      } else {
+        h += '<div class="hr"><div class="pnum">P' + pos + '</div><div class="nm tbd">B-main transfer — pick the B-main finishes to fill this spot</div></div>';
+      }
+    }
+  }
+  h += '</div>';
+  el.innerHTML = h;
+}
+
+// ---------- Admin ----------
+function renderAdmin() {
+  renderClsList(); renderEntryList(); renderRosterList();
+  document.getElementById('mHeat').value = S.settings.maxHeat;
+  document.getElementById('mBMain').value = S.settings.maxBMain;
+  document.getElementById('mFeat').value = S.settings.maxFeature;
+  document.getElementById('mTrans').value = S.settings.transfers;
+}
+function saveSett() {
+  S.settings.maxHeat = parseInt(document.getElementById('mHeat').value) || 8;
+  S.settings.maxBMain = parseInt(document.getElementById('mBMain').value) || 12;
+  S.settings.maxFeature = parseInt(document.getElementById('mFeat').value) || 20;
+  S.settings.transfers = Math.max(0, parseInt(document.getElementById('mTrans').value) || 0);
+  save();
+}
+function renderClsList() {
+  const el = document.getElementById('clsList');
+  if (!S.classes.length) { el.innerHTML = '<p class="empty">No classes yet — add the first one above.</p>'; return; }
+  el.innerHTML = S.classes.map(c => {
+    const cnt = classRacers(c.id).length;
+    return '<div style="display:flex;align-items:center;gap:10px;padding:9px 0;border-bottom:1px solid #f0f0eb;flex-wrap:wrap">'
+      + '<span style="flex:1;font-weight:600;min-width:120px">' + esc(c.name) + '</span>'
+      + '<span style="font-size:12px;color:var(--muted)">' + cnt + ' entered</span>'
+      + '<label style="margin:0;display:flex;align-items:center;gap:6px;font-size:12px">Pills 1–'
+      + '<input class="inline-num" type="number" min="' + Math.max(2, cnt) + '" max="999" value="' + (c.maxPill || 100) + '" onchange="setClassMax(' + c.id + ',this.value)"></label>'
+      + '<button class="btn btn-sm btn-danger" onclick="delClass(' + c.id + ')">Remove</button></div>';
+  }).join('');
+}
+function setClassMax(id, val) {
+  const c = classById(id); if (!c) return;
+  const used = pillsUsed(id).size;
+  c.maxPill = Math.max(2, used, parseInt(val) || 100);
+  save(); renderClsList();
+}
+function addClass() {
+  const nameEl = document.getElementById('newClass'), maxEl = document.getElementById('newClassMax');
+  const name = nameEl.value.trim();
+  if (!name) return;
+  S.classes.push({ id: Date.now(), name, maxPill: Math.max(2, parseInt(maxEl.value) || 100) });
+  nameEl.value = ''; maxEl.value = '100';
+  save(); renderClsList();
+}
+function delClass(id) {
+  const cnt = classRacers(id).length;
+  if (!confirm('Remove this class?' + (cnt ? ' ' + cnt + " of today's entries in it will be removed too." : ''))) return;
+  S.classes = S.classes.filter(c => c.id !== id);
+  S.raceDay.entries = S.raceDay.entries.filter(e => e.classId !== id);
+  delete S.raceDay.heatResults[resKey(id)];
+  save(); renderAdmin();
+}
+function renderEntryList() {
+  const el = document.getElementById('entryList');
+  if (!S.raceDay.entries.length) { el.innerHTML = '<p class="empty">No entries yet today.</p>'; return; }
+  const rows = S.raceDay.entries.map((e, i) => {
+    const d = driverById(e.driverId) || { name: '?', num: '?' };
+    const c = classById(e.classId) || { name: '?' };
+    return { i, name: d.name, num: d.num, cls: c.name, pill: e.pill };
+  }).sort((a, b) => a.cls.localeCompare(b.cls) || a.pill - b.pill);
+  el.innerHTML = '<table><thead><tr><th>Driver</th><th>#</th><th>Class</th><th>Pill</th><th></th></tr></thead><tbody>'
+    + rows.map(r => '<tr><td style="font-weight:600">' + esc(r.name) + '</td><td>#' + esc(r.num) + '</td><td style="color:var(--muted)">' + esc(r.cls) + '</td>'
+      + '<td><span class="disc sm" style="width:32px;height:32px;font-size:14px">' + r.pill + '</span></td>'
+      + '<td style="text-align:right"><button class="btn btn-sm btn-danger" onclick="delEntry(' + r.i + ')">Remove</button></td></tr>').join('')
+    + '</tbody></table>';
+}
+function delEntry(i) {
+  const e = S.raceDay.entries[i]; if (!e) return;
+  const d = driverById(e.driverId) || { name: 'this driver' };
+  const c = classById(e.classId) || { name: 'this class' };
+  if (!confirm('Remove ' + d.name + ' from ' + c.name + '? Pill #' + e.pill + ' goes back in the draw.')) return;
+  S.raceDay.entries.splice(i, 1);
+  save(); renderAdmin();
+}
+function renderRosterList() {
+  const el = document.getElementById('rosterList');
+  if (!S.roster.length) { el.innerHTML = '<p class="empty">Empty — drivers are saved here automatically the first time they sign up.</p>'; return; }
+  el.innerHTML = '<table><thead><tr><th>Driver</th><th>#</th><th></th></tr></thead><tbody>'
+    + [...S.roster].sort((a, b) => a.name.localeCompare(b.name)).map(d =>
+      '<tr><td style="font-weight:600">' + esc(d.name) + '</td><td>#' + esc(d.num) + '</td>'
+      + '<td style="text-align:right"><button class="btn btn-sm btn-danger" onclick="delRoster(' + d.id + ')">Remove</button></td></tr>').join('')
+    + '</tbody></table>';
+}
+function delRoster(id) {
+  const d = driverById(id); if (!d) return;
+  const todayCnt = S.raceDay.entries.filter(e => e.driverId === id).length;
+  if (!confirm('Remove ' + d.name + ' from the driver book?' + (todayCnt ? " Their entries today will be removed too." : ''))) return;
+  S.roster = S.roster.filter(x => x.id !== id);
+  S.raceDay.entries = S.raceDay.entries.filter(e => e.driverId !== id);
+  save(); renderAdmin();
+}
+
+// ---------- Demo data (for showing the app to a track) ----------
+function seedDemo() {
+  if (!confirm('Load a demo race day with 25 sample drivers? Current entries will be replaced (driver book is kept).')) return;
+  const demoNames = ['Ava Brooks','Ben Carter','Cody Diaz','Dana Evans','Eli Ford','Finn Gray','Gia Hall','Hank Irwin','Ivy James','Jax King','Kya Lane','Leo Moss','Mia Nash','Noah Otis','Opal Pratt','Quinn Reed','Rio Sands','Sky Tate','Tess Uri','Uma Vance','Vic Webb','Wes Xu','Yara York','Zane Zell','Pat Quick'];
+  S.raceDay = { date: today(), entries: [], heatResults: {} };
+  demoNames.forEach((name, i) => {
+    let d = findRosterMatch(name);
+    if (!d) { d = { id: S.nextId++, name, num: String(i + 1) }; S.roster.push(d); }
+    const classIds = i < 25 ? [S.classes[i % S.classes.length].id] : [];
+    if (i % 4 === 0 && S.classes.length > 1) classIds.push(S.classes[(i + 1) % S.classes.length].id); // some run two classes
+    classIds.forEach(cid => {
+      const pill = drawPill(cid);
+      if (pill !== null) S.raceDay.entries.push({ driverId: d.id, classId: cid, pill });
+    });
+  });
+  save();
+  render(curPage);
+  nav('grid');
+}
+
+// ---------- Live sync across tabs + init ----------
+window.addEventListener('storage', e => { if (e.key === KEY) { S = load(); render(curPage); } });
+checkDayBanner();
+renderGrid();
+</script>
+</body>
+</html>
