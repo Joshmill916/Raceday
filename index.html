@@ -57,6 +57,7 @@
   input:focus, select:focus { border-color: var(--ink); }
   .btn { display: inline-flex; align-items: center; justify-content: center; gap: 7px; padding: 12px 20px; border-radius: 10px; border: 1.5px solid #d4d4cf; background: #fff; color: var(--ink); font-size: 15px; font-weight: 600; cursor: pointer; font-family: inherit; transition: background .15s; }
   .btn:hover { background: #f6f6f3; }
+  .btn:disabled { opacity: .4; cursor: default; }
   .btn-primary { background: var(--asphalt); color: #fff; border-color: var(--asphalt); }
   .btn-primary:hover { background: var(--asphalt-2); }
   .btn-go { background: var(--plate); color: var(--plate-ink); border-color: var(--plate); font-family: var(--display); font-weight: 800; font-size: 17px; text-transform: uppercase; letter-spacing: 0.04em; }
@@ -151,6 +152,7 @@
   .divider { border: none; border-top: 1px solid #ebebe6; margin: 18px 0; }
   .empty { font-size: 13.5px; color: var(--muted); padding: 14px 0; }
   .inline-num { width: 84px; padding: 6px 8px; font-size: 14px; border-radius: 8px; border: 1.5px solid #d4d4cf; font-family: inherit; }
+  .ordnum { font-family: var(--display); font-weight: 800; font-size: 16px; color: #8a8d94; width: 22px; flex-shrink: 0; text-align: center; }
 
   /* TV display mode — sized in vh/vw so it reads from across the room */
   #tvOverlay { display:none; position:fixed; inset:0; z-index:100; background:#101114; color:#fff; flex-direction:column; }
@@ -232,7 +234,7 @@
           <div class="sugg" id="rosterPickList" style="max-height:172px;overflow-y:auto"></div>
         </div>
         <label>Vehicle number</label>
-        <input id="dNum" type="text" inputmode="numeric" placeholder="e.g. 47" maxlength="4" autocomplete="off" />
+        <input id="dNum" type="text" placeholder="e.g. 47 or 12A" maxlength="5" autocomplete="off" autocapitalize="characters" />
         <div id="e1" class="err" style="display:none"></div>
         <button class="btn btn-go btn-block" onclick="step2()">Next — pick your classes →</button>
       </div>
@@ -314,14 +316,14 @@
       <p style="font-size:12px;color:var(--muted);margin-top:10px">The name and logo show in the header and on printed lineups.</p>
     </div>
 
-    <div class="slbl">Race classes</div>
+    <div class="slbl">Race classes &amp; running order</div>
     <div class="card">
       <div style="display:flex;gap:8px;flex-wrap:wrap">
         <input id="newClass" type="text" placeholder="Class name (e.g. Junior 80cc)" style="flex:2;min-width:180px" />
         <input id="newClassMax" type="number" placeholder="Pills" title="Highest pill number" value="100" min="2" max="999" style="width:90px" />
         <button class="btn btn-primary" onclick="addClass()">Add class</button>
       </div>
-      <p style="font-size:12px;color:var(--muted);margin-top:8px">"Pills" is the highest pill number in that class's draw (pills run 1 up to this number).</p>
+      <p style="font-size:12px;color:var(--muted);margin-top:8px">"Pills" is the highest pill number in that class's draw (pills run 1 up to this number). The order below is the <b>running order</b> — use ↑ / ↓ to set which class races first. It's used on the Lineups, Results, TV display, and printout.</p>
       <div id="clsList" style="margin-top:12px"></div>
       <div id="clsLib"></div>
     </div>
@@ -559,16 +561,17 @@ function resetAll() {
 // Casual protection for handing the app to tracks: an access code unlocks
 // unlimited race days; without one, TRIAL_DAYS race days run free, then
 // new entries stop (viewing, results, history, and exports keep working).
+// Codes are MADE in the separate private generator (raceday-codegen.html),
+// never in this app. This app only checks codes — it can't create them.
 const TRIAL_DAYS = 3;
-const LIC_SALT = 'rd-pitlane-2026';
-const MASTER_HASH = 'E71YPW';   // licHash of the owner passphrase; never store the passphrase itself
+const LIC_SALT = 'rd-grid-9f3k27xq-2026';   // must match raceday-codegen.html EXACTLY
 
 function licHash(str) {
   let h = 2166136261;
   for (let i = 0; i < str.length; i++) { h ^= str.charCodeAt(i); h = Math.imul(h, 16777619); }
   return (h >>> 0).toString(36).toUpperCase();
 }
-function licCheck(name, exp) { return licHash(name + '|' + exp + '|' + LIC_SALT).slice(0, 4); }
+function licCheck(name, exp) { return licHash(name + '|' + exp + '|' + LIC_SALT).slice(0, 6); }
 function licStatus() {
   if (S.license) {
     const exp = String(S.license.exp);
@@ -609,7 +612,6 @@ function activateLic() {
   const inp = document.getElementById('licCode');
   const v = inp.value.trim();
   if (!v) return;
-  if (licHash(v) === MASTER_HASH) { genOpen = true; inp.value = ''; renderLicCard(); return; }
   const parts = v.toUpperCase().split('-');
   if (parts.length !== 3 || !/^[A-Z0-9]+$/.test(parts[0]) || !/^(0|\d{6})$/.test(parts[1]) || licCheck(parts[0], parts[1]) !== parts[2]) {
     alert("That code isn't valid — check it character by character and try again."); return;
@@ -625,16 +627,6 @@ function removeLic() {
   save();
   renderLicCard(); renderLicBanner();
 }
-let genOpen = false;
-function genCode() {
-  const name = document.getElementById('genName').value.replace(/[^a-z0-9]/gi, '').toUpperCase();
-  const expRaw = document.getElementById('genExp').value.trim();
-  if (!name) { alert('Enter a track name first.'); return; }
-  const exp = expRaw ? expRaw.replace('-', '') : '0';
-  if (exp !== '0' && !/^\d{6}$/.test(exp)) { alert('Pick an expiry month, or leave it blank for a forever code.'); return; }
-  document.getElementById('genOut').innerHTML = '<b style="font-size:18px;letter-spacing:.05em">' + esc(name + '-' + exp + '-' + licCheck(name, exp)) + '</b>'
-    + '<div style="font-size:12px;color:var(--muted);margin-top:4px">Text this code to the track — they enter it under Admin → License. ' + (exp === '0' ? 'It never expires.' : 'It works through ' + exp.slice(0, 4) + '-' + exp.slice(4) + '.') + '</div>';
-}
 function renderLicCard() {
   const el = document.getElementById('licCard');
   const st = licStatus();
@@ -646,16 +638,8 @@ function renderLicCard() {
   } else {
     h = '<p style="font-size:13.5px;margin-bottom:10px">Free trial — <b>' + S.trialDays.length + ' of ' + TRIAL_DAYS + '</b> race days used. Enter an access code to unlock unlimited race days on this device.</p>'
       + '<div style="display:flex;gap:8px;flex-wrap:wrap">'
-      + '<input id="licCode" type="text" placeholder="Access code (e.g. RIVERSIDE-0-AB12)" style="flex:1;min-width:200px" autocomplete="off">'
+      + '<input id="licCode" type="text" placeholder="Access code (e.g. RIVERSIDE-0-AB12CD)" style="flex:1;min-width:200px" autocomplete="off">'
       + '<button class="btn btn-primary" onclick="activateLic()">Activate</button></div>';
-  }
-  if (genOpen) {
-    h += '<hr class="divider"><div class="slbl" style="margin-top:0">Code generator — owner only</div>'
-      + '<div style="display:flex;gap:8px;flex-wrap:wrap;align-items:flex-end">'
-      + '<div style="flex:2;min-width:160px"><label>Track name</label><input id="genName" type="text" placeholder="e.g. Riverside" autocomplete="off"></div>'
-      + '<div style="flex:1;min-width:140px"><label>Expires (blank = forever)</label><input id="genExp" type="month"></div>'
-      + '<button class="btn btn-go" onclick="genCode()">Generate</button></div>'
-      + '<div id="genOut" style="margin-top:12px"></div>';
   }
   el.innerHTML = h;
 }
@@ -725,7 +709,7 @@ function step2() {
   const num = document.getElementById('dNum').value.trim();
   const err = document.getElementById('e1');
   if (!name || !num) { err.style.display = ''; err.textContent = 'Please enter both a name and a vehicle number.'; return; }
-  if (!/^\d{1,4}[a-zA-Z]?$/.test(num)) { err.style.display = ''; err.textContent = 'Vehicle number should be 1–4 digits (a trailing letter is OK, like 7x).'; return; }
+  if (!/^[A-Za-z0-9]{1,5}$/.test(num)) { err.style.display = ''; err.textContent = 'Vehicle number can be 1–5 letters or numbers (e.g. 47, 7A, or A12).'; return; }
   err.style.display = 'none';
   cur = { name, num };
   renderChips();
@@ -821,8 +805,9 @@ function resetReg() {
 function setGridStyle(s) { S.settings.gridStyle = s; save(); renderGrid(); }
 
 function discNum(num) {
-  const s = String(num);   // vehicle number on the plate; shrink for long numbers like 123x
-  const f = s.length <= 2 ? '' : ' style="font-size:' + (s.length === 3 ? 13 : 11) + 'px"';
+  const s = String(num);   // vehicle number on the plate; shrink for longer numbers like 123x or A12B
+  const sz = s.length === 3 ? 13 : s.length === 4 ? 11 : s.length >= 5 ? 9 : 0;
+  const f = sz ? ' style="font-size:' + sz + 'px"' : '';
   return '<div class="disc sm"' + f + '>' + esc(s) + '</div>';
 }
 function gridMarkup(racers, single) {
@@ -1387,15 +1372,29 @@ function saveSett() {
 function renderClsList() {
   const el = document.getElementById('clsList');
   if (!S.classes.length) { el.innerHTML = '<p class="empty">No classes yet — add the first one above.</p>'; return; }
-  el.innerHTML = S.classes.map(c => {
+  const last = S.classes.length - 1;
+  el.innerHTML = S.classes.map((c, idx) => {
     const cnt = classRacers(c.id).length;
     return '<div style="display:flex;align-items:center;gap:10px;padding:9px 0;border-bottom:1px solid #f0f0eb;flex-wrap:wrap">'
-      + '<span style="flex:1;font-weight:600;min-width:120px">' + esc(c.name) + '</span>'
+      + '<span class="ordnum">' + (idx + 1) + '</span>'
+      + '<span style="display:flex;flex-direction:column;gap:3px">'
+      +   '<button class="btn btn-sm" style="padding:2px 9px" onclick="moveClass(' + c.id + ',-1)"' + (idx === 0 ? ' disabled' : '') + '>↑</button>'
+      +   '<button class="btn btn-sm" style="padding:2px 9px" onclick="moveClass(' + c.id + ',1)"' + (idx === last ? ' disabled' : '') + '>↓</button>'
+      + '</span>'
+      + '<span style="flex:1;font-weight:600;min-width:110px">' + esc(c.name) + '</span>'
       + '<span style="font-size:12px;color:var(--muted)">' + cnt + ' entered</span>'
       + '<label style="margin:0;display:flex;align-items:center;gap:6px;font-size:12px">Pills 1–'
       + '<input class="inline-num" type="number" min="' + Math.max(2, cnt) + '" max="999" value="' + (c.maxPill || 100) + '" onchange="setClassMax(' + c.id + ',this.value)"></label>'
       + '<button class="btn btn-sm btn-danger" onclick="delClass(' + c.id + ')">Remove</button></div>';
   }).join('');
+}
+function moveClass(id, dir) {
+  const i = S.classes.findIndex(c => c.id === id);
+  const j = i + dir;
+  if (i < 0 || j < 0 || j >= S.classes.length) return;
+  const tmp = S.classes[i]; S.classes[i] = S.classes[j]; S.classes[j] = tmp;
+  save();
+  renderClsList();
 }
 function rememberClass(name, maxPill) {
   const hit = S.classLib.find(x => x.name.toLowerCase() === name.toLowerCase());
@@ -1600,7 +1599,7 @@ function tvGridMarkup(racers, single) {
   racers.forEach((r, i) => {
     const pos = i + 1;
     const len = String(r.num).length;
-    const df = len <= 2 ? 0.42 : len === 3 ? 0.33 : 0.26;   // vehicle number on the plate, shrunk for long numbers
+    const df = len <= 2 ? 0.42 : len === 3 ? 0.33 : len === 4 ? 0.26 : 0.21;   // vehicle number on the plate, shrunk for long numbers
     h += '<div class="tv-slot' + (pos === 1 ? ' pole' : '') + '" style="font-size:' + fs.toFixed(2) + 'vh">'
       + '<span class="tv-pos">P' + pos + '</span>'
       + '<span class="tv-disc" style="width:' + disc.toFixed(2) + 'vh;height:' + disc.toFixed(2) + 'vh;font-size:' + (disc * df).toFixed(2) + 'vh">' + esc(String(r.num)) + '</span>'
