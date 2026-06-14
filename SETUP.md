@@ -20,25 +20,49 @@ public links stop working — that's the point.
 
 (Cloudflare Pages works the same way if you prefer it.)
 
-## 3. How the trial and access codes work
+## 3. Plans, the free trial, and access codes
 
-- A track that opens your link gets a **free trial: 3 race days**. After that,
-  new sign-ups and entries stop — but their lineups, results, history, and
-  exports keep working, so their data is never held hostage. A banner tells
-  them to contact you.
-- To unlock a track, you generate an **access code**:
-  1. Open the app → **Admin → License**
-  2. Type your **owner passphrase** into the code box and tap **Activate** —
-     this opens the hidden code generator (the passphrase was given to you
-     privately; it is deliberately not written in this file)
-  3. Enter the track's name, pick an expiry month (or leave blank = forever),
-     tap **Generate**
-  4. Text the code to the track — they enter it under **Admin → License → Activate**
-- Codes look like `RIVERSIDE-202712-K7Q2` (expires end of Dec 2027) or
-  `RIVERSIDE-0-AB12` (never expires). Expired codes re-lock the app to
-  read-only the same way the trial does.
-- The trial and license live in the track's browser. "Erase everything" in the
-  app does **not** reset the trial or remove a license.
+Every track starts on a **free trial: 3 race days**. After that, new sign-ups
+and entries stop — but lineups, results, history, and exports keep working, so
+their data is never held hostage. A banner tells them to contact you. To unlock
+a track you send them an **access code**, which they enter under **Admin →
+License → Activate**.
+
+### The four plans
+
+| Plan | What it does | Code looks like |
+|------|--------------|-----------------|
+| **Season pass** | Valid Jan 1 – Dec 31 of one year, then re-locks until renewed | `RIVERSIDE-S2026-AB12CD` |
+| **Race packet** | A bucket of race days (10 / 50 / 100, or any number), used as they go | `RIVERSIDE-R50-AB12CD` |
+| **Forever** | Never expires | `RIVERSIDE-0-AB12CD` |
+| **Month** *(legacy)* | Expires end of a month | `RIVERSIDE-202712-AB12CD` |
+
+A **race day** is counted the first time an entry is added that day. The packet
+banner warns at 3 days left and re-locks (read-only) when it hits 0. Season
+passes re-lock the same way once the year ends. Codes you already issued keep
+working.
+
+### Generating codes (owner only)
+
+Codes are **made in a separate private generator**, `raceday-codegen.html` —
+**never** inside the app. The app can only *check* codes, it can't create them,
+so it's safe to host publicly.
+
+1. Open `raceday-codegen.html` on your own device (keep it off the public
+   site/repo — it holds the secret salt)
+2. Type the track name, pick the plan (season / packet / forever / month)
+3. Tap **Generate** and text the code to the track
+
+The generator and the app share the same secret salt, so the codes match. If
+you ever change the salt, change it in **both** files.
+
+**Topping up a packet:** re-entering the *same* code never resets the count
+(by design — so a track can't reset their own packet). To give more days,
+issue a **new** code: a bigger packet (`R100`), or a fresh one with a slightly
+different name (e.g. `RIVERSIDE2`).
+
+The trial, license, and packet count all live in the track's browser.
+"Erase everything" in the app does **not** reset them.
 
 Honest limit: this is a deterrent, not bank-vault security — someone technical
 who digs through the page source could work around it. For real-world track
