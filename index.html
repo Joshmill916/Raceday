@@ -435,8 +435,9 @@ function defaults() {
     track: { name: '', logo: '' },                // track identity: logo is a data URL
     adminPin: '',                                 // empty = Admin tab is open to everyone
     history: [],                                  // archived race days (newest first)
-    license: null,                                // {code, name, exp: 'YYYYMM' or '0'} once activated
+    license: null,                                // {code, name, exp} once activated; exp = plan token (0/YYYYMM/SYYYY/Rn)
     trialDays: [],                                // dates that used a free-trial race day
+    licUse: {},                                   // packet usage per code: { code: [dates] }
     classLib: [                                   // every class name ever used: {name, maxPill}
       { name: 'Junior 80cc', maxPill: 100 },
       { name: 'Senior 100cc', maxPill: 100 },
@@ -460,6 +461,7 @@ function migrate(s) {
   if (!s.classLib) s.classLib = s.classes.map(c => ({ name: c.name, maxPill: c.maxPill || 100 }));
   if (s.license === undefined) s.license = null;
   if (!s.trialDays) s.trialDays = [];
+  if (!s.licUse) s.licUse = {};
   if (!s.settings.points) s.settings.points = { table: [10, 8, 6, 5, 4, 3, 2, 1], beyond: 0 };
   if (!s.raceDay.pointsRace) s.raceDay.pointsRace = {};
   return s;
@@ -547,10 +549,11 @@ function resetAll() {
   if (!confirm('Last check: this wipes the saved driver book and race day history too. Erase it all?')) return;
   localStorage.removeItem(KEY);
   sessionStorage.removeItem('rd_admin_ok');
-  const keep = { license: S.license, trialDays: S.trialDays };   // erasing data doesn't erase the license — or reset the trial
+  const keep = { license: S.license, trialDays: S.trialDays, licUse: S.licUse };   // erasing data doesn't erase the license, trial, or packet count
   S = defaults();
   S.license = keep.license;
   S.trialDays = keep.trialDays;
+  S.licUse = keep.licUse;
   save();
   renderHeader();
   resetReg();
@@ -572,37 +575,70 @@ function licHash(str) {
   return (h >>> 0).toString(36).toUpperCase();
 }
 function licCheck(name, exp) { return licHash(name + '|' + exp + '|' + LIC_SALT).slice(0, 6); }
+// Plan tokens in license.exp: '0' = forever, 'YYYYMM' = month expiry (legacy),
+// 'SYYYY' = season pass through Dec 31 of that year, 'R<n>' = packet of n race days.
 function licStatus() {
-  if (S.license) {
-    const exp = String(S.license.exp);
-    const curYM = today().slice(0, 7).replace('-', '');
-    return { licensed: true, name: S.license.name, exp, expired: exp !== '0' && curYM > exp };
+  if (!S.license) return { licensed: false, expired: false, plan: 'trial' };
+  const k = String(S.license.exp), code = S.license.code, name = S.license.name;
+  if (k[0] === 'S') {
+    const year = parseInt(k.slice(1)), curYear = parseInt(today().slice(0, 4));
+    return { licensed: true, name, exp: k, plan: 'season', year, expired: curYear > year };
   }
-  return { licensed: false, expired: false };
+  if (k[0] === 'R') {
+    const total = parseInt(k.slice(1)) || 0, used = (S.licUse[code] || []).length;
+    return { licensed: true, name, exp: k, plan: 'packet', total, used, left: Math.max(0, total - used), expired: used >= total };
+  }
+  if (k === '0') return { licensed: true, name, exp: k, plan: 'forever', expired: false };
+  const curYM = today().slice(0, 7).replace('-', '');
+  return { licensed: true, name, exp: k, plan: 'month', expired: curYM > k };
 }
 function canEnter() {
   const st = licStatus();
-  if (st.licensed) return !st.expired;
-  return S.trialDays.includes(S.raceDay.date) || S.trialDays.length < TRIAL_DAYS;
+  if (!st.licensed) return S.trialDays.includes(S.raceDay.date) || S.trialDays.length < TRIAL_DAYS;
+  if (st.plan === 'packet') {
+    const used = S.licUse[S.license.code] || [];
+    return used.includes(S.raceDay.date) || used.length < st.total;   // a day already paid for stays open
+  }
+  return !st.expired;
 }
-function consumeTrialDay() {
-  if (S.license) return;
-  if (!S.trialDays.includes(S.raceDay.date)) { S.trialDays.push(S.raceDay.date); renderLicBanner(); }
+function consumeTrialDay() {   // counts a race day against the trial or an active packet (forever/season/month: no count)
+  const st = licStatus();
+  if (!st.licensed) {
+    if (!S.trialDays.includes(S.raceDay.date)) { S.trialDays.push(S.raceDay.date); renderLicBanner(); }
+    return;
+  }
+  if (st.plan === 'packet') {
+    const code = S.license.code;
+    if (!S.licUse[code]) S.licUse[code] = [];
+    if (!S.licUse[code].includes(S.raceDay.date)) { S.licUse[code].push(S.raceDay.date); save(); renderLicBanner(); }
+  }
 }
 function entryBlockedMsg() {
-  return licStatus().licensed
-    ? "This track's license has expired — contact the app owner to renew. Lineups, results, and exports still work."
-    : 'The free trial (' + TRIAL_DAYS + ' race days) has ended — contact the app owner for an access code. Lineups, results, and exports still work.';
+  const st = licStatus();
+  if (!st.licensed) return 'The free trial (' + TRIAL_DAYS + ' race days) has ended — contact the app owner for an access code. Lineups, results, and exports still work.';
+  if (st.plan === 'packet') return 'Your race packet is used up (' + st.total + ' race days) — contact the app owner for a new packet. Lineups, results, and exports still work.';
+  if (st.plan === 'season') return 'Your ' + st.year + ' season pass has ended — contact the app owner to renew for ' + (st.year + 1) + '. Lineups, results, and exports still work.';
+  return "This track's license has expired — contact the app owner to renew. Lineups, results, and exports still work.";
 }
-function fmtExp(exp) { return exp === '0' ? 'forever' : 'until ' + exp.slice(0, 4) + '-' + exp.slice(4); }
+function fmtExp(k) {
+  k = String(k);
+  if (k === '0') return 'forever';
+  if (k[0] === 'S') return 'season pass ' + k.slice(1) + ' (through Dec 31)';
+  if (k[0] === 'R') return 'race packet — ' + (parseInt(k.slice(1)) || 0) + ' race days';
+  return 'until ' + k.slice(0, 4) + '-' + k.slice(4);
+}
 function renderLicBanner() {
   const b = document.getElementById('licBanner');
   const st = licStatus();
-  if (st.licensed && !st.expired) { b.style.display = 'none'; return; }
+  const packetLow = st.licensed && st.plan === 'packet' && !st.expired && st.left <= 3;
+  if (st.licensed && !st.expired && !packetLow) { b.style.display = 'none'; return; }
   b.style.display = '';
   if (!st.licensed && canEnter()) {
     b.style.cssText = '';
-    b.textContent = '🏁 Free trial — ' + S.trialDays.length + ' of ' + TRIAL_DAYS + ' race days used. An access code (Admin → License) unlocks unlimited race days.';
+    b.textContent = '🏁 Free trial — ' + S.trialDays.length + ' of ' + TRIAL_DAYS + ' race days used. An access code (Admin → License) unlocks more.';
+  } else if (packetLow) {
+    b.style.cssText = '';
+    b.textContent = '⚠️ Only ' + st.left + ' race ' + (st.left === 1 ? 'day' : 'days') + ' left on your packet — top up with the app owner soon.';
   } else {
     b.style.cssText = 'background:var(--pit-red-bg);border-color:#f0c4c0;color:var(--pit-red)';
     b.textContent = '🔒 ' + entryBlockedMsg();
@@ -613,10 +649,10 @@ function activateLic() {
   const v = inp.value.trim();
   if (!v) return;
   const parts = v.toUpperCase().split('-');
-  if (parts.length !== 3 || !/^[A-Z0-9]+$/.test(parts[0]) || !/^(0|\d{6})$/.test(parts[1]) || licCheck(parts[0], parts[1]) !== parts[2]) {
+  if (parts.length !== 3 || !/^[A-Z0-9]+$/.test(parts[0]) || !/^(0|\d{6}|S\d{4}|R\d{1,4})$/.test(parts[1]) || licCheck(parts[0], parts[1]) !== parts[2]) {
     alert("That code isn't valid — check it character by character and try again."); return;
   }
-  S.license = { code: parts.join('-'), name: parts[0], exp: parts[1] };
+  S.license = { code: parts.join('-'), name: parts[0], exp: parts[1] };   // packet count (S.licUse[code]) is preserved, so re-entering a code never resets it
   save();
   renderLicCard(); renderLicBanner();
   alert('✅ Activated — licensed to ' + parts[0] + ', ' + fmtExp(parts[1]) + '.');
@@ -632,13 +668,18 @@ function renderLicCard() {
   const st = licStatus();
   let h;
   if (st.licensed) {
+    let line;
+    if (st.expired) line = '⚠️ License for <b>' + esc(st.name) + '</b> has ended — ' + esc(fmtExp(st.exp));
+    else if (st.plan === 'packet') line = '✅ Licensed to <b>' + esc(st.name) + '</b> — race packet: <b>' + st.left + ' of ' + st.total + '</b> race days left';
+    else line = '✅ Licensed to <b>' + esc(st.name) + '</b> — ' + esc(fmtExp(st.exp));
     h = '<div style="display:flex;gap:10px;flex-wrap:wrap;align-items:center">'
-      + '<span style="font-size:13.5px">' + (st.expired ? '⚠️ License for <b>' + esc(st.name) + '</b> expired ' : '✅ Licensed to <b>' + esc(st.name) + '</b> — ') + esc(fmtExp(st.exp)) + '</span>'
+      + '<span style="font-size:13.5px">' + line + '</span>'
       + '<button class="btn btn-sm btn-danger" style="margin-left:auto" onclick="removeLic()">Remove license</button></div>';
+    if (st.plan === 'packet') h += '<p style="font-size:12px;color:var(--muted);margin-top:8px">A race day is counted the first time you add an entry that day. Re-entering this same code never resets the count.</p>';
   } else {
-    h = '<p style="font-size:13.5px;margin-bottom:10px">Free trial — <b>' + S.trialDays.length + ' of ' + TRIAL_DAYS + '</b> race days used. Enter an access code to unlock unlimited race days on this device.</p>'
+    h = '<p style="font-size:13.5px;margin-bottom:10px">Free trial — <b>' + S.trialDays.length + ' of ' + TRIAL_DAYS + '</b> race days used. Enter an access code to unlock more.</p>'
       + '<div style="display:flex;gap:8px;flex-wrap:wrap">'
-      + '<input id="licCode" type="text" placeholder="Access code (e.g. RIVERSIDE-0-AB12CD)" style="flex:1;min-width:200px" autocomplete="off">'
+      + '<input id="licCode" type="text" placeholder="Access code (e.g. RIVERSIDE-S2026-AB12CD)" style="flex:1;min-width:200px" autocomplete="off">'
       + '<button class="btn btn-primary" onclick="activateLic()">Activate</button></div>';
   }
   el.innerHTML = h;

@@ -1,0 +1,3 @@
+# Private code generator — must NEVER be committed (holds the secret salt).
+# Keep this file only on the owner's own device.
+raceday-codegen.html
