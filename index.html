@@ -153,6 +153,11 @@
   .empty { font-size: 13.5px; color: var(--muted); padding: 14px 0; }
   .inline-num { width: 84px; padding: 6px 8px; font-size: 14px; border-radius: 8px; border: 1.5px solid #d4d4cf; font-family: inherit; }
   .ordnum { font-family: var(--display); font-weight: 800; font-size: 16px; color: #8a8d94; width: 22px; flex-shrink: 0; text-align: center; }
+  .info-btn { border: 1.5px solid #d4d4cf; background: #fff; color: var(--muted); border-radius: 50%; width: 19px; height: 19px; padding: 0; font-size: 12px; font-weight: 700; line-height: 1; cursor: pointer; font-family: var(--body); vertical-align: middle; }
+  .info-btn:hover { border-color: var(--ink); color: var(--ink); }
+  .helpbox { background: #f6f6f3; border: 1px solid var(--line); border-radius: 8px; padding: 10px 13px; font-size: 12.5px; color: #555; margin-top: 8px; }
+  .helpbox b { color: var(--ink); }
+  .helpbox p { margin: 6px 0 0; }
 
   /* TV display mode — sized in vh/vw so it reads from across the room */
   #tvOverlay { display:none; position:fixed; inset:0; z-index:100; background:#101114; color:#fff; flex-direction:column; }
@@ -336,12 +341,32 @@
         <div><label>Max in B-main</label><input type="number" id="mBMain" min="2" max="30" onchange="saveSett()" /></div>
         <div><label>B-main transfers</label><input type="number" id="mTrans" min="0" max="10" onchange="saveSett()" /></div>
       </div>
-      <label style="margin-top:16px">Pill draw → heats (when a class splits into multiple heats)</label>
+      <label style="margin-top:16px">Pill draw → heats (when a class splits into multiple heats) <button class="info-btn" onclick="toggleHelp('hHeatFill')" title="What's this?">i</button></label>
       <select id="mHeatFill" onchange="saveSett()">
         <option value="alternate">Alternate — fast pills spread across heats (pills 1, 2, 3, 4 are the poles of heats 1, 2, 3, 4)</option>
         <option value="block">Block — heat 1 gets the lowest pills, heat 2 the next, and so on</option>
       </select>
-      <p style="font-size:12px;color:var(--muted);margin-top:8px">Affects the Lineups, Results, TV display, and printout. With one heat there's no difference.</p>
+      <div id="hHeatFill" class="helpbox" style="display:none">
+        <b>Alternate</b> deals pills across the heats one at a time, so the fast pills are spread out — pills 1, 2, 3, 4 become the poles of heats 1, 2, 3, 4, then 5, 6, 7, 8 fill the next row, and so on through the whole field.
+        <p><b>Block</b> keeps the lowest pills together — heat 1 gets pills 1–8, heat 2 gets 9–16, etc.</p>
+        <p>Affects Lineups, Results, TV display, and the printout. With a single heat there's no difference.</p>
+      </div>
+
+      <label style="margin-top:16px">B-mains <button class="info-btn" onclick="toggleHelp('hBmain')" title="What's this?">i</button></label>
+      <div style="display:flex;gap:8px;flex-wrap:wrap;align-items:center">
+        <select id="mBmainMode" onchange="saveSett()" style="flex:2;min-width:200px;width:auto">
+          <option value="single">Single — one B-main, drivers past it don't race</option>
+          <option value="parallel">Parallel — several B-mains, top of each goes to the feature</option>
+          <option value="cascade">Cascade — climb up through the mains to the feature</option>
+        </select>
+        <label style="margin:0;display:flex;align-items:center;gap:6px;font-size:12px">How many<input class="inline-num" id="mBmainCount" type="number" min="2" max="8" onchange="saveSett()" style="width:64px"></label>
+      </div>
+      <div id="hBmain" class="helpbox" style="display:none">
+        When a class has more drivers than the feature holds, this decides how the rest race their way in. The <b>“How many”</b> box sets the number of mains (Parallel and Cascade only). “B-main transfers” above sets how many move up from each main.
+        <p><b>Single:</b> one B-main; the top finishers transfer to the feature and anyone past the B-main doesn't race. (Original behavior.)</p>
+        <p><b>Parallel:</b> everyone left is split into equal B-mains (balanced by heat standings). The top finishers from <i>each</i> B-main go straight to the feature — so nobody is cut and everyone gets a run.</p>
+        <p><b>Cascade:</b> the slowest qualifiers start in the lowest main; the top finishers climb up to the next main and race again, all the way up to the feature. Run the mains lowest-first.</p>
+      </div>
     </div>
 
     <div class="slbl">Points series</div>
@@ -455,7 +480,7 @@ function defaults() {
       { id: 2, name: 'Senior 100cc', maxPill: 100 },
       { id: 3, name: 'Open Shifter', maxPill: 100 }
     ],
-    settings: { maxHeat: 8, maxBMain: 12, maxFeature: 20, transfers: 2, gridStyle: 'double', heatFill: 'alternate', points: { table: [10, 8, 6, 5, 4, 3, 2, 1], beyond: 0 } },
+    settings: { maxHeat: 8, maxBMain: 12, maxFeature: 20, transfers: 2, gridStyle: 'double', heatFill: 'alternate', bmainMode: 'single', bmainCount: 2, points: { table: [10, 8, 6, 5, 4, 3, 2, 1], beyond: 0 } },
     raceDay: { date: today(), entries: [], heatResults: {}, pointsRace: {} },  // entries: {driverId, classId, pill}
     nextId: 100
   };
@@ -470,6 +495,8 @@ function migrate(s) {
   if (!s.licUse) s.licUse = {};
   if (!s.settings.points) s.settings.points = { table: [10, 8, 6, 5, 4, 3, 2, 1], beyond: 0 };
   if (!s.settings.heatFill) s.settings.heatFill = 'alternate';
+  if (!s.settings.bmainMode) s.settings.bmainMode = 'single';
+  if (!s.settings.bmainCount) s.settings.bmainCount = 2;
   if (!s.raceDay.pointsRace) s.raceDay.pointsRace = {};
   return s;
 }
@@ -921,12 +948,15 @@ function renderGrid() {
     if (classComplete(cls.id)) {
       const fd = featureData(cls.id);
       const toRow = s => ({ name: s.name, num: s.num, tag: 'Heat total ' + s.pts });
-      if (fd.bmain.length) {
-        h += '<div class="slbl">B-main — lined up by heat total · top ' + fd.transfers + ' transfer</div>' + gridMarkup(fd.bmain.map(toRow), single);
-        if (fd.transferred.length >= fd.transfers) {
+      if (fd.mains.length) {
+        fd.mains.forEach(m => {
+          const feedTxt = m.feeds === 'the feature' ? 'the feature' : m.feeds;
+          h += '<div class="slbl">' + esc(m.label) + ' — top ' + fd.transfers + ' to ' + esc(feedTxt) + '</div>' + gridMarkup(m.drivers.map(toRow), single);
+        });
+        if (fd.toFeatureSpots > 0 && fd.transferred.length >= fd.toFeatureSpots) {
           h += '<div class="slbl">🏁 Feature lineup</div>' + gridMarkup([...fd.locked, ...fd.transferred].map(toRow), single);
         } else {
-          h += '<p class="empty">The feature grid posts here once the B-main finishes are entered on the Results tab.</p>';
+          h += '<p class="empty">The feature grid posts here once the main finishes are entered on the Results tab.</p>';
         }
       } else {
         h += '<div class="slbl">🏁 Feature lineup — by heat total (low wins)</div>' + gridMarkup(fd.locked.map(toRow), single);
@@ -1025,17 +1055,71 @@ function calcStandings(clsId) {
 }
 function classComplete(clsId) { const s = calcStandings(clsId); return s.length > 0 && s.every(x => x.scored === 2); }
 
+// Result key for a main's finish. Main 0 keeps the original 'bm_' key so
+// races entered before multi-mains existed still read correctly.
+function bmKey(mi, id) { return (mi === 0 ? 'bm_' : 'bm' + mi + '_') + id; }
+function mainLabel(i) { return String.fromCharCode(66 + i) + '-main'; }   // 0→B-main, 1→C-main, 2→D-main
+function mainTopIds(clsId, mi, drivers, n) {
+  const res = getRes(clsId);
+  return drivers.filter(r => typeof res[bmKey(mi, r.id)] === 'number' && res[bmKey(mi, r.id)] > 0)
+    .sort((a, b) => res[bmKey(mi, a.id)] - res[bmKey(mi, b.id)]).slice(0, n);
+}
+// Returns { mode, locked, mains:[{label,drivers,key,feeds,made}], transferred, transfers, toFeatureSpots }.
+// mains are in running order (cascade lists the lowest main first). transferred = who reaches the feature.
 function featureData(clsId) {
   const standings = calcStandings(clsId);
   const { maxFeature, maxBMain, transfers } = S.settings;
-  if (standings.length <= maxFeature) return { locked: standings, bmain: [], transferred: [], transfers };
+  const mode = S.settings.bmainMode || 'single';
+  const k = Math.max(2, S.settings.bmainCount || 2);
+  if (standings.length <= maxFeature) return { mode, locked: standings, mains: [], transferred: [], transfers, toFeatureSpots: 0 };
+
+  if (mode === 'parallel') {
+    const totalT = k * transfers;
+    const lockCount = Math.max(0, maxFeature - totalT);
+    const locked = standings.slice(0, lockCount);
+    const remaining = standings.slice(lockCount);                 // everyone left races — nobody is cut
+    const buckets = Array.from({ length: k }, () => []);
+    remaining.forEach((r, i) => buckets[i % k].push(r));          // spread by standings so mains are balanced
+    const mains = []; let transferred = [];
+    buckets.forEach((drivers, mi) => {
+      if (!drivers.length) return;
+      const made = mainTopIds(clsId, mi, drivers, transfers);
+      mains.push({ label: 'B-main ' + (mi + 1), drivers, key: mi, feeds: 'the feature', made });
+      transferred = transferred.concat(made);
+    });
+    return { mode, locked, mains, transferred, transfers, toFeatureSpots: Math.min(totalT, remaining.length, maxFeature - locked.length) };
+  }
+
+  if (mode === 'cascade') {
+    const lockCount = Math.max(0, maxFeature - transfers);
+    const locked = standings.slice(0, lockCount);
+    const remaining = standings.slice(lockCount);
+    const per = Math.ceil(remaining.length / k);
+    const base = Array.from({ length: k }, (_, i) => remaining.slice(i * per, (i + 1) * per)).filter(t => t.length);
+    const kk = base.length;                                       // best tier = B-main, lowest tier = bottom main
+    const field = base.map(b => b.slice());
+    for (let i = kk - 1; i >= 1; i--) {                           // climbers move up to the back of the next main
+      field[i - 1] = field[i - 1].concat(mainTopIds(clsId, i, field[i], transfers));
+    }
+    const mains = [];
+    for (let i = kk - 1; i >= 0; i--) {                           // show lowest main first (running order)
+      mains.push({ label: mainLabel(i), drivers: field[i], key: i, feeds: i === 0 ? 'the feature' : mainLabel(i - 1), made: mainTopIds(clsId, i, field[i], transfers) });
+    }
+    return { mode, locked, mains, transferred: mainTopIds(clsId, 0, field[0], transfers), transfers, toFeatureSpots: transfers };
+  }
+
+  // single (default) — one B-main, drivers past it are cut, as before
   const lockCount = Math.max(0, maxFeature - transfers);
   const locked = standings.slice(0, lockCount);
-  const bmain = standings.slice(lockCount, lockCount + maxBMain);
+  const drivers = standings.slice(lockCount, lockCount + maxBMain);
+  const made = mainTopIds(clsId, 0, drivers, transfers);
+  return { mode, locked, mains: [{ label: 'B-main', drivers, key: 0, feeds: 'the feature', made }], transferred: made, transfers, toFeatureSpots: transfers };
+}
+// For a feature transferee, which main they came through and their finish there.
+function transferOrigin(fd, clsId, id) {
   const res = getRes(clsId);
-  const finished = bmain.filter(r => typeof res['bm_' + r.id] === 'number' && res['bm_' + r.id] > 0)
-    .sort((a, b) => res['bm_' + a.id] - res['bm_' + b.id]);
-  return { locked, bmain, transferred: finished.slice(0, transfers), transfers };
+  for (const m of fd.mains) if (m.feeds === 'the feature' && m.made.some(t => t.id === id)) return m.label + ' P' + res[bmKey(m.key, id)];
+  return 'transfer';
 }
 
 // ---------- Points series ----------
@@ -1046,7 +1130,7 @@ function togglePointsRace(clsId, on) { S.raceDay.pointsRace[clsId] = !!on; save(
 function featureFinish(clsId) {
   const fd = featureData(clsId);
   const res = getRes(clsId);
-  const field = fd.bmain.length ? [...fd.locked, ...fd.transferred] : fd.locked;
+  const field = [...fd.locked, ...fd.transferred];
   return field.filter(r => typeof res['ft_' + r.id] === 'number')
     .sort((a, b) => res['ft_' + a.id] - res['ft_' + b.id])
     .map(r => ({ id: r.id, name: r.name, num: r.num, fin: res['ft_' + r.id] }));
@@ -1171,19 +1255,20 @@ function renderClassResults(clsId) {
   h += '</div>';
 
   const fd = featureData(clsId);
-  if (fd.bmain.length) {
-    h += '<div class="slbl">B-main</div><div class="hb"><div class="hh bmain"><span>B-main lineup</span><small>top ' + fd.transfers + ' finishers transfer</small></div>';
-    fd.bmain.forEach((r, i) => {
-      const made = fd.transferred.some(t => t.id === r.id);
+  fd.mains.forEach(m => {
+    const feedTxt = m.feeds === 'the feature' ? 'Feature' : m.feeds;
+    h += '<div class="slbl">' + esc(m.label) + '</div><div class="hb"><div class="hh bmain"><span>' + esc(m.label) + ' lineup</span><small>top ' + fd.transfers + ' → ' + esc(feedTxt) + '</small></div>';
+    m.drivers.forEach((r, i) => {
+      const made = m.made.some(t => t.id === r.id);
       h += '<div class="hr"><div class="pnum">' + (i + 1) + '</div>'
         + '<div class="nm"><b>' + esc(r.name) + '</b> <span>#' + esc(r.num) + ' · total ' + r.pts + '</span></div>'
-        + (made ? '<span class="transfer-tag">→ Feature</span>' : '')
-        + finSelect(clsId, 'bm_' + r.id, fd.bmain.length, res['bm_' + r.id]) + '</div>';
+        + (made ? '<span class="transfer-tag">→ ' + esc(feedTxt) + '</span>' : '')
+        + finSelect(clsId, bmKey(m.key, r.id), m.drivers.length, res[bmKey(m.key, r.id)]) + '</div>';
     });
     h += '</div>';
-  }
+  });
 
-  const ftField = fd.locked.length + (fd.bmain.length ? fd.transfers : 0);
+  const ftField = fd.locked.length + fd.toFeatureSpots;
   const dp = dayPoints(clsId);
   const ftRow = (s, pos, tag) => {
     const fin = res['ft_' + s.id];
@@ -1194,20 +1279,20 @@ function renderClassResults(clsId) {
       + finSelect(clsId, 'ft_' + s.id, ftField, fin) + '</div>';
   };
   h += '<div class="slbl">Feature lineup &amp; finish</div><div class="hb"><div class="hh feat"><span>🏁 Feature</span><small>'
-    + (fd.bmain.length ? fd.locked.length + ' on heat totals + ' + fd.transfers + ' from the B-main' : 'lined up by heat totals')
+    + (fd.mains.length ? fd.locked.length + ' on heat totals + ' + fd.toFeatureSpots + ' transferring up' : 'lined up by heat totals')
     + (isPointsRace(clsId) ? ' · finishes award series points' : '') + '</small></div>';
   let pos = 0;
   fd.locked.forEach(s => {
     pos++;
     h += ftRow(s, pos, '<span class="pts-badge">' + s.pts + '</span>');
   });
-  if (fd.bmain.length) {
-    for (let t = 0; t < fd.transfers; t++) {
+  if (fd.mains.length) {
+    for (let t = 0; t < fd.toFeatureSpots; t++) {
       pos++; const r = fd.transferred[t];
       if (r) {
-        h += ftRow(r, pos, '<span class="transfer-tag">B-main P' + res['bm_' + r.id] + '</span>');
+        h += ftRow(r, pos, '<span class="transfer-tag">' + esc(transferOrigin(fd, clsId, r.id)) + '</span>');
       } else {
-        h += '<div class="hr"><div class="pnum">P' + pos + '</div><div class="nm tbd">B-main transfer — pick the B-main finishes to fill this spot</div></div>';
+        h += '<div class="hr"><div class="pnum">P' + pos + '</div><div class="nm tbd">Transfer spot — pick the main finishes to fill this</div></div>';
       }
     }
   }
@@ -1401,6 +1486,9 @@ function renderAdmin() {
   document.getElementById('mFeat').value = S.settings.maxFeature;
   document.getElementById('mTrans').value = S.settings.transfers;
   document.getElementById('mHeatFill').value = S.settings.heatFill;
+  document.getElementById('mBmainMode').value = S.settings.bmainMode;
+  document.getElementById('mBmainCount').value = S.settings.bmainCount;
+  document.getElementById('mBmainCount').disabled = S.settings.bmainMode === 'single';
 }
 function renderPinCard() {
   const el = document.getElementById('pinCard');
@@ -1425,8 +1513,13 @@ function saveSett() {
   S.settings.maxFeature = parseInt(document.getElementById('mFeat').value) || 20;
   S.settings.transfers = Math.max(0, parseInt(document.getElementById('mTrans').value) || 0);
   S.settings.heatFill = document.getElementById('mHeatFill').value === 'block' ? 'block' : 'alternate';
+  const bm = document.getElementById('mBmainMode').value;
+  S.settings.bmainMode = ['single', 'parallel', 'cascade'].includes(bm) ? bm : 'single';
+  S.settings.bmainCount = Math.max(2, Math.min(8, parseInt(document.getElementById('mBmainCount').value) || 2));
+  document.getElementById('mBmainCount').disabled = S.settings.bmainMode === 'single';
   save();
 }
+function toggleHelp(id) { const e = document.getElementById(id); e.style.display = e.style.display === 'none' ? '' : 'none'; }
 function renderClsList() {
   const el = document.getElementById('clsList');
   if (!S.classes.length) { el.innerHTML = '<p class="empty">No classes yet — add the first one above.</p>'; return; }
@@ -1637,9 +1730,12 @@ function tvSlides() {
     if (classComplete(cls.id)) {
       const fd = featureData(cls.id);
       const toRow = s => ({ name: s.name, num: s.num });   // TV shows positions and vehicle numbers only
-      if (fd.bmain.length) {
-        slides.push({ title: cls.name, sub: 'B-main — top ' + fd.transfers + ' transfer', racers: fd.bmain.map(toRow) });
-        if (fd.transferred.length >= fd.transfers) slides.push({ title: cls.name, sub: '🏁 Feature lineup', racers: [...fd.locked, ...fd.transferred].map(toRow) });
+      if (fd.mains.length) {
+        fd.mains.forEach(m => {
+          const feedTxt = m.feeds === 'the feature' ? 'feature' : m.feeds;
+          slides.push({ title: cls.name, sub: m.label + ' — top ' + fd.transfers + ' to ' + feedTxt, racers: m.drivers.map(toRow) });
+        });
+        if (fd.toFeatureSpots > 0 && fd.transferred.length >= fd.toFeatureSpots) slides.push({ title: cls.name, sub: '🏁 Feature lineup', racers: [...fd.locked, ...fd.transferred].map(toRow) });
       } else {
         slides.push({ title: cls.name, sub: '🏁 Feature lineup', racers: fd.locked.map(toRow) });
       }
