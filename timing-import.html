@@ -1,0 +1,717 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>RaceDay — Timing Import</title>
+<style>
+  :root {
+    --asphalt:#17181c; --asphalt-2:#24262c; --paper:#f4f4f1; --card:#fff;
+    --ink:#1a1b1e; --muted:#6b6e76; --line:#e3e3de; --plate:#ffd449;
+    --plate-ink:#161408; --green:#0e8a4d; --green-bg:#e7f6ee;
+    --red:#c8372d; --red-bg:#fdeeec;
+    --body:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif;
+  }
+  *{box-sizing:border-box;margin:0;padding:0;}
+  body{font-family:var(--body);background:var(--paper);color:var(--ink);font-size:15px;line-height:1.45;}
+  .wrap{max-width:860px;margin:0 auto;padding:0 0 60px;}
+  .hdr{background:var(--asphalt);color:#fff;padding:18px 22px 14px;}
+  .hdr .brand{font-weight:800;font-size:22px;letter-spacing:.04em;text-transform:uppercase;}
+  .hdr em{font-style:normal;color:var(--plate);}
+  .hdr .sub{font-size:12px;color:#9a9da6;margin-top:2px;}
+  .checker{height:10px;background:repeating-conic-gradient(#101114 0% 25%,#f4f4f1 0% 50%) 0 0/20px 20px;}
+  .pg{padding:22px 20px;}
+  .card{background:var(--card);border:1px solid var(--line);border-radius:14px;padding:18px 20px;margin-bottom:14px;}
+  .slbl{font-size:12.5px;font-weight:700;color:#8a8d94;text-transform:uppercase;letter-spacing:.09em;margin:20px 0 8px;}
+  .slbl:first-child{margin-top:0;}
+  h3{font-weight:800;font-size:18px;text-transform:uppercase;letter-spacing:.02em;margin-bottom:8px;}
+  label{font-size:12.5px;color:#555;display:block;margin:14px 0 4px;font-weight:600;}
+  select{width:100%;padding:9px 12px;border-radius:9px;border:1.5px solid #d4d4cf;background:#fff;color:var(--ink);font-size:14px;font-family:inherit;outline:none;}
+  select:focus{border-color:var(--ink);}
+  .btn{display:inline-flex;align-items:center;justify-content:center;gap:6px;padding:10px 18px;border-radius:10px;border:1.5px solid #d4d4cf;background:#fff;color:var(--ink);font-size:14px;font-weight:600;cursor:pointer;font-family:inherit;}
+  .btn:hover{background:#f6f6f3;}
+  .btn:disabled{opacity:.4;cursor:default;}
+  .btn-primary{background:var(--asphalt);color:#fff;border-color:var(--asphalt);}
+  .btn-primary:hover{background:var(--asphalt-2);}
+  .btn-go{background:var(--plate);color:var(--plate-ink);border-color:var(--plate);font-weight:800;}
+  .btn-go:hover{background:#ffdd6e;}
+  .btn-sm{padding:6px 12px;font-size:13px;border-radius:8px;}
+  .err{background:var(--red-bg);color:var(--red);border:1px solid #f0c4c0;border-radius:10px;padding:10px 14px;font-size:13px;}
+  .ok{background:var(--green-bg);color:var(--green);border:1px solid #b8e8cf;border-radius:10px;padding:12px 16px;font-size:13.5px;}
+  .info{background:#f6f6f3;border:1px solid var(--line);border-radius:10px;padding:10px 14px;font-size:13px;color:#555;}
+  .chip{font-size:11px;padding:2px 8px;border-radius:99px;font-weight:700;white-space:nowrap;display:inline-block;}
+  .chip-ok{background:var(--green-bg);color:var(--green);}
+  .chip-new{background:#e8f0ff;color:#2255aa;}
+  .chip-skip{background:#f0f0eb;color:var(--muted);}
+  .chip-warn{background:#fff4dc;color:#7a4f00;}
+  table{width:100%;border-collapse:collapse;font-size:13px;}
+  th{text-align:left;padding:7px 10px;font-weight:700;color:#777;border-bottom:1px solid var(--line);font-size:11px;text-transform:uppercase;letter-spacing:.04em;}
+  td{padding:7px 10px;border-bottom:1px solid #f0f0eb;vertical-align:middle;}
+  tr:last-child td{border-bottom:none;}
+  .empty{color:var(--muted);font-style:italic;padding:12px 0;}
+  .upzone{border:2px dashed #d4d4cf;border-radius:12px;padding:28px;text-align:center;cursor:pointer;transition:border-color .15s;}
+  .upzone:hover{border-color:var(--asphalt);}
+  .upzone.filled{border-color:var(--green);border-style:solid;background:var(--green-bg);}
+  .upzone .ico{font-size:30px;margin-bottom:6px;}
+  .upzone p{font-size:12.5px;color:var(--muted);margin-top:4px;}
+  .rrow{display:flex;gap:8px;flex-wrap:wrap;margin-top:6px;}
+  .rbtn{padding:8px 16px;border-radius:99px;font-size:13px;font-weight:600;border:1.5px solid #d4d4cf;background:#fff;color:#555;cursor:pointer;font-family:inherit;}
+  .rbtn.on{background:var(--asphalt);color:#fff;border-color:var(--asphalt);}
+  .cols-grid{display:grid;grid-template-columns:1fr 1fr;gap:8px 16px;}
+  .sec{display:none;}
+  .sec.on{display:block;}
+  .howto{background:#24262c;color:#d4d4d0;border-radius:12px;padding:14px 18px;margin-bottom:16px;font-size:13px;line-height:1.6;}
+  .howto b{color:var(--plate);}
+  .howto ol{padding-left:18px;margin-top:6px;}
+  .howto li{margin-bottom:3px;}
+  .divhr{border:none;border-top:1px solid var(--line);margin:16px 0;}
+  .summary{font-size:13px;color:var(--muted);margin-bottom:12px;}
+  .summary b{color:var(--ink);}
+  input[type=checkbox]{width:15px;height:15px;margin-right:5px;cursor:pointer;vertical-align:middle;}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <div class="hdr">
+    <div class="brand">Race<em>Day</em> — Timing Import</div>
+    <div class="sub">Standalone companion · works with any timing system CSV</div>
+  </div>
+  <div class="checker"></div>
+  <div class="pg">
+
+    <div class="howto">
+      <b>4-step round-trip — never touches your live app directly</b>
+      <ol>
+        <li>In RaceDay → Admin → <b>Download full backup</b></li>
+        <li>Load that backup here, then load your timing CSV</li>
+        <li>Map columns, pick your target, preview and Apply</li>
+        <li>A new backup downloads — restore it in RaceDay (Admin → <b>Restore from backup</b>)</li>
+      </ol>
+    </div>
+
+    <!-- Backup -->
+    <div class="slbl">Step 1 — RaceDay backup</div>
+    <div class="card">
+      <div class="upzone" id="bkZone" onclick="document.getElementById('bkFile').click()">
+        <div class="ico">📦</div>
+        <div id="bkLabel"><b>Click to load RaceDay backup</b></div>
+        <p>raceday-backup-YYYY-MM-DD.json · from Admin → Download full backup</p>
+      </div>
+      <input id="bkFile" type="file" accept=".json,application/json" style="display:none" onchange="loadBackup(this)">
+      <div id="bkInfo" style="display:none;margin-top:10px"></div>
+    </div>
+
+    <!-- CSV -->
+    <div id="secCsv" class="sec">
+      <div class="slbl">Step 2 — Timing CSV</div>
+      <div class="card">
+        <div class="upzone" id="csvZone" onclick="document.getElementById('csvFile').click()">
+          <div class="ico">📋</div>
+          <div id="csvLabel"><b>Click to load timing CSV</b></div>
+          <p>Export from MYLAPS, Westhold, RaceHero, or any timing system</p>
+        </div>
+        <input id="csvFile" type="file" accept=".csv,text/csv" style="display:none" onchange="loadCsv(this)">
+        <div id="csvInfo" style="display:none;margin-top:10px"></div>
+      </div>
+    </div>
+
+    <!-- Config -->
+    <div id="secCfg" class="sec">
+      <div class="slbl">Step 3 — Configure</div>
+      <div class="card">
+        <h3>What are you importing?</h3>
+        <div class="rrow">
+          <button class="rbtn on" id="tQual" onclick="setTarget('qual')">🏁 Qualifying → grid</button>
+          <button class="rbtn" id="tHeat" onclick="setTarget('heat')">🔥 Heat results</button>
+          <button class="rbtn" id="tFeat" onclick="setTarget('feat')">🏆 Feature → points</button>
+        </div>
+        <p id="tDesc" style="margin-top:8px;font-size:13px;color:#555"></p>
+
+        <div id="heatSetRow" style="display:none">
+          <label>Which heat set?</label>
+          <div class="rrow">
+            <button class="rbtn on" id="hs1" onclick="setHeatSet('h1')">Set 1 (pill order)</button>
+            <button class="rbtn" id="hs2" onclick="setHeatSet('h2')">Set 2 (inverted)</button>
+          </div>
+        </div>
+
+        <div class="divhr"></div>
+        <label>Target class</label>
+        <div class="rrow">
+          <button class="rbtn on" id="cmOne" onclick="setClsMode(false)">One class (pick below)</button>
+          <button class="rbtn" id="cmCol" onclick="setClsMode(true)">Use class column from CSV</button>
+        </div>
+        <div id="clsPickRow" style="margin-top:8px">
+          <select id="clsPick" onchange="App.clsId=this.value?parseInt(this.value):null;renderPreview()">
+            <option value="">— pick a class —</option>
+          </select>
+        </div>
+
+        <div class="divhr"></div>
+        <h3 style="margin-bottom:4px">Column mapping</h3>
+        <p style="font-size:12.5px;color:#555;margin-bottom:10px">Auto-guessed from your CSV headers — fix any that are wrong.</p>
+        <div class="cols-grid" id="colsGrid"></div>
+
+        <div id="cfgErr" class="err" style="display:none;margin-top:12px"></div>
+        <div style="margin-top:14px">
+          <button class="btn btn-go" onclick="showPreview()">Preview →</button>
+        </div>
+      </div>
+    </div>
+
+    <!-- Preview -->
+    <div id="secPrev" class="sec">
+      <div class="slbl">Step 4 — Preview &amp; apply</div>
+      <div class="card">
+        <div id="prevSummary" class="summary"></div>
+        <div id="transRow" style="display:none;margin-bottom:10px">
+          <label style="display:inline-flex;align-items:center;cursor:pointer;font-weight:400;margin:0">
+            <input type="checkbox" id="updTrans" onchange="renderPreview()">
+            Update stored transponder numbers with values from this file where they differ
+          </label>
+        </div>
+        <div style="overflow-x:auto">
+          <table><thead><tr id="prevHead"></tr></thead><tbody id="prevBody"></tbody></table>
+        </div>
+        <div id="prevErr" class="err" style="display:none;margin-top:12px"></div>
+        <div style="margin-top:14px;display:flex;gap:10px;flex-wrap:wrap">
+          <button class="btn btn-go" id="applyBtn" onclick="applyAll()">✅ Apply &amp; download backup</button>
+          <button class="btn" onclick="document.getElementById('secPrev').classList.remove('on')">← Back</button>
+        </div>
+      </div>
+    </div>
+
+    <!-- Done -->
+    <div id="secDone" class="sec">
+      <div class="slbl">Done</div>
+      <div class="card">
+        <div id="doneMsg" class="ok"></div>
+        <p style="margin-top:12px;font-size:13.5px;color:#555"><b>Next:</b> In RaceDay → Admin → <b>Restore from backup</b> → pick the downloaded file. Lineups / results / points appear immediately.</p>
+        <div style="margin-top:14px;display:flex;gap:10px;flex-wrap:wrap">
+          <button class="btn btn-primary" onclick="downloadBackup()">⬇ Download backup again</button>
+          <button class="btn" onclick="resetCsv()">Import another CSV</button>
+        </div>
+      </div>
+    </div>
+
+  </div>
+</div>
+<script>
+// ─── App state ────────────────────────────────────────────────────────────────
+let B = null;   // loaded RaceDay backup (S object)
+let App = {
+  rows: [],           // CSV data rows (string[][], no header)
+  header: [],         // CSV header cells
+  cols: { trans:-1, num:-1, name:-1, name2:-1, cls:-1, pos:-1, time:-1 },
+  target: 'qual',     // 'qual' | 'heat' | 'feat'
+  clsId: null,        // numeric class id, or null = use cls column
+  useClsCol: false,
+  heatSet: 'h1',
+};
+let preview = [];     // computed preview rows
+
+// ─── Utilities ────────────────────────────────────────────────────────────────
+function esc(s) {
+  return String(s == null ? '' : s).replace(/[&<>"']/g,
+    c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+}
+function normTrans(v) {
+  return String(v || '').trim().toUpperCase().replace(/[\s\-]/g, '');
+}
+function parseLapTime(s) {
+  s = String(s || '').trim();
+  if (!s || /^(dnf|dns|dq|dsq|ret|nc)$/i.test(s)) return Infinity;
+  const m = s.match(/^(\d+):(\d+(?:\.\d+)?)$/);
+  if (m) return parseInt(m[1]) * 60 + parseFloat(m[2]);
+  const n = parseFloat(s);
+  return isNaN(n) ? Infinity : n;
+}
+function parseFinish(s) {
+  s = String(s || '').trim();
+  if (!s) return null;
+  const up = s.toUpperCase();
+  if (up === 'DNF' || up === 'DNS' || up === 'DQ') return up;
+  if (/^(dsq|ret|nc)$/i.test(s)) return 'DQ';
+  const n = parseInt(s);
+  return n > 0 ? n : null;
+}
+
+// ─── CSV parser ───────────────────────────────────────────────────────────────
+function parseCSV(text) {
+  if (text.charCodeAt(0) === 0xFEFF) text = text.slice(1);
+  const rows = [];
+  let row = [], cell = '', inQ = false;
+  for (let i = 0; i <= text.length; i++) {
+    const c = i < text.length ? text[i] : '\n';
+    if (inQ) {
+      if (c === '"') {
+        if (i + 1 < text.length && text[i + 1] === '"') { cell += '"'; i++; }
+        else inQ = false;
+      } else cell += c;
+    } else if (c === '"') {
+      inQ = true;
+    } else if (c === ',') {
+      row.push(cell); cell = '';
+    } else if (c === '\r' || c === '\n') {
+      row.push(cell); cell = '';
+      if (row.some(v => v.trim())) rows.push(row);
+      row = [];
+      if (c === '\r' && i + 1 < text.length && text[i + 1] === '\n') i++;
+    } else {
+      cell += c;
+    }
+  }
+  return rows;
+}
+
+// ─── Column guessing ──────────────────────────────────────────────────────────
+const SYN = {
+  trans: ['transponder','trans','tx','chip','decoder','tag','rfid','transponderid','transponder id'],
+  num:   ['kart','car number','car no','vehicle no','kart no','plate','car#','kart#'],
+  name:  ['driver name','driver','name','racer','pilot','firstname','first name','first'],
+  name2: ['lastname','last name','last','surname','family name'],
+  cls:   ['class','category','group','division'],
+  pos:   ['pos','position','finish','place','rank','result','qual pos','qualifying pos','finish pos'],
+  time:  ['best lap','best time','lap time','bestlap','besttime','laptime','fast lap','qualifying time','q-time'],
+};
+function guessColumns(hdr) {
+  const h = hdr.map(v => v.trim().toLowerCase());
+  const out = { trans:-1, num:-1, name:-1, name2:-1, cls:-1, pos:-1, time:-1 };
+  for (const [key, syns] of Object.entries(SYN)) {
+    // exact first
+    let idx = h.findIndex(c => syns.includes(c));
+    // substring fallback
+    if (idx < 0) idx = h.findIndex(c => syns.some(s => c.includes(s)));
+    out[key] = idx;
+  }
+  // broad fallbacks
+  if (out.num < 0) out.num = h.findIndex(c => c === 'no' || c === 'no.' || c === '#' || c === 'number' || c === 'car' || c === 'kart');
+  if (out.name < 0) out.name = h.findIndex(c => c.includes('name') || c.includes('driver'));
+  if (out.time < 0) out.time = h.findIndex(c => c.includes('time') || c.includes('lap') || c.includes('best'));
+  if (out.pos < 0) out.pos = h.findIndex(c => c.includes('pos') || c.includes('place') || c.includes('rank') || c.includes('finish'));
+  return out;
+}
+
+// ─── RaceDay engine (reproduction for backup mutation) ────────────────────────
+function resKey(clsId) { return 'cls' + clsId; }
+
+function classRacers(clsId) {
+  return (B.raceDay.entries || [])
+    .filter(e => e.classId === clsId)
+    .map(e => {
+      const d = (B.roster || []).find(r => r.id === e.driverId) || { name:'?', num:'?', id: e.driverId };
+      return { id: e.driverId, name: d.name, num: d.num, pill: e.pill };
+    })
+    .sort((a, b) => a.pill - b.pill);
+}
+function buildHeats(racers, max, fill) {
+  if (!racers.length) return [];
+  const n = Math.ceil(racers.length / max);
+  const heats = Array.from({ length: n }, () => []);
+  if (fill === 'block') {
+    const per = Math.ceil(racers.length / n);
+    racers.forEach((r, i) => heats[Math.floor(i / per)].push(r));
+  } else {
+    racers.forEach((r, i) => heats[i % n].push(r));
+  }
+  return heats;
+}
+function heatOfMap(clsId) {
+  const max = (B.settings && B.settings.maxHeat) || 8;
+  const fill = (B.settings && B.settings.heatFill) || 'alternate';
+  const map = {};
+  buildHeats(classRacers(clsId), max, fill)
+    .forEach((heat, hi) => heat.forEach(r => { map[r.id] = hi; }));
+  return map;
+}
+
+// ─── File loading ─────────────────────────────────────────────────────────────
+function loadBackup(input) {
+  const f = input.files[0]; input.value = '';
+  if (!f) return;
+  const fr = new FileReader();
+  fr.onload = () => {
+    let s;
+    try { s = JSON.parse(fr.result); } catch(e) { alert("Not valid JSON — load a RaceDay backup file."); return; }
+    if (!s || !s.raceDay || !s.classes) { alert("This doesn't look like a RaceDay backup (missing raceDay/classes)."); return; }
+    s.roster = s.roster || [];
+    s.roster.forEach(d => { if (d.trans == null) d.trans = ''; });
+    s.raceDay.heatResults = s.raceDay.heatResults || {};
+    s.nextId = s.nextId || 100;
+    if (!s.settings) s.settings = { maxHeat:8, maxBMain:12, maxFeature:20, transfers:2, heatFill:'alternate' };
+    B = s;
+    document.getElementById('bkZone').classList.add('filled');
+    document.getElementById('bkLabel').innerHTML = '<b>✓ Backup loaded</b>';
+    const info = document.getElementById('bkInfo');
+    info.style.display = '';
+    const clsList = (B.classes || []).map(c => {
+      const cnt = (B.raceDay.entries || []).filter(e => e.classId === c.id).length;
+      return esc(c.name) + ' (' + cnt + ')';
+    }).join(' · ');
+    info.innerHTML = '<div class="info">Track: <b>' + esc((B.track && B.track.name) || 'Unnamed') +
+      '</b> · Race day: <b>' + esc(B.raceDay.date) + '</b><br><span style="color:var(--muted)">' + (clsList || 'No classes') + '</span></div>';
+    populateClsPicker();
+    document.getElementById('secCsv').classList.add('on');
+  };
+  fr.readAsText(f);
+}
+
+function loadCsv(input) {
+  const f = input.files[0]; input.value = '';
+  if (!f) return;
+  const fr = new FileReader();
+  fr.onload = () => {
+    const all = parseCSV(fr.result);
+    if (all.length < 2) { alert('CSV needs at least a header row and one data row.'); return; }
+    App.header = all[0];
+    App.rows = all.slice(1);
+    App.cols = guessColumns(App.header);
+    document.getElementById('csvZone').classList.add('filled');
+    document.getElementById('csvLabel').innerHTML = '<b>✓ ' + esc(f.name) + ' loaded</b>';
+    document.getElementById('csvInfo').style.display = '';
+    document.getElementById('csvInfo').innerHTML =
+      '<div class="info"><b>' + App.rows.length + ' data rows</b>, ' + App.header.length + ' columns · ' +
+      Object.entries(App.cols).filter(([,v])=>v>=0).map(([k,v])=>k+' → ' + esc(App.header[v])).join(' · ') + '</div>';
+    document.getElementById('secCfg').classList.add('on');
+    renderConfig();
+    document.getElementById('secPrev').classList.remove('on');
+    document.getElementById('secDone').classList.remove('on');
+  };
+  fr.readAsText(f);
+}
+
+// ─── Config UI ────────────────────────────────────────────────────────────────
+const TARGET_DESC = {
+  qual: 'Sets the starting lineup from qualifying results — fastest gets pill #1 (pole). Existing lineup and heat results for the class are replaced.',
+  heat: 'Imports finishing positions for one heat set. The app knows each driver\'s heat from their pill; you just supply who finished where.',
+  feat: 'Imports the main-event finishing order. All drivers in the file earn series points by their finishing position.',
+};
+const COL_LABELS = {
+  trans:'Transponder #', num:'Kart / Car #', name:'Driver name (or first)', name2:'Last name (if split)',
+  cls:'Class', pos:'Position / Finish', time:'Lap time (qualifying)',
+};
+
+function setTarget(t) {
+  App.target = t;
+  ['Qual','Heat','Feat'].forEach(x =>
+    document.getElementById('t' + x).classList.toggle('on', t === x.toLowerCase()));
+  document.getElementById('heatSetRow').style.display = t === 'heat' ? '' : 'none';
+  document.getElementById('tDesc').textContent = TARGET_DESC[t];
+}
+function setHeatSet(s) {
+  App.heatSet = s;
+  document.getElementById('hs1').classList.toggle('on', s === 'h1');
+  document.getElementById('hs2').classList.toggle('on', s === 'h2');
+}
+function setClsMode(useCol) {
+  App.useClsCol = useCol;
+  document.getElementById('cmOne').classList.toggle('on', !useCol);
+  document.getElementById('cmCol').classList.toggle('on', useCol);
+  document.getElementById('clsPickRow').style.display = useCol ? 'none' : '';
+}
+function populateClsPicker() {
+  const sel = document.getElementById('clsPick');
+  sel.innerHTML = '<option value="">— pick a class —</option>';
+  (B.classes || []).forEach(c => {
+    const o = document.createElement('option');
+    o.value = c.id; o.textContent = c.name; sel.appendChild(o);
+  });
+  if (B.classes && B.classes.length === 1) {
+    sel.value = B.classes[0].id;
+    App.clsId = B.classes[0].id;
+  }
+}
+function renderConfig() {
+  document.getElementById('tDesc').textContent = TARGET_DESC[App.target];
+  const grid = document.getElementById('colsGrid');
+  grid.innerHTML = Object.keys(COL_LABELS).map(key => {
+    const opts = ['<option value="-1">— not in file —</option>']
+      .concat(App.header.map((h, i) =>
+        '<option value="' + i + '"' + (App.cols[key] === i ? ' selected' : '') + '>' + esc(h) + '</option>'))
+      .join('');
+    return '<div><label style="margin-top:0">' + esc(COL_LABELS[key]) + '</label>' +
+      '<select onchange="App.cols[\'' + key + '\']=parseInt(this.value)">' + opts + '</select></div>';
+  }).join('');
+}
+
+function showPreview() {
+  // Validate config
+  const err = document.getElementById('cfgErr');
+  const issues = [];
+  if (!App.useClsCol && !App.clsId) issues.push('Pick a target class (or switch to "use class column").');
+  if (App.useClsCol && App.cols.cls < 0) issues.push('Map the "Class" column so the tool knows which class each row belongs to.');
+  if (App.cols.num < 0 && App.cols.name < 0 && App.cols.trans < 0) issues.push('Map at least one identity column: Transponder #, Kart/Car #, or Driver name.');
+  if (App.target !== 'heat' && App.cols.pos < 0 && App.cols.time < 0) issues.push('Map "Position/Finish" or "Lap time" so the tool knows the order/result.');
+  if (App.target === 'heat' && App.cols.pos < 0) issues.push('Map "Position/Finish" for heat results.');
+  if (issues.length) {
+    err.style.display = '';
+    err.innerHTML = issues.map(i => '⚠ ' + esc(i)).join('<br>');
+    return;
+  }
+  err.style.display = 'none';
+  renderPreview();
+  document.getElementById('secPrev').classList.add('on');
+  document.getElementById('secPrev').scrollIntoView({ behavior: 'smooth', block: 'start' });
+}
+
+// ─── Driver matching ──────────────────────────────────────────────────────────
+function cell(row, key) {
+  const i = App.cols[key];
+  return (i >= 0 && i < row.length) ? row[i].trim() : '';
+}
+function matchDriver(row) {
+  const trans = cell(row, 'trans');
+  const num   = cell(row, 'num');
+  const n1    = cell(row, 'name');
+  const n2    = cell(row, 'name2');
+  const name  = n2 ? (n1 + ' ' + n2).trim() : n1;
+  const roster = B.roster || [];
+  let driver = null, matchedBy = '';
+
+  if (trans && normTrans(trans)) {
+    const nt = normTrans(trans);
+    const d = roster.find(d => d.trans && normTrans(d.trans) === nt);
+    if (d) { driver = d; matchedBy = 'transponder'; }
+  }
+  if (!driver && num) {
+    const numLc = num.toLowerCase();
+    const d = roster.find(d => String(d.num || '').toLowerCase() === numLc);
+    if (d) { driver = d; matchedBy = 'number'; }
+  }
+  if (!driver && name) {
+    const d = roster.find(d => d.name.toLowerCase() === name.toLowerCase());
+    if (d) { driver = d; matchedBy = 'name'; }
+  }
+  const transConflict = !!(driver && trans && driver.trans && normTrans(driver.trans) !== normTrans(trans));
+  const canCreate = !!(num || name || trans);
+  return { driver, matchedBy, num, name, trans, transConflict, canCreate };
+}
+
+function resolveClsId(row) {
+  if (!App.useClsCol) return App.clsId || null;
+  const v = cell(row, 'cls').toLowerCase();
+  if (!v) return null;
+  const c = (B.classes || []).find(c => c.name.toLowerCase() === v);
+  return c ? c.id : -1;  // -1 = unknown class name
+}
+
+// ─── Preview computation ──────────────────────────────────────────────────────
+function computePreview() {
+  preview = [];
+  if (!App.rows.length || !B) return;
+  const updateTrans = document.getElementById('updTrans') && document.getElementById('updTrans').checked;
+
+  if (App.target === 'qual') {
+    // Group by class, sort within group, assign ranks
+    const groups = {};
+    App.rows.forEach(row => {
+      const clsId = resolveClsId(row);
+      if (clsId === null) return;
+      const m = matchDriver(row);
+      const rawPos  = App.cols.pos  >= 0 ? parseFinish(cell(row,'pos'))   : null;
+      const rawTime = App.cols.time >= 0 ? parseLapTime(cell(row,'time'))  : Infinity;
+      if (!groups[clsId]) groups[clsId] = [];
+      groups[clsId].push({ m, rawPos, rawTime, clsId });
+    });
+    for (const [clsId, items] of Object.entries(groups)) {
+      const hasPos = items.some(it => typeof it.rawPos === 'number');
+      if (hasPos) items.sort((a, b) => (typeof a.rawPos==='number'?a.rawPos:9999) - (typeof b.rawPos==='number'?b.rawPos:9999));
+      else items.sort((a, b) => a.rawTime - b.rawTime);
+      let rank = 0;
+      const seenNums = new Set();
+      items.forEach(({ m, rawPos, rawTime, clsId }) => {
+        let status = 'match', note = '';
+        if (parseInt(clsId) < 0)    { status = 'skip'; note = 'Unknown class'; }
+        else if (!m.driver && !m.canCreate) { status = 'skip'; note = 'No name, number, or transponder'; }
+        else if (!m.driver)          { status = 'new'; }
+        else if (m.transConflict)    { status = 'conflict'; }
+        if (status !== 'skip') {
+          const numLc = (m.driver ? String(m.driver.num||'') : m.num).toLowerCase();
+          if (numLc && seenNums.has(numLc)) { status = 'skip'; note = 'Duplicate number (keeping first)'; }
+          else if (numLc) seenNums.add(numLc);
+        }
+        const r = status !== 'skip' ? ++rank : null;
+        preview.push({ ...m, status, note, clsId: parseInt(clsId), rank: r, rawPos, rawTime });
+      });
+    }
+  } else {
+    // Heat or feature: row-by-row
+    App.rows.forEach(row => {
+      const clsId = resolveClsId(row);
+      if (clsId === null) return;
+      const m = matchDriver(row);
+      const finish = App.cols.pos >= 0 ? parseFinish(cell(row,'pos')) : null;
+      let status = 'match', note = '';
+      if (parseInt(clsId) < 0)      { status = 'skip'; note = 'Unknown class'; }
+      else if (!m.driver && !m.canCreate) { status = 'skip'; note = 'No name, number, or transponder'; }
+      else if (!m.driver) {
+        if (App.target === 'heat') { status = 'skip'; note = 'Not in driver book — run qualifying import first'; }
+        else status = 'new';
+      } else if (m.transConflict)   { status = 'conflict'; }
+
+      // Heat: driver must already be entered in the class
+      if (App.target === 'heat' && status !== 'skip' && m.driver) {
+        const inClass = (B.raceDay.entries || []).some(e => e.driverId === m.driver.id && e.classId === parseInt(clsId));
+        if (!inClass) { status = 'skip'; note = 'Not entered in this class (no pill draw yet)'; }
+      }
+      preview.push({ ...m, status, note, clsId: parseInt(clsId), finish });
+    });
+  }
+}
+
+function renderPreview() {
+  computePreview();
+  const matched  = preview.filter(r => r.status === 'match').length;
+  const newD     = preview.filter(r => r.status === 'new').length;
+  const skipped  = preview.filter(r => r.status === 'skip').length;
+  const conflict = preview.filter(r => r.status === 'conflict').length;
+  document.getElementById('prevSummary').innerHTML =
+    '<b>' + preview.length + ' rows</b> · ' +
+    '<b style="color:var(--green)">' + (matched+conflict) + ' matched</b>' +
+    (newD     ? ' · <b style="color:#2255aa">' + newD     + ' new</b>' : '') +
+    (skipped  ? ' · <b style="color:var(--muted)">' + skipped  + ' skipped</b>' : '') +
+    (conflict ? ' · <b style="color:#7a4f00">' + conflict + ' transponder conflict</b>' : '');
+  document.getElementById('transRow').style.display = conflict ? '' : 'none';
+
+  const isQual = App.target === 'qual';
+  document.getElementById('prevHead').innerHTML =
+    '<th>Driver</th><th>Kart #</th><th>Match</th><th>' + (isQual ? 'Grid rank' : 'Finish') + '</th><th>Class</th><th>Status</th>';
+
+  document.getElementById('prevBody').innerHTML = preview.map(r => {
+    const cls = (B.classes || []).find(c => c.id === r.clsId);
+    const clsName = cls ? cls.name : (r.clsId < 0 ? '(unknown class)' : '—');
+    const dName = r.driver ? esc(r.driver.name) : (r.name ? esc(r.name) + ' <span style="color:var(--muted);font-size:11px">(new)</span>' : '—');
+    const dNum  = r.driver ? esc(r.driver.num)  : (r.num  ? esc(r.num)  : '—');
+    const by    = r.driver ? esc(r.matchedBy) : (r.status === 'new' ? 'will create' : '—');
+    const val   = isQual ? (r.rank != null ? 'P' + r.rank : '—') : (r.finish != null ? r.finish : '—');
+    const tag   = { match:'<span class="chip chip-ok">matched</span>',
+                    new:'<span class="chip chip-new">new driver</span>',
+                    skip:'<span class="chip chip-skip">skip</span>',
+                    conflict:'<span class="chip chip-warn">⚠ trans conflict</span>' }[r.status] || '';
+    const noteH = r.note ? ' <span style="font-size:11px;color:var(--muted)">(' + esc(r.note) + ')</span>' : '';
+    return '<tr><td>' + dName + '</td><td>' + dNum + '</td><td>' + by + '</td><td>' + val + '</td><td>' + esc(clsName) + '</td><td>' + tag + noteH + '</td></tr>';
+  }).join('') || '<tr><td colspan="6" class="empty">No rows — check column mapping and class selection.</td></tr>';
+
+  const actionable = preview.filter(r => r.status !== 'skip').length;
+  const err = document.getElementById('prevErr');
+  if (!actionable) {
+    err.style.display = '';
+    err.textContent = '⚠ No rows will be imported — adjust your column mapping or class selection.';
+    document.getElementById('applyBtn').disabled = true;
+  } else {
+    err.style.display = 'none';
+    document.getElementById('applyBtn').disabled = false;
+  }
+}
+
+// ─── Apply ────────────────────────────────────────────────────────────────────
+function applyAll() {
+  const updateTrans = document.getElementById('updTrans').checked;
+  const toAct = preview.filter(r => r.status !== 'skip');
+  if (!toAct.length) { alert('Nothing to import.'); return; }
+
+  // Resolve/create drivers first
+  const resolved = toAct.map(r => {
+    let driver = r.driver;
+    if (!driver) {
+      const nameVal = r.name || (r.num ? 'Car #' + r.num : 'Trans ' + r.trans);
+      const numVal  = (r.num && /^[A-Za-z0-9]{1,5}$/.test(r.num)) ? r.num : '';
+      driver = { id: B.nextId++, name: nameVal, num: numVal, trans: normTrans(r.trans) };
+      B.roster.push(driver);
+    } else {
+      if (r.trans && !driver.trans)   driver.trans = normTrans(r.trans);  // learn
+      if (r.transConflict && updateTrans && r.trans) driver.trans = normTrans(r.trans);  // update
+    }
+    return { ...r, driver };
+  });
+
+  let done = 0, skipped = 0;
+
+  if (App.target === 'qual') {
+    const groups = {};
+    resolved.forEach(r => { if (!groups[r.clsId]) groups[r.clsId] = []; groups[r.clsId].push(r); });
+    for (const [clsId, rows] of Object.entries(groups)) {
+      const cid = parseInt(clsId);
+      const cls = (B.classes || []).find(c => c.id === cid);
+      B.raceDay.entries = B.raceDay.entries.filter(e => e.classId !== cid);
+      const k = resKey(cid);
+      if (B.raceDay.heatResults[k]) delete B.raceDay.heatResults[k];
+      if (cls && rows.length > cls.maxPill) cls.maxPill = rows.length;
+      const seenNums = new Set();
+      rows.forEach(r => {
+        if (r.rank == null) return;
+        const numLc = String(r.driver.num || '').toLowerCase();
+        if (numLc && seenNums.has(numLc)) { skipped++; return; }
+        if (numLc) seenNums.add(numLc);
+        B.raceDay.entries.push({ driverId: r.driver.id, classId: cid, pill: r.rank });
+        done++;
+      });
+    }
+  } else if (App.target === 'heat') {
+    const hofCache = {};
+    const getHof = cid => { if (!hofCache[cid]) hofCache[cid] = heatOfMap(cid); return hofCache[cid]; };
+    resolved.forEach(r => {
+      const cid = r.clsId;
+      const k = resKey(cid);
+      if (!B.raceDay.heatResults[k]) B.raceDay.heatResults[k] = {};
+      const hi = getHof(cid)[r.driver.id];
+      if (hi === undefined) { skipped++; return; }
+      const rk = App.heatSet + '_' + hi + '_' + r.driver.id;
+      if (r.finish != null) { B.raceDay.heatResults[k][rk] = r.finish; done++; }
+      else skipped++;
+    });
+  } else {
+    // Feature
+    const groups = {};
+    resolved.forEach(r => { if (!groups[r.clsId]) groups[r.clsId] = []; groups[r.clsId].push(r); });
+    for (const [clsId, rows] of Object.entries(groups)) {
+      const cid = parseInt(clsId);
+      const cls = (B.classes || []).find(c => c.id === cid);
+      const k = resKey(cid);
+      if (!B.raceDay.heatResults[k]) B.raceDay.heatResults[k] = {};
+      // Bump maxFeature if needed
+      const finishers = rows.filter(r => typeof r.finish === 'number').length;
+      if (finishers > (B.settings.maxFeature || 20)) B.settings.maxFeature = finishers;
+      rows.forEach(r => {
+        // Auto-enter into class if not already there
+        const inClass = B.raceDay.entries.some(e => e.driverId === r.driver.id && e.classId === cid);
+        if (!inClass) {
+          const usedPills = new Set(B.raceDay.entries.filter(e => e.classId === cid).map(e => e.pill));
+          let pill = 1; while (usedPills.has(pill)) pill++;
+          if (cls && pill > cls.maxPill) cls.maxPill = pill;
+          B.raceDay.entries.push({ driverId: r.driver.id, classId: cid, pill });
+        }
+        if (r.finish != null) { B.raceDay.heatResults[k]['ft_' + r.driver.id] = r.finish; done++; }
+        else skipped++;
+      });
+    }
+  }
+
+  downloadBackup();
+
+  document.getElementById('secPrev').classList.remove('on');
+  document.getElementById('secDone').classList.add('on');
+  const what = { qual: done + ' drivers in starting lineup', heat: done + ' heat finishes', feat: done + ' feature finishes' }[App.target];
+  document.getElementById('doneMsg').innerHTML = '✅ Imported ' + what + '.' + (skipped ? ' ' + skipped + ' rows skipped.' : '') + '<br>Backup downloaded — restore it in RaceDay to see the results.';
+}
+
+function downloadBackup() {
+  const d = new Date();
+  const ds = d.getFullYear() + '-' + String(d.getMonth()+1).padStart(2,'0') + '-' + String(d.getDate()).padStart(2,'0');
+  const blob = new Blob([JSON.stringify(B, null, 2)], { type: 'application/json' });
+  const a = document.createElement('a'); a.href = URL.createObjectURL(blob);
+  a.download = 'raceday-timing-' + ds + '.json'; a.click();
+  URL.revokeObjectURL(a.href);
+}
+
+function resetCsv() {
+  App.rows = []; App.header = []; App.cols = { trans:-1, num:-1, name:-1, name2:-1, cls:-1, pos:-1, time:-1 };
+  preview = [];
+  document.getElementById('csvZone').classList.remove('filled');
+  document.getElementById('csvLabel').innerHTML = '<b>Click to load timing CSV</b>';
+  document.getElementById('csvInfo').style.display = 'none';
+  ['secCfg','secPrev','secDone'].forEach(id => document.getElementById(id).classList.remove('on'));
+}
+</script>
+</body>
+</html>
