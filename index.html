@@ -507,7 +507,18 @@
       </div>
     </div>
 
-    <div class="card" style="margin-top:18px">
+    <div class="card" style="margin-top:18px;border-color:var(--plate);box-shadow:0 0 0 2px var(--plate)">
+      <h3 style="margin-bottom:6px">⭐ Best way to run it</h3>
+      <p style="font-size:13.5px;color:#555;margin:0 0 8px">RaceDay saves everything in <b>one device's browser</b> — there's no cloud sync. That's what makes the driver book, points championship, and history work, so a little planning keeps it smooth:</p>
+      <ul class="guide-list">
+        <li><b>Use one device all season.</b> Pick the phone, tablet, or laptop that will run the night and stick with it. Open it on a different device and you'll see a blank app — the data is still safe on the first one.</li>
+        <li><b>Run everything from that device</b> — sign-ups, results, and the TV screen. When casting to a TV, mirror <b>that</b> device; don't open the link on the TV itself.</li>
+        <li><b>Back up at the end of each night.</b> Admin → <b>Download full backup</b>, then email the file to yourself. Starting a new race day will also offer to back up first. If the device is ever lost or replaced, <b>Restore</b> brings the whole season back.</li>
+        <li><b>Enter your access code once</b>, on that device — it unlocks that device only.</li>
+      </ul>
+    </div>
+
+    <div class="card" style="margin-top:12px">
       <h3 style="margin-bottom:6px">Good to know</h3>
       <p style="font-size:13.5px;color:#555;margin:0 0 6px">• Everything is saved in <b>this browser</b> — no internet needed once the page is open. Use Admin → Backup to move data between devices.</p>
       <p style="font-size:13.5px;color:#555;margin:0 0 6px">• The device running sign-ups is the "source of truth." If you cast to a TV, cast <b>this</b> device's screen — don't open the link on the TV itself.</p>
@@ -656,6 +667,9 @@ function newRaceDay() {
   if (!adminOk()) return;
   if (S.raceDay.entries.length || Object.keys(S.raceDay.heatResults).length) {
     if (!confirm("Start a new race day? Today's entries and results are archived to Race day history, then the board is cleared. The driver book and classes are kept.")) return;
+    if (confirm('Back up first? This downloads a file with the whole season — driver book, history, and points. Recommended at the end of each night.\n\nOK = download a backup now · Cancel = skip and continue.')) {
+      exportBackup();
+    }
   }
   archiveDay();
   S.raceDay = { date: today(), entries: [], heatResults: {}, pointsRace: {} };
