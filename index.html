@@ -336,6 +336,12 @@
         <div><label>Max in B-main</label><input type="number" id="mBMain" min="2" max="30" onchange="saveSett()" /></div>
         <div><label>B-main transfers</label><input type="number" id="mTrans" min="0" max="10" onchange="saveSett()" /></div>
       </div>
+      <label style="margin-top:16px">Pill draw → heats (when a class splits into multiple heats)</label>
+      <select id="mHeatFill" onchange="saveSett()">
+        <option value="alternate">Alternate — fast pills spread across heats (pills 1, 2, 3, 4 are the poles of heats 1, 2, 3, 4)</option>
+        <option value="block">Block — heat 1 gets the lowest pills, heat 2 the next, and so on</option>
+      </select>
+      <p style="font-size:12px;color:var(--muted);margin-top:8px">Affects the Lineups, Results, TV display, and printout. With one heat there's no difference.</p>
     </div>
 
     <div class="slbl">Points series</div>
@@ -449,7 +455,7 @@ function defaults() {
       { id: 2, name: 'Senior 100cc', maxPill: 100 },
       { id: 3, name: 'Open Shifter', maxPill: 100 }
     ],
-    settings: { maxHeat: 8, maxBMain: 12, maxFeature: 20, transfers: 2, gridStyle: 'double', points: { table: [10, 8, 6, 5, 4, 3, 2, 1], beyond: 0 } },
+    settings: { maxHeat: 8, maxBMain: 12, maxFeature: 20, transfers: 2, gridStyle: 'double', heatFill: 'alternate', points: { table: [10, 8, 6, 5, 4, 3, 2, 1], beyond: 0 } },
     raceDay: { date: today(), entries: [], heatResults: {}, pointsRace: {} },  // entries: {driverId, classId, pill}
     nextId: 100
   };
@@ -463,6 +469,7 @@ function migrate(s) {
   if (!s.trialDays) s.trialDays = [];
   if (!s.licUse) s.licUse = {};
   if (!s.settings.points) s.settings.points = { table: [10, 8, 6, 5, 4, 3, 2, 1], beyond: 0 };
+  if (!s.settings.heatFill) s.settings.heatFill = 'alternate';
   if (!s.raceDay.pointsRace) s.raceDay.pointsRace = {};
   return s;
 }
@@ -498,9 +505,17 @@ function drawPill(clsId) {
 function posText(pos) { return { row: Math.ceil(pos / 2), side: pos % 2 === 1 ? 'Inside' : 'Outside' }; }
 function buildHeats(racers, max) {
   if (!racers.length) return [];
-  const n = Math.ceil(racers.length / max);
+  const n = Math.ceil(racers.length / max);          // racers already sorted by pill
   const heats = Array.from({ length: n }, () => []);
-  racers.forEach((r, i) => heats[i % n].push(r));   // racers already sorted by pill
+  if (S.settings.heatFill === 'block') {
+    // Block: heat 1 gets the lowest block of pills, heat 2 the next, and so on.
+    const per = Math.ceil(racers.length / n);
+    racers.forEach((r, i) => heats[Math.floor(i / per)].push(r));
+  } else {
+    // Alternate (default): pills 1,2,3,4 become the poles of heats 1,2,3,4,
+    // then 5,6,7,8 fill the next row, snaking the fast pills across the field.
+    racers.forEach((r, i) => heats[i % n].push(r));
+  }
   return heats;
 }
 
@@ -1385,6 +1400,7 @@ function renderAdmin() {
   document.getElementById('mBMain').value = S.settings.maxBMain;
   document.getElementById('mFeat').value = S.settings.maxFeature;
   document.getElementById('mTrans').value = S.settings.transfers;
+  document.getElementById('mHeatFill').value = S.settings.heatFill;
 }
 function renderPinCard() {
   const el = document.getElementById('pinCard');
@@ -1408,6 +1424,7 @@ function saveSett() {
   S.settings.maxBMain = parseInt(document.getElementById('mBMain').value) || 12;
   S.settings.maxFeature = parseInt(document.getElementById('mFeat').value) || 20;
   S.settings.transfers = Math.max(0, parseInt(document.getElementById('mTrans').value) || 0);
+  S.settings.heatFill = document.getElementById('mHeatFill').value === 'block' ? 'block' : 'alternate';
   save();
 }
 function renderClsList() {
