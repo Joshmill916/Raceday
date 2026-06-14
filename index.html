@@ -184,6 +184,18 @@
   #tvCtl.show { opacity:1; pointer-events:auto; }
   #tvCtl button { font-size:17px; padding:14px 22px; border-radius:12px; border:none; background:rgba(255,255,255,.94); color:#1a1b1e; cursor:pointer; font-family:inherit; font-weight:700; }
 
+  /* Guide / how-to page */
+  .guide-step { display: flex; gap: 14px; align-items: flex-start; background: var(--card); border: 1px solid var(--line); border-radius: 14px; padding: 16px 18px; margin-bottom: 12px; }
+  .guide-num { flex-shrink: 0; width: 38px; height: 38px; border-radius: 50%; background: var(--asphalt); color: var(--plate); font-family: var(--display); font-weight: 800; font-size: 20px; display: flex; align-items: center; justify-content: center; }
+  .guide-body { flex: 1; min-width: 0; }
+  .guide-body h3 { margin-bottom: 6px; }
+  .guide-body p { font-size: 13.5px; color: #555; margin: 0 0 8px; }
+  .guide-body p:last-child { margin-bottom: 0; }
+  .guide-body b { color: var(--ink); }
+  .guide-list { margin: 6px 0 0; padding-left: 18px; }
+  .guide-list li { font-size: 13.5px; color: #555; margin-bottom: 6px; }
+  .guide-list b { color: var(--ink); }
+
   @media (max-width: 560px) {
     .hr > small { display: none; }
     .hr { gap: 7px; padding: 8px 10px; }
@@ -216,6 +228,7 @@
     <button onclick="nav('results')">Results</button>
     <button onclick="nav('points')">Points</button>
     <button onclick="nav('admin')">Admin</button>
+    <button onclick="nav('help')">❔ Guide</button>
   </div>
 
   <div id="dayBanner" class="banner" style="display:none">
@@ -325,7 +338,7 @@
     <div class="card">
       <div style="display:flex;gap:8px;flex-wrap:wrap">
         <input id="newClass" type="text" placeholder="Class name (e.g. Junior 80cc)" style="flex:2;min-width:180px" />
-        <input id="newClassMax" type="number" placeholder="Pills" title="Highest pill number" value="100" min="2" max="999" style="width:90px" />
+        <input id="newClassMax" type="number" placeholder="Pills" title="Highest pill number" value="200" min="2" max="999" style="width:90px" />
         <button class="btn btn-primary" onclick="addClass()">Add class</button>
       </div>
       <p style="font-size:12px;color:var(--muted);margin-top:8px">"Pills" is the highest pill number in that class's draw (pills run 1 up to this number). The order below is the <b>running order</b> — use ↑ / ↓ to set which class races first. It's used on the Lineups, Results, TV display, and printout.</p>
@@ -437,6 +450,81 @@
       <p style="font-size:12px;color:var(--muted);margin-top:8px">A new race day archives today's entries and results to history, then clears the board — the driver book and classes are kept. Erase everything wipes the driver book, history, and track settings too.</p>
     </div>
   </div>
+
+  <!-- HELP / GUIDE -->
+  <div id="page-help" class="page">
+    <h2>How to use RaceDay</h2>
+    <p class="sub">A quick walkthrough. The tabs along the top take you through a race day in order — left to right.</p>
+
+    <div class="guide-step">
+      <div class="guide-num">1</div>
+      <div class="guide-body">
+        <h3>Sign up — drivers join</h3>
+        <p>On the <b>Sign up</b> tab each driver types their name and vehicle number. If they've raced here before, their name pops up to tap — no retyping. They pick the classes they're running, then hit <b>Draw my pills</b>.</p>
+        <p>Each class draws one random pill. <b>Lowest pill starts up front</b> — that's the whole idea. Pills run 1 up to the class's max (200 by default), so late sign-ups still get a fair draw.</p>
+      </div>
+    </div>
+
+    <div class="guide-step">
+      <div class="guide-num">2</div>
+      <div class="guide-body">
+        <h3>Lineups — see the grids</h3>
+        <p>The <b>Lineups</b> tab shows every class lined up by pill, automatically split into heats. Switch between <b>Double file</b> and <b>Single file</b> to match how you grid the track.</p>
+        <p>📺 <b>TV display</b> fills a screen with big, rotating lineups for the crowd — plug this device into a TV with an HDMI cable, or cast it (Chrome menu → Cast, or your tablet's screen mirroring). Big fields show the overflow next to the top 16 on the same screen, with row numbers. <b>🖨 Print / save PDF</b> gives you a paper grid sheet.</p>
+      </div>
+    </div>
+
+    <div class="guide-step">
+      <div class="guide-num">3</div>
+      <div class="guide-body">
+        <h3>Results — enter finishes</h3>
+        <p>On the <b>Results</b> tab, pick each driver's finishing spot in both heat sets. Heat finishes add up into a total — <b>low total wins</b>, ties broken by the pill draw.</p>
+        <p>From there the <b>B-main and feature lineups build themselves</b>. Tags show exactly where each driver goes: <span class="transfer-tag" style="background:#fff4dc;color:#7a4f00">→ Feature</span> for those locked in, or <span class="transfer-tag">→ B-main 1</span> for those who race their way in. Enter the B-main and feature finishes the same way.</p>
+      </div>
+    </div>
+
+    <div class="guide-step">
+      <div class="guide-num">4</div>
+      <div class="guide-body">
+        <h3>Points — season standings</h3>
+        <p>The <b>Points</b> tab keeps a running championship by class. Feature finishes earn points using the table you set in Admin. Today counts live as you enter finishes, and past race days count from history.</p>
+      </div>
+    </div>
+
+    <div class="guide-step">
+      <div class="guide-num">5</div>
+      <div class="guide-body">
+        <h3>Admin — set it up once</h3>
+        <p>The <b>Admin</b> tab is the control room (you can lock it with a PIN):</p>
+        <ul class="guide-list">
+          <li><b>Classes</b> — add or remove classes, drag the running order, set each class's pill count.</li>
+          <li><b>Race settings</b> — heat size, feature size, max in a B-main, transfers, and the B-main format (single / parallel / cascade — tap the <span style="font-weight:700">i</span> buttons to learn each).</li>
+          <li><b>Track identity</b> — your name and logo on the lineups, printout, and TV.</li>
+          <li><b>License</b> — enter your access code to unlock past the free trial.</li>
+          <li><b>Backup</b> — download a backup file, restore it on any device, or export CSVs.</li>
+          <li><b>Start a new race day</b> — archives today to history and clears the board for next time (your driver book and classes stay).</li>
+        </ul>
+      </div>
+    </div>
+
+    <div class="card" style="margin-top:18px;border-color:var(--plate);box-shadow:0 0 0 2px var(--plate)">
+      <h3 style="margin-bottom:6px">⭐ Best way to run it</h3>
+      <p style="font-size:13.5px;color:#555;margin:0 0 8px">RaceDay saves everything in <b>one device's browser</b> — there's no cloud sync. That's what makes the driver book, points championship, and history work, so a little planning keeps it smooth:</p>
+      <ul class="guide-list">
+        <li><b>Use one device all season.</b> Pick the phone, tablet, or laptop that will run the night and stick with it. Open it on a different device and you'll see a blank app — the data is still safe on the first one.</li>
+        <li><b>Run everything from that device</b> — sign-ups, results, and the TV screen. When casting to a TV, mirror <b>that</b> device; don't open the link on the TV itself.</li>
+        <li><b>Back up at the end of each night.</b> Admin → <b>Download full backup</b>, then email the file to yourself. Starting a new race day will also offer to back up first. If the device is ever lost or replaced, <b>Restore</b> brings the whole season back.</li>
+        <li><b>Enter your access code once</b>, on that device — it unlocks that device only.</li>
+      </ul>
+    </div>
+
+    <div class="card" style="margin-top:12px">
+      <h3 style="margin-bottom:6px">Good to know</h3>
+      <p style="font-size:13.5px;color:#555;margin:0 0 6px">• Everything is saved in <b>this browser</b> — no internet needed once the page is open. Use Admin → Backup to move data between devices.</p>
+      <p style="font-size:13.5px;color:#555;margin:0 0 6px">• The device running sign-ups is the "source of truth." If you cast to a TV, cast <b>this</b> device's screen — don't open the link on the TV itself.</p>
+      <p style="font-size:13.5px;color:#555;margin:0">• Lowest pill = front of the grid. Lowest heat total = top of the standings. That one rule runs the whole night.</p>
+    </div>
+  </div>
 </div>
 
 <!-- TV display overlay: no interface, one visual -->
@@ -470,15 +558,15 @@ function defaults() {
     trialDays: [],                                // dates that used a free-trial race day
     licUse: {},                                   // packet usage per code: { code: [dates] }
     classLib: [                                   // every class name ever used: {name, maxPill}
-      { name: 'Junior 80cc', maxPill: 100 },
-      { name: 'Senior 100cc', maxPill: 100 },
-      { name: 'Open Shifter', maxPill: 100 }
+      { name: 'Junior 80cc', maxPill: 200 },
+      { name: 'Senior 100cc', maxPill: 200 },
+      { name: 'Open Shifter', maxPill: 200 }
     ],
     roster: [],                                   // persistent driver book: {id, name, num}
     classes: [
-      { id: 1, name: 'Junior 80cc', maxPill: 100 },
-      { id: 2, name: 'Senior 100cc', maxPill: 100 },
-      { id: 3, name: 'Open Shifter', maxPill: 100 }
+      { id: 1, name: 'Junior 80cc', maxPill: 200 },
+      { id: 2, name: 'Senior 100cc', maxPill: 200 },
+      { id: 3, name: 'Open Shifter', maxPill: 200 }
     ],
     settings: { maxHeat: 8, maxBMain: 12, maxFeature: 20, transfers: 2, gridStyle: 'double', heatFill: 'alternate', bmainMode: 'single', bmainCount: 2, points: { table: [10, 8, 6, 5, 4, 3, 2, 1], beyond: 0 } },
     raceDay: { date: today(), entries: [], heatResults: {}, pointsRace: {} },  // entries: {driverId, classId, pill}
@@ -489,7 +577,7 @@ function migrate(s) {
   if (!s.track) s.track = { name: '', logo: '' };
   if (!s.history) s.history = [];
   if (s.adminPin == null) s.adminPin = '';
-  if (!s.classLib) s.classLib = s.classes.map(c => ({ name: c.name, maxPill: c.maxPill || 100 }));
+  if (!s.classLib) s.classLib = s.classes.map(c => ({ name: c.name, maxPill: c.maxPill || 200 }));
   if (s.license === undefined) s.license = null;
   if (!s.trialDays) s.trialDays = [];
   if (!s.licUse) s.licUse = {};
@@ -525,7 +613,7 @@ function drawPill(clsId) {
   const cls = classById(clsId);
   const used = pillsUsed(clsId);
   const pool = [];
-  for (let p = 1; p <= (cls.maxPill || 100); p++) if (!used.has(p)) pool.push(p);
+  for (let p = 1; p <= (cls.maxPill || 200); p++) if (!used.has(p)) pool.push(p);
   if (!pool.length) return null;
   return pool[Math.floor(Math.random() * pool.length)];
 }
@@ -553,7 +641,7 @@ function nav(p) {
   document.querySelectorAll('.page').forEach(el => el.classList.remove('active'));
   document.querySelectorAll('#mainNav button').forEach(b => b.classList.remove('active'));
   document.getElementById('page-' + p).classList.add('active');
-  const idx = ['signup','grid','results','points','admin'].indexOf(p);
+  const idx = ['signup','grid','results','points','admin','help'].indexOf(p);
   document.querySelectorAll('#mainNav button')[idx].classList.add('active');
   render(p);
 }
@@ -579,6 +667,9 @@ function newRaceDay() {
   if (!adminOk()) return;
   if (S.raceDay.entries.length || Object.keys(S.raceDay.heatResults).length) {
     if (!confirm("Start a new race day? Today's entries and results are archived to Race day history, then the board is cleared. The driver book and classes are kept.")) return;
+    if (confirm('Back up first? This downloads a file with the whole season — driver book, history, and points. Recommended at the end of each night.\n\nOK = download a backup now · Cancel = skip and continue.')) {
+      exportBackup();
+    }
   }
   archiveDay();
   S.raceDay = { date: today(), entries: [], heatResults: {}, pointsRace: {} };
@@ -1070,10 +1161,17 @@ function featureData(clsId) {
   const standings = calcStandings(clsId);
   const { maxFeature, maxBMain, transfers } = S.settings;
   const mode = S.settings.bmainMode || 'single';
-  const k = Math.max(2, S.settings.bmainCount || 2);
   if (standings.length <= maxFeature) return { mode, locked: standings, mains: [], transferred: [], transfers, toFeatureSpots: 0 };
 
   if (mode === 'parallel') {
+    // Auto-size: find the fewest B-mains that keep each one at or under maxBMain drivers
+    let k = Math.max(1, S.settings.bmainCount || 2);
+    for (let guard = 0; guard < 30; guard++) {
+      const lockCount = Math.max(0, maxFeature - k * transfers);
+      const rem = standings.length - lockCount;
+      if (rem <= k * maxBMain) break;
+      k++;
+    }
     const totalT = k * transfers;
     const lockCount = Math.max(0, maxFeature - totalT);
     const locked = standings.slice(0, lockCount);
@@ -1244,17 +1342,26 @@ function renderClassResults(clsId) {
   h += heatEntryBlock(clsId, 'h2', set2, 'Set 2 heats — inverted', ' inv');
 
   const standings = calcStandings(clsId);
+  const fd = featureData(clsId);
+  // Build advancement map: driverId → where they advance
+  const advMap = {};
+  fd.locked.forEach(r => { advMap[r.id] = { label: '→ Feature', feat: true }; });
+  fd.mains.forEach(m => {
+    const dest = m.feeds === 'the feature' ? '→ ' + m.label : '→ ' + m.label;
+    m.drivers.forEach(r => { if (!advMap[r.id]) advMap[r.id] = { label: dest, feat: false }; });
+  });
   h += '<div class="slbl">Heat totals — the "race pill"</div><div class="hb"><div class="hh"><span>Standings</span><small>finishes added up · low wins · ties go to the pill draw</small></div>';
   standings.forEach((s, i) => {
     const detail = finLabel(s.f1) + ' + ' + finLabel(s.f2);
+    const adv = advMap[s.id];
     h += '<div class="hr"><div class="pnum">' + (i + 1) + '</div>'
       + '<div class="nm"><b>' + esc(s.name) + '</b> <span>#' + esc(s.num) + ' · heats: ' + detail + '</span></div>'
       + (s.scored < 2 ? '<span class="transfer-tag" style="background:#fdf3d7;color:#6b5410">' + s.scored + ' of 2</span>' : '')
+      + (adv ? '<span class="transfer-tag"' + (adv.feat ? ' style="background:#fff4dc;color:#7a4f00"' : '') + '>' + esc(adv.label) + '</span>' : '')
       + '<span class="pts-badge">' + (s.scored ? s.pts : '—') + '</span></div>';
   });
   h += '</div>';
 
-  const fd = featureData(clsId);
   fd.mains.forEach(m => {
     const feedTxt = m.feeds === 'the feature' ? 'Feature' : m.feeds;
     h += '<div class="slbl">' + esc(m.label) + '</div><div class="hb"><div class="hh bmain"><span>' + esc(m.label) + ' lineup</span><small>top ' + fd.transfers + ' → ' + esc(feedTxt) + '</small></div>';
@@ -1535,7 +1642,7 @@ function renderClsList() {
       + '<span style="flex:1;font-weight:600;min-width:110px">' + esc(c.name) + '</span>'
       + '<span style="font-size:12px;color:var(--muted)">' + cnt + ' entered</span>'
       + '<label style="margin:0;display:flex;align-items:center;gap:6px;font-size:12px">Pills 1–'
-      + '<input class="inline-num" type="number" min="' + Math.max(2, cnt) + '" max="999" value="' + (c.maxPill || 100) + '" onchange="setClassMax(' + c.id + ',this.value)"></label>'
+      + '<input class="inline-num" type="number" min="' + Math.max(2, cnt) + '" max="999" value="' + (c.maxPill || 200) + '" onchange="setClassMax(' + c.id + ',this.value)"></label>'
       + '<button class="btn btn-sm btn-danger" onclick="delClass(' + c.id + ')">Remove</button></div>';
   }).join('');
 }
@@ -1555,7 +1662,7 @@ function rememberClass(name, maxPill) {
 function setClassMax(id, val) {
   const c = classById(id); if (!c) return;
   const used = pillsUsed(id).size;
-  c.maxPill = Math.max(2, used, parseInt(val) || 100);
+  c.maxPill = Math.max(2, used, parseInt(val) || 200);
   rememberClass(c.name, c.maxPill);
   save(); renderClsList();
 }
@@ -1563,10 +1670,10 @@ function addClass() {
   const nameEl = document.getElementById('newClass'), maxEl = document.getElementById('newClassMax');
   const name = nameEl.value.trim();
   if (!name) return;
-  const maxPill = Math.max(2, parseInt(maxEl.value) || 100);
+  const maxPill = Math.max(2, parseInt(maxEl.value) || 200);
   S.classes.push({ id: Date.now(), name, maxPill });
   rememberClass(name, maxPill);
-  nameEl.value = ''; maxEl.value = '100';
+  nameEl.value = ''; maxEl.value = '200';
   save(); renderClsList(); renderClsLib();
 }
 function delClass(id) {
@@ -1744,22 +1851,42 @@ function tvSlides() {
   return slides;
 }
 
-function tvGridMarkup(racers, single) {
-  const rows = single ? racers.length : Math.ceil(racers.length / 2);
-  const fs = Math.min(5.2, 70 / rows * 0.42);   // scale type so any field size fills the screen
-  const disc = Math.min(8.5, 70 / rows * 0.6);
-  let h = single ? '' : '<div class="tv-lanes"><span>Inside line</span><span>Outside line</span></div>';
+function tvPanelMarkup(racers, single, offset, fs, disc) {
+  let h = single ? '' : '<div class="tv-lanes"><span>Inside</span><span>Outside</span></div>';
   h += '<div class="' + (single ? 'tv-list' : 'tv-grid2') + '">';
   racers.forEach((r, i) => {
-    const pos = i + 1;
+    const pos = offset + i + 1;
+    const rowNum = Math.floor((offset + i) / (single ? 1 : 2)) + 1;
     const len = String(r.num).length;
-    const df = len <= 2 ? 0.42 : len === 3 ? 0.33 : len === 4 ? 0.26 : 0.21;   // vehicle number on the plate, shrunk for long numbers
+    const df = len <= 2 ? 0.42 : len === 3 ? 0.33 : len === 4 ? 0.26 : 0.21;
+    const rowLbl = !single ? '<span style="font-size:0.68em;color:#6b7080;flex-shrink:0;font-family:var(--display);font-weight:700;min-width:1.8em">R' + rowNum + '</span>' : '';
     h += '<div class="tv-slot' + (pos === 1 ? ' pole' : '') + '" style="font-size:' + fs.toFixed(2) + 'vh">'
       + '<span class="tv-pos">P' + pos + '</span>'
+      + rowLbl
       + '<span class="tv-disc" style="width:' + disc.toFixed(2) + 'vh;height:' + disc.toFixed(2) + 'vh;font-size:' + (disc * df).toFixed(2) + 'vh">' + esc(String(r.num)) + '</span>'
       + '<span class="tv-nm">' + esc(r.name) + '</span>' + (r.tag ? '<span class="tv-num">' + esc(r.tag) + '</span>' : '') + '</div>';
   });
   return h + '</div>';
+}
+function tvGridMarkup(racers, single) {
+  const SPLIT = 16;
+  if (racers.length > SPLIT) {
+    // Overflow: show positions 1-16 left, 17+ right on the same screen
+    const a = racers.slice(0, SPLIT);
+    const b = racers.slice(SPLIT);
+    const splitRows = single ? SPLIT : Math.ceil(SPLIT / 2);  // 16 single or 8 double rows
+    const fs = Math.min(5.2, 70 / splitRows * 0.42);
+    const disc = Math.min(8.5, 70 / splitRows * 0.6);
+    return '<div style="display:grid;grid-template-columns:1fr 1px 1fr;gap:0 2vw">'
+      + '<div>' + tvPanelMarkup(a, single, 0, fs, disc) + '</div>'
+      + '<div style="background:#2c2f37;margin:0.5vh 0"></div>'
+      + '<div>' + tvPanelMarkup(b, single, SPLIT, fs, disc) + '</div>'
+      + '</div>';
+  }
+  const rows = single ? Math.max(racers.length, 1) : Math.max(Math.ceil(racers.length / 2), 1);
+  const fs = Math.min(5.2, 70 / rows * 0.42);
+  const disc = Math.min(8.5, 70 / rows * 0.6);
+  return tvPanelMarkup(racers, single, 0, fs, disc);
 }
 
 function tvRender() {
