@@ -74,7 +74,7 @@
 <div class="wrap">
   <div class="hdr">
     <div class="brand">Race<em>Day</em> — Timing Import</div>
-    <div class="sub">Standalone companion · works with any timing system CSV</div>
+    <div class="sub">Standalone companion · works with MotoSponder and any timing system CSV</div>
   </div>
   <div class="checker"></div>
   <div class="pg">
@@ -87,6 +87,7 @@
         <li>Map columns, pick your target, preview and Apply</li>
         <li>A new backup downloads — restore it in RaceDay (Admin → <b>Restore from backup</b>)</li>
       </ol>
+      <div style="margin-top:8px;font-size:12px;color:#9a9da6">Using <b>MotoSponder</b>? Export results as CSV — split First/Last names and <b>hh:mm:ss</b> lap times are mapped automatically.</div>
     </div>
 
     <!-- Backup -->
@@ -108,7 +109,7 @@
         <div class="upzone" id="csvZone" onclick="document.getElementById('csvFile').click()">
           <div class="ico">📋</div>
           <div id="csvLabel"><b>Click to load timing CSV</b></div>
-          <p>Export from MYLAPS, Westhold, RaceHero, or any timing system</p>
+          <p>Export from MotoSponder, MYLAPS, Westhold, RaceHero, or any timing system</p>
         </div>
         <input id="csvFile" type="file" accept=".csv,text/csv" style="display:none" onchange="loadCsv(this)">
         <div id="csvInfo" style="display:none;margin-top:10px"></div>
@@ -207,6 +208,7 @@ let App = {
   clsId: null,        // numeric class id, or null = use cls column
   useClsCol: false,
   heatSet: 'h1',
+  vendor: null,       // { name } if a known timing system was auto-detected
 };
 let preview = [];     // computed preview rows
 
@@ -221,6 +223,10 @@ function normTrans(v) {
 function parseLapTime(s) {
   s = String(s || '').trim();
   if (!s || /^(dnf|dns|dq|dsq|ret|nc)$/i.test(s)) return Infinity;
+  // hh:mm:ss.mmm (MotoSponder/RMonitor format, e.g. 00:02:17.872)
+  const h = s.match(/^(\d+):(\d{1,2}):(\d{1,2}(?:\.\d+)?)$/);
+  if (h) return parseInt(h[1]) * 3600 + parseInt(h[2]) * 60 + parseFloat(h[3]);
+  // mm:ss.mmm
   const m = s.match(/^(\d+):(\d+(?:\.\d+)?)$/);
   if (m) return parseInt(m[1]) * 60 + parseFloat(m[2]);
   const n = parseFloat(s);
@@ -266,14 +272,33 @@ function parseCSV(text) {
 
 // ─── Column guessing ──────────────────────────────────────────────────────────
 const SYN = {
-  trans: ['transponder','trans','tx','chip','decoder','tag','rfid','transponderid','transponder id'],
-  num:   ['kart','car number','car no','vehicle no','kart no','plate','car#','kart#'],
-  name:  ['driver name','driver','name','racer','pilot','firstname','first name','first'],
+  trans: ['transponder','trans','tx','chip','decoder','tag','rfid','transponderid','transponder id','trans id','tran'],
+  num:   ['kart','car number','car no','vehicle no','kart no','plate','car#','kart#','no','no.','racer number','racer no','rider number','rider no'],
+  name:  ['driver name','driver','name','racer','rider','rider name','racer name','pilot','firstname','first name','first'],
   name2: ['lastname','last name','last','surname','family name'],
   cls:   ['class','category','group','division'],
   pos:   ['pos','position','finish','place','rank','result','qual pos','qualifying pos','finish pos'],
-  time:  ['best lap','best time','lap time','bestlap','besttime','laptime','fast lap','qualifying time','q-time'],
+  time:  ['best lap','best time','lap time','best tm','best laptime','best lap time','total time','total tm','bestlap','besttime','laptime','fast lap','qualifying time','q-time'],
 };
+
+// Vendor signatures: when matched, refine the generic guess with a known-good mapping.
+// Each detector returns a column override object (only the columns it's confident about),
+// leaving anything it doesn't set to the generic guess.
+const VENDORS = [
+  {
+    name: 'MotoSponder',
+    // MotoSponder exports split First/Last + a Transponder/Trans column, with
+    // "Best Tm"/"Total Tm" time columns.
+    detect: h => {
+      const has = t => h.some(c => c === t);
+      const hasFirstLast = (has('first') || has('first name')) && (has('last') || has('last name'));
+      const hasTrans = h.some(c => c === 'transponder' || c === 'trans' || c === 'transponder id' || c === 'trans id');
+      const hasMotoTime = h.some(c => c === 'best tm' || c === 'total tm');
+      return (hasTrans && hasFirstLast) || hasMotoTime;
+    },
+  },
+];
+
 function guessColumns(hdr) {
   const h = hdr.map(v => v.trim().toLowerCase());
   const out = { trans:-1, num:-1, name:-1, name2:-1, cls:-1, pos:-1, time:-1 };
@@ -290,6 +315,14 @@ function guessColumns(hdr) {
   if (out.time < 0) out.time = h.findIndex(c => c.includes('time') || c.includes('lap') || c.includes('best'));
   if (out.pos < 0) out.pos = h.findIndex(c => c.includes('pos') || c.includes('place') || c.includes('rank') || c.includes('finish'));
   return out;
+}
+
+// Returns { name } of a detected vendor, or null. The generic guess already maps the
+// columns; detection just surfaces the source and ensures split first/last names map.
+function detectVendor(hdr) {
+  const h = hdr.map(v => v.trim().toLowerCase());
+  const v = VENDORS.find(v => v.detect(h));
+  return v ? { name: v.name } : null;
 }
 
 // ─── RaceDay engine (reproduction for backup mutation) ────────────────────────
@@ -366,11 +399,16 @@ function loadCsv(input) {
     App.header = all[0];
     App.rows = all.slice(1);
     App.cols = guessColumns(App.header);
+    App.vendor = detectVendor(App.header);
     document.getElementById('csvZone').classList.add('filled');
     document.getElementById('csvLabel').innerHTML = '<b>✓ ' + esc(f.name) + ' loaded</b>';
     document.getElementById('csvInfo').style.display = '';
+    const vendorChip = App.vendor
+      ? '<span class="chip chip-ok" style="margin-left:6px">' + esc(App.vendor.name) + ' format detected</span>' +
+        ' <button class="btn btn-sm" style="margin-left:6px;padding:2px 8px" onclick="clearVendor()">Use generic mapping</button>'
+      : '';
     document.getElementById('csvInfo').innerHTML =
-      '<div class="info"><b>' + App.rows.length + ' data rows</b>, ' + App.header.length + ' columns · ' +
+      '<div class="info"><b>' + App.rows.length + ' data rows</b>, ' + App.header.length + ' columns' + vendorChip + '<br>' +
       Object.entries(App.cols).filter(([,v])=>v>=0).map(([k,v])=>k+' → ' + esc(App.header[v])).join(' · ') + '</div>';
     document.getElementById('secCfg').classList.add('on');
     renderConfig();
@@ -378,6 +416,13 @@ function loadCsv(input) {
     document.getElementById('secDone').classList.remove('on');
   };
   fr.readAsText(f);
+}
+
+function clearVendor() {
+  App.vendor = null;
+  document.getElementById('csvInfo').innerHTML =
+    '<div class="info"><b>' + App.rows.length + ' data rows</b>, ' + App.header.length + ' columns<br>' +
+    Object.entries(App.cols).filter(([,v])=>v>=0).map(([k,v])=>k+' → ' + esc(App.header[v])).join(' · ') + '</div>';
 }
 
 // ─── Config UI ────────────────────────────────────────────────────────────────
@@ -706,6 +751,7 @@ function downloadBackup() {
 
 function resetCsv() {
   App.rows = []; App.header = []; App.cols = { trans:-1, num:-1, name:-1, name2:-1, cls:-1, pos:-1, time:-1 };
+  App.vendor = null;
   preview = [];
   document.getElementById('csvZone').classList.remove('filled');
   document.getElementById('csvLabel').innerHTML = '<b>Click to load timing CSV</b>';
