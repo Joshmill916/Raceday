@@ -184,6 +184,18 @@
   #tvCtl.show { opacity:1; pointer-events:auto; }
   #tvCtl button { font-size:17px; padding:14px 22px; border-radius:12px; border:none; background:rgba(255,255,255,.94); color:#1a1b1e; cursor:pointer; font-family:inherit; font-weight:700; }
 
+  /* Guide / how-to page */
+  .guide-step { display: flex; gap: 14px; align-items: flex-start; background: var(--card); border: 1px solid var(--line); border-radius: 14px; padding: 16px 18px; margin-bottom: 12px; }
+  .guide-num { flex-shrink: 0; width: 38px; height: 38px; border-radius: 50%; background: var(--asphalt); color: var(--plate); font-family: var(--display); font-weight: 800; font-size: 20px; display: flex; align-items: center; justify-content: center; }
+  .guide-body { flex: 1; min-width: 0; }
+  .guide-body h3 { margin-bottom: 6px; }
+  .guide-body p { font-size: 13.5px; color: #555; margin: 0 0 8px; }
+  .guide-body p:last-child { margin-bottom: 0; }
+  .guide-body b { color: var(--ink); }
+  .guide-list { margin: 6px 0 0; padding-left: 18px; }
+  .guide-list li { font-size: 13.5px; color: #555; margin-bottom: 6px; }
+  .guide-list b { color: var(--ink); }
+
   @media (max-width: 560px) {
     .hr > small { display: none; }
     .hr { gap: 7px; padding: 8px 10px; }
@@ -216,6 +228,7 @@
     <button onclick="nav('results')">Results</button>
     <button onclick="nav('points')">Points</button>
     <button onclick="nav('admin')">Admin</button>
+    <button onclick="nav('help')">❔ Guide</button>
   </div>
 
   <div id="dayBanner" class="banner" style="display:none">
@@ -437,6 +450,70 @@
       <p style="font-size:12px;color:var(--muted);margin-top:8px">A new race day archives today's entries and results to history, then clears the board — the driver book and classes are kept. Erase everything wipes the driver book, history, and track settings too.</p>
     </div>
   </div>
+
+  <!-- HELP / GUIDE -->
+  <div id="page-help" class="page">
+    <h2>How to use RaceDay</h2>
+    <p class="sub">A quick walkthrough. The tabs along the top take you through a race day in order — left to right.</p>
+
+    <div class="guide-step">
+      <div class="guide-num">1</div>
+      <div class="guide-body">
+        <h3>Sign up — drivers join</h3>
+        <p>On the <b>Sign up</b> tab each driver types their name and vehicle number. If they've raced here before, their name pops up to tap — no retyping. They pick the classes they're running, then hit <b>Draw my pills</b>.</p>
+        <p>Each class draws one random pill. <b>Lowest pill starts up front</b> — that's the whole idea. Pills run 1 up to the class's max (200 by default), so late sign-ups still get a fair draw.</p>
+      </div>
+    </div>
+
+    <div class="guide-step">
+      <div class="guide-num">2</div>
+      <div class="guide-body">
+        <h3>Lineups — see the grids</h3>
+        <p>The <b>Lineups</b> tab shows every class lined up by pill, automatically split into heats. Switch between <b>Double file</b> and <b>Single file</b> to match how you grid the track.</p>
+        <p>📺 <b>TV display</b> fills a screen with big, rotating lineups for the crowd — plug this device into a TV with an HDMI cable, or cast it (Chrome menu → Cast, or your tablet's screen mirroring). Big fields show the overflow next to the top 16 on the same screen, with row numbers. <b>🖨 Print / save PDF</b> gives you a paper grid sheet.</p>
+      </div>
+    </div>
+
+    <div class="guide-step">
+      <div class="guide-num">3</div>
+      <div class="guide-body">
+        <h3>Results — enter finishes</h3>
+        <p>On the <b>Results</b> tab, pick each driver's finishing spot in both heat sets. Heat finishes add up into a total — <b>low total wins</b>, ties broken by the pill draw.</p>
+        <p>From there the <b>B-main and feature lineups build themselves</b>. Tags show exactly where each driver goes: <span class="transfer-tag" style="background:#fff4dc;color:#7a4f00">→ Feature</span> for those locked in, or <span class="transfer-tag">→ B-main 1</span> for those who race their way in. Enter the B-main and feature finishes the same way.</p>
+      </div>
+    </div>
+
+    <div class="guide-step">
+      <div class="guide-num">4</div>
+      <div class="guide-body">
+        <h3>Points — season standings</h3>
+        <p>The <b>Points</b> tab keeps a running championship by class. Feature finishes earn points using the table you set in Admin. Today counts live as you enter finishes, and past race days count from history.</p>
+      </div>
+    </div>
+
+    <div class="guide-step">
+      <div class="guide-num">5</div>
+      <div class="guide-body">
+        <h3>Admin — set it up once</h3>
+        <p>The <b>Admin</b> tab is the control room (you can lock it with a PIN):</p>
+        <ul class="guide-list">
+          <li><b>Classes</b> — add or remove classes, drag the running order, set each class's pill count.</li>
+          <li><b>Race settings</b> — heat size, feature size, max in a B-main, transfers, and the B-main format (single / parallel / cascade — tap the <span style="font-weight:700">i</span> buttons to learn each).</li>
+          <li><b>Track identity</b> — your name and logo on the lineups, printout, and TV.</li>
+          <li><b>License</b> — enter your access code to unlock past the free trial.</li>
+          <li><b>Backup</b> — download a backup file, restore it on any device, or export CSVs.</li>
+          <li><b>Start a new race day</b> — archives today to history and clears the board for next time (your driver book and classes stay).</li>
+        </ul>
+      </div>
+    </div>
+
+    <div class="card" style="margin-top:18px">
+      <h3 style="margin-bottom:6px">Good to know</h3>
+      <p style="font-size:13.5px;color:#555;margin:0 0 6px">• Everything is saved in <b>this browser</b> — no internet needed once the page is open. Use Admin → Backup to move data between devices.</p>
+      <p style="font-size:13.5px;color:#555;margin:0 0 6px">• The device running sign-ups is the "source of truth." If you cast to a TV, cast <b>this</b> device's screen — don't open the link on the TV itself.</p>
+      <p style="font-size:13.5px;color:#555;margin:0">• Lowest pill = front of the grid. Lowest heat total = top of the standings. That one rule runs the whole night.</p>
+    </div>
+  </div>
 </div>
 
 <!-- TV display overlay: no interface, one visual -->
@@ -553,7 +630,7 @@ function nav(p) {
   document.querySelectorAll('.page').forEach(el => el.classList.remove('active'));
   document.querySelectorAll('#mainNav button').forEach(b => b.classList.remove('active'));
   document.getElementById('page-' + p).classList.add('active');
-  const idx = ['signup','grid','results','points','admin'].indexOf(p);
+  const idx = ['signup','grid','results','points','admin','help'].indexOf(p);
   document.querySelectorAll('#mainNav button')[idx].classList.add('active');
   render(p);
 }
