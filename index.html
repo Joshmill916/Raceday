@@ -548,6 +548,14 @@
 <script>
 // ---------- State ----------
 const KEY = 'raceday_v1';
+
+// ---------- Usage reporting ----------
+// Aggregate, anonymous beacons to the app owner: registration counts (no names,
+// no kart numbers, no contact info) and crash messages. Leave TELEMETRY_URL blank
+// to disable everything — nothing is sent and no disclosure shows. To turn it on,
+// paste the Google Apps Script web-app URL between the quotes.
+const APP_VERSION = '2026-06';
+const TELEMETRY_URL = '';
 function today() { const d = new Date(); return d.getFullYear()+'-'+String(d.getMonth()+1).padStart(2,'0')+'-'+String(d.getDate()).padStart(2,'0'); }
 function defaults() {
   return {
@@ -815,6 +823,7 @@ function renderLicCard() {
       + '<input id="licCode" type="text" placeholder="Access code (e.g. RIVERSIDE-S2026-AB12CD)" style="flex:1;min-width:200px" autocomplete="off">'
       + '<button class="btn btn-primary" onclick="activateLic()">Activate</button></div>';
   }
+  if (TELEMETRY_URL) h += '<p style="font-size:12px;color:var(--muted);margin-top:8px">Usage stats are sent to the RaceDay developer — registration counts only, no names or personal data.</p>';
   el.innerHTML = h;
 }
 
@@ -940,6 +949,7 @@ function register() {
     drawn.push({ cls: c, pill });
   });
   save();
+  scheduleUsageBeacon();
   renderDone(driver, drawn);
   showStep(3);
 }
@@ -1964,6 +1974,41 @@ function seedDemo() {
   render(curPage);
   nav('grid');
 }
+
+// ---------- Usage beacons ----------
+// Fire-and-forget, never blocks the app, silently no-ops when TELEMETRY_URL is
+// blank or the network is down. Only aggregate, anonymous data leaves the browser.
+let usageTimer = null;
+function currentCounts() {
+  const classes = {};
+  (S.raceDay.entries || []).forEach(e => {
+    const c = classById(e.classId);
+    const n = c ? c.name : 'Unknown';
+    classes[n] = (classes[n] || 0) + 1;
+  });
+  return { total: (S.raceDay.entries || []).length, classes };
+}
+function sendUsage(event, extra) {
+  if (!TELEMETRY_URL) return;
+  try {
+    const body = JSON.stringify(Object.assign({
+      event: event,
+      version: APP_VERSION,
+      date: (S.raceDay && S.raceDay.date) || today(),
+      track: (S.license && S.license.name) || 'unknown'
+    }, extra || {}));
+    if (navigator.sendBeacon) navigator.sendBeacon(TELEMETRY_URL, body);
+    else fetch(TELEMETRY_URL, { method: 'POST', body: body, mode: 'no-cors' }).catch(() => {});
+  } catch (e) {}
+}
+// Debounce a registration beacon: one report per sign-up batch, 30s after the last add.
+function scheduleUsageBeacon() {
+  if (!TELEMETRY_URL) return;
+  clearTimeout(usageTimer);
+  usageTimer = setTimeout(() => sendUsage('registration', currentCounts()), 30000);
+}
+window.onerror = (msg, src, line) => { sendUsage('crash', { msg: String(msg).slice(0, 200), line: line }); };
+window.addEventListener('unhandledrejection', e => { sendUsage('crash', { msg: String(e.reason).slice(0, 200) }); });
 
 // ---------- Live sync across tabs + init ----------
 window.addEventListener('storage', e => { if (e.key === KEY) { S = load(); renderHeader(); render(curPage); if (tvOn) tvRender(); } });
