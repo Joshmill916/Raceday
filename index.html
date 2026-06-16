@@ -641,6 +641,27 @@ function buildHeats(racers, max) {
   }
   return heats;
 }
+// Qualifying-format invert: reverse the fastest N qualifiers so they start at the back.
+// 'field' scope reverses the top N of the whole field BEFORE heats are built — it also
+// changes which heat each driver lands in, so calcStandings must apply it too. 'heat'
+// scope reverses the top N within each heat AFTER assignment — display-only, since heat
+// membership (and the position-independent result keys) are unaffected.
+function classInvertN(cls) { const n = cls ? (parseInt(cls.invert) || 0) : 0; return n >= 2 ? n : 0; }
+function invertField(racers, cls) {
+  const n = classInvertN(cls);
+  if (!n || (cls.invertScope || 'field') !== 'field') return racers;
+  return [...racers.slice(0, n).reverse(), ...racers.slice(n)];
+}
+function invertWithinHeats(heats, cls) {
+  const n = classInvertN(cls);
+  if (!n || (cls.invertScope || 'field') !== 'heat') return heats;
+  return heats.map(heat => [...heat.slice(0, n).reverse(), ...heat.slice(n)]);
+}
+// Heat sets for DISPLAY, honoring both invert scopes. (calcStandings uses only the
+// field-invert half directly, since within-heat order never affects standings.)
+function heatSet(racers, cls) {
+  return invertWithinHeats(buildHeats(invertField(racers, cls), S.settings.maxHeat), cls);
+}
 
 // ---------- Navigation ----------
 function nav(p) {
@@ -1028,15 +1049,19 @@ function renderGrid() {
     const racers = classRacers(cls.id);
     h += '<section class="gsec"><h3>' + esc(cls.name) + ' <span class="count">· ' + racers.length + ' entered</span></h3>';
     if (!racers.length) { h += '<p class="empty">No drivers yet — first to sign up takes the pole.</p></section>'; return; }
-    const set1 = buildHeats(racers, S.settings.maxHeat);
+    const invN = classInvertN(cls);
+    const scope = cls.invertScope || 'field';
+    const field = invertField(racers, cls);
+    const set1 = invertWithinHeats(buildHeats(field, S.settings.maxHeat), cls);
     const set2 = set1.map(heat => [...heat].reverse());
+    const invNote = invN ? ' · top ' + invN + ' inverted (' + (scope === 'heat' ? 'each heat' : 'whole field') + ')' : '';
     if (set1.length === 1) {
       // whole class fits in one heat: the grid IS the heat
-      h += '<div class="slbl" style="margin-top:6px">Starting grid — set 1</div>' + gridMarkup(racers, single);
+      h += '<div class="slbl" style="margin-top:6px">Starting grid — set 1' + invNote + '</div>' + gridMarkup(set1[0], single);
       h += '<div class="slbl">Set 2 — inverted</div>' + gridMarkup(set2[0], single);
     } else {
-      h += '<div class="slbl" style="margin-top:6px">Full field — pill draw order</div>' + gridMarkup(racers, single);
-      h += '<div class="slbl">Set 1 heats</div>';
+      h += '<div class="slbl" style="margin-top:6px">Full field — ' + (invN && scope === 'field' ? 'qualifying order, top ' + invN + ' inverted' : 'pill draw order') + '</div>' + gridMarkup(field, single);
+      h += '<div class="slbl">Set 1 heats' + invNote + '</div>';
       set1.forEach((heat, hi) => {
         h += '<div class="heat-cap"><span>Heat ' + (hi + 1) + '</span><small>' + heat.length + ' karts</small></div>' + gridMarkup(heat, single);
       });
@@ -1085,7 +1110,7 @@ function printHeats() {
   S.classes.forEach(cls => {
     const racers = classRacers(cls.id);
     if (!racers.length) return;
-    const set1 = buildHeats(racers, max);
+    const set1 = heatSet(racers, cls);
     const set2 = set1.map(heat => [...heat].reverse());
     html += '<h2>' + esc(cls.name) + ' — ' + racers.length + ' drivers</h2>';
     [['Set 1 — pill order', set1, ''], ['Set 2 — inverted', set2, ' class="inv"']].forEach(([title, set, cl]) => {
@@ -1142,7 +1167,7 @@ function finLabel(v) { return v == null ? '·' : v; }
 // Sum of both heat finishes = the driver's "race pill". Low wins; ties go to the original pill draw.
 function calcStandings(clsId) {
   const racers = classRacers(clsId);
-  const set1 = buildHeats(racers, S.settings.maxHeat);
+  const set1 = buildHeats(invertField(racers, classById(clsId)), S.settings.maxHeat);
   const heatOf = {};
   set1.forEach((heat, hi) => heat.forEach(r => { heatOf[r.id] = hi; }));
   const res = getRes(clsId);
@@ -1188,17 +1213,22 @@ function featureData(clsId) {
     const remaining = standings.slice(lockCount);                 // everyone left races — nobody is cut
     const buckets = Array.from({ length: k }, () => []);
     remaining.forEach((r, i) => buckets[i % k].push(r));          // spread by standings so mains are balanced
-    const mains = []; let transferred = [];
+    const mains = []; const madeLists = [];
     buckets.forEach((drivers, mi) => {
       if (!drivers.length) return;
       const made = mainTopIds(clsId, mi, drivers, transfers);
       mains.push({ label: 'B-main ' + (mi + 1), drivers, key: mi, feeds: 'the feature', made });
-      transferred = transferred.concat(made);
+      madeLists.push(made);
     });
+    // Interleave by finishing rank so the feature alternates across the B-mains
+    // (B1-1st, B2-1st, B1-2nd, B2-2nd …) instead of stacking one whole main ahead of the next.
+    let transferred = [];
+    for (let r = 0; r < transfers; r++) madeLists.forEach(list => { if (list[r]) transferred.push(list[r]); });
     return { mode, locked, mains, transferred, transfers, toFeatureSpots: Math.min(totalT, remaining.length, maxFeature - locked.length) };
   }
 
   if (mode === 'cascade') {
+    const k = Math.max(1, S.settings.bmainCount || 2);
     const lockCount = Math.max(0, maxFeature - transfers);
     const locked = standings.slice(0, lockCount);
     const remaining = standings.slice(lockCount);
@@ -1342,7 +1372,7 @@ function renderClassResults(clsId) {
   if (!el) return;   // results pane not on screen
   const racers = classRacers(clsId);
   if (!racers.length) { el.innerHTML = '<p class="empty">No drivers in this class.</p>'; return; }
-  const set1 = buildHeats(racers, S.settings.maxHeat);
+  const set1 = heatSet(racers, classById(clsId));
   const set2 = set1.map(heat => [...heat].reverse());
   const res = getRes(clsId);
   let h = '<label style="display:flex;align-items:center;gap:8px;margin:0 0 6px;font-size:13.5px;font-weight:600;cursor:pointer">'
@@ -1643,6 +1673,8 @@ function renderClsList() {
   const last = S.classes.length - 1;
   el.innerHTML = S.classes.map((c, idx) => {
     const cnt = classRacers(c.id).length;
+    const invN = classInvertN(c);
+    const fmt = invN ? ((c.invertScope === 'heat') ? 'heat' : 'field') : 'standard';
     return '<div style="display:flex;align-items:center;gap:10px;padding:9px 0;border-bottom:1px solid #f0f0eb;flex-wrap:wrap">'
       + '<span class="ordnum">' + (idx + 1) + '</span>'
       + '<span style="display:flex;flex-direction:column;gap:3px">'
@@ -1653,8 +1685,31 @@ function renderClsList() {
       + '<span style="font-size:12px;color:var(--muted)">' + cnt + ' entered</span>'
       + '<label style="margin:0;display:flex;align-items:center;gap:6px;font-size:12px">Pills 1–'
       + '<input class="inline-num" type="number" min="' + Math.max(2, cnt) + '" max="999" value="' + (c.maxPill || 200) + '" onchange="setClassMax(' + c.id + ',this.value)"></label>'
+      + '<label style="margin:0;display:flex;align-items:center;gap:6px;font-size:12px">Heat start'
+      +   '<select class="inline-num" style="width:auto" onchange="setClassFormat(' + c.id + ',this.value)">'
+      +     '<option value="standard"' + (fmt === 'standard' ? ' selected' : '') + '>Standard — no invert</option>'
+      +     '<option value="field"' + (fmt === 'field' ? ' selected' : '') + '>Invert top N — whole field</option>'
+      +     '<option value="heat"' + (fmt === 'heat' ? ' selected' : '') + '>Invert top N — each heat</option>'
+      +   '</select></label>'
+      + (fmt !== 'standard'
+          ? '<label style="margin:0;display:flex;align-items:center;gap:6px;font-size:12px">Invert top'
+            + '<input class="inline-num" type="number" min="2" max="99" value="' + invN + '" onchange="setClassInvert(' + c.id + ',this.value)"></label>'
+          : '')
       + '<button class="btn btn-sm btn-danger" onclick="delClass(' + c.id + ')">Remove</button></div>';
   }).join('');
+}
+// Per-class heat-start format. Standard = fastest qualifier on pole (no invert).
+// 'field'/'heat' = invert the top N qualifiers (whole field, or within each heat).
+function setClassFormat(id, val) {
+  const c = classById(id); if (!c) return;
+  if (val === 'standard') { c.invert = 0; }
+  else { c.invertScope = val; if (!(classInvertN(c))) c.invert = 4; }
+  save(); renderClsList(); renderGrid();
+}
+function setClassInvert(id, val) {
+  const c = classById(id); if (!c) return;
+  c.invert = Math.max(2, parseInt(val) || 2);
+  save(); renderClsList(); renderGrid();
 }
 function moveClass(id, dir) {
   const i = S.classes.findIndex(c => c.id === id);
@@ -1835,7 +1890,7 @@ function tvSlides() {
   S.classes.forEach(cls => {
     const racers = classRacers(cls.id);
     if (!racers.length) return;
-    const set1 = buildHeats(racers, S.settings.maxHeat);
+    const set1 = heatSet(racers, cls);
     const set2 = set1.map(h => [...h].reverse());
     if (set1.length === 1) {
       slides.push({ title: cls.name, sub: 'Starting grid — Set 1', racers: set1[0] });
