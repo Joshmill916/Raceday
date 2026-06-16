@@ -384,8 +384,18 @@
 
     <div class="slbl">Points series</div>
     <div class="card">
+      <div style="margin-bottom:12px">
+        <label>Points system</label>
+        <select id="ptsPreset" onchange="applyPointsPreset(this.value)">
+          <option value="standard">Standard (10-8-6-5-4-3-2-1)</option>
+          <option value="f1">F1-style (top 10)</option>
+          <option value="linear">Full-field linear (everyone scores)</option>
+          <option value="podium">Podium only (5-3-1)</option>
+          <option value="custom">Custom — type your own below</option>
+        </select>
+      </div>
       <div style="display:flex;gap:12px;flex-wrap:wrap;align-items:flex-end">
-        <div style="flex:3;min-width:220px">
+        <div id="ptsTableWrap" style="flex:3;min-width:220px">
           <label>Points by feature finish — 1st, 2nd, 3rd…</label>
           <input id="ptsTable" type="text" placeholder="10, 8, 6, 5, 4, 3, 2, 1" onchange="savePoints()" autocomplete="off" />
         </div>
@@ -394,7 +404,8 @@
           <input id="ptsBeyond" type="number" min="0" max="999" onchange="savePoints()" />
         </div>
       </div>
-      <p style="font-size:12px;color:var(--muted);margin-top:8px">Feature finish decides points. Make the list as long as your biggest feature — anyone finishing past it, not making the feature, or scoring DNF/DNS/DQ gets the "everyone else" value (use it for show-up points, or 0). Classes count by default; untick "counts toward the points series" on the Results tab for non-points days.</p>
+      <p id="ptsLinearNote" style="display:none;font-size:12px;color:var(--accent,#0a7);margin-top:8px"></p>
+      <p style="font-size:12px;color:var(--muted);margin-top:8px">Pick a known system or type your own — editing the list makes it "Custom". Feature finish decides points; make the list as long as your biggest feature. Anyone finishing past it, not making the feature, or scoring DNF/DNS/DQ gets the "everyone else" value (use it for show-up points, or 0). Classes count by default; untick "counts toward the points series" on the Results tab for non-points days.</p>
     </div>
 
     <div class="slbl">Today's entries</div>
@@ -576,7 +587,7 @@ function defaults() {
       { id: 2, name: 'Senior 100cc', maxPill: 200 },
       { id: 3, name: 'Open Shifter', maxPill: 200 }
     ],
-    settings: { maxHeat: 8, maxBMain: 12, maxFeature: 20, transfers: 2, gridStyle: 'double', heatFill: 'alternate', bmainMode: 'single', bmainCount: 2, points: { table: [10, 8, 6, 5, 4, 3, 2, 1], beyond: 0 } },
+    settings: { maxHeat: 8, maxBMain: 12, maxFeature: 20, transfers: 2, gridStyle: 'double', heatFill: 'alternate', bmainMode: 'single', bmainCount: 2, points: { mode: 'fixed', table: [10, 8, 6, 5, 4, 3, 2, 1], beyond: 0 } },
     raceDay: { date: today(), entries: [], heatResults: {}, pointsRace: {} },  // entries: {driverId, classId, pill}
     nextId: 100
   };
@@ -589,7 +600,8 @@ function migrate(s) {
   if (s.license === undefined) s.license = null;
   if (!s.trialDays) s.trialDays = [];
   if (!s.licUse) s.licUse = {};
-  if (!s.settings.points) s.settings.points = { table: [10, 8, 6, 5, 4, 3, 2, 1], beyond: 0 };
+  if (!s.settings.points) s.settings.points = { mode: 'fixed', table: [10, 8, 6, 5, 4, 3, 2, 1], beyond: 0 };
+  if (!s.settings.points.mode) s.settings.points.mode = 'fixed';
   if (!s.settings.heatFill) s.settings.heatFill = 'alternate';
   if (!s.settings.bmainMode) s.settings.bmainMode = 'single';
   if (!s.settings.bmainCount) s.settings.bmainCount = 2;
@@ -1277,10 +1289,16 @@ function dayPoints(clsId) {
   if (!isPointsRace(clsId)) return null;
   const fin = featureFinish(clsId);
   if (!fin.length) return null;
-  const { table, beyond } = S.settings.points;
+  const { mode, table, beyond } = S.settings.points;
   const pts = {};
   classRacers(clsId).forEach(r => { pts[r.id] = beyond; });
-  fin.forEach(f => { pts[f.id] = f.fin >= 1 && f.fin <= table.length ? table[f.fin - 1] : beyond; });
+  if (mode === 'linear') {
+    // Every feature finisher scores: 1st = feature size, last = 1. Sizes to maxFeature live.
+    const top = Math.max(1, S.settings.maxFeature || 1);
+    fin.forEach(f => { pts[f.id] = f.fin >= 1 ? Math.max(1, top - f.fin + 1) : beyond; });
+  } else {
+    fin.forEach(f => { pts[f.id] = f.fin >= 1 && f.fin <= table.length ? table[f.fin - 1] : beyond; });
+  }
   return pts;
 }
 function seriesClassNames() {
@@ -1308,15 +1326,52 @@ function seriesStandings(className) {
   }
   return Object.values(agg).sort((a, b) => b.pts - a.pts || a.name.localeCompare(b.name));
 }
+// Named starting points — picking one fills the inputs; the track can then tweak the
+// numbers (which switches it to "Custom"). 'linear' has no fixed list — see dayPoints.
+const POINT_PRESETS = {
+  standard: { label: 'Standard (10-8-6-5-4-3-2-1)', mode: 'fixed', table: [10, 8, 6, 5, 4, 3, 2, 1], beyond: 0 },
+  f1:       { label: 'F1-style (top 10)',            mode: 'fixed', table: [25, 18, 15, 12, 10, 8, 6, 4, 2, 1], beyond: 0 },
+  linear:   { label: 'Full-field linear (everyone scores)', mode: 'linear', table: [], beyond: 0 },
+  podium:   { label: 'Podium only (5-3-1)',          mode: 'fixed', table: [5, 3, 1], beyond: 0 },
+};
+// Which preset (if any) the current settings match exactly; '' means Custom.
+function currentPointsPreset() {
+  const p = S.settings.points;
+  for (const key in POINT_PRESETS) {
+    const q = POINT_PRESETS[key];
+    if (q.mode === p.mode && q.beyond === p.beyond &&
+        (q.mode === 'linear' || (q.table.length === p.table.length && q.table.every((v, i) => v === p.table[i])))) return key;
+  }
+  return '';
+}
+function applyPointsPreset(key) {
+  const q = POINT_PRESETS[key];
+  if (!q) return;   // 'custom' (empty value): leave current settings as-is
+  S.settings.points = { mode: q.mode, table: q.table.slice(), beyond: q.beyond };
+  save(); renderPointsInputs();
+}
 function savePoints() {
+  // Hand-editing the table always means a fixed custom table from now on.
   const t = document.getElementById('ptsTable').value.split(/[\s,]+/).map(x => parseInt(x)).filter(n => !isNaN(n) && n >= 0);
-  if (t.length) S.settings.points.table = t;
+  if (t.length) { S.settings.points.table = t; S.settings.points.mode = 'fixed'; }
   S.settings.points.beyond = Math.max(0, parseInt(document.getElementById('ptsBeyond').value) || 0);
   save(); renderPointsInputs();
 }
 function renderPointsInputs() {
-  document.getElementById('ptsTable').value = S.settings.points.table.join(', ');
-  document.getElementById('ptsBeyond').value = S.settings.points.beyond;
+  const p = S.settings.points;
+  const sel = document.getElementById('ptsPreset');
+  if (sel) sel.value = currentPointsPreset() || 'custom';
+  const linear = p.mode === 'linear';
+  const tableInput = document.getElementById('ptsTable');
+  const tableWrap = document.getElementById('ptsTableWrap');
+  const linearNote = document.getElementById('ptsLinearNote');
+  if (tableInput) tableInput.value = linear ? '' : p.table.join(', ');
+  if (tableWrap) tableWrap.style.display = linear ? 'none' : '';
+  if (linearNote) {
+    linearNote.style.display = linear ? '' : 'none';
+    linearNote.textContent = 'Every feature finisher scores — 1st gets ' + Math.max(1, S.settings.maxFeature || 1) + ' points, last place gets 1.';
+  }
+  document.getElementById('ptsBeyond').value = p.beyond;
 }
 let ptsTab = null, ptsNames = [];
 function renderPoints() {
