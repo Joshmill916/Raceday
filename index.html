@@ -165,6 +165,7 @@
 
   /* In-app timing import overlay */
   #impOverlay { display:none; position:fixed; inset:0; z-index:120; background:rgba(20,20,24,.55); overflow:auto; padding:20px 12px; }
+  #roleEscape { position:fixed; left:12px; bottom:12px; z-index:90; padding:7px 12px; border-radius:99px; border:1.5px solid #d4d4cf; background:rgba(255,255,255,.93); color:#555; font-family:inherit; font-size:12.5px; font-weight:600; cursor:pointer; box-shadow:0 2px 8px rgba(0,0,0,.18); }
   #impOverlay.on { display:block; }
   .imp-panel { max-width:680px; margin:0 auto; background:var(--card); border-radius:16px; overflow:hidden; box-shadow:0 20px 60px rgba(0,0,0,.4); }
   .imp-hd { display:flex; align-items:center; justify-content:space-between; gap:10px; padding:14px 18px; background:var(--asphalt); color:#fff; font-family:var(--display); font-weight:700; }
@@ -640,6 +641,9 @@
     </div>
   </div>
 </div>
+
+<!-- Always-visible, PIN-gated role switch for locked stations (hidden for the admin role) -->
+<button id="roleEscape" onclick="changeDeviceRole()" style="display:none">⚙ Role</button>
 
 <script>
 // ---------- State ----------
@@ -2353,6 +2357,8 @@ function setRolePrompt() {
   renderSyncCard();
 }
 function toggleKiosk(on) { S.settings.kioskReg = !!on; save(); applyRole(); }
+// Escape hatch for a device locked to register/scoring/tv (Admin tab hidden): PIN-gate, then pick a role.
+function changeDeviceRole() { if (!adminOk()) return; setRolePrompt(); }
 
 function copyText(t, label) {
   const done = () => flashMsg((label || 'Copied') + ' ✓');
@@ -2375,6 +2381,8 @@ function applyRole() {
   btns.forEach((b, i) => { b.style.display = allowed.includes(order[i]) ? '' : 'none'; });
   const kiosk = role === 'register' && S.settings && S.settings.kioskReg;
   document.getElementById('mainNav').style.display = kiosk ? 'none' : '';
+  const esc = document.getElementById('roleEscape');
+  if (esc) esc.style.display = role === 'admin' ? 'none' : '';   // only locked stations need the in-app role switch
   if (!allowed.includes(curPage)) nav(allowed[0]);
   if (role === 'tv' && !tvOn && typeof openTV === 'function') openTV();
 }
