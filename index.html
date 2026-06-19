@@ -451,6 +451,9 @@
     <div class="slbl">License</div>
     <div class="card" id="licCard"></div>
 
+    <div class="slbl" id="syncLbl">Multi-device sync</div>
+    <div class="card" id="syncCard"></div>
+
     <div class="slbl">Danger zone</div>
     <div class="card">
       <div style="display:flex;gap:10px;flex-wrap:wrap">
@@ -567,6 +570,35 @@ const KEY = 'raceday_v1';
 // paste the Google Apps Script web-app URL between the quotes.
 const APP_VERSION = '2026-06';
 const TELEMETRY_URL = 'https://script.google.com/macros/s/AKfycbxa3i3y17TLp_NfXOOu2jM7-YzXH2fScxcXoQYmIh0-873rxWfxg0HdRP1DVsxZq6iR/exec';
+
+// ---------- Multi-device sync (dormant until configured) ----------
+// Paste your Firebase web-app config object between the braces to enable live sync
+// across devices (registration tablet, scoring tower, TV display, remote viewers).
+// Empty = sync fully OFF and the app behaves exactly like a single-device app.
+// Only race-day data syncs (see SYNC_FIELDS). The admin PIN, license, trial counts,
+// and race-day history NEVER leave the device.
+const FIREBASE_CONFIG = {
+  apiKey: "AIzaSyAGSBqjW9dNxwPWop3Culi4KmjMhVHDUW4",
+  authDomain: "raceday-d32dd.firebaseapp.com",
+  databaseURL: "https://raceday-d32dd-default-rtdb.firebaseio.com",
+  projectId: "raceday-d32dd",
+  storageBucket: "raceday-d32dd.firebasestorage.app",
+  messagingSenderId: "891072179363",
+  appId: "1:891072179363:web:36d8b91fd7da81932f2316"
+};
+// Each path syncs independently so the registration device (entries) and the scoring
+// tower (heatResults) never clobber each other. Values are stored as JSON strings to
+// avoid Firebase's array/empty-value coercion.
+const SYNC_FIELDS = ['raceDay/date', 'raceDay/entries', 'raceDay/heatResults', 'raceDay/pointsRace', 'classes', 'roster', 'settings', 'track'];
+const ROLE_PAGES = {
+  admin:    ['signup', 'grid', 'results', 'points', 'admin', 'help'],
+  register: ['signup', 'help'],
+  scoring:  ['grid', 'results', 'points', 'help'],
+  tv:       ['grid', 'help']
+};
+function syncOn() { return !!(S.sync && S.sync.enabled && FIREBASE_CONFIG.apiKey); }
+function deviceRole() { return localStorage.getItem('rd_role') || 'admin'; }
+function setDeviceRole(r) { try { localStorage.setItem('rd_role', r); } catch (e) {} }
 function today() { const d = new Date(); return d.getFullYear()+'-'+String(d.getMonth()+1).padStart(2,'0')+'-'+String(d.getDate()).padStart(2,'0'); }
 function defaults() {
   return {
@@ -589,7 +621,8 @@ function defaults() {
     ],
     settings: { maxHeat: 8, maxBMain: 12, maxFeature: 20, transfers: 2, gridStyle: 'double', heatFill: 'alternate', bmainMode: 'single', bmainCount: 2, points: { mode: 'fixed', table: [10, 8, 6, 5, 4, 3, 2, 1], beyond: 0 } },
     raceDay: { date: today(), entries: [], heatResults: {}, pointsRace: {} },  // entries: {driverId, classId, pill}
-    nextId: 100
+    nextId: 100,
+    sync: { enabled: false, key: '' }             // live multi-device sync (off until activated)
   };
 }
 function migrate(s) {
@@ -605,14 +638,16 @@ function migrate(s) {
   if (!s.settings.heatFill) s.settings.heatFill = 'alternate';
   if (!s.settings.bmainMode) s.settings.bmainMode = 'single';
   if (!s.settings.bmainCount) s.settings.bmainCount = 2;
+  if (s.settings.kioskReg == null) s.settings.kioskReg = false;
   if (!s.raceDay.pointsRace) s.raceDay.pointsRace = {};
+  if (!s.sync) s.sync = { enabled: false, key: '' };
   return s;
 }
 function load() {
   try { const raw = localStorage.getItem(KEY); if (raw) { const s = JSON.parse(raw); if (s && s.raceDay && s.classes) return migrate(s); } } catch(e) {}
   return defaults();
 }
-function save() { try { localStorage.setItem(KEY, JSON.stringify(S)); } catch(e) {} }
+function save() { try { localStorage.setItem(KEY, JSON.stringify(S)); } catch(e) {} if (syncOn()) syncPush(); }
 
 let S = load();
 let cur = null;          // driver mid-signup: {name, num}
@@ -677,6 +712,8 @@ function heatSet(racers, cls) {
 
 // ---------- Navigation ----------
 function nav(p) {
+  const allowed = ROLE_PAGES[deviceRole()] || ROLE_PAGES.admin;
+  if (!allowed.includes(p)) return;
   if (p === 'admin' && !adminOk()) return;
   curPage = p;
   document.querySelectorAll('.page').forEach(el => el.classList.remove('active'));
@@ -1678,7 +1715,7 @@ function removeLogo() {
 
 // ---------- Admin ----------
 function renderAdmin() {
-  renderClsList(); renderClsLib(); renderQuickAdd(); renderEntryList(); renderRosterList(); renderHistory(); renderPinCard(); renderLicCard(); renderPointsInputs();
+  renderClsList(); renderClsLib(); renderQuickAdd(); renderEntryList(); renderRosterList(); renderHistory(); renderPinCard(); renderLicCard(); renderSyncCard(); renderPointsInputs();
   document.getElementById('trackName').value = S.track.name;
   const prev = document.getElementById('logoPrev');
   if (S.track.logo) { prev.src = S.track.logo; prev.style.display = ''; }
@@ -2121,13 +2158,216 @@ function scheduleUsageBeacon() {
 window.onerror = (msg, src, line) => { sendUsage('crash', { msg: String(msg).slice(0, 200), line: line }); };
 window.addEventListener('unhandledrejection', e => { sendUsage('crash', { msg: String(e.reason).slice(0, 200) }); });
 
+// ---------- Multi-device sync (Firebase) ----------
+// Dormant unless FIREBASE_CONFIG is filled in AND a track has activated sync.
+// Only the SYNC_FIELDS subtrees are mirrored; admin PIN / license / history stay local.
+let _syncDb = null, _syncTimer = null, _syncApplying = false;
+const _syncLast = {};   // field -> last JSON string seen, so we only push real changes
+
+function syncKey() { return (S.sync && S.sync.key) || ''; }
+function normKey(k) { return String(k || '').toUpperCase().replace(/[^A-Z0-9]/g, ''); }
+function syncGet(p) { return p.split('/').reduce((o, k) => (o == null ? undefined : o[k]), S); }
+function syncGetIn(obj, p) { return p.split('/').reduce((o, k) => (o == null ? undefined : o[k]), obj); }
+function syncSet(p, val) { const ks = p.split('/'); let o = S; for (let i = 0; i < ks.length - 1; i++) { if (o[ks[i]] == null) o[ks[i]] = {}; o = o[ks[i]]; } o[ks[ks.length - 1]] = val; }
+
+function loadFirebase() {
+  return new Promise((resolve, reject) => {
+    if (window.firebase && window.firebase.database) return resolve();
+    const base = 'https://www.gstatic.com/firebasejs/10.12.0/';
+    const a = document.createElement('script');
+    a.src = base + 'firebase-app-compat.js';
+    a.onload = () => {
+      const b = document.createElement('script');
+      b.src = base + 'firebase-database-compat.js';
+      b.onload = resolve; b.onerror = reject;
+      document.head.appendChild(b);
+    };
+    a.onerror = reject;
+    document.head.appendChild(a);
+  });
+}
+
+function initSync() {
+  if (!syncOn() || !syncKey()) return;
+  loadFirebase().then(() => {
+    try {
+      if (!firebase.apps.length) firebase.initializeApp(FIREBASE_CONFIG);
+      if (_syncDb) { try { _syncDb.off(); } catch (e) {} }
+      _syncDb = firebase.database().ref('tracks/' + syncKey());
+      SYNC_FIELDS.forEach(f => { _syncLast[f] = JSON.stringify(syncGet(f) === undefined ? null : syncGet(f)); });
+      _syncDb.on('value', snap => {
+        const v = snap.val();
+        if (!v) { syncPushFull(); return; }     // empty room: this device seeds it
+        _syncApplying = true;
+        SYNC_FIELDS.forEach(f => {
+          const raw = syncGetIn(v, f);
+          if (raw == null) return;
+          try { const parsed = JSON.parse(raw); syncSet(f, parsed); _syncLast[f] = raw; } catch (e) {}
+        });
+        _syncApplying = false;
+        try { localStorage.setItem(KEY, JSON.stringify(S)); } catch (e) {}
+        renderHeader(); render(curPage); if (tvOn) tvRender();
+      });
+    } catch (e) {}
+  }).catch(() => {});
+}
+
+// Debounced incremental push: only fields whose JSON actually changed.
+function syncPush() {
+  if (!syncOn() || !_syncDb || _syncApplying) return;
+  clearTimeout(_syncTimer);
+  _syncTimer = setTimeout(() => {
+    const upd = {};
+    SYNC_FIELDS.forEach(f => {
+      const j = JSON.stringify(syncGet(f) === undefined ? null : syncGet(f));
+      if (j !== _syncLast[f]) { upd[f] = j; _syncLast[f] = j; }
+    });
+    if (Object.keys(upd).length && _syncDb) _syncDb.update(upd).catch(() => {});
+  }, 400);
+}
+function syncPushFull() {
+  if (!_syncDb) return;
+  const upd = {};
+  SYNC_FIELDS.forEach(f => { const j = JSON.stringify(syncGet(f) === undefined ? null : syncGet(f)); upd[f] = j; _syncLast[f] = j; });
+  _syncDb.update(upd).catch(() => {});
+}
+
+function syncActivate() {
+  if (!FIREBASE_CONFIG.apiKey) { alert('Live sync is not set up on this build yet — the app owner adds the Firebase settings once to turn it on.'); return; }
+  const seed = normKey((S.license && S.license.name) || S.sync.key || '');
+  const k = prompt('Choose a sync code for this track. Every device for this track uses the same code:', seed || 'TRACK1');
+  if (!k) return;
+  S.sync.key = normKey(k);
+  S.sync.enabled = true;
+  setDeviceRole('admin');
+  save();
+  initSync();
+  renderSyncCard();
+}
+function syncJoin() {
+  if (!FIREBASE_CONFIG.apiKey) { alert('Live sync is not set up on this build yet.'); return; }
+  const k = prompt('Enter the track sync code shown on the main (admin) device:');
+  if (!k) return;
+  S.sync.key = normKey(k);
+  S.sync.enabled = true;
+  save();
+  initSync();
+  renderSyncCard();
+}
+function syncDisable() {
+  if (!confirm('Turn off live sync on this device? It will go back to working on its own. The track\'s synced data stays in the cloud.')) return;
+  if (_syncDb) { try { _syncDb.off(); } catch (e) {} _syncDb = null; }
+  S.sync.enabled = false;
+  save();
+  renderSyncCard();
+}
+function setRolePrompt() {
+  const r = prompt('Set this device\'s job — type one of:  admin  ·  register  ·  scoring  ·  tv', deviceRole());
+  if (!r) return;
+  const rr = r.trim().toLowerCase();
+  if (!ROLE_PAGES[rr]) { alert('Unknown role. Use admin, register, scoring, or tv.'); return; }
+  setDeviceRole(rr);
+  applyRole();
+  renderSyncCard();
+}
+function toggleKiosk(on) { S.settings.kioskReg = !!on; save(); applyRole(); }
+
+function copyText(t, label) {
+  const done = () => flashMsg((label || 'Copied') + ' ✓');
+  if (navigator.clipboard && navigator.clipboard.writeText) navigator.clipboard.writeText(t).then(done, () => prompt('Copy this:', t));
+  else prompt('Copy this:', t);
+}
+function flashMsg(m) {
+  let el = document.getElementById('rdFlash');
+  if (!el) { el = document.createElement('div'); el.id = 'rdFlash'; el.style.cssText = 'position:fixed;left:50%;bottom:28px;transform:translateX(-50%);background:#17181c;color:#fff;padding:10px 18px;border-radius:10px;font-size:14px;z-index:9999;box-shadow:0 6px 20px rgba(0,0,0,.3)'; document.body.appendChild(el); }
+  el.textContent = m; el.style.display = '';
+  clearTimeout(el._t); el._t = setTimeout(() => { el.style.display = 'none'; }, 1800);
+}
+
+// Show/hide nav buttons and force the right starting page for this device's role.
+function applyRole() {
+  const role = deviceRole();
+  const allowed = ROLE_PAGES[role] || ROLE_PAGES.admin;
+  const order = ['signup', 'grid', 'results', 'points', 'admin', 'help'];
+  const btns = document.querySelectorAll('#mainNav button');
+  btns.forEach((b, i) => { b.style.display = allowed.includes(order[i]) ? '' : 'none'; });
+  const kiosk = role === 'register' && S.settings && S.settings.kioskReg;
+  document.getElementById('mainNav').style.display = kiosk ? 'none' : '';
+  if (!allowed.includes(curPage)) nav(allowed[0]);
+  if (role === 'tv' && !tvOn && typeof openTV === 'function') openTV();
+}
+
+function renderSyncCard() {
+  const lbl = document.getElementById('syncLbl');
+  const el = document.getElementById('syncCard');
+  if (!el) return;
+  const configured = !!FIREBASE_CONFIG.apiKey;
+  // Dormant build, sync never touched: keep it out of the way entirely.
+  if (!configured && !(S.sync && S.sync.enabled)) {
+    if (lbl) lbl.style.display = 'none';
+    el.style.display = 'none';
+    return;
+  }
+  if (lbl) lbl.style.display = '';
+  el.style.display = '';
+  const role = deviceRole();
+  const roleName = { admin: 'Admin (full control)', register: 'Registration', scoring: 'Scoring tower', tv: 'TV display' }[role] || role;
+  let h = '';
+  if (!configured) {
+    h = '<p style="font-size:13.5px">Live sync isn\'t set up on this build yet. The app owner enables it once.</p>';
+    el.innerHTML = h; return;
+  }
+  if (syncOn()) {
+    const base = location.origin + location.pathname;
+    const k = syncKey();
+    const link = r => base + '?sync=' + encodeURIComponent(k) + '&role=' + r;
+    h += '<p style="font-size:13.5px">✅ Live sync is <b>ON</b> for this track. Sync code: <b>' + esc(k) + '</b> '
+      + '<button class="btn btn-sm" onclick="copyText(\'' + esc(k) + '\',\'Code\')">Copy code</button></p>';
+    h += '<p style="font-size:13.5px;margin-top:10px">This device\'s job: <b>' + esc(roleName) + '</b> '
+      + '<button class="btn btn-sm" onclick="setRolePrompt()">Change</button></p>';
+    h += '<p style="font-size:12.5px;color:var(--muted);margin-top:12px">Set up another device — send it one of these links, then open it on that device:</p>';
+    h += '<div style="display:flex;gap:8px;flex-wrap:wrap;margin-top:6px">'
+      + '<button class="btn btn-sm" onclick="copyText(\'' + link('register') + '\',\'Registration link\')">📋 Registration link</button>'
+      + '<button class="btn btn-sm" onclick="copyText(\'' + link('scoring') + '\',\'Scoring link\')">📋 Scoring tower link</button>'
+      + '<button class="btn btn-sm" onclick="copyText(\'' + link('tv') + '\',\'TV link\')">📋 TV display link</button>'
+      + '</div>';
+    h += '<div style="margin-top:14px;border-top:1px solid var(--line,#d4d4cf);padding-top:12px">'
+      + '<label style="font-size:13px;display:flex;align-items:center;gap:8px"><input type="checkbox" ' + (S.settings.kioskReg ? 'checked' : '') + ' onchange="toggleKiosk(this.checked)"> Self-serve kiosk mode on registration devices (hides the menu — racers only see sign-up)</label>'
+      + '</div>';
+    h += '<p style="font-size:12px;color:var(--muted);margin-top:12px">Driver names, numbers, lineups and results sync to the cloud so every device matches. The admin PIN, license, and history stay on this device only.</p>';
+    h += '<div style="margin-top:10px"><button class="btn btn-sm btn-danger" onclick="syncDisable()">Turn off sync on this device</button></div>';
+  } else {
+    h += '<p style="font-size:13.5px;margin-bottom:10px">Run this track across several devices at once — a registration tablet, a scoring tower, and a TV screen, all live.</p>';
+    h += '<div style="display:flex;gap:8px;flex-wrap:wrap">'
+      + '<button class="btn btn-primary" onclick="syncActivate()">Start sync for this track</button>'
+      + '<button class="btn" onclick="syncJoin()">Join with a sync code</button></div>';
+    h += '<p style="font-size:12px;color:var(--muted);margin-top:8px">Start it on your main device, then send the registration / scoring / TV links to the other devices.</p>';
+  }
+  el.innerHTML = h;
+}
+
+// Apply ?role= and ?sync= from a shared station link, then clean the URL.
+function handleUrlParams() {
+  try {
+    const q = new URLSearchParams(location.search);
+    const role = q.get('role'), sk = q.get('sync');
+    let changed = false;
+    if (role && ROLE_PAGES[role]) { setDeviceRole(role); changed = true; }
+    if (sk) { S.sync.key = normKey(sk); S.sync.enabled = true; save(); changed = true; }
+    if (changed) history.replaceState({}, '', location.pathname);
+  } catch (e) {}
+}
+
 // ---------- Live sync across tabs + init ----------
 window.addEventListener('storage', e => { if (e.key === KEY) { S = load(); renderHeader(); render(curPage); if (tvOn) tvRender(); } });
+handleUrlParams();
 renderHeader();
+applyRole();
 renderRosterPick();
 checkDayBanner();
 renderLicBanner();
 renderGrid();
+initSync();
 </script>
 </body>
 </html>
