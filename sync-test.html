@@ -1,0 +1,425 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>RaceDay — Multi-device sync test</title>
+<style>
+  :root { --bg:#f4f4f0; --card:#fff; --line:#e2e2da; --ink:#1c1d22; --muted:#6b6e76;
+          --asphalt:#26282e; --plate:#f3c64a; --green:#1f7a3d; --green-bg:#e4f3e9;
+          --red:#b4231c; --red-bg:#fae7e5; --blue:#23508f; --warn:#7a4f00; --warn-bg:#fdeccb; }
+  * { box-sizing:border-box; }
+  body { margin:0; font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif;
+         background:var(--bg); color:var(--ink); font-size:15px; line-height:1.5; }
+  header { background:var(--asphalt); color:#fff; padding:16px 18px; }
+  header h1 { margin:0; font-size:19px; }
+  header p { margin:4px 0 0; font-size:13px; color:#c8cad0; }
+  .wrap { max-width:880px; margin:0 auto; padding:16px 14px 60px; }
+  .card { background:var(--card); border:1px solid var(--line); border-radius:14px; padding:16px; margin-bottom:14px; }
+  .lbl { display:block; font-weight:700; font-size:12.5px; text-transform:uppercase; letter-spacing:.04em; color:var(--muted); margin:0 0 7px; }
+  input[type=text], textarea, select { width:100%; padding:9px 10px; border:1.5px solid var(--line); border-radius:9px; font-family:inherit; font-size:14px; background:#fff; }
+  textarea { min-height:96px; font-family:ui-monospace,Menlo,Consolas,monospace; font-size:12.5px; }
+  .row { display:flex; gap:8px; flex-wrap:wrap; align-items:center; }
+  .row > * { flex:0 0 auto; }
+  .grow { flex:1 1 auto; min-width:120px; }
+  .btn { padding:9px 15px; border-radius:10px; border:1.5px solid var(--asphalt); background:var(--asphalt); color:#fff; font-weight:600; font-size:14px; cursor:pointer; font-family:inherit; }
+  .btn.ghost { background:#fff; color:var(--asphalt); }
+  .btn.sm { padding:5px 10px; font-size:12.5px; }
+  .btn:disabled { opacity:.4; cursor:not-allowed; }
+  .seg button { padding:7px 13px; border-radius:99px; border:1.5px solid #d4d4cf; background:#fff; color:#555; font-weight:600; font-size:13px; cursor:pointer; font-family:inherit; margin:0 5px 5px 0; }
+  .seg button.on { background:var(--asphalt); color:#fff; border-color:var(--asphalt); }
+  .chip { display:inline-block; padding:2px 10px; border-radius:99px; font-size:12px; font-weight:700; }
+  .c-off { background:#ededed; color:#777; } .c-go { background:var(--green-bg); color:var(--green); }
+  .c-bad { background:var(--red-bg); color:var(--red); } .c-wait { background:var(--warn-bg); color:var(--warn); }
+  .panels { display:grid; grid-template-columns:1fr 1fr; gap:14px; }
+  @media (max-width:720px){ .panels { grid-template-columns:1fr; } }
+  pre { background:#15161a; color:#e6e6e6; border-radius:10px; padding:12px; overflow:auto; font-size:12px; max-height:300px; margin:0; }
+  .ent { display:flex; align-items:center; gap:8px; padding:6px 0; border-top:1px solid #f0f0eb; }
+  .ent .nm { flex:1; min-width:0; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+  .ent input { width:64px; }
+  .log { font-family:ui-monospace,Menlo,Consolas,monospace; font-size:12px; max-height:200px; overflow:auto; }
+  .log div { padding:2px 0; border-top:1px solid #f3f3ee; color:#444; }
+  .note { font-size:12.5px; color:var(--muted); }
+  .warnbox { background:var(--warn-bg); color:var(--warn); border-radius:9px; padding:9px 12px; font-size:12.5px; margin-top:8px; }
+  h3 { margin:0 0 10px; font-size:15px; }
+  details summary { cursor:pointer; font-weight:600; font-size:13.5px; }
+</style>
+</head>
+<body>
+<header>
+  <h1>🏁 RaceDay — Multi-device sync test</h1>
+  <p>Standalone. Does not touch the live app. Proves the real Firebase sync model end-to-end before you turn it on.</p>
+</header>
+
+<div class="wrap">
+
+  <!-- 1. Firebase config -->
+  <div class="card">
+    <span class="lbl">1 · Firebase config <span id="cfgChip" class="chip c-off">not set</span></span>
+    <p class="note">Paste the <code>firebaseConfig</code> object from your Firebase project (Project settings → Your apps → Web app). It's saved on this device only.</p>
+    <textarea id="cfgBox" placeholder='{
+  "apiKey": "…",
+  "authDomain": "…",
+  "databaseURL": "https://your-project.firebaseio.com",
+  "projectId": "…",
+  "appId": "…"
+}'></textarea>
+    <div class="row" style="margin-top:8px">
+      <button class="btn" onclick="saveConfig()">Save config</button>
+      <button class="btn ghost sm" onclick="clearConfig()">Forget config</button>
+    </div>
+    <div class="warnbox">⚠ First, in your Firebase project: Build → Realtime Database → Create, then in the <b>Rules</b> tab publish the open test rule from <code>FIREBASE-SYNC.md</code>. Use a throwaway sync code — this is path-as-password, not real security.</div>
+  </div>
+
+  <!-- 2. Sync code + role -->
+  <div class="card">
+    <span class="lbl">2 · This device <span id="connChip" class="chip c-off">offline</span></span>
+    <div class="row">
+      <div class="grow">
+        <label class="note">Track sync code (same on every device)</label>
+        <input id="codeBox" type="text" placeholder="e.g. TEST1" autocomplete="off">
+      </div>
+    </div>
+    <div style="margin-top:10px">
+      <label class="note">This device's job (role)</label>
+      <div class="seg" id="roleSeg">
+        <button data-r="admin" onclick="setRole('admin')">admin</button>
+        <button data-r="register" onclick="setRole('register')">register</button>
+        <button data-r="scoring" onclick="setRole('scoring')">scoring</button>
+        <button data-r="tv" onclick="setRole('tv')">tv</button>
+      </div>
+    </div>
+    <div class="row" style="margin-top:8px">
+      <button class="btn" id="connectBtn" onclick="connect()">🔌 Connect &amp; sync</button>
+      <button class="btn ghost" onclick="disconnect()">Disconnect</button>
+      <button class="btn ghost sm" onclick="copyLink()">Copy link for this role</button>
+    </div>
+    <p class="note" id="roleMsg" style="margin-top:8px"></p>
+  </div>
+
+  <!-- 3. Mutations -->
+  <div class="card">
+    <span class="lbl">3 · Make changes (watch them sync)</span>
+    <div class="row" style="margin-bottom:10px">
+      <div class="grow">
+        <label class="note">Track name (synced)</label>
+        <input id="trackBox" type="text" placeholder="Test Park" oninput="onTrackInput()">
+      </div>
+    </div>
+    <label class="note">Add a driver (synced — registration station)</label>
+    <div class="row" id="addRow" style="margin-bottom:6px">
+      <input id="adName" class="grow" type="text" placeholder="Name (blank = auto)">
+      <input id="adNum" type="text" placeholder="#" style="width:80px">
+      <button class="btn sm" id="addBtn" onclick="addDriver()">+ Add driver</button>
+    </div>
+    <div id="entList"></div>
+    <div class="row" style="margin-top:10px">
+      <button class="btn ghost sm" id="clearBtn" onclick="clearBoard()">Clear board</button>
+    </div>
+    <hr style="border:none;border-top:1px solid var(--line);margin:14px 0">
+    <label class="note">Private note (<b>NOT</b> synced — proves private data never leaves this device)</label>
+    <input id="privBox" type="text" placeholder="Type here — it must NEVER appear in the cloud panel" oninput="onPrivInput()">
+  </div>
+
+  <!-- 4. Live views -->
+  <div class="panels">
+    <div class="card">
+      <h3>📱 This device's state</h3>
+      <pre id="localView">{}</pre>
+    </div>
+    <div class="card">
+      <h3>☁️ Cloud room <span class="note" id="roomPath"></span></h3>
+      <p class="note">Live from Firebase. The private note must <b>not</b> be here.</p>
+      <pre id="cloudView">— not connected —</pre>
+    </div>
+  </div>
+
+  <div class="card">
+    <h3>📜 Event log</h3>
+    <div class="log" id="log"></div>
+  </div>
+
+  <div class="card">
+    <details>
+      <summary>✅ What to check (two-device test)</summary>
+      <ol class="note" style="margin:10px 0 0;padding-left:20px">
+        <li>Open this page in two places with the <b>same sync code</b> (use a normal + incognito window, or two devices). Connect both.</li>
+        <li><b>Converge:</b> Add a driver on one → it appears on the other within ~1s. Set a result on the other → appears on the first.</li>
+        <li><b>Late joiner:</b> open a third window after data exists → it fills in with the current board.</li>
+        <li><b>Empty-room seed:</b> a brand-new sync code → the first device populates the room.</li>
+        <li><b>No clobber:</b> set role <code>register</code> on one (adds drivers) and <code>scoring</code> on the other (sets results) → both survive.</li>
+        <li><b>Privacy:</b> type in the private note → it must <b>never</b> show in the cloud panel.</li>
+        <li><b>Roles:</b> a <code>?sync=CODE&amp;role=scoring</code> link locks the device to scoring controls; <code>tv</code> is read-only.</li>
+        <li><b>Reconnect:</b> go offline briefly, make a change, come back → it re-syncs.</li>
+      </ol>
+    </details>
+  </div>
+
+</div>
+
+<script>
+// ============================================================================
+// Standalone Firebase sync test. Reproduces the SAME model index.html uses:
+//   path tracks/{normKey(code)} , one JSON string per field, debounced
+//   incremental push, onValue listener with echo-guard + empty-room seeding,
+//   and the admin/register/scoring/tv role table. Fields NOT in SYNC_FIELDS
+//   (here: privateNote) never reach the cloud.
+// ============================================================================
+
+// ---- local persistence (this device only) ----
+const LS = { cfg:'rdst_cfg', code:'rdst_code', role:'rdst_role', state:'rdst_state' };
+function lsGet(k){ try { return localStorage.getItem(k); } catch(e){ return null; } }
+function lsSet(k,v){ try { localStorage.setItem(k,v); } catch(e){} }
+function lsDel(k){ try { localStorage.removeItem(k); } catch(e){} }
+
+// ---- the synced model ----
+const SYNC_FIELDS = ['trackName', 'entries', 'results'];   // privateNote is deliberately absent
+let state = loadState();
+function loadState(){
+  try { const s = JSON.parse(lsGet(LS.state)); if (s && typeof s === 'object') return Object.assign(defState(), s); } catch(e){}
+  return defState();
+}
+function defState(){ return { trackName:'', entries:[], results:{}, privateNote:'' }; }
+
+// ---- roles (mirror index.html ROLE_PAGES intent) ----
+const ROLE_CAN = {
+  admin:    { track:1, add:1, result:1, clear:1, priv:1 },
+  register: { add:1, priv:1 },
+  scoring:  { result:1, priv:1 },
+  tv:       { priv:1 }    // read-only on shared data; private note is always local-only
+};
+let role = lsGet(LS.role) || 'admin';
+
+let FB_CONFIG = null;
+try { const c = lsGet(LS.cfg); if (c) FB_CONFIG = JSON.parse(c); } catch(e){}
+
+// ---- sync engine state ----
+let _db = null, _timer = null, _applying = false;
+const _last = {};            // field -> last JSON string, so we push only real changes
+let _cloudRaw = null;        // last raw value seen in the cloud room
+
+function esc(s){ return String(s==null?'':s).replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c])); }
+function normKey(k){ return String(k||'').toUpperCase().replace(/[^A-Z0-9]/g,''); }
+function syncCode(){ return normKey(document.getElementById('codeBox').value); }
+function syncOn(){ return !!(FB_CONFIG && FB_CONFIG.apiKey && _db); }
+function logEvt(m){
+  const el = document.getElementById('log');
+  const t = new Date().toLocaleTimeString();
+  el.innerHTML = '<div><b>'+t+'</b> — '+esc(m)+'</div>' + el.innerHTML;
+}
+
+// ---- save: persist locally, then debounced push of changed synced fields ----
+function save(){
+  lsSet(LS.state, JSON.stringify(state));
+  renderLocal();
+  if (syncOn() && !_applying) syncPush();
+}
+function syncPush(){
+  clearTimeout(_timer);
+  _timer = setTimeout(() => {
+    if (!_db) return;
+    const upd = {};
+    SYNC_FIELDS.forEach(f => {
+      const j = JSON.stringify(state[f] === undefined ? null : state[f]);
+      if (j !== _last[f]) { upd[f] = j; _last[f] = j; }
+    });
+    if (Object.keys(upd).length) {
+      _db.update(upd).then(() => logEvt('pushed: ' + Object.keys(upd).join(', '))).catch(e => logEvt('push error: ' + e));
+    }
+  }, 400);
+}
+function syncPushFull(){
+  if (!_db) return;
+  const upd = {};
+  SYNC_FIELDS.forEach(f => { const j = JSON.stringify(state[f] === undefined ? null : state[f]); upd[f] = j; _last[f] = j; });
+  _db.update(upd).then(() => logEvt('seeded empty room with full state')).catch(e => logEvt('seed error: ' + e));
+}
+
+// ---- Firebase lazy load (same CDN/version as index.html) ----
+function loadFirebase(){
+  return new Promise((resolve, reject) => {
+    if (window.firebase && window.firebase.database) return resolve();
+    const base = 'https://www.gstatic.com/firebasejs/10.12.0/';
+    const a = document.createElement('script'); a.src = base + 'firebase-app-compat.js';
+    a.onload = () => { const b = document.createElement('script'); b.src = base + 'firebase-database-compat.js'; b.onload = resolve; b.onerror = reject; document.head.appendChild(b); };
+    a.onerror = reject; document.head.appendChild(a);
+  });
+}
+
+function connect(){
+  if (!FB_CONFIG || !FB_CONFIG.apiKey) { alert('Paste and save your Firebase config first (step 1).'); return; }
+  const code = syncCode();
+  if (!code) { alert('Enter a track sync code first (step 2).'); return; }
+  lsSet(LS.code, code);
+  setConn('wait', 'connecting…');
+  loadFirebase().then(() => {
+    try {
+      if (!firebase.apps.length) firebase.initializeApp(FB_CONFIG);
+      if (_db) { try { _db.off(); } catch(e){} }
+      _db = firebase.database().ref('tracks/' + code);
+      document.getElementById('roomPath').textContent = 'tracks/' + code;
+      SYNC_FIELDS.forEach(f => { _last[f] = JSON.stringify(state[f] === undefined ? null : state[f]); });
+      _db.on('value', snap => {
+        const v = snap.val();
+        _cloudRaw = v;
+        renderCloud();
+        if (!v) { logEvt('room empty — seeding from this device'); syncPushFull(); return; }
+        _applying = true;
+        let applied = [];
+        SYNC_FIELDS.forEach(f => {
+          const raw = v[f];
+          if (raw == null) return;
+          try { state[f] = JSON.parse(raw); _last[f] = raw; applied.push(f); } catch(e){}
+        });
+        _applying = false;
+        lsSet(LS.state, JSON.stringify(state));
+        renderLocal();
+        if (applied.length) logEvt('received: ' + applied.join(', '));
+      }, err => { setConn('bad', 'error'); logEvt('listener error: ' + err); });
+      // connection state indicator
+      firebase.database().ref('.info/connected').on('value', s => {
+        if (s.val() === true) setConn('go', 'connected · ' + code);
+        else setConn('wait', 'reconnecting…');
+      });
+      logEvt('connected to room tracks/' + code + ' as ' + role);
+    } catch(e) { setConn('bad', 'error'); alert('Could not connect: ' + e.message); logEvt('connect error: ' + e); }
+  }).catch(e => { setConn('bad', 'SDK load failed'); logEvt('firebase SDK load failed: ' + e); });
+}
+function disconnect(){
+  if (_db) { try { _db.off(); } catch(e){} _db = null; }
+  try { if (window.firebase) firebase.database().ref('.info/connected').off(); } catch(e){}
+  setConn('off', 'offline');
+  document.getElementById('cloudView').textContent = '— not connected —';
+  logEvt('disconnected (cloud data stays in Firebase)');
+}
+
+// ---- config ----
+function saveConfig(){
+  const raw = document.getElementById('cfgBox').value.trim();
+  if (!raw) { alert('Paste your firebaseConfig first.'); return; }
+  const m = raw.match(/\{[\s\S]*\}/);
+  if (!m) { alert("Couldn't find a { … } config object in what you pasted."); return; }
+  let obj;
+  try { obj = Function('return (' + m[0] + ')')(); }      // config is a JS object literal, not strict JSON
+  catch(e) { alert('That config did not parse: ' + e.message); return; }
+  if (!obj || !obj.apiKey || !obj.databaseURL) { alert('That config is missing apiKey or databaseURL — make sure Realtime Database is enabled and you copied the Web app config.'); return; }
+  FB_CONFIG = obj;
+  lsSet(LS.cfg, JSON.stringify(obj));
+  setCfgChip();
+  logEvt('config saved (project ' + (obj.projectId || '?') + ')');
+}
+function clearConfig(){ FB_CONFIG = null; lsDel(LS.cfg); document.getElementById('cfgBox').value=''; setCfgChip(); }
+
+// ---- mutations (each respects role + calls save) ----
+function can(act){ return !!(ROLE_CAN[role] && ROLE_CAN[role][act]); }
+function onTrackInput(){ if (!can('track')) return; state.trackName = document.getElementById('trackBox').value; save(); }
+function addDriver(){
+  if (!can('add')) return;
+  let name = document.getElementById('adName').value.trim();
+  let num = document.getElementById('adNum').value.trim();
+  const n = state.entries.length + 1;
+  if (!name) name = 'Driver ' + n;
+  if (!num) num = String(n);
+  state.entries.push({ id: Date.now() + '_' + Math.random().toString(36).slice(2,6), name, num });
+  document.getElementById('adName').value = ''; document.getElementById('adNum').value = '';
+  save();
+  logEvt('added driver ' + name + ' #' + num);
+}
+function setResult(id, val){
+  if (!can('result')) return;
+  const v = parseInt(val);
+  if (v > 0) state.results[id] = v; else delete state.results[id];
+  save();
+}
+function clearBoard(){
+  if (!can('clear')) return;
+  if (!confirm('Clear all entries and results in this room?')) return;
+  state.entries = []; state.results = {};
+  save();
+  logEvt('cleared the board');
+}
+function onPrivInput(){ state.privateNote = document.getElementById('privBox').value; lsSet(LS.state, JSON.stringify(state)); renderLocal(); /* NOT synced */ }
+
+// ---- roles ----
+function setRole(r){
+  if (!ROLE_CAN[r]) return;
+  role = r; lsSet(LS.role, r);
+  document.querySelectorAll('#roleSeg button').forEach(b => b.classList.toggle('on', b.dataset.r === r));
+  applyRole();
+  if (syncOn()) logEvt('role set to ' + r);
+}
+function applyRole(){
+  const caps = ROLE_CAN[role] || {};
+  document.getElementById('trackBox').disabled = !caps.track;
+  document.getElementById('adName').disabled = !caps.add;
+  document.getElementById('adNum').disabled = !caps.add;
+  document.getElementById('addBtn').disabled = !caps.add;
+  document.getElementById('clearBtn').disabled = !caps.clear;
+  const allowed = Object.keys(caps).filter(k => k !== 'priv');
+  document.getElementById('roleMsg').textContent = 'Role "' + role + '" can change: ' + (allowed.length ? allowed.join(', ') : 'nothing (read-only)') + '. (The private note is always local-only.)';
+  renderLocal();
+}
+
+// ---- rendering ----
+function renderLocal(){
+  document.getElementById('trackBox').value = state.trackName || '';
+  document.getElementById('privBox').value = state.privateNote || '';
+  const caps = ROLE_CAN[role] || {};
+  const el = document.getElementById('entList');
+  if (!state.entries.length) el.innerHTML = '<p class="note">No drivers yet.</p>';
+  else el.innerHTML = state.entries.map(e =>
+    '<div class="ent"><span class="nm"><b>'+esc(e.name)+'</b> <span class="note">#'+esc(e.num)+'</span></span>'
+    + '<input type="text" inputmode="numeric" placeholder="fin" value="'+(state.results[e.id]!=null?state.results[e.id]:'')+'"'
+    + (caps.result ? '' : ' disabled') + ' onchange="setResult(\''+e.id+'\',this.value)"></div>'
+  ).join('');
+  // local state view (includes privateNote so you can see it lives here)
+  document.getElementById('localView').textContent = JSON.stringify(state, null, 2);
+}
+function renderCloud(){
+  const el = document.getElementById('cloudView');
+  if (_cloudRaw == null) { el.textContent = '(room is empty)'; return; }
+  // show parsed-per-field so it's readable, exactly mirroring what's stored
+  const out = {};
+  Object.keys(_cloudRaw).forEach(f => { try { out[f] = JSON.parse(_cloudRaw[f]); } catch(e){ out[f] = _cloudRaw[f]; } });
+  el.textContent = JSON.stringify(out, null, 2);
+  if (out.privateNote !== undefined) el.textContent = '⚠ PRIVACY LEAK — privateNote is in the cloud!\n\n' + el.textContent;
+}
+
+function copyLink(){
+  const code = syncCode() || 'TEST1';
+  const url = location.origin + location.pathname + '?sync=' + code + '&role=' + role;
+  if (navigator.clipboard && navigator.clipboard.writeText) navigator.clipboard.writeText(url).then(()=>alert('Copied:\n'+url), ()=>prompt('Copy:', url));
+  else prompt('Copy:', url);
+}
+
+function setCfgChip(){
+  const c = document.getElementById('cfgChip');
+  if (FB_CONFIG && FB_CONFIG.apiKey) { c.className='chip c-go'; c.textContent = (FB_CONFIG.projectId||'set'); }
+  else { c.className='chip c-off'; c.textContent='not set'; }
+}
+function setConn(kind, txt){
+  const c = document.getElementById('connChip');
+  c.className = 'chip ' + ({off:'c-off', go:'c-go', bad:'c-bad', wait:'c-wait'}[kind] || 'c-off');
+  c.textContent = txt;
+}
+
+// ---- boot ----
+function handleUrlParams(){
+  const p = new URLSearchParams(location.search);
+  const s = p.get('sync'), r = p.get('role');
+  if (s) document.getElementById('codeBox').value = normKey(s);
+  if (r && ROLE_CAN[r]) role = r;
+}
+(function init(){
+  if (FB_CONFIG) document.getElementById('cfgBox').value = JSON.stringify(FB_CONFIG, null, 2);
+  const savedCode = lsGet(LS.code); if (savedCode) document.getElementById('codeBox').value = savedCode;
+  handleUrlParams();
+  setCfgChip();
+  setRole(role);
+  renderLocal();
+  setConn('off', 'offline');
+  logEvt('ready — paste config, set a sync code, Connect. Open this page in two places with the same code.');
+})();
+</script>
+</body>
+</html>
