@@ -162,6 +162,29 @@
   /* TV display mode — sized in vh/vw so it reads from across the room */
   #tvOverlay { display:none; position:fixed; inset:0; z-index:100; background:#101114; color:#fff; flex-direction:column; }
   #tvOverlay.on { display:flex; }
+
+  /* In-app timing import overlay */
+  #impOverlay { display:none; position:fixed; inset:0; z-index:120; background:rgba(20,20,24,.55); overflow:auto; padding:20px 12px; }
+  #impOverlay.on { display:block; }
+  .imp-panel { max-width:680px; margin:0 auto; background:var(--card); border-radius:16px; overflow:hidden; box-shadow:0 20px 60px rgba(0,0,0,.4); }
+  .imp-hd { display:flex; align-items:center; justify-content:space-between; gap:10px; padding:14px 18px; background:var(--asphalt); color:#fff; font-family:var(--display); font-weight:700; }
+  .imp-body { padding:18px; }
+  .imp-lbl { display:block; font-family:var(--display); font-weight:700; font-size:13px; text-transform:uppercase; letter-spacing:.04em; margin:16px 0 7px; color:var(--muted); }
+  .imp-lbl:first-child { margin-top:0; }
+  .imp-seg { display:inline-flex; flex-wrap:wrap; gap:7px; }
+  .imp-seg button { padding:8px 14px; border-radius:99px; font-size:13px; font-weight:600; border:1.5px solid #d4d4cf; background:#fff; color:#555; cursor:pointer; font-family:inherit; }
+  .imp-seg button.on { background:var(--asphalt); color:#fff; border-color:var(--asphalt); }
+  .imp-map { display:flex; flex-wrap:wrap; gap:8px; }
+  .imp-map label { font-size:11.5px; color:var(--muted); display:flex; flex-direction:column; gap:3px; }
+  .imp-map select { padding:5px 6px; border-radius:7px; border:1.5px solid #d4d4cf; font-family:inherit; font-size:12.5px; }
+  .imp-table { width:100%; border-collapse:collapse; font-size:13px; }
+  .imp-table th, .imp-table td { padding:7px 10px; text-align:left; border-bottom:1px solid #f0f0eb; white-space:nowrap; }
+  .imp-table th { position:sticky; top:0; background:#f1f1ec; font-size:11.5px; text-transform:uppercase; letter-spacing:.03em; }
+  .ichip { display:inline-block; padding:2px 9px; border-radius:99px; font-size:11.5px; font-weight:700; }
+  .ichip-ok { background:var(--flag-green-bg); color:var(--flag-green); }
+  .ichip-new { background:#dde8fb; color:#23508f; }
+  .ichip-skip { background:#ededed; color:#777; }
+  .ichip-warn { background:#fdeccb; color:#7a4f00; }
   #tvSlide { flex:1; padding:3vh 4vw 1vh; overflow:hidden; }
   .tv-h { display:flex; align-items:baseline; gap:2vw; font-family:var(--display); text-transform:uppercase; margin-bottom:2.2vh; flex-wrap:wrap; }
   .tv-h span:first-child { font-weight:800; font-size:6vh; letter-spacing:.03em; line-height:1; }
@@ -282,6 +305,7 @@
       <span style="margin-left:auto;display:flex;gap:8px">
         <button class="btn btn-sm btn-primary" onclick="openTV()">📺 TV display</button>
         <button class="btn btn-sm" onclick="printHeats()">🖨 Print / save PDF</button>
+        <button class="btn btn-sm" onclick="openImport('qual')">📥 Import timing</button>
       </span>
     </div>
     <p class="sub">Lowest pill starts up front. Set 2 runs inverted. Spots update live as drivers draw.<br>
@@ -295,8 +319,11 @@
 
   <!-- RESULTS -->
   <div id="page-results" class="page">
-    <h2>Results &amp; lineups</h2>
-    <p class="sub">Enter finishing positions from both heat sets. Standings, the B-main, and the feature lineup build themselves.</p>
+    <div style="display:flex;align-items:center;gap:10px;flex-wrap:wrap">
+      <h2 style="margin-bottom:0">Results &amp; lineups</h2>
+      <button class="btn btn-sm btn-primary" style="margin-left:auto" onclick="openImport('heat')">📥 Import from timing</button>
+    </div>
+    <p class="sub">Enter finishing positions by hand from both heat sets, or tap <b>Import from timing</b> to fill them from a scoring-system CSV. Standings, the B-main, and the feature lineup build themselves.</p>
     <div id="resultsContent"></div>
   </div>
 
@@ -556,6 +583,61 @@
     <button id="tvLockBtn" onclick="tvToggleLock(event)">🔒 Lock screen</button>
     <button onclick="tvNext(event)">Next ⏭</button>
     <button onclick="closeTV(event)">✕ Exit</button>
+  </div>
+</div>
+
+<!-- Timing import overlay: load a scoring-system CSV straight into the live race day -->
+<div id="impOverlay">
+  <div class="imp-panel">
+    <div class="imp-hd">
+      <span>📥 Import from timing</span>
+      <button class="btn btn-sm" onclick="closeImport()">✕ Close</button>
+    </div>
+    <div class="imp-body">
+      <label class="imp-lbl">1 · What are you importing?</label>
+      <div class="imp-seg" id="impTargetSeg">
+        <button id="impTqual" onclick="impSetTarget('qual')">Qualifying → grid</button>
+        <button id="impTheat" onclick="impSetTarget('heat')">Heat results</button>
+        <button id="impTfeat" onclick="impSetTarget('feat')">Feature finishes</button>
+      </div>
+
+      <label class="imp-lbl">2 · Which class?</label>
+      <div class="imp-seg">
+        <button id="impCmOne" onclick="impSetClsMode(false)">One class</button>
+        <button id="impCmCol" onclick="impSetClsMode(true)">Use the file's class column</button>
+      </div>
+      <div id="impClsPick" style="margin-top:8px">
+        <select id="impClsSel" onchange="if(Imp){Imp.clsId=parseInt(this.value)||null;impRenderPreview();}"></select>
+      </div>
+
+      <div id="impHeatSetRow" style="display:none">
+        <label class="imp-lbl">Heat set</label>
+        <div class="imp-seg">
+          <button id="impHs1" onclick="impSetHeatSet('h1')">Set 1 (pill order)</button>
+          <button id="impHs2" onclick="impSetHeatSet('h2')">Set 2 (inverted)</button>
+        </div>
+      </div>
+
+      <label class="imp-lbl">3 · Load the timing CSV</label>
+      <button class="btn" onclick="document.getElementById('impFile').click()">📂 Choose CSV file</button>
+      <input id="impFile" type="file" accept=".csv,text/csv,text/plain" style="display:none" onchange="impLoadCsv(this)">
+      <div id="impCsvInfo" style="display:none;margin-top:8px;font-size:13px"></div>
+      <div id="impMapRow" style="display:none;margin-top:10px"></div>
+
+      <div id="impPrevWrap" style="display:none">
+        <label class="imp-lbl">4 · Preview &amp; confirm</label>
+        <div id="impSummary" style="font-size:13px;margin-bottom:8px"></div>
+        <div id="impConflictRow" style="display:none;margin-bottom:8px"></div>
+        <div style="overflow:auto;max-height:38vh;border:1px solid var(--line);border-radius:10px">
+          <table class="imp-table"><thead><tr id="impHead"></tr></thead><tbody id="impBody"></tbody></table>
+        </div>
+        <div id="impErr" class="err" style="display:none;margin-top:10px"></div>
+        <div style="margin-top:14px;display:flex;gap:10px;flex-wrap:wrap">
+          <button class="btn btn-go" id="impApplyBtn" onclick="impApply()">✅ Import into RaceDay</button>
+          <button class="btn" onclick="closeImport()">Cancel</button>
+        </div>
+      </div>
+    </div>
   </div>
 </div>
 
@@ -2356,6 +2438,435 @@ function handleUrlParams() {
     if (sk) { S.sync.key = normKey(sk); S.sync.enabled = true; save(); changed = true; }
     if (changed) history.replaceState({}, '', location.pathname);
   } catch (e) {}
+}
+
+// ---------- In-app timing import ----------
+// Loads a scoring-system CSV (MotoSponder etc.) straight into the live race day —
+// no backup file round-trip. Preview + confirm before anything is written. Imported
+// results write the same heatResults keys the manual dropdowns use, so standings, the
+// B-main, the feature, and points all recompute automatically.
+let Imp = null;          // transient state while the overlay is open; never saved to S
+let impPreview = [];
+
+const IMP_SYN = {
+  trans: ['transponder','trans','tx','chip','decoder','tag','rfid','transponderid','transponder id','trans id','tran'],
+  num:   ['kart','car number','car no','vehicle no','kart no','plate','car#','kart#','no','no.','racer number','racer no','rider number','rider no'],
+  name:  ['driver name','driver','name','racer','rider','rider name','racer name','pilot','firstname','first name','first'],
+  name2: ['lastname','last name','last','surname','family name'],
+  cls:   ['class','category','group','division'],
+  pos:   ['pos','position','finish','place','rank','result','qual pos','qualifying pos','finish pos'],
+  time:  ['best lap','best time','lap time','best tm','best laptime','best lap time','total time','total tm','bestlap','besttime','laptime','fast lap','qualifying time','q-time'],
+};
+const IMP_VENDORS = [
+  { name: 'MotoSponder', detect: h => {
+      const has = t => h.some(c => c === t);
+      const hasFirstLast = (has('first') || has('first name')) && (has('last') || has('last name'));
+      const hasTrans = h.some(c => c === 'transponder' || c === 'trans' || c === 'transponder id' || c === 'trans id');
+      const hasMotoTime = h.some(c => c === 'best tm' || c === 'total tm');
+      return (hasTrans && hasFirstLast) || hasMotoTime;
+  } },
+];
+
+function impNormTrans(v) { return String(v || '').trim().toUpperCase().replace(/[\s\-]/g, ''); }
+// Forgiving name key: strip accents, punctuation and extra spaces, lowercase.
+function impNormName(s) {
+  return String(s || '').normalize('NFD').replace(/[̀-ͯ]/g, '')
+    .toLowerCase().replace(/[.,'`’‘´"“”\-]/g, '').replace(/\s+/g, ' ').trim();
+}
+function impParseLapTime(s) {
+  s = String(s || '').trim();
+  if (!s || /^(dnf|dns|dq|dsq|ret|nc)$/i.test(s)) return Infinity;
+  const h = s.match(/^(\d+):(\d{1,2}):(\d{1,2}(?:\.\d+)?)$/);
+  if (h) return parseInt(h[1]) * 3600 + parseInt(h[2]) * 60 + parseFloat(h[3]);
+  const m = s.match(/^(\d+):(\d+(?:\.\d+)?)$/);
+  if (m) return parseInt(m[1]) * 60 + parseFloat(m[2]);
+  const n = parseFloat(s);
+  return isNaN(n) ? Infinity : n;
+}
+function impParseFinish(s) {
+  s = String(s || '').trim();
+  if (!s) return null;
+  const up = s.toUpperCase();
+  if (up === 'DNF' || up === 'DNS' || up === 'DQ') return up;
+  if (/^(dsq|ret|nc)$/i.test(s)) return 'DQ';
+  const n = parseInt(s);
+  return n > 0 ? n : null;
+}
+function impParseCSV(text) {
+  if (text.charCodeAt(0) === 0xFEFF) text = text.slice(1);
+  const rows = [];
+  let row = [], cell = '', inQ = false;
+  for (let i = 0; i <= text.length; i++) {
+    const c = i < text.length ? text[i] : '\n';
+    if (inQ) {
+      if (c === '"') { if (i + 1 < text.length && text[i + 1] === '"') { cell += '"'; i++; } else inQ = false; }
+      else cell += c;
+    } else if (c === '"') { inQ = true; }
+    else if (c === ',') { row.push(cell); cell = ''; }
+    else if (c === '\r' || c === '\n') {
+      row.push(cell); cell = '';
+      if (row.some(v => v.trim())) rows.push(row);
+      row = [];
+      if (c === '\r' && i + 1 < text.length && text[i + 1] === '\n') i++;
+    } else cell += c;
+  }
+  return rows;
+}
+function impGuessColumns(hdr) {
+  const h = hdr.map(v => v.trim().toLowerCase());
+  const out = { trans:-1, num:-1, name:-1, name2:-1, cls:-1, pos:-1, time:-1 };
+  for (const [key, syns] of Object.entries(IMP_SYN)) {
+    let idx = h.findIndex(c => syns.includes(c));
+    if (idx < 0) idx = h.findIndex(c => syns.some(s => c.includes(s)));
+    out[key] = idx;
+  }
+  if (out.num < 0) out.num = h.findIndex(c => c === 'no' || c === 'no.' || c === '#' || c === 'number' || c === 'car' || c === 'kart');
+  if (out.name < 0) out.name = h.findIndex(c => c.includes('name') || c.includes('driver'));
+  if (out.time < 0) out.time = h.findIndex(c => c.includes('time') || c.includes('lap') || c.includes('best'));
+  if (out.pos < 0) out.pos = h.findIndex(c => c.includes('pos') || c.includes('place') || c.includes('rank') || c.includes('finish'));
+  return out;
+}
+function impDetectVendor(hdr) {
+  const h = hdr.map(v => v.trim().toLowerCase());
+  const v = IMP_VENDORS.find(v => v.detect(h));
+  return v ? { name: v.name } : null;
+}
+function impCell(row, key) {
+  const i = Imp.cols[key];
+  return (i >= 0 && i < row.length) ? row[i].trim() : '';
+}
+// Match priority transponder → number → name (forgiving name + "Last, First").
+// Cross-references the kart number: a match whose stored number disagrees is flagged.
+function impMatchDriver(row) {
+  const trans = impCell(row, 'trans');
+  const num   = impCell(row, 'num');
+  const n1    = impCell(row, 'name');
+  const n2    = impCell(row, 'name2');
+  let name = n2 ? (n1 + ' ' + n2).trim() : n1;
+  if (!n2 && name.indexOf(',') >= 0) {
+    const parts = name.split(',');
+    name = (parts.slice(1).join(' ').trim() + ' ' + parts[0].trim()).trim();
+  }
+  const roster = S.roster || [];
+  let driver = null, matchedBy = '';
+  if (trans && impNormTrans(trans)) {
+    const nt = impNormTrans(trans);
+    const d = roster.find(d => d.trans && impNormTrans(d.trans) === nt);
+    if (d) { driver = d; matchedBy = 'transponder'; }
+  }
+  if (!driver && num) {
+    const numLc = num.toLowerCase();
+    const d = roster.find(d => String(d.num || '').toLowerCase() === numLc);
+    if (d) { driver = d; matchedBy = 'number'; }
+  }
+  if (!driver && name) {
+    const nn = impNormName(name);
+    const d = roster.find(d => impNormName(d.name) === nn);
+    if (d) { driver = d; matchedBy = 'name'; }
+  }
+  const transConflict = !!(driver && trans && driver.trans && impNormTrans(driver.trans) !== impNormTrans(trans));
+  const numConflict = !!(driver && num && driver.num && String(driver.num).trim().toLowerCase() !== num.trim().toLowerCase());
+  const canCreate = !!(num || name || trans);
+  return { driver, matchedBy, num, name, trans, transConflict, numConflict, canCreate };
+}
+function impResolveClsId(row) {
+  if (!Imp.useClsCol) return Imp.clsId || null;
+  const v = impCell(row, 'cls').toLowerCase();
+  if (!v) return null;
+  const c = (S.classes || []).find(c => c.name.toLowerCase() === v);
+  return c ? c.id : -1;          // -1 = unknown class name
+}
+// Driver → heat index, mirroring calcStandings() so imported keys land on the right heat.
+function impHeatOfMap(clsId) {
+  const map = {};
+  buildHeats(invertField(classRacers(clsId), classById(clsId)), S.settings.maxHeat).forEach((heat, hi) => heat.forEach(r => { map[r.id] = hi; }));
+  return map;
+}
+
+function impComputePreview() {
+  impPreview = [];
+  const unknown = new Set();
+  let emptyCls = 0;
+  if (!Imp || !Imp.rows.length) { Imp && (Imp.unknownClasses = [], Imp.emptyClass = 0); return; }
+
+  if (Imp.target === 'qual') {
+    const groups = {};
+    Imp.rows.forEach(row => {
+      const clsId = impResolveClsId(row);
+      if (clsId === null) { if (Imp.useClsCol) emptyCls++; return; }
+      if (clsId === -1) unknown.add(impCell(row, 'cls'));
+      const m = impMatchDriver(row);
+      const rawPos  = Imp.cols.pos  >= 0 ? impParseFinish(impCell(row,'pos'))  : null;
+      const rawTime = Imp.cols.time >= 0 ? impParseLapTime(impCell(row,'time')) : Infinity;
+      (groups[clsId] = groups[clsId] || []).push({ m, rawPos, rawTime, clsId });
+    });
+    for (const [clsId, items] of Object.entries(groups)) {
+      const hasPos = items.some(it => typeof it.rawPos === 'number');
+      if (hasPos) items.sort((a,b)=>(typeof a.rawPos==='number'?a.rawPos:9999)-(typeof b.rawPos==='number'?b.rawPos:9999));
+      else items.sort((a,b)=>a.rawTime-b.rawTime);
+      let rank = 0; const seenNums = new Set();
+      items.forEach(({ m, clsId }) => {
+        let status = 'match', note = '';
+        if (parseInt(clsId) < 0) { status = 'skip'; note = 'Unknown class'; }
+        else if (!m.driver && !m.canCreate) { status = 'skip'; note = 'No name, number, or transponder'; }
+        else if (!m.driver) status = 'new';
+        else if (m.transConflict) status = 'conflict';
+        if (status !== 'skip') {
+          const numLc = (m.driver ? String(m.driver.num||'') : m.num).toLowerCase();
+          if (numLc && seenNums.has(numLc)) { status = 'skip'; note = 'Duplicate number (keeping first)'; }
+          else if (numLc) seenNums.add(numLc);
+        }
+        const r = status !== 'skip' ? ++rank : null;
+        impPreview.push({ ...m, status, note, clsId: parseInt(clsId), rank: r });
+      });
+    }
+  } else {
+    Imp.rows.forEach(row => {
+      const clsId = impResolveClsId(row);
+      if (clsId === null) { if (Imp.useClsCol) emptyCls++; return; }
+      if (clsId === -1) unknown.add(impCell(row, 'cls'));
+      const m = impMatchDriver(row);
+      const finish = Imp.cols.pos >= 0 ? impParseFinish(impCell(row,'pos')) : null;
+      let status = 'match', note = '';
+      if (parseInt(clsId) < 0) { status = 'skip'; note = 'Unknown class'; }
+      else if (!m.driver && !m.canCreate) { status = 'skip'; note = 'No name, number, or transponder'; }
+      else if (!m.driver) { if (Imp.target === 'heat') { status = 'skip'; note = 'Not in driver book — import qualifying/grid first'; } else status = 'new'; }
+      else if (m.transConflict) status = 'conflict';
+      if (Imp.target === 'heat' && status !== 'skip' && m.driver) {
+        const inClass = (S.raceDay.entries||[]).some(e => e.driverId === m.driver.id && e.classId === parseInt(clsId));
+        if (!inClass) { status = 'skip'; note = 'Not entered in this class (no pill yet)'; }
+      }
+      impPreview.push({ ...m, status, note, clsId: parseInt(clsId), finish });
+    });
+  }
+  Imp.unknownClasses = [...unknown].filter(Boolean);
+  Imp.emptyClass = emptyCls;
+}
+
+function impRenderPreview() {
+  if (!Imp || !Imp.rows.length) return;
+  impComputePreview();
+  const matched = impPreview.filter(r => r.status==='match' || r.status==='conflict').length;
+  const newD    = impPreview.filter(r => r.status==='new').length;
+  const skipped = impPreview.filter(r => r.status==='skip').length;
+  const tConf   = impPreview.filter(r => r.transConflict && r.status!=='skip').length;
+  const nConf   = impPreview.filter(r => r.numConflict && r.status!=='skip').length;
+  let sum = '<b>' + impPreview.length + ' rows</b> · <b style="color:var(--flag-green)">' + matched + ' matched</b>'
+    + (newD ? ' · <b style="color:#23508f">' + newD + ' new</b>' : '')
+    + (skipped ? ' · <b style="color:#777">' + skipped + ' skipped</b>' : '')
+    + (tConf ? ' · <b style="color:#7a4f00">' + tConf + ' transponder ⚠</b>' : '')
+    + (nConf ? ' · <b style="color:#7a4f00">' + nConf + ' number ⚠</b>' : '');
+  if (Imp.unknownClasses && Imp.unknownClasses.length)
+    sum += '<br><span style="color:#7a4f00">Unrecognized class' + (Imp.unknownClasses.length>1?'es':'') + ': ' + Imp.unknownClasses.map(esc).join(', ') + ' — those rows are skipped. Fix the class name or its mapping.</span>';
+  if (Imp.emptyClass) sum += '<br><span style="color:#777">' + Imp.emptyClass + ' rows had a blank class and were skipped.</span>';
+  document.getElementById('impSummary').innerHTML = sum;
+
+  let cf = '';
+  if (tConf) cf += '<label style="display:block;font-size:12.5px;margin-bottom:4px;cursor:pointer"><input type="checkbox"' + (Imp.updTrans?' checked':'') + ' onchange="Imp.updTrans=this.checked"> Update stored transponders from the file where they differ</label>';
+  if (nConf) cf += '<label style="display:block;font-size:12.5px;cursor:pointer"><input type="checkbox"' + (Imp.updNum?' checked':'') + ' onchange="Imp.updNum=this.checked"> Update stored kart numbers from the file where they differ</label>';
+  const cr = document.getElementById('impConflictRow');
+  cr.innerHTML = cf; cr.style.display = cf ? '' : 'none';
+
+  const isQual = Imp.target === 'qual';
+  document.getElementById('impHead').innerHTML = '<th>Driver</th><th>Kart #</th><th>Match</th><th>' + (isQual?'Grid':'Finish') + '</th><th>Class</th><th>Status</th>';
+  document.getElementById('impBody').innerHTML = impPreview.map(r => {
+    const cls = (S.classes||[]).find(c => c.id === r.clsId);
+    const clsName = cls ? cls.name : (r.clsId < 0 ? '(unknown)' : '—');
+    const dName = r.driver ? esc(r.driver.name) : (r.name ? esc(r.name) + ' <span style="color:var(--muted)">(new)</span>' : '—');
+    const dNum  = r.driver ? esc(r.driver.num||'') : (r.num ? esc(r.num) : '—');
+    const by    = r.driver ? esc(r.matchedBy) : (r.status==='new' ? 'will create' : '—');
+    const val   = isQual ? (r.rank!=null ? 'P'+r.rank : '—') : (r.finish!=null ? r.finish : '—');
+    const tag = { match:'<span class="ichip ichip-ok">matched</span>', new:'<span class="ichip ichip-new">new</span>', skip:'<span class="ichip ichip-skip">skip</span>', conflict:'<span class="ichip ichip-warn">⚠ trans</span>' }[r.status] || '';
+    let warn = '';
+    if (r.status !== 'skip' && r.numConflict) warn += ' <span class="ichip ichip-warn">⚠ #' + esc(r.num) + '≠' + esc(String(r.driver.num)) + '</span>';
+    const noteH = r.note ? ' <span style="font-size:11px;color:var(--muted)">(' + esc(r.note) + ')</span>' : '';
+    return '<tr><td>'+dName+'</td><td>'+dNum+'</td><td>'+by+'</td><td>'+val+'</td><td>'+esc(clsName)+'</td><td>'+tag+warn+noteH+'</td></tr>';
+  }).join('') || '<tr><td colspan="6" class="empty">No rows — check the column mapping and class above.</td></tr>';
+
+  const actionable = impPreview.filter(r => r.status !== 'skip').length;
+  const err = document.getElementById('impErr');
+  const btn = document.getElementById('impApplyBtn');
+  if (!actionable) { err.style.display=''; err.textContent='Nothing to import — adjust the column mapping or class.'; btn.disabled=true; }
+  else { err.style.display='none'; btn.disabled=false; }
+}
+
+function impRenderMap() {
+  const labels = { trans:'Transponder', num:'Kart #', name:'Name / First', name2:'Last name', cls:'Class', pos:'Pos / Finish', time:'Lap time' };
+  const opt = sel => '<option value="-1">—</option>' + Imp.header.map((hh,i) => '<option value="'+i+'"'+(sel===i?' selected':'')+'>'+esc(hh||('Col '+(i+1)))+'</option>').join('');
+  let h = '<div style="font-size:11.5px;color:var(--muted);margin-bottom:5px">Auto-detected — change any that look wrong:</div><div class="imp-map">';
+  Object.keys(labels).forEach(k => {
+    h += '<label>' + labels[k] + '<select onchange="Imp.cols.'+k+'=parseInt(this.value);impRenderPreview()">' + opt(Imp.cols[k]) + '</select></label>';
+  });
+  h += '</div>';
+  document.getElementById('impMapRow').innerHTML = h;
+}
+
+function impLoadCsv(input) {
+  const f = input.files && input.files[0];
+  input.value = '';
+  if (!f || !Imp) return;
+  const fr = new FileReader();
+  fr.onload = () => {
+    const rows = impParseCSV(String(fr.result || ''));
+    if (rows.length < 2) { alert("That file doesn't look like a results CSV (no data rows)."); return; }
+    Imp.header = rows[0];
+    Imp.rows = rows.slice(1);
+    Imp.cols = impGuessColumns(Imp.header);
+    Imp.vendor = impDetectVendor(Imp.header);
+    const info = document.getElementById('impCsvInfo');
+    info.style.display = '';
+    info.innerHTML = '<b>' + Imp.rows.length + ' rows</b> loaded' + (Imp.vendor ? ' · <span style="color:var(--flag-green);font-weight:700">' + esc(Imp.vendor.name) + ' format detected</span>' : '') + '.';
+    impRenderMap();
+    document.getElementById('impMapRow').style.display = '';
+    document.getElementById('impPrevWrap').style.display = '';
+    impRenderPreview();
+  };
+  fr.readAsText(f);
+}
+
+function impApply() {
+  if (!Imp) return;
+  const toAct = impPreview.filter(r => r.status !== 'skip');
+  if (!toAct.length) { alert('Nothing to import.'); return; }
+  const target = Imp.target;
+
+  // New-driver review gate
+  const newRows = toAct.filter(r => !r.driver && r.status === 'new');
+  if (newRows.length) {
+    const names = newRows.map(r => r.name || (r.num ? 'Car #' + r.num : 'Trans ' + r.trans)).slice(0, 10);
+    const more = newRows.length > 10 ? '\n…and ' + (newRows.length - 10) + ' more' : '';
+    if (!confirm('This will create ' + newRows.length + ' NEW driver' + (newRows.length>1?'s':'') + ' in the book (not matched by transponder, number, or name):\n\n' + names.join('\n') + more + '\n\nContinue?')) return;
+  }
+
+  // License/trial gate for paths that create entries (mirrors register())
+  let willCreateEntries = target === 'qual';
+  if (target === 'feat') willCreateEntries = toAct.some(r => r.driver && !(S.raceDay.entries||[]).some(e => e.driverId === r.driver.id && e.classId === r.clsId)) || newRows.length > 0;
+  if (willCreateEntries && !canEnter()) { alert(entryBlockedMsg()); return; }
+
+  // Resolve / create drivers
+  const resolved = toAct.map(r => {
+    let driver = r.driver;
+    if (!driver) {
+      const nameVal = r.name || (r.num ? 'Car #' + r.num : 'Trans ' + r.trans);
+      const numVal  = (r.num && /^[A-Za-z0-9]{1,5}$/.test(r.num)) ? r.num : '';
+      driver = { id: S.nextId++, name: nameVal, num: numVal, trans: impNormTrans(r.trans) };
+      S.roster.push(driver);
+    } else {
+      if (r.trans && !driver.trans) driver.trans = impNormTrans(r.trans);                       // learn
+      if (r.transConflict && Imp.updTrans && r.trans) driver.trans = impNormTrans(r.trans);     // update
+      if (r.numConflict && Imp.updNum && r.num && /^[A-Za-z0-9]{1,5}$/.test(r.num)) driver.num = r.num;
+    }
+    return { ...r, driver };
+  });
+
+  let done = 0, skipped = 0, createdEntry = false;
+
+  if (target === 'qual') {
+    const groups = {};
+    resolved.forEach(r => { (groups[r.clsId] = groups[r.clsId] || []).push(r); });
+    for (const [clsId, rows] of Object.entries(groups)) {
+      const cid = parseInt(clsId);
+      const cls = classById(cid);
+      S.raceDay.entries = S.raceDay.entries.filter(e => e.classId !== cid);
+      const k = resKey(cid);
+      if (S.raceDay.heatResults[k]) delete S.raceDay.heatResults[k];
+      if (cls && rows.length > cls.maxPill) cls.maxPill = rows.length;
+      const seenNums = new Set();
+      rows.forEach(r => {
+        if (r.rank == null) return;
+        const numLc = String(r.driver.num || '').toLowerCase();
+        if (numLc && seenNums.has(numLc)) { skipped++; return; }
+        if (numLc) seenNums.add(numLc);
+        S.raceDay.entries.push({ driverId: r.driver.id, classId: cid, pill: r.rank });
+        createdEntry = true; done++;
+      });
+    }
+  } else if (target === 'heat') {
+    const hof = {};
+    resolved.forEach(r => {
+      const cid = r.clsId, k = resKey(cid);
+      if (!S.raceDay.heatResults[k]) S.raceDay.heatResults[k] = {};
+      if (!hof[cid]) hof[cid] = impHeatOfMap(cid);
+      const hi = hof[cid][r.driver.id];
+      if (hi === undefined) { skipped++; return; }
+      if (r.finish != null) { S.raceDay.heatResults[k][Imp.heatSet + '_' + hi + '_' + r.driver.id] = r.finish; done++; }
+      else skipped++;
+    });
+  } else {
+    const groups = {};
+    resolved.forEach(r => { (groups[r.clsId] = groups[r.clsId] || []).push(r); });
+    for (const [clsId, rows] of Object.entries(groups)) {
+      const cid = parseInt(clsId);
+      const cls = classById(cid);
+      const k = resKey(cid);
+      if (!S.raceDay.heatResults[k]) S.raceDay.heatResults[k] = {};
+      const finishers = rows.filter(r => typeof r.finish === 'number').length;
+      if (finishers > (S.settings.maxFeature || 20)) S.settings.maxFeature = finishers;
+      rows.forEach(r => {
+        const inClass = S.raceDay.entries.some(e => e.driverId === r.driver.id && e.classId === cid);
+        if (!inClass) {
+          const used = new Set(S.raceDay.entries.filter(e => e.classId === cid).map(e => e.pill));
+          let pill = 1; while (used.has(pill)) pill++;
+          if (cls && pill > cls.maxPill) cls.maxPill = pill;
+          S.raceDay.entries.push({ driverId: r.driver.id, classId: cid, pill });
+          createdEntry = true;
+        }
+        if (r.finish != null) { S.raceDay.heatResults[k]['ft_' + r.driver.id] = r.finish; done++; }
+        else skipped++;
+      });
+    }
+  }
+
+  if (createdEntry) consumeTrialDay();
+  save();
+  if (typeof scheduleUsageBeacon === 'function' && createdEntry) scheduleUsageBeacon();
+  closeImport();
+  renderHeader();
+  render(curPage);
+  const what = { qual: done + ' drivers placed on the grid', heat: done + ' heat finishes', feat: done + ' feature finishes' }[target];
+  alert('✅ Imported ' + what + '.' + (skipped ? ' ' + skipped + ' rows skipped.' : ''));
+}
+
+function openImport(target) {
+  if (!S.classes.length) { alert('Add at least one class in Admin first, then import.'); return; }
+  Imp = { rows:[], header:[], cols:{trans:-1,num:-1,name:-1,name2:-1,cls:-1,pos:-1,time:-1},
+          target: target || 'heat', clsId: (S.classes[0] && S.classes[0].id) || null,
+          useClsCol:false, heatSet:'h1', vendor:null, updTrans:false, updNum:false, unknownClasses:[], emptyClass:0 };
+  impPreview = [];
+  document.getElementById('impCsvInfo').style.display = 'none';
+  document.getElementById('impMapRow').style.display = 'none';
+  document.getElementById('impMapRow').innerHTML = '';
+  document.getElementById('impPrevWrap').style.display = 'none';
+  document.getElementById('impClsSel').innerHTML = S.classes.map(c => '<option value="'+c.id+'">'+esc(c.name)+'</option>').join('');
+  impSetTarget(Imp.target);
+  impSetClsMode(false);
+  impSetHeatSet('h1');
+  document.getElementById('impOverlay').classList.add('on');
+}
+function closeImport() { document.getElementById('impOverlay').classList.remove('on'); Imp = null; impPreview = []; }
+function impSetTarget(t) {
+  if (!Imp) return;
+  Imp.target = t;
+  document.getElementById('impTqual').classList.toggle('on', t === 'qual');
+  document.getElementById('impTheat').classList.toggle('on', t === 'heat');
+  document.getElementById('impTfeat').classList.toggle('on', t === 'feat');
+  document.getElementById('impHeatSetRow').style.display = t === 'heat' ? '' : 'none';
+  if (Imp.rows.length) impRenderPreview();
+}
+function impSetClsMode(useCol) {
+  if (!Imp) return;
+  Imp.useClsCol = useCol;
+  document.getElementById('impCmOne').classList.toggle('on', !useCol);
+  document.getElementById('impCmCol').classList.toggle('on', useCol);
+  document.getElementById('impClsPick').style.display = useCol ? 'none' : '';
+  if (Imp.rows.length) impRenderPreview();
+}
+function impSetHeatSet(s) {
+  if (!Imp) return;
+  Imp.heatSet = s;
+  document.getElementById('impHs1').classList.toggle('on', s === 'h1');
+  document.getElementById('impHs2').classList.toggle('on', s === 'h2');
+  if (Imp.rows.length) impRenderPreview();
 }
 
 // ---------- Live sync across tabs + init ----------
