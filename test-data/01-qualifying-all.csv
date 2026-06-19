@@ -1,0 +1,81 @@
+Pos,No,First,Last,Class,Transponder,Laps,Best Tm,Total Tm
+,32,Mia,Suzuki,Pro Stock,30001,10,00:00:22.031,00:03:40.534
+,83,Ethan,Pratt,Pro Stock,30002,10,00:00:22.230,00:03:42.922
+,130,Olivia,Behr,Pro Stock,30003,10,00:00:22.361,00:03:44.346
+,133,Mason,Kerr,Pro Stock,30004,10,00:00:22.498,00:03:45.238
+,167,Ava,Roth,Pro Stock,30005,10,00:00:22.704,00:03:47.614
+,28,Lucas,Dunn,Pro Stock,30006,10,00:00:22.906,00:03:49.539
+,59,Isabella,Cano,Pro Stock,30007,10,00:00:23.059,00:03:51.081
+,155,Logan,Hunt,Pro Stock,30008,10,00:00:23.256,00:03:52.895
+,161,Zoe,Mott,Pro Stock,30009,10,00:00:23.478,00:03:55.508
+,144,Caleb,Miller,Pro Stock,30010,10,00:00:23.640,00:03:56.980
+,109,Lily,Khan,Pro Stock,30011,10,00:00:23.808,00:03:58.552
+,148,Owen,Boone,Pro Stock,30012,10,00:00:23.932,00:03:59.806
+,142,Nora,Diaz,Pro Stock,30013,10,00:00:24.181,00:04:02.569
+,127,Wyatt,Cobb,Pro Stock,30014,10,00:00:24.326,00:04:04.056
+,152,Hazel,Lowe,Pro Stock,30015,10,00:00:24.512,00:04:05.650
+,114,Levi,Shaw,Pro Stock,30016,10,00:00:24.690,00:04:07.435
+,63,Ruby,Webb,Pro Stock,30017,10,00:00:24.889,00:04:09.488
+,2,Gavin,Pope,Pro Stock,30018,10,00:00:25.060,00:04:10.983
+,159,Stella,Iyer,Pro Stock,30019,10,00:00:25.202,00:04:12.696
+,22,Cole,Lund,Pro Stock,30020,10,00:00:25.421,00:04:14.707
+,30,Piper,Fox,Pro Stock,30021,10,00:00:25.625,00:04:16.737
+,75,Brody,Gold,Pro Stock,30022,10,00:00:25.790,00:04:18.631
+,27,Quinn,Ash,Pro Stock,30023,10,00:00:25.959,00:04:20.051
+,117,Tate,Garcia,Pro Stock,30024,10,00:00:26.182,00:04:22.193
+,4,Sadie,Novak,Pro Stock,30025,10,00:00:26.296,00:04:23.320
+,186,Jax,Watts,Pro Stock,30026,10,00:00:26.492,00:04:25.140
+,82,Reese,Hale,Pro Stock,30027,10,00:00:26.723,00:04:27.820
+,55,Knox,Vance,Pro Stock,30028,10,00:00:26.858,00:04:29.138
+,103,Wren,Ode,Pro Stock,30029,10,00:00:27.042,00:04:30.893
+,66,Dean,Tran,Pro Stock,30030,10,00:00:27.173,00:04:32.239
+,91,June,Maes,Pro Stock,30031,10,00:00:27.372,00:04:34.218
+,93,Cruz,Sax,Pro Stock,30032,10,00:00:27.543,00:04:36.182
+,68,Logan,Sax,Junior Sportsman,30033,10,00:00:28.019,00:04:40.389
+,179,Zoe,Voss,Junior Sportsman,30034,10,00:00:28.209,00:04:42.633
+,126,Caleb,Bird,Junior Sportsman,30035,10,00:00:28.362,00:04:44.374
+,121,Lily,Rios,Junior Sportsman,30036,10,00:00:28.535,00:04:45.603
+,132,Owen,Beck,Junior Sportsman,30037,10,00:00:28.767,00:04:48.342
+,198,Nora,Chen,Junior Sportsman,30038,10,00:00:28.947,00:04:49.816
+,129,Wyatt,Reed,Junior Sportsman,30039,10,00:00:29.114,00:04:51.715
+,113,Hazel,Park,Junior Sportsman,30040,10,00:00:29.258,00:04:53.230
+,144,Levi,Frost,Junior Sportsman,30041,10,00:00:29.396,00:04:54.738
+,171,Ruby,Suzuki,Junior Sportsman,30042,10,00:00:29.597,00:04:56.568
+,10,Gavin,Pratt,Junior Sportsman,30043,10,00:00:29.800,00:04:58.580
+,76,Stella,Behr,Junior Sportsman,30044,10,00:00:29.940,00:04:59.690
+,83,Cole,Kerr,Junior Sportsman,30045,10,00:00:30.185,00:05:02.236
+,119,Piper,Roth,Junior Sportsman,30046,10,00:00:30.331,00:05:03.861
+,27,Brody,Dunn,Junior Sportsman,30047,10,00:00:30.515,00:05:05.811
+,114,Quinn,Cano,Junior Sportsman,30048,10,00:00:30.651,00:05:07.284
+,127,Hazel,Ash,Open Outlaw,30049,10,00:00:19.531,00:03:15.820
+,178,Levi,Garcia,Open Outlaw,30050,10,00:00:19.682,00:03:17.280
+,186,Ruby,Novak,Open Outlaw,30051,10,00:00:19.830,00:03:18.699
+,36,Gavin,Watts,Open Outlaw,30052,10,00:00:19.991,00:03:20.473
+,141,Stella,Hale,Open Outlaw,30053,10,00:00:20.181,00:03:22.413
+,59,Cole,Vance,Open Outlaw,30054,10,00:00:20.439,00:03:24.629
+,123,Piper,Ode,Open Outlaw,30055,10,00:00:20.535,00:03:25.791
+,152,Brody,Tran,Open Outlaw,30056,10,00:00:20.745,00:03:27.764
+,35,Quinn,Maes,Open Outlaw,30057,10,00:00:20.925,00:03:30.006
+,155,Tate,Sax,Open Outlaw,30058,10,00:00:21.147,00:03:31.697
+,179,Sadie,Voss,Open Outlaw,30059,10,00:00:21.253,00:03:33.053
+,131,Jax,Bird,Open Outlaw,30060,10,00:00:21.481,00:03:35.514
+,76,Reese,Rios,Open Outlaw,30061,10,00:00:21.643,00:03:36.899
+,23,Knox,Beck,Open Outlaw,30062,10,00:00:21.820,00:03:38.856
+,108,Wren,Chen,Open Outlaw,30063,10,00:00:22.003,00:03:40.339
+,173,Dean,Reed,Open Outlaw,30064,10,00:00:22.162,00:03:42.248
+,42,June,Park,Open Outlaw,30065,10,00:00:22.425,00:03:44.975
+,80,Cruz,Frost,Open Outlaw,30066,10,00:00:22.567,00:03:45.949
+,107,Faye,Suzuki,Open Outlaw,30067,10,00:00:22.770,00:03:48.223
+,101,Jake,Pratt,Open Outlaw,30068,10,00:00:22.885,00:03:49.525
+,134,Brody,Cobb,Vintage,30069,10,00:00:30.980,00:05:10.495
+,37,Quinn,Lowe,Vintage,30070,10,00:00:31.164,00:05:12.353
+,43,Tate,Shaw,Vintage,30071,10,00:00:31.336,00:05:13.702
+,171,Sadie,Webb,Vintage,30072,10,00:00:31.540,00:05:16.170
+,49,Jax,Pope,Vintage,30073,10,00:00:31.748,00:05:18.207
+,101,Reese,Iyer,Vintage,30074,10,00:00:31.892,00:05:19.503
+,71,Knox,Lund,Vintage,30075,10,00:00:32.077,00:05:21.213
+,110,Wren,Fox,Vintage,30076,10,00:00:32.243,00:05:23.096
+,138,Dean,Gold,Vintage,30077,10,00:00:32.438,00:05:25.092
+,108,June,Ash,Vintage,30078,10,00:00:32.582,00:05:26.422
+,22,Cruz,Garcia,Vintage,30079,10,00:00:32.830,00:05:29.073
+,100,Faye,Novak,Vintage,30080,10,00:00:33.010,00:05:30.508

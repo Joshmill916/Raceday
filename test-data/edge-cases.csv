@@ -1,0 +1,10 @@
+Pos,No,First,Last,Class,Transponder,Best Tm
+4,50,First,Fifty,Pro Stock,99989,00:00:22.400
+5,50,Second,Fifty,Pro Stock,99990,00:00:22.500
+1,404,Ghost,Class,Nonexistent Class,99991,00:00:20.000
+3,77,Brand,New,Vintage,99992,00:00:31.200
+DNF,78,Did,Notfinish,Vintage,99993,DNF
+DNS,79,Did,Notstart,Vintage,99994,DNS
+DQ,80,Black,Flagged,Vintage,99995,DQ
+,81,Min,Sec,Vintage,99996,1:02.500
+,82,Raw,Seconds,Vintage,99997,31.875

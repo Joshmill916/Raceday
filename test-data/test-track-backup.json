@@ -1,0 +1,87 @@
+{
+  "track": {
+    "name": "Test Park",
+    "logo": ""
+  },
+  "adminPin": "",
+  "history": [],
+  "license": null,
+  "trialDays": [],
+  "licUse": {},
+  "classLib": [
+    {
+      "name": "Pro Stock",
+      "maxPill": 200
+    },
+    {
+      "name": "Junior Sportsman",
+      "maxPill": 200
+    },
+    {
+      "name": "Open Outlaw",
+      "maxPill": 200
+    },
+    {
+      "name": "Vintage",
+      "maxPill": 200
+    }
+  ],
+  "roster": [],
+  "classes": [
+    {
+      "id": 1,
+      "name": "Pro Stock",
+      "maxPill": 200
+    },
+    {
+      "id": 2,
+      "name": "Junior Sportsman",
+      "maxPill": 200
+    },
+    {
+      "id": 3,
+      "name": "Open Outlaw",
+      "maxPill": 200
+    },
+    {
+      "id": 4,
+      "name": "Vintage",
+      "maxPill": 200
+    }
+  ],
+  "settings": {
+    "maxHeat": 8,
+    "maxBMain": 12,
+    "maxFeature": 20,
+    "transfers": 2,
+    "gridStyle": "double",
+    "heatFill": "alternate",
+    "bmainMode": "parallel",
+    "bmainCount": 2,
+    "kioskReg": false,
+    "points": {
+      "table": [
+        10,
+        8,
+        6,
+        5,
+        4,
+        3,
+        2,
+        1
+      ],
+      "beyond": 0
+    }
+  },
+  "raceDay": {
+    "date": "2026-06-16",
+    "entries": [],
+    "heatResults": {},
+    "pointsRace": {}
+  },
+  "nextId": 100,
+  "sync": {
+    "enabled": false,
+    "key": ""
+  }
+}
