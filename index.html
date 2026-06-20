@@ -49,6 +49,12 @@
   .sub { font-size: 14px; color: var(--muted); margin-bottom: 18px; }
   .card { background: var(--card); border: 1px solid var(--line); border-radius: 14px; padding: 18px 20px; margin-bottom: 14px; }
   .slbl { font-family: var(--display); font-size: 13px; font-weight: 700; color: #8a8d94; text-transform: uppercase; letter-spacing: 0.09em; margin: 20px 0 8px; }
+  details.admin-group { margin: 0; }
+  details.admin-group > summary { cursor: pointer; display: flex; align-items: center; gap: 8px; list-style: none; font-family: var(--display); font-size: 13px; font-weight: 700; color: #8a8d94; text-transform: uppercase; letter-spacing: 0.09em; margin: 20px 0 8px; user-select: none; }
+  details.admin-group > summary::-webkit-details-marker { display: none; }
+  details.admin-group > summary::before { content: '▶'; font-size: 9px; flex-shrink: 0; }
+  details.admin-group[open] > summary::before { content: '▼'; }
+  details.admin-group > summary:hover { color: #555; }
 
   /* Forms */
   label { font-size: 12.5px; color: #555; display: block; margin: 16px 0 5px; font-weight: 600; }
@@ -242,6 +248,7 @@
         <div class="brand" id="hdrBrand">Race<em>Day</em></div>
         <div class="tag" id="hdrTag">Driver registration &amp; live starting lineups</div>
       </div>
+      <span id="hdrSync" style="display:none;margin-left:auto;padding:5px 11px;border-radius:99px;background:#e4f3e9;color:#1f7a3d;font-size:12.5px;font-weight:700;white-space:nowrap"></span>
     </div>
   </div>
   <div class="checker"></div>
@@ -306,7 +313,7 @@
       <span style="margin-left:auto;display:flex;gap:8px">
         <button class="btn btn-sm btn-primary" onclick="openTV()">📺 TV display</button>
         <button class="btn btn-sm" onclick="printHeats()">🖨 Print / save PDF</button>
-        <button class="btn btn-sm" onclick="openImport('qual')">📥 Import timing</button>
+        <button class="btn btn-sm" onclick="openImport('qual')">📥 Import from timing</button>
       </span>
     </div>
     <p class="sub">Lowest pill starts up front. Set 2 runs inverted. Spots update live as drivers draw.<br>
@@ -342,28 +349,31 @@
       <button class="btn btn-sm" id="lockBtn" onclick="lockAdmin()" style="margin-left:auto;display:none">🔒 Lock admin</button>
     </div>
 
-    <div class="slbl">Track identity</div>
-    <div class="card">
-      <div style="display:flex;gap:20px;align-items:flex-start;flex-wrap:wrap">
-        <div style="flex:1;min-width:220px">
-          <label>Track name</label>
-          <input id="trackName" type="text" placeholder="e.g. Riverside Kart Speedway" onchange="saveTrack()" />
-        </div>
-        <div>
-          <label>Track logo</label>
-          <div style="display:flex;align-items:center;gap:10px;flex-wrap:wrap">
-            <img id="logoPrev" alt="Logo preview" style="display:none;height:52px;max-width:130px;object-fit:contain;border:1px solid var(--line);border-radius:8px;background:#fff;padding:4px">
-            <button class="btn btn-sm" onclick="document.getElementById('logoFile').click()">Upload logo</button>
-            <button class="btn btn-sm btn-danger" id="logoRemove" style="display:none" onclick="removeLogo()">Remove</button>
-            <input id="logoFile" type="file" accept="image/*" style="display:none" onchange="uploadLogo(this)">
+    <details class="admin-group" open>
+      <summary>Track identity</summary>
+      <div class="card">
+        <div style="display:flex;gap:20px;align-items:flex-start;flex-wrap:wrap">
+          <div style="flex:1;min-width:220px">
+            <label>Track name</label>
+            <input id="trackName" type="text" placeholder="e.g. Riverside Kart Speedway" onchange="saveTrack()" />
+          </div>
+          <div>
+            <label>Track logo</label>
+            <div style="display:flex;align-items:center;gap:10px;flex-wrap:wrap">
+              <img id="logoPrev" alt="Logo preview" style="display:none;height:52px;max-width:130px;object-fit:contain;border:1px solid var(--line);border-radius:8px;background:#fff;padding:4px">
+              <button class="btn btn-sm" onclick="document.getElementById('logoFile').click()">Upload logo</button>
+              <button class="btn btn-sm btn-danger" id="logoRemove" style="display:none" onclick="removeLogo()">Remove</button>
+              <input id="logoFile" type="file" accept="image/*" style="display:none" onchange="uploadLogo(this)">
+            </div>
           </div>
         </div>
+        <p style="font-size:12px;color:var(--muted);margin-top:10px">The name and logo show in the header and on printed lineups.</p>
       </div>
-      <p style="font-size:12px;color:var(--muted);margin-top:10px">The name and logo show in the header and on printed lineups.</p>
-    </div>
+    </details>
 
-    <div class="slbl">Race classes &amp; running order</div>
-    <div class="card">
+    <details class="admin-group" open>
+      <summary>Race classes &amp; running order</summary>
+      <div class="card">
       <div style="display:flex;gap:8px;flex-wrap:wrap">
         <input id="newClass" type="text" placeholder="Class name (e.g. Junior 80cc)" style="flex:2;min-width:180px" />
         <input id="newClassMax" type="number" placeholder="Pills" title="Highest pill number" value="200" min="2" max="999" style="width:90px" />
@@ -373,9 +383,11 @@
       <div id="clsList" style="margin-top:12px"></div>
       <div id="clsLib"></div>
     </div>
+    </details>
 
-    <div class="slbl">Race format</div>
-    <div class="card">
+    <details class="admin-group">
+      <summary>Race format</summary>
+      <div class="card">
       <div class="g4">
         <div><label>Max karts per heat</label><input type="number" id="mHeat" min="2" max="30" onchange="saveSett()" /></div>
         <div><label>Max in feature</label><input type="number" id="mFeat" min="2" max="40" onchange="saveSett()" /></div>
@@ -409,9 +421,11 @@
         <p><b>Cascade:</b> the slowest qualifiers start in the lowest main; the top finishers climb up to the next main and race again, all the way up to the feature. Run the mains lowest-first.</p>
       </div>
     </div>
+    </details>
 
-    <div class="slbl">Points series</div>
-    <div class="card">
+    <details class="admin-group">
+      <summary>Points series</summary>
+      <div class="card">
       <div style="margin-bottom:12px">
         <label>Points system</label>
         <select id="ptsPreset" onchange="applyPointsPreset(this.value)">
@@ -435,9 +449,11 @@
       <p id="ptsLinearNote" style="display:none;font-size:12px;color:var(--accent,#0a7);margin-top:8px"></p>
       <p style="font-size:12px;color:var(--muted);margin-top:8px">Pick a known system or type your own — editing the list makes it "Custom". Feature finish decides points; make the list as long as your biggest feature. Anyone finishing past it, not making the feature, or scoring DNF/DNS/DQ gets the "everyone else" value (use it for show-up points, or 0). Classes count by default; untick "counts toward the points series" on the Results tab for non-points days.</p>
     </div>
+    </details>
 
-    <div class="slbl">Today's entries</div>
-    <div class="card">
+    <details class="admin-group" open>
+      <summary>Today's entries</summary>
+      <div class="card">
       <div style="display:flex;gap:10px;flex-wrap:wrap;align-items:center">
         <button class="btn" onclick="refillLastDay()">↻ Re-enter last race day's field</button>
         <span style="font-size:12px;color:var(--muted)">Everyone from the last archived day, fresh pill draws.</span>
@@ -454,43 +470,55 @@
       <div id="entryList" style="margin-top:12px"></div>
       <p style="font-size:12px;color:var(--muted);margin-top:8px">Removing an entry pulls that driver from that class only — the pill goes back in the draw and their other classes are untouched.</p>
     </div>
+    </details>
 
-    <div class="slbl">Driver book <span style="font-weight:500;text-transform:none;letter-spacing:0">— saved across race days</span></div>
-    <div class="card" id="rosterList"></div>
+    <details class="admin-group" open>
+      <summary>Driver book <span style="font-weight:500;text-transform:none;letter-spacing:0;font-size:11px">— saved across race days</span></summary>
+      <div class="card" id="rosterList"></div>
+    </details>
 
-    <div class="slbl">Backup &amp; export</div>
-    <div class="card">
-      <div style="display:flex;gap:10px;flex-wrap:wrap">
-        <button class="btn" onclick="exportBackup()">⬇ Download full backup</button>
-        <button class="btn" onclick="document.getElementById('importFile').click()">⬆ Restore from backup</button>
-        <input id="importFile" type="file" accept=".json,application/json" style="display:none" onchange="importBackup(this)">
-        <button class="btn" onclick="exportEntriesCSV()">Entries → CSV</button>
-        <button class="btn" onclick="exportResultsCSV()">Results → CSV</button>
+    <details class="admin-group">
+      <summary>Backup &amp; export</summary>
+      <div class="card">
+        <div style="display:flex;gap:10px;flex-wrap:wrap">
+          <button class="btn" onclick="exportBackup()">⬇ Download full backup</button>
+          <button class="btn" onclick="document.getElementById('importFile').click()">⬆ Restore from backup</button>
+          <input id="importFile" type="file" accept=".json,application/json" style="display:none" onchange="importBackup(this)">
+          <button class="btn" onclick="exportEntriesCSV()">Entries → CSV</button>
+          <button class="btn" onclick="exportResultsCSV()">Results → CSV</button>
+        </div>
+        <p style="font-size:12px;color:var(--muted);margin-top:8px">This app stores everything in this browser only. Download a backup now and then — restoring it on any device brings back the driver book, classes, settings, history, and today's race day.</p>
       </div>
-      <p style="font-size:12px;color:var(--muted);margin-top:8px">This app stores everything in this browser only. Download a backup now and then — restoring it on any device brings back the driver book, classes, settings, history, and today's race day.</p>
-    </div>
+    </details>
 
-    <div class="slbl">Race day history</div>
-    <div class="card" id="historyList"></div>
+    <details class="admin-group">
+      <summary>Race day history</summary>
+      <div class="card" id="historyList"></div>
+    </details>
 
-    <div class="slbl">Admin PIN</div>
-    <div class="card" id="pinCard"></div>
-
-    <div class="slbl">License</div>
-    <div class="card" id="licCard"></div>
-
-    <div class="slbl" id="syncLbl">Multi-device sync</div>
-    <div class="card" id="syncCard"></div>
-
-    <div class="slbl">Danger zone</div>
-    <div class="card">
-      <div style="display:flex;gap:10px;flex-wrap:wrap">
-        <button class="btn" onclick="newRaceDay()">🏁 Start a new race day</button>
-        <button class="btn" onclick="seedDemo()">Load demo race day</button>
-        <button class="btn btn-danger" onclick="resetAll()">Erase everything</button>
+    <details class="admin-group">
+      <summary>Account &amp; sync</summary>
+      <div class="slbl">Admin PIN</div>
+      <div class="card" id="pinCard"></div>
+      <div class="slbl">License</div>
+      <div class="card" id="licCard"></div>
+      <div id="syncLbl">
+        <div class="slbl">Multi-device sync</div>
+        <div class="card" id="syncCard"></div>
       </div>
-      <p style="font-size:12px;color:var(--muted);margin-top:8px">A new race day archives today's entries and results to history, then clears the board — the driver book and classes are kept. Erase everything wipes the driver book, history, and track settings too.</p>
-    </div>
+    </details>
+
+    <details class="admin-group">
+      <summary>Danger zone</summary>
+      <div class="card">
+        <div style="display:flex;gap:10px;flex-wrap:wrap">
+          <button class="btn" onclick="newRaceDay()">🏁 Start a new race day</button>
+          <button class="btn" onclick="seedDemo()">Load demo race day</button>
+          <button class="btn btn-danger" onclick="resetAll()">Erase everything</button>
+        </div>
+        <p style="font-size:12px;color:var(--muted);margin-top:8px">A new race day archives today's entries and results to history, then clears the board — the driver book and classes are kept. Erase everything wipes the driver book, history, and track settings too.</p>
+      </div>
+    </details>
   </div>
 
   <!-- HELP / GUIDE -->
@@ -1069,7 +1097,14 @@ function findRosterMatch(name) { return S.roster.find(d => d.name.toLowerCase() 
 
 function renderChips() {
   const el = document.getElementById('chips');
-  if (!S.classes.length) { el.innerHTML = '<p class="empty">No classes are set up yet — ask the admin to add classes first.</p>'; return; }
+  if (!S.classes.length) {
+    if (deviceRole() === 'admin') {
+      el.innerHTML = '<p class="empty" style="line-height:1.7">No race classes set up yet.<br><button class="btn" onclick="nav(\'admin\')" style="margin-top:10px;font-size:14px">⚙ Go to Admin → add your first class</button></p>';
+    } else {
+      el.innerHTML = '<p class="empty">No classes are set up yet — ask the admin to add classes first.</p>';
+    }
+    return;
+  }
   const match = findRosterMatch(cur.name);
   const enteredIds = match ? S.raceDay.entries.filter(e => e.driverId === match.id).map(e => e.classId) : [];
   el.innerHTML = S.classes.map(c => {
@@ -1773,6 +1808,14 @@ function renderHeader() {
     brand.innerHTML = 'Race<em>Day</em>';
     document.getElementById('hdrTag').textContent = 'Driver registration & live starting lineups';
   }
+  const sy = document.getElementById('hdrSync');
+  if (sy) {
+    if (syncOn()) {
+      const r = deviceRole();
+      sy.style.display = '';
+      sy.textContent = '🔗 ' + ((S.sync && S.sync.key) || 'synced') + (r && r !== 'admin' ? ' · ' + r : '');
+    } else sy.style.display = 'none';
+  }
 }
 function saveTrack() {
   S.track.name = document.getElementById('trackName').value.trim();
@@ -2393,6 +2436,7 @@ function applyRole() {
   document.getElementById('mainNav').style.display = kiosk ? 'none' : '';
   const esc = document.getElementById('roleEscape');
   if (esc) esc.style.display = role === 'admin' ? 'none' : '';   // only locked stations need the in-app role switch
+  renderHeader();   // refresh the sync/role badge
   if (!allowed.includes(curPage)) nav(allowed[0]);
   if (role === 'tv' && !tvOn && typeof openTV === 'function') openTV();
 }
