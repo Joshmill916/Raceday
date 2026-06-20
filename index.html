@@ -55,6 +55,29 @@
   details.admin-group > summary::before { content: '▶'; font-size: 9px; flex-shrink: 0; }
   details.admin-group[open] > summary::before { content: '▼'; }
   details.admin-group > summary:hover { color: #555; }
+  /* Results governance */
+  .gov-bar { border: 1px solid var(--line); border-radius: 12px; padding: 10px 12px; margin-bottom: 14px; background: #fafaf8; }
+  .gov-badge { display: inline-flex; align-items: center; padding: 4px 10px; border-radius: 99px; font-size: 12px; font-weight: 700; }
+  .gov-official { background: #e4f3e9; color: #1f7a3d; }
+  .gov-unofficial { background: #fdf3d7; color: #7a5a10; }
+  .gov-locked { background: #f1e0e0; color: #9a3030; }
+  /* Legal / static doc pages */
+  .legal-doc { max-width: 760px; }
+  .legal-doc h3 { margin-top: 26px; }
+  .legal-doc p, .legal-doc li { font-size: 14px; line-height: 1.65; color: #33353b; }
+  .legal-doc ul { margin: 8px 0 8px 4px; padding-left: 20px; }
+  .legal-doc li { margin-bottom: 5px; }
+  .legal-doc .muted-note { font-size: 12.5px; color: var(--muted); }
+  .legal-doc .doc-meta { font-size: 12px; color: var(--muted); margin-bottom: 16px; }
+  .doc-back { margin-bottom: 14px; }
+  /* App footer */
+  .app-footer { margin-top: 30px; padding: 18px 0 28px; border-top: 1px solid var(--line); font-size: 12.5px; color: var(--muted); text-align: center; line-height: 1.7; }
+  .app-footer a { color: #555; cursor: pointer; text-decoration: underline; }
+  .app-footer a:hover { color: var(--ink); }
+  /* Consent row in sign-up */
+  .consent-row { display: flex; align-items: flex-start; gap: 9px; margin: 14px 0 4px; font-size: 13px; line-height: 1.5; color: #33353b; }
+  .consent-row input { width: 18px; height: 18px; flex-shrink: 0; margin-top: 1px; }
+  .consent-row a { color: var(--asphalt); cursor: pointer; text-decoration: underline; font-weight: 600; }
 
   /* Forms */
   label { font-size: 12.5px; color: #555; display: block; margin: 16px 0 5px; font-weight: 600; }
@@ -293,6 +316,10 @@
       <h2>Pick your classes</h2>
       <p class="sub">Tap every class you're running today. You'll draw one pill for each.</p>
       <div class="card" id="chips"></div>
+      <label class="consent-row" id="consentRow" style="display:none">
+        <input type="checkbox" id="consentChk" onchange="document.getElementById('e2').style.display='none'">
+        <span>I agree to the <a onclick="openDoc('terms')">Terms of Service</a> and <a onclick="openDoc('privacy')">Privacy Policy</a>, and confirm my information is correct.</span>
+      </label>
       <div id="e2" class="err" style="display:none"></div>
       <div style="display:flex;gap:10px;margin-top:14px">
         <button class="btn" onclick="showStep(1)">← Back</button>
@@ -509,6 +536,44 @@
     </details>
 
     <details class="admin-group">
+      <summary>Legal &amp; business</summary>
+      <div class="card">
+        <p style="font-size:12.5px;color:var(--muted);margin:0 0 12px">These names appear in the Terms of Service, Intellectual Property, and Privacy Policy shown to participants. Set your business's legal entity so the documents name the right party.</p>
+        <div style="display:flex;gap:14px;flex-wrap:wrap">
+          <div style="flex:1;min-width:220px">
+            <label>Software owner — legal entity (Provider)</label>
+            <input id="provLegal" type="text" placeholder="e.g. Acme Racing Software LLC" onchange="saveProvider()" />
+          </div>
+          <div style="flex:1;min-width:220px">
+            <label>Operator — track / promoter legal name</label>
+            <input id="provOperator" type="text" placeholder="e.g. Riverside Speedway LLC" onchange="saveProvider()" />
+          </div>
+        </div>
+        <label style="display:flex;align-items:center;gap:8px;margin-top:16px;font-size:13.5px;font-weight:600;cursor:pointer">
+          <input type="checkbox" id="reqConsent" style="width:18px;height:18px" onchange="saveConsentSettings()">
+          Require drivers to accept the Terms &amp; Privacy Policy at sign-up</label>
+        <label style="display:flex;align-items:center;gap:8px;margin-top:8px;font-size:13.5px;font-weight:600;cursor:pointer">
+          <input type="checkbox" id="capIP" style="width:18px;height:18px" onchange="saveConsentSettings()">
+          Record the device's public IP with each acceptance (best-effort)</label>
+        <p style="font-size:12px;color:var(--muted);margin-top:8px">IP capture makes one lookup to a public service when a driver accepts. Turn it off for fully offline/no-network operation.</p>
+        <hr class="divider">
+        <div style="display:flex;gap:10px;flex-wrap:wrap">
+          <button class="btn btn-sm" onclick="openDoc('terms')">View Terms of Service</button>
+          <button class="btn btn-sm" onclick="openDoc('privacy')">View Privacy Policy</button>
+          <button class="btn btn-sm" onclick="openDoc('bizrec')">📋 Business recommendations</button>
+        </div>
+      </div>
+    </details>
+
+    <details class="admin-group">
+      <summary>Records &amp; audit</summary>
+      <div class="slbl">Acceptance log</div>
+      <div class="card" id="consentCard"></div>
+      <div class="slbl">Audit log — overrides, locks &amp; result changes</div>
+      <div class="card" id="auditCard"></div>
+    </details>
+
+    <details class="admin-group">
       <summary>Danger zone</summary>
       <div class="card">
         <div style="display:flex;gap:10px;flex-wrap:wrap">
@@ -605,6 +670,62 @@
       <p style="font-size:13.5px;color:#555;margin:0">• Lowest pill = front of the grid. Lowest heat total = top of the standings. That one rule runs the whole night.</p>
     </div>
   </div>
+
+  <!-- TERMS OF SERVICE + INTELLECTUAL PROPERTY -->
+  <div id="page-terms" class="page">
+    <div class="doc-back"><button class="btn btn-sm" onclick="closeDoc()">← Back</button></div>
+    <div class="legal-doc" id="termsBody"></div>
+  </div>
+
+  <!-- PRIVACY POLICY -->
+  <div id="page-privacy" class="page">
+    <div class="doc-back"><button class="btn btn-sm" onclick="closeDoc()">← Back</button></div>
+    <div class="legal-doc" id="privacyBody"></div>
+  </div>
+
+  <!-- BUSINESS RECOMMENDATIONS (hidden — reachable only from Admin) -->
+  <div id="page-bizrec" class="page">
+    <div class="doc-back"><button class="btn btn-sm" onclick="closeDoc()">← Back to Admin</button></div>
+    <div class="legal-doc">
+      <h2>Business recommendations</h2>
+      <p class="doc-meta">Internal guidance for the platform owner. This page is not shown to the public — it is reachable only from the Admin panel. Informational only; it is not legal, tax, or insurance advice. Consult licensed professionals.</p>
+
+      <div class="card" style="background:#fff8e6;border-color:#e8d28a">
+        <p style="margin:0;font-size:13.5px"><b>Why this matters:</b> RaceDay is licensed to tracks, promoters, and sanctioning bodies as administrative software. The protections below keep the business, its data, and its customer relationships defensible as it grows.</p>
+      </div>
+
+      <h3>Entity &amp; insurance</h3>
+      <ul>
+        <li><b>Operate under an LLC</b> (or comparable entity). Separating personal and business assets is the single biggest liability shield for a software business. Set the entity's legal name in <b>Admin → Legal &amp; business</b> so it appears in the Terms, IP, and Privacy documents.</li>
+        <li><b>Carry Technology Errors &amp; Omissions (Tech E&amp;O) insurance</b>, ideally bundled with Cyber liability. This is the coverage that responds to a scoring error, an outage, or a data incident claim — exactly the risks the Terms disclaim but that a customer may still pursue.</li>
+        <li><b>Have every customer sign a written service agreement</b> (master subscription/lease agreement) that incorporates these Terms by reference, names the entity, and states the developer retains all ownership. A signed contract is far stronger than click-through acceptance alone.</li>
+      </ul>
+
+      <h3>Data &amp; operations</h3>
+      <ul>
+        <li><b>Maintain regular data backups.</b> Use Admin → Backup &amp; export on a schedule, and keep copies off the primary device. With multi-device sync on, also export periodically — the cloud copy is convenience, not an archive.</li>
+        <li><b>Use secure hosting and SSL/HTTPS everywhere.</b> Serve the app only over HTTPS (GitHub Pages and most hosts provide this automatically). Never distribute it over plain HTTP.</li>
+        <li><b>Keep the software updated.</b> Ship fixes promptly, keep the Firebase SDK and any dependencies current, and review the database security rules periodically.</li>
+        <li><b>Restrict admin access</b> with the Admin PIN on shared devices, and hand out role-locked links (register / scoring / TV) so stations can't change settings.</li>
+      </ul>
+
+      <h3>Recommended platform hardening (architecture notes)</h3>
+      <ul>
+        <li><b>Data security:</b> data currently lives in browser localStorage and, when sync is on, in Firebase keyed by a sync code (path-as-password — a deterrent, not strong auth). For anything sensitive, move to authenticated Firebase rules (per-track auth tokens) instead of open read/write paths. Avoid collecting more personal data than an event needs.</li>
+        <li><b>Customer account management:</b> licenses are validated locally today. As the customer base grows, consider a lightweight licensing/account service so codes can be issued, audited, suspended, and revoked centrally (the Terms already reserve the right to suspend access).</li>
+        <li><b>Disaster recovery:</b> document a recovery procedure — restore from the most recent backup JSON, re-issue role links, re-enable sync. Test a restore at least once a season so it is proven, not theoretical.</li>
+        <li><b>Backup strategy:</b> aim for the 3-2-1 rule — at least 3 copies, on 2 media, 1 off-site. The exported JSON is portable and self-contained, which makes this easy.</li>
+        <li><b>Role-based permissions:</b> the role system (admin / register / scoring / TV) is in place. As features grow, keep write access scoped to the minimum each station needs, and keep the audit log enabled so privileged actions are attributable.</li>
+        <li><b>Multi-track management:</b> each track is independent today (its own device/sync code). To manage many tracks centrally, namespace data by track ID and add an operator-level view — but keep tracks isolated so one customer can never see another's data.</li>
+        <li><b>Sanctioning-body support:</b> bodies that oversee multiple tracks will want roll-up standings and consistent points rules across venues. Plan for a read-only "series" layer that aggregates per-track history without giving the body write access to a track's live race day.</li>
+        <li><b>Future scalability:</b> Firebase's free tier is generous but capped. Watch connection and storage limits, consider per-track sharding, and keep the data model JSON-per-field (as it is now) so individual stations never clobber each other.</li>
+      </ul>
+      <p class="muted-note">Review this list with your attorney, accountant, and insurance broker before relying on it.</p>
+    </div>
+  </div>
+
+  <!-- App footer -->
+  <div class="app-footer" id="appFooter"></div>
 </div>
 
 <!-- TV display overlay: no interface, one visual -->
@@ -693,6 +814,7 @@ const KEY = 'raceday_v1';
 // to disable everything — nothing is sent and no disclosure shows. To turn it on,
 // paste the Google Apps Script web-app URL between the quotes.
 const APP_VERSION = '2026-06';
+const LEGAL_VERSION = '2026-06';   // bump when Terms / Privacy wording changes, so acceptances are versioned
 const TELEMETRY_URL = 'https://script.google.com/macros/s/AKfycbxa3i3y17TLp_NfXOOu2jM7-YzXH2fScxcXoQYmIh0-873rxWfxg0HdRP1DVsxZq6iR/exec';
 
 // ---------- Multi-device sync (dormant until configured) ----------
@@ -713,7 +835,7 @@ const FIREBASE_CONFIG = {
 // Each path syncs independently so the registration device (entries) and the scoring
 // tower (heatResults) never clobber each other. Values are stored as JSON strings to
 // avoid Firebase's array/empty-value coercion.
-const SYNC_FIELDS = ['raceDay/date', 'raceDay/entries', 'raceDay/heatResults', 'raceDay/pointsRace', 'classes', 'roster', 'settings', 'track'];
+const SYNC_FIELDS = ['raceDay/date', 'raceDay/entries', 'raceDay/heatResults', 'raceDay/pointsRace', 'raceDay/resultGov', 'classes', 'roster', 'settings', 'track'];
 const ROLE_PAGES = {
   admin:    ['signup', 'grid', 'results', 'points', 'admin', 'help'],
   register: ['signup', 'help'],
@@ -727,7 +849,10 @@ function today() { const d = new Date(); return d.getFullYear()+'-'+String(d.get
 function defaults() {
   return {
     track: { name: '', logo: '' },                // track identity: logo is a data URL
+    provider: { legalName: '', operator: '', jurisdiction: '' }, // legalName = software owner; operator = track/customer legal entity (for docs)
     adminPin: '',                                 // empty = Admin tab is open to everyone
+    consents: [],                                 // Terms/Privacy acceptance audit: {ts,date,time,driver,num,role,version,legalVersion,ip,accepted}
+    audit: [],                                    // admin action log: {ts,date,time,user,action,target,oldValue,newValue}
     history: [],                                  // archived race days (newest first)
     license: null,                                // {code, name, exp} once activated; exp = plan token (0/YYYYMM/SYYYY/Rn)
     trialDays: [],                                // dates that used a free-trial race day
@@ -743,8 +868,8 @@ function defaults() {
       { id: 2, name: 'Senior 100cc', maxPill: 200 },
       { id: 3, name: 'Open Shifter', maxPill: 200 }
     ],
-    settings: { maxHeat: 8, maxBMain: 12, maxFeature: 20, transfers: 2, gridStyle: 'double', heatFill: 'alternate', bmainMode: 'single', bmainCount: 2, points: { mode: 'fixed', table: [10, 8, 6, 5, 4, 3, 2, 1], beyond: 0 } },
-    raceDay: { date: today(), entries: [], heatResults: {}, pointsRace: {} },  // entries: {driverId, classId, pill}
+    settings: { maxHeat: 8, maxBMain: 12, maxFeature: 20, transfers: 2, gridStyle: 'double', heatFill: 'alternate', bmainMode: 'single', bmainCount: 2, points: { mode: 'fixed', table: [10, 8, 6, 5, 4, 3, 2, 1], beyond: 0 }, requireConsent: true, captureConsentIP: true },
+    raceDay: { date: today(), entries: [], heatResults: {}, pointsRace: {}, resultGov: {}, resultVersions: {} },  // entries: {driverId, classId, pill}; resultGov: per-class {status,locked}; resultVersions: per-class snapshots
     nextId: 100,
     sync: { enabled: false, key: '' }             // live multi-device sync (off until activated)
   };
@@ -763,7 +888,14 @@ function migrate(s) {
   if (!s.settings.bmainMode) s.settings.bmainMode = 'single';
   if (!s.settings.bmainCount) s.settings.bmainCount = 2;
   if (s.settings.kioskReg == null) s.settings.kioskReg = false;
+  if (s.settings.requireConsent == null) s.settings.requireConsent = true;
+  if (s.settings.captureConsentIP == null) s.settings.captureConsentIP = true;
   if (!s.raceDay.pointsRace) s.raceDay.pointsRace = {};
+  if (!s.raceDay.resultGov) s.raceDay.resultGov = {};
+  if (!s.raceDay.resultVersions) s.raceDay.resultVersions = {};
+  if (!s.provider) s.provider = { legalName: '', operator: '', jurisdiction: '' };
+  if (!s.consents) s.consents = [];
+  if (!s.audit) s.audit = [];
   if (!s.sync) s.sync = { enabled: false, key: '' };
   return s;
 }
@@ -772,6 +904,106 @@ function load() {
   return defaults();
 }
 function save() { try { localStorage.setItem(KEY, JSON.stringify(S)); } catch(e) {} if (syncOn()) syncPush(); }
+
+// ---------- Audit log ----------
+// Every override / lock / official toggle / result edit is recorded with who, when,
+// and the before/after value. Kept on the device (and in backups), not synced.
+function auditUser() {
+  const role = deviceRole();
+  const op = S.provider && S.provider.operator ? S.provider.operator : '';
+  return op ? op + ' (' + role + ')' : role;
+}
+function logAudit(action, oldValue, newValue, target) {
+  const now = new Date();
+  if (!S.audit) S.audit = [];
+  S.audit.push({
+    ts: now.getTime(), date: today(), time: now.toTimeString().slice(0, 8),
+    user: auditUser(), action: action, target: target || '',
+    oldValue: oldValue == null ? '' : String(oldValue),
+    newValue: newValue == null ? '' : String(newValue)
+  });
+  if (S.audit.length > 5000) S.audit.splice(0, S.audit.length - 5000);
+}
+
+// ---------- Consent / acceptance ----------
+// Best-effort public-IP lookup for the acceptance record (off if captureConsentIP is false).
+function fetchConsentIP() {
+  if (!(S.settings && S.settings.captureConsentIP)) return Promise.resolve('');
+  try {
+    return fetch('https://api.ipify.org?format=json').then(r => r.json()).then(d => (d && d.ip) || '').catch(() => '');
+  } catch (e) { return Promise.resolve(''); }
+}
+function recordConsent(name, num) {
+  const now = new Date();
+  const rec = {
+    ts: now.getTime(), date: today(), time: now.toTimeString().slice(0, 8),
+    driver: name || '', num: num || '', role: deviceRole(),
+    version: APP_VERSION, legalVersion: LEGAL_VERSION, ip: '', accepted: true
+  };
+  if (!S.consents) S.consents = [];
+  S.consents.push(rec);
+  if (S.consents.length > 5000) S.consents.splice(0, S.consents.length - 5000);
+  fetchConsentIP().then(ip => { if (ip) { rec.ip = ip; save(); } });
+  return rec;
+}
+
+// ---------- Results governance (official / locked / versions) ----------
+let resOverride = {};     // session-only: clsKey -> true once admin taps Override
+function resGov(clsId) {
+  const k = resKey(clsId);
+  if (!S.raceDay.resultGov) S.raceDay.resultGov = {};
+  if (!S.raceDay.resultGov[k]) S.raceDay.resultGov[k] = { status: 'unofficial', locked: false };
+  return S.raceDay.resultGov[k];
+}
+function resLocked(clsId) { const g = resGov(clsId); return g.locked && !resOverride[resKey(clsId)]; }
+function setResStatus(clsId, status) {
+  if (!adminOk()) return;
+  const g = resGov(clsId), old = g.status;
+  g.status = status;
+  logAudit(status === 'official' ? 'Mark results official' : 'Mark results unofficial', old, status, classById(clsId).name);
+  save(); renderClassResults(clsId); if (typeof renderGrid === 'function' && curPage === 'grid') renderGrid();
+}
+function toggleResLock(clsId) {
+  if (!adminOk()) return;
+  const g = resGov(clsId), old = g.locked;
+  g.locked = !g.locked;
+  if (g.locked) resOverride[resKey(clsId)] = false;
+  logAudit(g.locked ? 'Lock results' : 'Unlock results', old ? 'locked' : 'unlocked', g.locked ? 'locked' : 'unlocked', classById(clsId).name);
+  save(); renderClassResults(clsId);
+}
+function overrideRes(clsId) {
+  if (!adminOk()) return;
+  resOverride[resKey(clsId)] = true;
+  logAudit('Override locked results', 'locked', 'override enabled', classById(clsId).name);
+  renderClassResults(clsId);
+}
+function saveResVersion(clsId) {
+  if (!adminOk()) return;
+  const k = resKey(clsId);
+  if (!S.raceDay.resultVersions) S.raceDay.resultVersions = {};
+  if (!S.raceDay.resultVersions[k]) S.raceDay.resultVersions[k] = [];
+  const label = 'v' + (S.raceDay.resultVersions[k].length + 1) + ' · ' + new Date().toLocaleString();
+  S.raceDay.resultVersions[k].push({ ts: Date.now(), label: label, data: JSON.parse(JSON.stringify(getRes(clsId))) });
+  if (S.raceDay.resultVersions[k].length > 20) S.raceDay.resultVersions[k].shift();
+  logAudit('Saved results version', '', label, classById(clsId).name);
+  save(); renderClassResults(clsId);
+}
+function restoreResVersion(clsId, idx) {
+  if (!adminOk()) return;
+  const k = resKey(clsId), list = (S.raceDay.resultVersions && S.raceDay.resultVersions[k]) || [], v = list[idx];
+  if (!v) return;
+  if (!confirm('Restore "' + v.label + '"?\n\nThe current finishes for this class will be replaced by this saved version.')) return;
+  S.raceDay.heatResults[k] = JSON.parse(JSON.stringify(v.data));
+  logAudit('Restored results version', '', v.label, classById(clsId).name);
+  save(); renderClassResults(clsId);
+}
+function recalcPoints(clsId) {
+  if (!adminOk()) return;
+  logAudit('Recalculated points', '', 'recomputed from current finishes', classById(clsId).name);
+  save(); renderClassResults(clsId);
+  if (typeof renderPoints === 'function') renderPoints();
+  if (typeof flashMsg === 'function') flashMsg('Points recalculated from current finishes.');
+}
 
 let S = load();
 let cur = null;          // driver mid-signup: {name, num}
@@ -856,6 +1088,131 @@ function render(p) {
   checkDayBanner();
   renderLicBanner();
 }
+// Static doc pages (Terms, Privacy, Business Recommendations) live outside the role-gated
+// nav. They overlay the current page; "← Back" returns to wherever the user was (curPage).
+function openDoc(id) {
+  if (id === 'bizrec' && !adminOk()) return;   // hidden admin-only page
+  const pg = document.getElementById('page-' + id);
+  if (!pg) return;
+  if (id === 'terms') renderTermsDoc();
+  if (id === 'privacy') renderPrivacyDoc();
+  document.querySelectorAll('.page').forEach(el => el.classList.remove('active'));
+  pg.classList.add('active');
+  window.scrollTo(0, 0);
+}
+function closeDoc() {
+  const back = (ROLE_PAGES[deviceRole()] || ROLE_PAGES.admin).includes(curPage) ? curPage : 'signup';
+  nav(back);
+  window.scrollTo(0, 0);
+}
+// Names used throughout the legal documents (editable in Admin → Legal & business).
+function providerName() { return (S.provider && S.provider.legalName && S.provider.legalName.trim()) || 'the owner and developer of RaceDay'; }
+function operatorName() { return (S.provider && S.provider.operator && S.provider.operator.trim()) || 'the track, promoter, or sanctioning body that licenses this software'; }
+function docMeta() { return '<p class="doc-meta">Version ' + LEGAL_VERSION + ' · Last updated ' + LEGAL_VERSION + '. Please read carefully.</p>'; }
+
+function renderTermsDoc() {
+  const P = esc(providerName());
+  const el = document.getElementById('termsBody');
+  if (!el) return;
+  el.innerHTML =
+    '<h2>Terms of Service</h2>' + docMeta()
+    + '<p>This software and platform — "RaceDay" (the "Software") — is owned and provided by ' + P + ' (the "Provider"). By accessing or using the Software, you (the user, and the track, promoter, or sanctioning body on whose behalf you act, together the "Customer") agree to these Terms of Service. If you do not agree, do not use the Software.</p>'
+
+    + '<h3>1. Software provided "AS IS"</h3>'
+    + '<p>The Software is provided <b>"AS IS" and "AS AVAILABLE," without warranties of any kind</b>, whether express, implied, or statutory, including but not limited to any implied warranties of merchantability, fitness for a particular purpose, accuracy, or non-infringement.</p>'
+
+    + '<h3>2. No guarantees</h3>'
+    + '<ul>'
+    + '<li>The Provider does <b>not guarantee uninterrupted, timely, or available service</b>.</li>'
+    + '<li>The Provider does <b>not guarantee error-free scoring</b>, calculations, standings, or lineups.</li>'
+    + '<li>The Provider does not guarantee that the Software is free of bugs, defects, or interruptions.</li>'
+    + '</ul>'
+
+    + '<h3>3. Limitation of liability</h3>'
+    + '<p>To the maximum extent permitted by law, the Provider shall <b>not be liable</b> for any direct, indirect, incidental, special, consequential, or punitive damages, or for any of the following, however caused:</p>'
+    + '<ul>'
+    + '<li>Lost, corrupted, or unrecoverable <b>data</b>.</li>'
+    + '<li><b>Race outcome disputes</b>, protests, or scoring disagreements.</li>'
+    + '<li><b>Missed, late, duplicated, or incorrect registrations</b>.</li>'
+    + '<li><b>Internet, network, or connectivity outages</b>, or interruptions of any third-party service.</li>'
+    + '<li><b>Financial losses</b> of any kind arising from software issues, downtime, or errors.</li>'
+    + '<li><b>Incorrect lineups, grids, or results generated</b> from data entered, imported, or configured by users.</li>'
+    + '</ul>'
+
+    + '<h3>4. User responsibilities</h3>'
+    + '<ul>'
+    + '<li>Users are <b>responsible for verifying all race information</b> — entries, grids, finishes, standings, and points — <b>before publishing, posting, or acting on it</b>.</li>'
+    + '<li>The Software is intended as an <b>administrative and scoring aid only</b>. It does not replace the judgment of race officials.</li>'
+    + '<li>Users agree to <b>use the Software at their own risk</b>.</li>'
+    + '</ul>'
+
+    + '<h3>5. Official results</h3>'
+    + '<p><b>Official race results are determined solely by the race director, track management, or sanctioning body</b> — never by the Software. Any result, lineup, or standing displayed by the Software is provisional and unofficial until confirmed by the responsible official.</p>'
+
+    + '<h3>6. Intellectual property</h3>'
+    + '<p>All software, source code, databases, data structures, algorithms, branding, names, logos, designs, layouts, and features of the Software <b>are and remain the exclusive property of ' + P + '</b>. No ownership is transferred to the Customer.</p>'
+    + '<ul>'
+    + '<li>The Customer is granted a <b>limited, non-exclusive, non-transferable license to use</b> the Software for its own race-administration purposes for the duration of its authorized access.</li>'
+    + '<li>The Customer <b>may not copy, modify, reverse engineer, decompile, resell, lease, sublicense, redistribute, or create derivative works</b> of the Software or any part of it.</li>'
+    + '<li>Customer access may be <b>suspended or terminated</b>, with or without notice, for any violation of these Terms.</li>'
+    + '</ul>'
+
+    + '<h3>7. Changes</h3>'
+    + '<p>The Provider may update these Terms from time to time. Continued use of the Software after an update constitutes acceptance of the revised Terms.</p>'
+
+    + '<p class="muted-note">This document is a template provided for convenience and is not legal advice. Have it reviewed by a licensed attorney before relying on it.</p>';
+}
+
+function renderPrivacyDoc() {
+  const P = esc(providerName()), O = esc(operatorName());
+  const el = document.getElementById('privacyBody');
+  if (!el) return;
+  el.innerHTML =
+    '<h2>Privacy Policy</h2>' + docMeta()
+    + '<p>This Privacy Policy explains how information is handled within RaceDay (the "Software"), provided by ' + P + ' (the "Provider"). The track, promoter, or sanctioning body operating an event — ' + O + ' (the "Operator") — is responsible for the information it collects from participants using the Software.</p>'
+
+    + '<h3>1. Information collected</h3>'
+    + '<p>Depending on how the Operator uses the Software, information collected may include:</p>'
+    + '<ul>'
+    + '<li>Driver names</li><li>Email addresses</li><li>Phone numbers</li><li>Mailing or physical addresses</li>'
+    + '<li>Emergency contacts</li><li>Vehicle information (number, make, class, transponder)</li>'
+    + '<li>Race history and results</li><li>Team information</li>'
+    + '</ul>'
+    + '<p class="muted-note">The Software only stores the fields the Operator chooses to enter. It does not require contact or emergency information to run an event.</p>'
+
+    + '<h3>2. How information is stored</h3>'
+    + '<ul>'
+    + '<li>Information is <b>stored securely</b> on the Operator\'s device and, when multi-device sync is enabled, in the Operator\'s cloud database, transmitted over encrypted (HTTPS) connections.</li>'
+    + '<li>Information is <b>never sold</b> to third parties.</li>'
+    + '<li>Information is used only to administer events — registration, lineups, scoring, and standings.</li>'
+    + '</ul>'
+
+    + '<h3>3. Your choices</h3>'
+    + '<ul>'
+    + '<li><b>Participants may request deletion</b> of their information by contacting the Operator. The Operator can remove a driver from the driver book and erase stored data.</li>'
+    + '<li>Operators can export and permanently erase all stored data at any time from the Admin panel.</li>'
+    + '</ul>'
+
+    + '<h3>4. Payments</h3>'
+    + '<ul>'
+    + '<li>If payments are collected, the Operator should use a <b>reputable third-party payment processor</b> (for example, a PCI-compliant provider).</li>'
+    + '<li><b>Payment card information should never be entered into or stored directly by the Software.</b> RaceDay does not collect, process, or store card numbers.</li>'
+    + '</ul>'
+
+    + '<h3>5. Acceptance records</h3>'
+    + '<p>When participants accept these policies during registration, the Software records the acceptance (date, time, and — where available — the device\'s public IP address) for audit purposes. These records are kept by the Operator.</p>'
+
+    + '<p class="muted-note">This document is a template provided for convenience and is not legal advice. Have it reviewed by a licensed attorney before relying on it.</p>';
+}
+
+function renderFooter() {
+  const el = document.getElementById('appFooter');
+  if (!el) return;
+  const owner = (S.provider && S.provider.legalName && S.provider.legalName.trim()) || 'RaceDay';
+  const yr = new Date().getFullYear();
+  el.innerHTML = '<a onclick="openDoc(\'terms\')">Terms of Service</a> · <a onclick="openDoc(\'privacy\')">Privacy Policy</a>'
+    + '<br>© ' + yr + ' ' + esc(owner) + '. Licensed software — all rights reserved. Provided as an administrative aid; official results are determined by race officials.';
+}
 
 // ---------- Race day handling ----------
 function checkDayBanner() {
@@ -874,7 +1231,9 @@ function newRaceDay() {
     }
   }
   archiveDay();
-  S.raceDay = { date: today(), entries: [], heatResults: {}, pointsRace: {} };
+  logAudit('Started new race day', S.raceDay.date, today(), 'Race day');
+  resOverride = {};
+  S.raceDay = { date: today(), entries: [], heatResults: {}, pointsRace: {}, resultGov: {}, resultVersions: {} };
   save();
   resetReg();
   render(curPage);
@@ -1112,12 +1471,23 @@ function renderChips() {
     if (already) return '<span class="chip off" title="Already entered today">' + esc(c.name) + ' — entered</span>';
     return '<span class="chip" id="ch' + c.id + '" onclick="this.classList.toggle(\'on\')">' + esc(c.name) + '</span>';
   }).join('');
+  // Terms / Privacy acceptance: show the checkbox (unticked each driver) when required.
+  const row = document.getElementById('consentRow'), chk = document.getElementById('consentChk');
+  if (row && chk) {
+    if (S.settings && S.settings.requireConsent) { row.style.display = ''; chk.checked = false; }
+    else row.style.display = 'none';
+  }
 }
 
 function register() {
   const sel = S.classes.filter(c => { const e = document.getElementById('ch' + c.id); return e && e.classList.contains('on'); });
   const err = document.getElementById('e2');
   if (!sel.length) { err.style.display = ''; err.textContent = 'Tap at least one class to race in.'; return; }
+  // Terms / Privacy acceptance is required before an entry is created.
+  if (S.settings && S.settings.requireConsent) {
+    const chk = document.getElementById('consentChk');
+    if (!chk || !chk.checked) { err.style.display = ''; err.textContent = 'Please accept the Terms of Service and Privacy Policy to continue.'; return; }
+  }
   if (!canEnter()) { err.style.display = ''; err.textContent = entryBlockedMsg(); return; }
 
   // vehicle number must be unique within each selected class
@@ -1140,6 +1510,9 @@ function register() {
   let driver = match;
   if (driver) { driver.num = cur.num; driver.name = cur.name; }
   else { driver = { id: S.nextId++, name: cur.name, num: cur.num }; S.roster.push(driver); }
+
+  // record the Terms/Privacy acceptance (timestamp, role, version; IP filled best-effort)
+  if (S.settings && S.settings.requireConsent) recordConsent(driver.name, driver.num);
 
   // one pill per class, no repeats within a class
   consumeTrialDay();
@@ -1307,6 +1680,7 @@ function printHeats() {
       });
     });
   });
+  html += '<p style="margin-top:24px;font-size:10px;color:#888;border-top:1px solid #ccc;padding-top:8px">Unofficial — administrative aid only. Verify before posting. Official results are determined by the race director, track management, or sanctioning body.</p>';
   html += '</body></html>';
   const w = window.open('', '_blank');
   if (w) { w.document.write(html); w.document.close(); setTimeout(() => w.print(), 400); }
@@ -1329,9 +1703,21 @@ function resKey(clsId) { return 'cls' + clsId; }
 function getRes(clsId) { const k = resKey(clsId); if (!S.raceDay.heatResults[k]) S.raceDay.heatResults[k] = {}; return S.raceDay.heatResults[k]; }
 function saveResult(clsId, rk, val) {
   const res = getRes(clsId);
+  if (resLocked(clsId)) {
+    alert('Results for ' + classById(clsId).name + ' are locked.\n\nAn admin can tap “Override” on the Results page to edit, or “Unlock”.');
+    renderClassResults(clsId);   // revert the field to the stored value
+    return;
+  }
+  const old = res[rk];
   if (val === '' || val == null) delete res[rk];
   else if (val === 'DNF' || val === 'DNS' || val === 'DQ') res[rk] = val;
   else { const n = parseInt(val); if (n > 0) res[rk] = n; else delete res[rk]; }
+  const now = res[rk];
+  if (String(old == null ? '' : old) !== String(now == null ? '' : now)) {
+    logAudit(resOverride[resKey(clsId)] ? 'Result edit (override)' : 'Result edit',
+      old == null ? '(blank)' : old, now == null ? '(blank)' : now,
+      classById(clsId).name + ' · ' + rk);
+  }
   save();
   renderClassResults(clsId);
 }
@@ -1599,7 +1985,10 @@ function renderClassResults(clsId) {
   const set1 = heatSet(racers, classById(clsId));
   const set2 = set1.map(heat => [...heat].reverse());
   const res = getRes(clsId);
-  let h = '<label style="display:flex;align-items:center;gap:8px;margin:0 0 6px;font-size:13.5px;font-weight:600;cursor:pointer">'
+  let h = resultGovBar(clsId);
+  const locked = resLocked(clsId);
+  h += '<div style="' + (locked ? 'opacity:.55;pointer-events:none' : '') + '">';
+  h += '<label style="display:flex;align-items:center;gap:8px;margin:0 0 6px;font-size:13.5px;font-weight:600;cursor:pointer">'
     + '<input type="checkbox" style="width:18px;height:18px"' + (isPointsRace(clsId) ? ' checked' : '') + ' onchange="togglePointsRace(' + clsId + ',this.checked)">'
     + 'Today counts toward the points series</label>';
   h += heatEntryBlock(clsId, 'h1', set1, 'Set 1 heats — pill order', '');
@@ -1668,7 +2057,39 @@ function renderClassResults(clsId) {
     }
   }
   h += '</div>';
+  h += '</div>';   // close locked-state wrapper
   el.innerHTML = h;
+}
+
+// Governance bar: official/unofficial status, lock, override, save/restore versions, recalc.
+function resultGovBar(clsId) {
+  const g = resGov(clsId), k = resKey(clsId), cls = classById(clsId);
+  const versions = (S.raceDay.resultVersions && S.raceDay.resultVersions[k]) || [];
+  const isAdmin = deviceRole() === 'admin';
+  const badge = g.status === 'official'
+    ? '<span class="gov-badge gov-official">✅ Official</span>'
+    : '<span class="gov-badge gov-unofficial">📝 Unofficial</span>';
+  const lockBadge = g.locked ? '<span class="gov-badge gov-locked">' + (resOverride[k] ? '🔓 Locked · override on' : '🔒 Locked') + '</span>' : '';
+  let h = '<div class="gov-bar"><div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap">'
+    + badge + lockBadge
+    + '<span style="font-size:11.5px;color:var(--muted);margin-left:auto">Official results are decided by the race director — this is an aid only.</span></div>';
+  if (isAdmin) {
+    h += '<div style="display:flex;gap:6px;flex-wrap:wrap;margin-top:8px">';
+    if (g.status === 'official') h += '<button class="btn btn-sm" onclick="setResStatus(' + clsId + ',\'unofficial\')">Mark unofficial</button>';
+    else h += '<button class="btn btn-sm btn-primary" onclick="setResStatus(' + clsId + ',\'official\')">Mark official</button>';
+    h += '<button class="btn btn-sm" onclick="toggleResLock(' + clsId + ')">' + (g.locked ? 'Unlock' : '🔒 Lock results') + '</button>';
+    if (g.locked && !resOverride[k]) h += '<button class="btn btn-sm btn-danger" onclick="overrideRes(' + clsId + ')">Override</button>';
+    h += '<button class="btn btn-sm" onclick="saveResVersion(' + clsId + ')" title="Snapshot the current finishes so you can roll back">💾 Save version</button>';
+    if (versions.length) {
+      h += '<select class="btn btn-sm" style="width:auto;padding:6px 8px" onchange="if(this.value!==\'\'){restoreResVersion(' + clsId + ',parseInt(this.value));this.value=\'\'}">'
+        + '<option value="">↺ Restore version…</option>'
+        + versions.map((v, i) => '<option value="' + i + '">' + esc(v.label) + '</option>').join('') + '</select>';
+    }
+    h += '<button class="btn btn-sm" onclick="recalcPoints(' + clsId + ')" title="Recompute standings & points from the current finishes">🔁 Recalculate</button>';
+    h += '</div>';
+  }
+  h += '</div>';
+  return h;
 }
 
 // ---------- Snapshots, history & export ----------
@@ -1855,6 +2276,7 @@ function removeLogo() {
 // ---------- Admin ----------
 function renderAdmin() {
   renderClsList(); renderClsLib(); renderQuickAdd(); renderEntryList(); renderRosterList(); renderHistory(); renderPinCard(); renderLicCard(); renderSyncCard(); renderPointsInputs();
+  renderLegalInputs(); renderConsentCard(); renderAuditCard();
   document.getElementById('trackName').value = S.track.name;
   const prev = document.getElementById('logoPrev');
   if (S.track.logo) { prev.src = S.track.logo; prev.style.display = ''; }
@@ -1869,6 +2291,96 @@ function renderAdmin() {
   document.getElementById('mBmainCount').value = S.settings.bmainCount;
   document.getElementById('mBmainCount').disabled = S.settings.bmainMode === 'single';
 }
+
+// ---------- Legal & business ----------
+function renderLegalInputs() {
+  const pl = document.getElementById('provLegal'); if (pl) pl.value = (S.provider && S.provider.legalName) || '';
+  const po = document.getElementById('provOperator'); if (po) po.value = (S.provider && S.provider.operator) || '';
+  const rc = document.getElementById('reqConsent'); if (rc) rc.checked = !!(S.settings && S.settings.requireConsent);
+  const ci = document.getElementById('capIP'); if (ci) ci.checked = !!(S.settings && S.settings.captureConsentIP);
+}
+function saveProvider() {
+  if (!S.provider) S.provider = { legalName: '', operator: '', jurisdiction: '' };
+  S.provider.legalName = document.getElementById('provLegal').value.trim();
+  S.provider.operator = document.getElementById('provOperator').value.trim();
+  save(); renderFooter();
+}
+function saveConsentSettings() {
+  S.settings.requireConsent = document.getElementById('reqConsent').checked;
+  S.settings.captureConsentIP = document.getElementById('capIP').checked;
+  save();
+}
+function renderConsentCard() {
+  const el = document.getElementById('consentCard'); if (!el) return;
+  const list = S.consents || [];
+  if (!list.length) { el.innerHTML = '<p class="empty" style="margin:0">No acceptances recorded yet. They appear here once drivers accept the Terms &amp; Privacy Policy at sign-up.</p>'; return; }
+  const recent = list.slice(-50).reverse();
+  let h = '<div style="display:flex;align-items:center;gap:10px;flex-wrap:wrap;margin-bottom:10px">'
+    + '<span style="font-size:13px;color:var(--muted)">' + list.length + ' acceptance' + (list.length === 1 ? '' : 's') + ' recorded · showing the latest ' + recent.length + '.</span>'
+    + '<button class="btn btn-sm" style="margin-left:auto" onclick="exportConsentsCSV()">Export CSV</button></div>';
+  h += '<div style="overflow-x:auto"><table style="width:100%;font-size:12.5px;border-collapse:collapse"><thead><tr>'
+    + '<th style="text-align:left;padding:4px 8px">Date</th><th style="text-align:left;padding:4px 8px">Time</th>'
+    + '<th style="text-align:left;padding:4px 8px">Driver</th><th style="text-align:left;padding:4px 8px">#</th>'
+    + '<th style="text-align:left;padding:4px 8px">Role</th><th style="text-align:left;padding:4px 8px">IP</th>'
+    + '<th style="text-align:left;padding:4px 8px">Terms</th></tr></thead><tbody>';
+  recent.forEach(c => {
+    h += '<tr style="border-top:1px solid var(--line)">'
+      + '<td style="padding:4px 8px">' + esc(c.date) + '</td><td style="padding:4px 8px">' + esc(c.time) + '</td>'
+      + '<td style="padding:4px 8px">' + esc(c.driver) + '</td><td style="padding:4px 8px">' + esc(c.num) + '</td>'
+      + '<td style="padding:4px 8px">' + esc(c.role) + '</td><td style="padding:4px 8px">' + esc(c.ip || '—') + '</td>'
+      + '<td style="padding:4px 8px">' + esc(c.legalVersion || c.version || '') + '</td></tr>';
+  });
+  h += '</tbody></table></div>';
+  el.innerHTML = h;
+}
+function renderAuditCard() {
+  const el = document.getElementById('auditCard'); if (!el) return;
+  const list = S.audit || [];
+  if (!list.length) { el.innerHTML = '<p class="empty" style="margin:0">No admin actions logged yet. Result edits, locks, official toggles, overrides, and restores are recorded here with who, when, and the before/after value.</p>'; return; }
+  const recent = list.slice(-100).reverse();
+  let h = '<div style="display:flex;align-items:center;gap:10px;flex-wrap:wrap;margin-bottom:10px">'
+    + '<span style="font-size:13px;color:var(--muted)">' + list.length + ' entr' + (list.length === 1 ? 'y' : 'ies') + ' · showing the latest ' + recent.length + '.</span>'
+    + '<span style="margin-left:auto;display:flex;gap:6px"><button class="btn btn-sm" onclick="exportAuditCSV()">Export CSV</button>'
+    + '<button class="btn btn-sm btn-danger" onclick="clearAudit()">Clear log</button></span></div>';
+  h += '<div style="overflow-x:auto"><table style="width:100%;font-size:12.5px;border-collapse:collapse"><thead><tr>'
+    + '<th style="text-align:left;padding:4px 8px">Date</th><th style="text-align:left;padding:4px 8px">Time</th>'
+    + '<th style="text-align:left;padding:4px 8px">User</th><th style="text-align:left;padding:4px 8px">Action</th>'
+    + '<th style="text-align:left;padding:4px 8px">Target</th><th style="text-align:left;padding:4px 8px">From</th>'
+    + '<th style="text-align:left;padding:4px 8px">To</th></tr></thead><tbody>';
+  recent.forEach(a => {
+    h += '<tr style="border-top:1px solid var(--line)">'
+      + '<td style="padding:4px 8px">' + esc(a.date) + '</td><td style="padding:4px 8px">' + esc(a.time) + '</td>'
+      + '<td style="padding:4px 8px">' + esc(a.user) + '</td><td style="padding:4px 8px">' + esc(a.action) + '</td>'
+      + '<td style="padding:4px 8px">' + esc(a.target) + '</td><td style="padding:4px 8px">' + esc(a.oldValue) + '</td>'
+      + '<td style="padding:4px 8px">' + esc(a.newValue) + '</td></tr>';
+  });
+  h += '</tbody></table></div>';
+  el.innerHTML = h;
+}
+function clearAudit() {
+  if (!adminOk()) return;
+  if (!confirm('Clear the entire audit log? This cannot be undone. Export a CSV first if you need a record.')) return;
+  S.audit = []; save(); renderAuditCard();
+}
+function csvCell(v) { return '"' + String(v == null ? '' : v).replace(/"/g, '""') + '"'; }
+function downloadCSV(name, rows) {
+  const csv = rows.map(r => r.map(csvCell).join(',')).join('\r\n');
+  const blob = new Blob([csv], { type: 'text/csv' });
+  const a = document.createElement('a');
+  a.href = URL.createObjectURL(blob); a.download = name; a.click();
+  setTimeout(() => URL.revokeObjectURL(a.href), 1000);
+}
+function exportConsentsCSV() {
+  const rows = [['Date', 'Time', 'Driver', 'Number', 'Role', 'IP', 'Accepted', 'Terms version', 'App version']];
+  (S.consents || []).forEach(c => rows.push([c.date, c.time, c.driver, c.num, c.role, c.ip, c.accepted ? 'yes' : 'no', c.legalVersion || '', c.version || '']));
+  downloadCSV('raceday-acceptances-' + today() + '.csv', rows);
+}
+function exportAuditCSV() {
+  const rows = [['Date', 'Time', 'User', 'Action', 'Target', 'Original value', 'New value']];
+  (S.audit || []).forEach(a => rows.push([a.date, a.time, a.user, a.action, a.target, a.oldValue, a.newValue]));
+  downloadCSV('raceday-audit-' + today() + '.csv', rows);
+}
+
 function renderPinCard() {
   const el = document.getElementById('pinCard');
   if (S.adminPin) {
@@ -2245,8 +2757,9 @@ document.addEventListener('keydown', e => { if (tvOn && e.key === 'Escape') clos
 function seedDemo() {
   if (!confirm('Load a demo race day with 25 sample drivers? Current entries are archived to history first (driver book is kept).')) return;
   archiveDay();
+  resOverride = {};
   const demoNames = ['Ava Brooks','Ben Carter','Cody Diaz','Dana Evans','Eli Ford','Finn Gray','Gia Hall','Hank Irwin','Ivy James','Jax King','Kya Lane','Leo Moss','Mia Nash','Noah Otis','Opal Pratt','Quinn Reed','Rio Sands','Sky Tate','Tess Uri','Uma Vance','Vic Webb','Wes Xu','Yara York','Zane Zell','Pat Quick'];
-  S.raceDay = { date: today(), entries: [], heatResults: {}, pointsRace: {} };
+  S.raceDay = { date: today(), entries: [], heatResults: {}, pointsRace: {}, resultGov: {}, resultVersions: {} };
   demoNames.forEach((name, i) => {
     let d = findRosterMatch(name);
     if (!d) { d = { id: S.nextId++, name, num: String(i + 1) }; S.roster.push(d); }
@@ -2935,6 +3448,7 @@ function impSetHeatSet(s) {
 window.addEventListener('storage', e => { if (e.key === KEY) { S = load(); renderHeader(); render(curPage); if (tvOn) tvRender(); } });
 handleUrlParams();
 renderHeader();
+renderFooter();
 applyRole();
 renderRosterPick();
 checkDayBanner();
