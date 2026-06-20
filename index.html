@@ -1050,6 +1050,8 @@ function buildHeats(racers, max) {
 // scope reverses the top N within each heat AFTER assignment — display-only, since heat
 // membership (and the position-independent result keys) are unaffected.
 function classInvertN(cls) { const n = cls ? (parseInt(cls.invert) || 0) : 0; return n >= 2 ? n : 0; }
+// How many heat rounds a class runs before mains: 2 (pill-draw default) or 1 (qualifying format).
+function classHeats(cls) { return (cls && (cls.heats === 1 || cls.heats === '1')) ? 1 : 2; }
 function invertField(racers, cls) {
   const n = classInvertN(cls);
   if (!n || (cls.invertScope || 'field') !== 'field') return racers;
@@ -1605,24 +1607,27 @@ function renderGrid() {
     if (!racers.length) { h += '<p class="empty">No drivers yet — first to sign up takes the pole.</p></section>'; return; }
     const invN = classInvertN(cls);
     const scope = cls.invertScope || 'field';
+    const heats = classHeats(cls);
     const field = invertField(racers, cls);
     const set1 = invertWithinHeats(buildHeats(field, S.settings.maxHeat), cls);
     const set2 = set1.map(heat => [...heat].reverse());
     const invNote = invN ? ' · top ' + invN + ' inverted (' + (scope === 'heat' ? 'each heat' : 'whole field') + ')' : '';
     if (set1.length === 1) {
       // whole class fits in one heat: the grid IS the heat
-      h += '<div class="slbl" style="margin-top:6px">Starting grid — set 1' + invNote + '</div>' + gridMarkup(set1[0], single);
-      h += '<div class="slbl">Set 2 — inverted</div>' + gridMarkup(set2[0], single);
+      h += '<div class="slbl" style="margin-top:6px">Starting grid' + (heats === 1 ? ' — qualifying order' : ' — set 1') + invNote + '</div>' + gridMarkup(set1[0], single);
+      if (heats === 2) h += '<div class="slbl">Set 2 — inverted</div>' + gridMarkup(set2[0], single);
     } else {
-      h += '<div class="slbl" style="margin-top:6px">Full field — ' + (invN && scope === 'field' ? 'qualifying order, top ' + invN + ' inverted' : 'pill draw order') + '</div>' + gridMarkup(field, single);
-      h += '<div class="slbl">Set 1 heats' + invNote + '</div>';
+      h += '<div class="slbl" style="margin-top:6px">Full field — ' + (invN && scope === 'field' ? 'qualifying order, top ' + invN + ' inverted' : (heats === 1 ? 'qualifying order' : 'pill draw order')) + '</div>' + gridMarkup(field, single);
+      h += '<div class="slbl">' + (heats === 1 ? 'Qualifying heats' : 'Set 1 heats') + invNote + '</div>';
       set1.forEach((heat, hi) => {
         h += '<div class="heat-cap"><span>Heat ' + (hi + 1) + '</span><small>' + heat.length + ' karts</small></div>' + gridMarkup(heat, single);
       });
-      h += '<div class="slbl">Set 2 heats — inverted</div>';
-      set2.forEach((heat, hi) => {
-        h += '<div class="heat-cap inv"><span>Heat ' + (hi + 1) + '</span><small>' + heat.length + ' karts · inverted</small></div>' + gridMarkup(heat, single);
-      });
+      if (heats === 2) {
+        h += '<div class="slbl">Set 2 heats — inverted</div>';
+        set2.forEach((heat, hi) => {
+          h += '<div class="heat-cap inv"><span>Heat ' + (hi + 1) + '</span><small>' + heat.length + ' karts · inverted</small></div>' + gridMarkup(heat, single);
+        });
+      }
     }
     // once every heat finish is entered, the main-event grids post here too
     if (classComplete(cls.id)) {
@@ -1666,8 +1671,10 @@ function printHeats() {
     if (!racers.length) return;
     const set1 = heatSet(racers, cls);
     const set2 = set1.map(heat => [...heat].reverse());
+    const heats = classHeats(cls);
     html += '<h2>' + esc(cls.name) + ' — ' + racers.length + ' drivers</h2>';
-    [['Set 1 — pill order', set1, ''], ['Set 2 — inverted', set2, ' class="inv"']].forEach(([title, set, cl]) => {
+    const sets = heats === 1 ? [['Qualifying heat', set1, '']] : [['Set 1 — pill order', set1, ''], ['Set 2 — inverted', set2, ' class="inv"']];
+    sets.forEach(([title, set, cl]) => {
       html += '<h3>' + title + '</h3>';
       set.forEach((heat, hi) => {
         html += '<p><strong>Heat ' + (hi + 1) + '</strong> (' + heat.length + ' karts)</p>'
@@ -1733,20 +1740,23 @@ function finLabel(v) { return v == null ? '·' : v; }
 
 // Sum of both heat finishes = the driver's "race pill". Low wins; ties go to the original pill draw.
 function calcStandings(clsId) {
+  const cls = classById(clsId);
+  const heats = classHeats(cls);
   const racers = classRacers(clsId);
-  const set1 = buildHeats(invertField(racers, classById(clsId)), S.settings.maxHeat);
+  const set1 = buildHeats(invertField(racers, cls), S.settings.maxHeat);
   const heatOf = {};
   set1.forEach((heat, hi) => heat.forEach(r => { heatOf[r.id] = hi; }));
   const res = getRes(clsId);
   return racers.map(r => {
     const hi = heatOf[r.id], n = set1[hi].length;
-    const f1 = res['h1_' + hi + '_' + r.id], f2 = res['h2_' + hi + '_' + r.id];
+    const f1 = res['h1_' + hi + '_' + r.id];
+    const f2 = heats === 2 ? res['h2_' + hi + '_' + r.id] : undefined;   // 1-heat classes ignore set 2
     const scored = (f1 != null ? 1 : 0) + (f2 != null ? 1 : 0);
     const pts = (f1 != null ? finPoints(f1, n) : 0) + (f2 != null ? finPoints(f2, n) : 0);
     return { ...r, pts, scored, f1, f2 };
   }).sort((a, b) => (b.scored - a.scored) || (a.pts - b.pts) || (a.pill - b.pill));
 }
-function classComplete(clsId) { const s = calcStandings(clsId); return s.length > 0 && s.every(x => x.scored === 2); }
+function classComplete(clsId) { const s = calcStandings(clsId), need = classHeats(classById(clsId)); return s.length > 0 && s.every(x => x.scored === need); }
 
 // Result key for a main's finish. Main 0 keeps the original 'bm_' key so
 // races entered before multi-mains existed still read correctly.
@@ -1991,8 +2001,9 @@ function renderClassResults(clsId) {
   h += '<label style="display:flex;align-items:center;gap:8px;margin:0 0 6px;font-size:13.5px;font-weight:600;cursor:pointer">'
     + '<input type="checkbox" style="width:18px;height:18px"' + (isPointsRace(clsId) ? ' checked' : '') + ' onchange="togglePointsRace(' + clsId + ',this.checked)">'
     + 'Today counts toward the points series</label>';
-  h += heatEntryBlock(clsId, 'h1', set1, 'Set 1 heats — pill order', '');
-  h += heatEntryBlock(clsId, 'h2', set2, 'Set 2 heats — inverted', ' inv');
+  const heats = classHeats(classById(clsId));
+  h += heatEntryBlock(clsId, 'h1', set1, heats === 1 ? 'Qualifying heat' : 'Set 1 heats — pill order', '');
+  if (heats === 2) h += heatEntryBlock(clsId, 'h2', set2, 'Set 2 heats — inverted', ' inv');
 
   const standings = calcStandings(clsId);
   const fd = featureData(clsId);
@@ -2005,11 +2016,11 @@ function renderClassResults(clsId) {
   });
   h += '<div class="slbl">Heat totals — the "race pill"</div><div class="hb"><div class="hh"><span>Standings</span><small>finishes added up · low wins · ties go to the pill draw</small></div>';
   standings.forEach((s, i) => {
-    const detail = finLabel(s.f1) + ' + ' + finLabel(s.f2);
+    const detail = heats === 1 ? finLabel(s.f1) : finLabel(s.f1) + ' + ' + finLabel(s.f2);
     const adv = advMap[s.id];
     h += '<div class="hr"><div class="pnum">' + (i + 1) + '</div>'
-      + '<div class="nm"><b>' + esc(s.name) + '</b> <span>#' + esc(s.num) + ' · heats: ' + detail + '</span></div>'
-      + (s.scored < 2 ? '<span class="transfer-tag" style="background:#fdf3d7;color:#6b5410">' + s.scored + ' of 2</span>' : '')
+      + '<div class="nm"><b>' + esc(s.name) + '</b> <span>#' + esc(s.num) + ' · heat' + (heats === 1 ? '' : 's') + ': ' + detail + '</span></div>'
+      + (s.scored < heats ? '<span class="transfer-tag" style="background:#fdf3d7;color:#6b5410">' + s.scored + ' of ' + heats + '</span>' : '')
       + (adv ? '<span class="transfer-tag"' + (adv.feat ? ' style="background:#fff4dc;color:#7a4f00"' : '') + '>' + esc(adv.label) + '</span>' : '')
       + '<span class="pts-badge">' + (s.scored ? s.pts : '—') + '</span></div>';
   });
@@ -2429,6 +2440,11 @@ function renderClsList() {
       + '<span style="font-size:12px;color:var(--muted)">' + cnt + ' entered</span>'
       + '<label style="margin:0;display:flex;align-items:center;gap:6px;font-size:12px">Pills 1–'
       + '<input class="inline-num" type="number" min="' + Math.max(2, cnt) + '" max="999" value="' + (c.maxPill || 200) + '" onchange="setClassMax(' + c.id + ',this.value)"></label>'
+      + '<label style="margin:0;display:flex;align-items:center;gap:6px;font-size:12px">Format'
+      +   '<select class="inline-num" style="width:auto" onchange="setClassHeats(' + c.id + ',this.value)">'
+      +     '<option value="2"' + (classHeats(c) === 2 ? ' selected' : '') + '>Pill draw · 2 heats</option>'
+      +     '<option value="1"' + (classHeats(c) === 1 ? ' selected' : '') + '>Qualifying · 1 heat</option>'
+      +   '</select></label>'
       + '<label style="margin:0;display:flex;align-items:center;gap:6px;font-size:12px">Heat start'
       +   '<select class="inline-num" style="width:auto" onchange="setClassFormat(' + c.id + ',this.value)">'
       +     '<option value="standard"' + (fmt === 'standard' ? ' selected' : '') + '>Standard — no invert</option>'
@@ -2454,6 +2470,13 @@ function setClassInvert(id, val) {
   const c = classById(id); if (!c) return;
   c.invert = Math.max(2, parseInt(val) || 2);
   save(); renderClsList(); renderGrid();
+}
+// Per-class qualifying format: 2 = pill draw + two heats; 1 = qualifying sets the grid, one heat to the mains.
+function setClassHeats(id, val) {
+  const c = classById(id); if (!c) return;
+  c.heats = (String(val) === '1') ? 1 : 2;
+  save(); renderClsList(); renderGrid();
+  if (curPage === 'results') renderResults();
 }
 function moveClass(id, dir) {
   const i = S.classes.findIndex(c => c.id === id);
