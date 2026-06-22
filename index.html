@@ -2597,13 +2597,17 @@ function quickAdd() {
     return o && String(o.num).toLowerCase() === String(d.num).toLowerCase();
   });
   if (clash) { alert('Number #' + d.num + ' is already racing in ' + c.name + ' — change one of the numbers first.'); return; }
-  const pill = drawPill(c.id);
-  if (pill === null) { alert('All pills are taken in ' + c.name + ' — raise its pill count above.'); return; }
+  let pill = drawPill(c.id);
+  if (pill === null) {                       // grid is full (e.g. set by a qualifying import) → add at the back
+    pill = S.raceDay.entries.filter(e => e.classId === c.id).reduce((m, e) => Math.max(m, e.pill), 0) + 1;
+    if (pill > (c.maxPill || 0)) c.maxPill = pill;
+  }
   consumeTrialDay();
   S.raceDay.entries.push({ driverId: d.id, classId: c.id, pill });
+  logAudit('Driver added to grid', '', '#' + d.num + ' ' + d.name + ' · P' + pill, c.name);
   save();
   renderAdmin();
-  alert('🏁 ' + d.name + ' is in ' + c.name + ' — pill #' + pill);
+  alert('🏁 ' + d.name + ' is in ' + c.name + ' — grid spot #' + pill + '. Use ▲ ▼ in Today\'s entries to fix their position.');
 }
 function renderEntryList() {
   const el = document.getElementById('entryList');
@@ -2616,12 +2620,36 @@ function renderEntryList() {
   }).filter(r => !q || r.name.toLowerCase().includes(q) || String(r.num).toLowerCase().includes(q) || r.cls.toLowerCase().includes(q))
     .sort((a, b) => a.cls.localeCompare(b.cls) || a.pill - b.pill);
   if (!rows.length) { el.innerHTML = '<p class="empty">No entries match “' + esc(q) + '”.</p>'; return; }
-  el.innerHTML = '<table><thead><tr><th>Driver</th><th>#</th><th>Class</th><th>Pill</th><th></th></tr></thead><tbody>'
+  el.innerHTML = '<p class="sub" style="font-size:12px;color:var(--muted);margin:0 0 8px">Tip: use ▲ ▼ or type a number to fix a driver\'s grid spot after a bad qualifying read — the field renumbers automatically.</p>'
+    + '<table><thead><tr><th>Driver</th><th>#</th><th>Class</th><th>Grid spot</th><th></th></tr></thead><tbody>'
     + rows.map(r => '<tr><td style="font-weight:600">' + esc(r.name) + '</td><td>#' + esc(r.num) + '</td><td style="color:var(--muted)">' + esc(r.cls) + '</td>'
-      + '<td><span class="disc sm pillc" style="width:32px;height:32px;font-size:14px">' + r.pill + '</span></td>'
+      + '<td><div style="display:flex;align-items:center;gap:3px;justify-content:center">'
+        + '<button class="btn btn-sm" style="padding:2px 7px" title="Move toward pole" onclick="bumpEntryPill(' + r.i + ',-1)">▲</button>'
+        + '<input type="number" min="1" value="' + r.pill + '" style="width:46px;text-align:center;padding:5px 4px;font-size:14px;font-weight:700" onchange="setEntryPill(' + r.i + ',this.value)">'
+        + '<button class="btn btn-sm" style="padding:2px 7px" title="Move back" onclick="bumpEntryPill(' + r.i + ',1)">▼</button>'
+      + '</div></td>'
       + '<td style="text-align:right"><button class="btn btn-sm btn-danger" onclick="delEntry(' + r.i + ')">Remove</button></td></tr>').join('')
     + '</tbody></table>';
 }
+// Fix a driver's grid spot: insert at the chosen position and renumber the class 1..N (audited).
+function setEntryPill(i, val) {
+  const e = S.raceDay.entries[i]; if (!e) return;
+  const cls = classById(e.classId) || {};
+  let p = parseInt(val, 10);
+  const field = S.raceDay.entries.filter(x => x.classId === e.classId).sort((a, b) => a.pill - b.pill);
+  if (!(p > 0)) { renderEntryList(); return; }       // invalid → revert the field to stored order
+  p = Math.min(p, field.length);
+  if (p === e.pill) { renderEntryList(); return; }
+  const d = driverById(e.driverId) || { name: '?', num: '?' };
+  const old = e.pill;
+  const ordered = field.filter(x => x !== e);
+  ordered.splice(p - 1, 0, e);
+  ordered.forEach((x, idx) => { x.pill = idx + 1; });
+  logAudit('Grid position edit', '#' + d.num + ' P' + old, 'P' + e.pill, cls.name);
+  save();
+  renderEntryList();
+}
+function bumpEntryPill(i, delta) { const e = S.raceDay.entries[i]; if (e) setEntryPill(i, e.pill + delta); }
 function delEntry(i) {
   const e = S.raceDay.entries[i]; if (!e) return;
   const d = driverById(e.driverId) || { name: 'this driver' };
