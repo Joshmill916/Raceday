@@ -211,6 +211,10 @@
   .imp-table th, .imp-table td { padding:7px 10px; text-align:left; border-bottom:1px solid #f0f0eb; white-space:nowrap; }
   .imp-table th { position:sticky; top:0; background:#f1f1ec; font-size:11.5px; text-transform:uppercase; letter-spacing:.03em; }
   .ichip { display:inline-block; padding:2px 9px; border-radius:99px; font-size:11.5px; font-weight:700; }
+  .imp-watch { margin-top:12px; padding:10px 12px; background:#f0f8ff; border-radius:10px; border:1.5px solid #b3d9f2; }
+  .imp-watch-row { display:flex; align-items:center; gap:8px; flex-wrap:wrap; }
+  .imp-watch-pulse { display:inline-block; width:8px; height:8px; border-radius:50%; background:#2a9d8f; animation:watchpulse 1.4s infinite; }
+  @keyframes watchpulse { 0%,100%{opacity:1} 50%{opacity:.3} }
   .ichip-ok { background:var(--flag-green-bg); color:var(--flag-green); }
   .ichip-new { background:#dde8fb; color:#23508f; }
   .ichip-skip { background:#ededed; color:#777; }
@@ -781,6 +785,19 @@
       <label class="imp-lbl">3 · Load the timing CSV</label>
       <button class="btn" onclick="document.getElementById('impFile').click()">📂 Choose CSV file</button>
       <input id="impFile" type="file" accept=".csv,text/csv,text/plain" style="display:none" onchange="impLoadCsv(this)">
+      <div id="impWatchSection" style="display:none">
+        <div class="imp-watch">
+          <div class="imp-watch-row">
+            <button class="btn btn-sm" id="impWatchBtn" onclick="impPickFolder()">📁 Watch folder</button>
+            <button class="btn btn-sm" id="impWatchStop" onclick="impStopWatch()" style="display:none">■ Stop</button>
+            <span id="impWatchStatus" style="font-size:12px;color:#555">Pick your Downloads (or timing export) folder — any new CSV will load automatically.</span>
+          </div>
+          <label style="display:flex;align-items:center;gap:6px;margin-top:8px;font-size:13px;cursor:pointer">
+            <input type="checkbox" id="impAutoApply" onchange="if(Imp)Imp.watchAuto=this.checked">
+            Auto-apply clean imports (no new drivers, no warnings)
+          </label>
+        </div>
+      </div>
       <div id="impCsvInfo" style="display:none;margin-top:8px;font-size:13px"></div>
       <div id="impMapRow" style="display:none;margin-top:10px"></div>
 
@@ -3403,31 +3420,108 @@ function impRenderMap() {
   document.getElementById('impMapRow').innerHTML = h;
 }
 
+function impIngestText(text, filename) {
+  if (!Imp) return;
+  const rows = impParseCSV(String(text || ''));
+  if (rows.length < 2) { alert("That file doesn't look like a results CSV (no data rows)."); return; }
+  const hi = impPickHeader(rows);
+  Imp.preamble = hi;
+  Imp.header = rows[hi];
+  Imp.rows = rows.slice(hi + 1);
+  Imp.cols = impGuessColumns(Imp.header);
+  Imp.vendor = impDetectVendor(Imp.header);
+  const info = document.getElementById('impCsvInfo');
+  info.style.display = '';
+  info.innerHTML = '<b>' + Imp.rows.length + ' rows</b>'
+    + (filename ? ' from <b>' + esc(filename) + '</b>' : ' loaded')
+    + (Imp.vendor ? ' · <span style="color:var(--flag-green);font-weight:700">' + esc(Imp.vendor.name) + ' format detected</span>' : '')
+    + (hi > 0 ? ' · <span style="color:#7a4f00">skipped ' + hi + ' title line' + (hi>1?'s':'') + ' above the header</span>' : '') + '.';
+  impRenderMap();
+  document.getElementById('impMapRow').style.display = '';
+  document.getElementById('impPrevWrap').style.display = '';
+  impRenderPreview();
+  if (Imp.watchAuto) impAutoApply();
+}
 function impLoadCsv(input) {
   const f = input.files && input.files[0];
   input.value = '';
   if (!f || !Imp) return;
   const fr = new FileReader();
-  fr.onload = () => {
-    const rows = impParseCSV(String(fr.result || ''));
-    if (rows.length < 2) { alert("That file doesn't look like a results CSV (no data rows)."); return; }
-    const hi = impPickHeader(rows);
-    Imp.preamble = hi;
-    Imp.header = rows[hi];
-    Imp.rows = rows.slice(hi + 1);
-    Imp.cols = impGuessColumns(Imp.header);
-    Imp.vendor = impDetectVendor(Imp.header);
-    const info = document.getElementById('impCsvInfo');
-    info.style.display = '';
-    info.innerHTML = '<b>' + Imp.rows.length + ' rows</b> loaded'
-      + (Imp.vendor ? ' · <span style="color:var(--flag-green);font-weight:700">' + esc(Imp.vendor.name) + ' format detected</span>' : '')
-      + (hi > 0 ? ' · <span style="color:#7a4f00">skipped ' + hi + ' title line' + (hi>1?'s':'') + ' above the header</span>' : '') + '.';
-    impRenderMap();
-    document.getElementById('impMapRow').style.display = '';
-    document.getElementById('impPrevWrap').style.display = '';
-    impRenderPreview();
-  };
+  fr.onload = () => impIngestText(String(fr.result || ''), f.name);
   fr.readAsText(f);
+}
+
+// ---------- Folder-watch (Chrome/Edge File System Access API) ----------
+
+async function impPickFolder() {
+  if (!('showDirectoryPicker' in window)) return;
+  try {
+    const dir = await window.showDirectoryPicker({ mode: 'read' });
+    if (!Imp) return;
+    Imp.watchDir = dir;
+    Imp.watchSeen = {};
+    Imp.watchInterval = setInterval(impScanFolder, 3000);
+    document.getElementById('impWatchBtn').style.display = 'none';
+    document.getElementById('impWatchStop').style.display = '';
+    document.getElementById('impWatchStatus').innerHTML =
+      '<span class="imp-watch-pulse"></span> Watching <b>' + esc(dir.name) + '</b> — will auto-load the newest CSV when it appears.';
+  } catch (e) {
+    // User cancelled the picker — no error needed
+  }
+}
+
+function impStopWatch() {
+  if (Imp && Imp.watchInterval) { clearInterval(Imp.watchInterval); Imp.watchInterval = null; }
+  if (Imp) { Imp.watchDir = null; Imp.watchSeen = {}; }
+  const btn = document.getElementById('impWatchBtn');
+  const stop = document.getElementById('impWatchStop');
+  const status = document.getElementById('impWatchStatus');
+  if (btn) btn.style.display = '';
+  if (stop) stop.style.display = 'none';
+  if (status) status.textContent = 'Pick your Downloads (or timing export) folder — any new CSV will load automatically.';
+}
+
+async function impScanFolder() {
+  if (!Imp || !Imp.watchDir) return;
+  try {
+    const found = [];
+    for await (const [name, handle] of Imp.watchDir.entries()) {
+      if (handle.kind === 'file' && name.toLowerCase().endsWith('.csv')) {
+        const file = await handle.getFile();
+        found.push({ name, file, lastModified: file.lastModified });
+      }
+    }
+    if (!found.length) return;
+    const newest = found.reduce((a, b) => a.lastModified > b.lastModified ? a : b);
+    const prev = Imp.watchSeen[newest.name];
+    if (prev !== undefined && prev === newest.lastModified) return; // already processed
+    Imp.watchSeen[newest.name] = newest.lastModified;
+    const text = await newest.file.text();
+    const ts = new Date(newest.lastModified).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit' });
+    const status = document.getElementById('impWatchStatus');
+    if (status) status.innerHTML =
+      '<span class="imp-watch-pulse"></span> Watching <b>' + esc(Imp.watchDir.name) + '</b> · last file: <b>' + esc(newest.name) + '</b> at ' + ts;
+    impIngestText(text, newest.name);
+  } catch (e) {
+    // Permission revoked or folder gone — stop watching
+    impStopWatch();
+  }
+}
+
+function impAutoApply() {
+  if (!Imp || !impPreview.length) return;
+  const active = impPreview.filter(r => r.status !== 'skip');
+  if (!active.length) return;
+  // Only auto-apply if every active row is a clean match: no new drivers, no suspect names, no bad times, no conflicts
+  const clean = active.every(r => r.status === 'match' && !r.nameSuspect && !r.timeBad && !r.transConflict && !r.numConflict && !r.nameConflict);
+  if (clean) {
+    impApply();
+  } else {
+    // Quietly surface the preview so the operator can review — don't auto-apply
+    const status = document.getElementById('impWatchStatus');
+    if (status && Imp.watchDir) status.innerHTML =
+      '<span class="imp-watch-pulse"></span> Watching <b>' + esc(Imp.watchDir.name) + '</b> · ⚠ file has warnings — review &amp; confirm below.';
+  }
 }
 
 function impApply() {
@@ -3539,19 +3633,34 @@ function openImport(target) {
   if (!S.classes.length) { alert('Add at least one class in Admin first, then import.'); return; }
   Imp = { rows:[], header:[], cols:{trans:-1,num:-1,name:-1,name2:-1,cls:-1,pos:-1,time:-1},
           target: target || 'heat', clsId: (S.classes[0] && S.classes[0].id) || null,
-          useClsCol:false, heatSet:'h1', vendor:null, updTrans:false, updNum:false, updName:false, preamble:0, unknownClasses:[], emptyClass:0 };
+          useClsCol:false, heatSet:'h1', vendor:null, updTrans:false, updNum:false, updName:false, preamble:0, unknownClasses:[], emptyClass:0,
+          watchDir:null, watchInterval:null, watchSeen:{}, watchAuto:false };
   impPreview = [];
   document.getElementById('impCsvInfo').style.display = 'none';
   document.getElementById('impMapRow').style.display = 'none';
   document.getElementById('impMapRow').innerHTML = '';
   document.getElementById('impPrevWrap').style.display = 'none';
   document.getElementById('impClsSel').innerHTML = S.classes.map(c => '<option value="'+c.id+'">'+esc(c.name)+'</option>').join('');
+  // Show folder-watch section only on browsers that support the File System Access API
+  const watchSec = document.getElementById('impWatchSection');
+  if (watchSec) watchSec.style.display = ('showDirectoryPicker' in window) ? '' : 'none';
+  // Reset watch UI state
+  const wBtn = document.getElementById('impWatchBtn'); if (wBtn) wBtn.style.display = '';
+  const wStop = document.getElementById('impWatchStop'); if (wStop) wStop.style.display = 'none';
+  const wAuto = document.getElementById('impAutoApply'); if (wAuto) wAuto.checked = false;
+  const wStatus = document.getElementById('impWatchStatus');
+  if (wStatus) wStatus.textContent = 'Pick your Downloads (or timing export) folder — any new CSV will load automatically.';
   impSetTarget(Imp.target);
   impSetClsMode(false);
   impSetHeatSet('h1');
   document.getElementById('impOverlay').classList.add('on');
 }
-function closeImport() { document.getElementById('impOverlay').classList.remove('on'); Imp = null; impPreview = []; }
+function closeImport() {
+  impStopWatch();
+  document.getElementById('impOverlay').classList.remove('on');
+  Imp = null;
+  impPreview = [];
+}
 function impSetTarget(t) {
   if (!Imp) return;
   Imp.target = t;
