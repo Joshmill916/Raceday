@@ -211,6 +211,11 @@
   .imp-table th, .imp-table td { padding:7px 10px; text-align:left; border-bottom:1px solid #f0f0eb; white-space:nowrap; }
   .imp-table th { position:sticky; top:0; background:#f1f1ec; font-size:11.5px; text-transform:uppercase; letter-spacing:.03em; }
   .ichip { display:inline-block; padding:2px 9px; border-radius:99px; font-size:11.5px; font-weight:700; }
+  .imp-steps { display:flex; align-items:center; flex-wrap:wrap; gap:4px; }
+  .imp-step { padding:8px 14px; border-radius:99px; font-size:13px; font-weight:700; border:1.5px solid #d4d4cf; background:#fff; color:#777; cursor:pointer; }
+  .imp-step.on { background:var(--asphalt); color:#fff; border-color:var(--asphalt); }
+  .imp-step.done { background:var(--flag-green-bg); color:var(--flag-green); border-color:var(--flag-green); }
+  .imp-step-arrow { color:#bbb; font-size:13px; margin:0 1px; }
   .imp-watch { margin-top:12px; padding:10px 12px; background:#f0f8ff; border-radius:10px; border:1.5px solid #b3d9f2; }
   .imp-watch-row { display:flex; align-items:center; gap:8px; flex-wrap:wrap; }
   .imp-watch-pulse { display:inline-block; width:8px; height:8px; border-radius:50%; background:#2a9d8f; animation:watchpulse 1.4s infinite; }
@@ -759,12 +764,9 @@
       <button class="btn btn-sm" onclick="closeImport()">✕ Close</button>
     </div>
     <div class="imp-body">
-      <label class="imp-lbl">1 · What are you importing?</label>
-      <div class="imp-seg" id="impTargetSeg">
-        <button id="impTqual" onclick="impSetTarget('qual')">Qualifying → grid</button>
-        <button id="impTheat" onclick="impSetTarget('heat')">Heat results</button>
-        <button id="impTfeat" onclick="impSetTarget('feat')">Feature finishes</button>
-      </div>
+      <label class="imp-lbl">1 · Session <span style="font-weight:400;text-transform:none;letter-spacing:0">(matches your class formats)</span></label>
+      <div id="impStepper" class="imp-steps"></div>
+      <button class="btn btn-go" id="impNextStepBtn" onclick="impNextStep()" style="margin-top:10px;display:none"></button>
 
       <label class="imp-lbl">2 · Which class?</label>
       <div class="imp-seg">
@@ -773,14 +775,6 @@
       </div>
       <div id="impClsPick" style="margin-top:8px">
         <select id="impClsSel" onchange="if(Imp){Imp.clsId=parseInt(this.value)||null;impRenderPreview();}"></select>
-      </div>
-
-      <div id="impHeatSetRow" style="display:none">
-        <label class="imp-lbl">Heat set</label>
-        <div class="imp-seg">
-          <button id="impHs1" onclick="impSetHeatSet('h1')">Set 1 (pill order)</button>
-          <button id="impHs2" onclick="impSetHeatSet('h2')">Set 2 (inverted)</button>
-        </div>
       </div>
 
       <label class="imp-lbl">3 · Load the timing CSV</label>
@@ -3320,7 +3314,9 @@ function impComputePreview() {
       items.forEach(({ m, clsId, timeStr }) => {
         let status = 'match', note = '';
         const timeBad = impTimeUnparsed(timeStr);
+        const cobj = classById(parseInt(clsId));
         if (parseInt(clsId) < 0) { status = 'skip'; note = 'Unknown class'; }
+        else if (cobj && classHeats(cobj) === 2) { status = 'skip'; note = cobj.name + ' runs a pill draw — its grid comes from the draw, not a qualifying import'; }
         else if (!m.driver && !m.canCreate) { status = 'skip'; note = 'No name, number, or transponder'; }
         else if (!m.driver) status = 'new';
         else if (m.transConflict) status = 'conflict';
@@ -3344,8 +3340,10 @@ function impComputePreview() {
       if (clsId === -1) unknown.add(impCell(row, 'cls'));
       const m = impMatchDriver(row);
       const finish = Imp.cols.pos >= 0 ? impParseFinish(impCell(row,'pos')) : null;
+      const cobj = classById(parseInt(clsId));
       let status = 'match', note = '';
       if (parseInt(clsId) < 0) { status = 'skip'; note = 'Unknown class'; }
+      else if (Imp.target === 'heat' && Imp.heatSet === 'h2' && cobj && classHeats(cobj) === 1) { status = 'skip'; note = cobj.name + ' runs a single qualifying heat — no Heat 2'; }
       else if (!m.driver && !m.canCreate) { status = 'skip'; note = 'No name, number, or transponder'; }
       else if (!m.driver) { if (Imp.target === 'heat') { status = 'skip'; note = 'Not in driver book — import qualifying/grid first'; } else status = 'new'; }
       else if (m.transConflict) status = 'conflict';
@@ -3697,7 +3695,7 @@ function openImport(target) {
   if (!S.classes.length) { alert('Add at least one class in Admin first, then import.'); return; }
   Imp = { rows:[], header:[], cols:{trans:-1,num:-1,name:-1,name2:-1,cls:-1,pos:-1,time:-1},
           target: target || 'heat', clsId: (S.classes[0] && S.classes[0].id) || null,
-          useClsCol:false, heatSet:'h1', vendor:null, updTrans:false, updNum:false, updName:false, preamble:0, unknownClasses:[], emptyClass:0,
+          useClsCol:false, heatSet:'h1', step:0, vendor:null, updTrans:false, updNum:false, updName:false, preamble:0, unknownClasses:[], emptyClass:0,
           watchDir:null, watchInterval:null, watchSeen:{}, watchAuto:false, watchPrimed:false, watchBusy:false };
   impPreview = [];
   document.getElementById('impCsvInfo').style.display = 'none';
@@ -3714,9 +3712,13 @@ function openImport(target) {
   const wAuto = document.getElementById('impAutoApply'); if (wAuto) wAuto.checked = false;
   const wStatus = document.getElementById('impWatchStatus');
   if (wStatus) wStatus.textContent = 'Pick your Downloads (or timing export) folder — any new CSV will load automatically.';
-  impSetTarget(Imp.target);
+  // Start the pipeline on the step matching how the overlay was opened (grid → qualifying/first; results → first heat).
+  const steps = impPipeline();
+  const want = target || 'heat';
+  let startIdx = steps.findIndex(s => s.target === want);
+  if (startIdx < 0) startIdx = 0;
   impSetClsMode(false);
-  impSetHeatSet('h1');
+  impSetStep(startIdx);
   document.getElementById('impOverlay').classList.add('on');
 }
 function closeImport() {
@@ -3725,28 +3727,54 @@ function closeImport() {
   Imp = null;
   impPreview = [];
 }
-function impSetTarget(t) {
+// The session pipeline is built from the class formats actually in use, so it always
+// matches how the track runs: qualifying classes show Qualifying → Heat → Feature;
+// pill-draw classes show Heat 1 → Heat 2 → Feature; a mixed program shows the union.
+function impPipeline() {
+  const hasQual = S.classes.some(c => classHeats(c) === 1);
+  const hasH2   = S.classes.some(c => classHeats(c) === 2);
+  const steps = [];
+  if (hasQual) steps.push({ key: 'qual', label: 'Qualifying', target: 'qual' });
+  steps.push({ key: 'h1', label: hasH2 ? 'Heat 1' : 'Heat', target: 'heat', heatSet: 'h1' });
+  if (hasH2) steps.push({ key: 'h2', label: 'Heat 2', target: 'heat', heatSet: 'h2' });
+  steps.push({ key: 'ft', label: 'Feature', target: 'feat' });
+  return steps;
+}
+function impRenderStepper() {
   if (!Imp) return;
-  Imp.target = t;
-  document.getElementById('impTqual').classList.toggle('on', t === 'qual');
-  document.getElementById('impTheat').classList.toggle('on', t === 'heat');
-  document.getElementById('impTfeat').classList.toggle('on', t === 'feat');
-  document.getElementById('impHeatSetRow').style.display = t === 'heat' ? '' : 'none';
+  const steps = impPipeline();
+  if (Imp.step >= steps.length) Imp.step = steps.length - 1;
+  const el = document.getElementById('impStepper');
+  el.innerHTML = steps.map((s, i) => {
+    const cls = i === Imp.step ? 'imp-step on' : (i < Imp.step ? 'imp-step done' : 'imp-step');
+    return '<span class="' + cls + '" onclick="impSetStep(' + i + ')">' + (i < Imp.step ? '✓ ' : '') + esc(s.label) + '</span>'
+      + (i < steps.length - 1 ? '<span class="imp-step-arrow">→</span>' : '');
+  }).join('');
+  const btn = document.getElementById('impNextStepBtn');
+  if (Imp.step < steps.length - 1) {
+    btn.style.display = '';
+    btn.textContent = '✓ ' + steps[Imp.step].label + ' done — next: ' + steps[Imp.step + 1].label + ' ▸';
+  } else {
+    btn.style.display = 'none';
+  }
+}
+function impSetStep(i) {
+  if (!Imp) return;
+  const steps = impPipeline();
+  Imp.step = Math.max(0, Math.min(i, steps.length - 1));
+  const s = steps[Imp.step];
+  Imp.target = s.target;
+  if (s.heatSet) Imp.heatSet = s.heatSet;
+  impRenderStepper();
   if (Imp.rows.length) impRenderPreview();
 }
+function impNextStep() { if (Imp) impSetStep(Imp.step + 1); }
 function impSetClsMode(useCol) {
   if (!Imp) return;
   Imp.useClsCol = useCol;
   document.getElementById('impCmOne').classList.toggle('on', !useCol);
   document.getElementById('impCmCol').classList.toggle('on', useCol);
   document.getElementById('impClsPick').style.display = useCol ? 'none' : '';
-  if (Imp.rows.length) impRenderPreview();
-}
-function impSetHeatSet(s) {
-  if (!Imp) return;
-  Imp.heatSet = s;
-  document.getElementById('impHs1').classList.toggle('on', s === 'h1');
-  document.getElementById('impHs2').classList.toggle('on', s === 'h2');
   if (Imp.rows.length) impRenderPreview();
 }
 
