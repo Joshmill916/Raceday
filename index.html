@@ -3048,8 +3048,8 @@ let impPreview = [];
 
 const IMP_SYN = {
   trans: ['transponder','trans','tx','chip','decoder','tag','rfid','transponderid','transponder id','trans id','tran'],
-  num:   ['kart','car number','car no','vehicle no','kart no','plate','car#','kart#','no','no.','racer number','racer no','rider number','rider no'],
-  name:  ['driver name','driver','name','racer','rider','rider name','racer name','pilot','firstname','first name','first'],
+  num:   ['kart','car number','car no','vehicle no','kart no','plate','car#','kart#','no','no.','nbr','racer number','racer no','rider number','rider no'],
+  name:  ['driver name','driver','name','racer','rider','rider name','racer name','pilot','competitor','entry','entrant','firstname','first name','first'],
   name2: ['lastname','last name','last','surname','family name'],
   cls:   ['class','category','group','division'],
   pos:   ['pos','position','finish','place','rank','result','qual pos','qualifying pos','finish pos'],
@@ -3072,14 +3072,41 @@ function impNormName(s) {
     .toLowerCase().replace(/[.,'`’‘´"“”\-]/g, '').replace(/\s+/g, ' ').trim();
 }
 function impParseLapTime(s) {
-  s = String(s || '').trim();
+  // Normalize European comma decimals (22,031 → 22.031) before parsing.
+  s = String(s || '').trim().replace(/,/g, '.');
   if (!s || /^(dnf|dns|dq|dsq|ret|nc)$/i.test(s)) return Infinity;
+  // Colon forms: hh:mm:ss.mmm or mm:ss.mmm
   const h = s.match(/^(\d+):(\d{1,2}):(\d{1,2}(?:\.\d+)?)$/);
   if (h) return parseInt(h[1]) * 3600 + parseInt(h[2]) * 60 + parseFloat(h[3]);
   const m = s.match(/^(\d+):(\d+(?:\.\d+)?)$/);
   if (m) return parseInt(m[1]) * 60 + parseFloat(m[2]);
+  // Dot-separated timing forms: hh.mm.ss.mmm or mm.ss.mmm (last group = fraction of a second)
+  const d3 = s.match(/^(\d+)\.(\d{1,2})\.(\d{1,2})\.(\d{1,3})$/);
+  if (d3) return parseInt(d3[1]) * 3600 + parseInt(d3[2]) * 60 + parseInt(d3[3]) + parseFloat('0.' + d3[4]);
+  const d2 = s.match(/^(\d+)\.(\d{1,2})\.(\d{1,3})$/);
+  if (d2) return parseInt(d2[1]) * 60 + parseInt(d2[2]) + parseFloat('0.' + d2[3]);
   const n = parseFloat(s);
   return isNaN(n) ? Infinity : n;
+}
+// True when a time cell held real text we could not parse (vs. a blank or a DNF/DNS/DQ token).
+function impTimeUnparsed(s) {
+  s = String(s || '').trim();
+  if (!s || /^(dnf|dns|dq|dsq|ret|nc)$/i.test(s)) return false;
+  return impParseLapTime(s) === Infinity;
+}
+// A resolved name that looks like a kart number or an embedded lap time — a mis-mapped Name column.
+function impNameSuspect(name, num) {
+  const n = String(name || '').trim();
+  if (!n) return false;
+  if (/\d{1,2}[:.]\d{2}/.test(n)) return true;           // contains a time like 00.12.264 or 1:02
+  if (/^\d+$/.test(n)) return true;                       // name is all digits
+  if (num && n === String(num).trim()) return true;       // name equals the kart number
+  return false;
+}
+// A stored book name that is really a placeholder/number — safe to overwrite from the file.
+function impNamePlaceholder(name, num) {
+  const n = String(name || '').trim();
+  return !n || /^Car #/i.test(n) || /^Trans /i.test(n) || /^\d+$/.test(n) || (num && n === String(num).trim());
 }
 function impParseFinish(s) {
   s = String(s || '').trim();
@@ -3164,8 +3191,10 @@ function impMatchDriver(row) {
   }
   const transConflict = !!(driver && trans && driver.trans && impNormTrans(driver.trans) !== impNormTrans(trans));
   const numConflict = !!(driver && num && driver.num && String(driver.num).trim().toLowerCase() !== num.trim().toLowerCase());
+  const nameConflict = !!(driver && name && driver.name && impNormName(driver.name) !== impNormName(name));
+  const nameSuspect = impNameSuspect(name, num);
   const canCreate = !!(num || name || trans);
-  return { driver, matchedBy, num, name, trans, transConflict, numConflict, canCreate };
+  return { driver, matchedBy, num, name, trans, transConflict, numConflict, nameConflict, nameSuspect, canCreate };
 }
 function impResolveClsId(row) {
   if (!Imp.useClsCol) return Imp.clsId || null;
@@ -3195,27 +3224,33 @@ function impComputePreview() {
       if (clsId === -1) unknown.add(impCell(row, 'cls'));
       const m = impMatchDriver(row);
       const rawPos  = Imp.cols.pos  >= 0 ? impParseFinish(impCell(row,'pos'))  : null;
-      const rawTime = Imp.cols.time >= 0 ? impParseLapTime(impCell(row,'time')) : Infinity;
-      (groups[clsId] = groups[clsId] || []).push({ m, rawPos, rawTime, clsId });
+      const timeStr = Imp.cols.time >= 0 ? impCell(row,'time') : '';
+      const rawTime = timeStr ? impParseLapTime(timeStr) : Infinity;
+      (groups[clsId] = groups[clsId] || []).push({ m, rawPos, rawTime, timeStr, clsId });
     });
     for (const [clsId, items] of Object.entries(groups)) {
       const hasPos = items.some(it => typeof it.rawPos === 'number');
       if (hasPos) items.sort((a,b)=>(typeof a.rawPos==='number'?a.rawPos:9999)-(typeof b.rawPos==='number'?b.rawPos:9999));
       else items.sort((a,b)=>a.rawTime-b.rawTime);
-      let rank = 0; const seenNums = new Set();
-      items.forEach(({ m, clsId }) => {
+      let rank = 0; const seen = new Set();
+      items.forEach(({ m, clsId, timeStr }) => {
         let status = 'match', note = '';
+        const timeBad = impTimeUnparsed(timeStr);
         if (parseInt(clsId) < 0) { status = 'skip'; note = 'Unknown class'; }
         else if (!m.driver && !m.canCreate) { status = 'skip'; note = 'No name, number, or transponder'; }
         else if (!m.driver) status = 'new';
         else if (m.transConflict) status = 'conflict';
         if (status !== 'skip') {
+          // Dedupe by transponder when present (so two same-numbered karts with different
+          // transponders both keep their grid spot); otherwise by number.
           const numLc = (m.driver ? String(m.driver.num||'') : m.num).toLowerCase();
-          if (numLc && seenNums.has(numLc)) { status = 'skip'; note = 'Duplicate number (keeping first)'; }
-          else if (numLc) seenNums.add(numLc);
+          const tnorm = impNormTrans(m.trans || (m.driver && m.driver.trans) || '');
+          const dkey = tnorm ? 'T:' + tnorm : (numLc ? 'N:' + numLc : '');
+          if (dkey && seen.has(dkey)) { status = 'skip'; note = tnorm ? 'Duplicate transponder (keeping first)' : 'Duplicate number (keeping first)'; }
+          else if (dkey) seen.add(dkey);
         }
         const r = status !== 'skip' ? ++rank : null;
-        impPreview.push({ ...m, status, note, clsId: parseInt(clsId), rank: r });
+        impPreview.push({ ...m, status, note, clsId: parseInt(clsId), rank: r, timeBad });
       });
     }
   } else {
@@ -3249,11 +3284,33 @@ function impRenderPreview() {
   const skipped = impPreview.filter(r => r.status==='skip').length;
   const tConf   = impPreview.filter(r => r.transConflict && r.status!=='skip').length;
   const nConf   = impPreview.filter(r => r.numConflict && r.status!=='skip').length;
+  const nmConf  = impPreview.filter(r => r.nameConflict && r.status!=='skip').length;
+  const nmSusp  = impPreview.filter(r => r.nameSuspect && r.status!=='skip').length;
+  const tBad    = impPreview.filter(r => r.timeBad && r.status!=='skip').length;
   let sum = '<b>' + impPreview.length + ' rows</b> · <b style="color:var(--flag-green)">' + matched + ' matched</b>'
     + (newD ? ' · <b style="color:#23508f">' + newD + ' new</b>' : '')
     + (skipped ? ' · <b style="color:#777">' + skipped + ' skipped</b>' : '')
     + (tConf ? ' · <b style="color:#7a4f00">' + tConf + ' transponder ⚠</b>' : '')
     + (nConf ? ' · <b style="color:#7a4f00">' + nConf + ' number ⚠</b>' : '');
+  // Loud mapping-sanity banners — catch the "name shows as a number / time stuck in the name" class of bug.
+  const warnLines = [];
+  if (Imp.cols.name < 0)
+    warnLines.push('⛔ No <b>Name</b> column detected — drivers would be created as “Car #&lt;number&gt;”. Set the Name column in the mapping above before importing.');
+  if (nmSusp)
+    warnLines.push('⚠ ' + nmSusp + ' row' + (nmSusp>1?'s':'') + ' have a name that looks like a number or a lap time (often a mis-mapped Name column). Check the Name column.');
+  // A single kart number repeated across many rows almost always means the # column is mis-mapped.
+  const actRows = impPreview.filter(r => r.status !== 'skip');
+  if (actRows.length >= 5) {
+    const tally = {};
+    actRows.forEach(r => { const k = (r.driver ? String(r.driver.num||'') : String(r.num||'')).toLowerCase(); if (k) tally[k] = (tally[k]||0)+1; });
+    let topK = '', topN = 0; for (const k in tally) if (tally[k] > topN) { topN = tally[k]; topK = k; }
+    if (topN > 3 && topN >= actRows.length * 0.3)
+      warnLines.push('⚠ Kart # “' + esc(topK) + '” repeats on ' + topN + ' of ' + actRows.length + ' rows — the Kart # column may be mis-mapped.');
+  }
+  if (tBad)
+    warnLines.push('⚠ ' + tBad + ' row' + (tBad>1?'s':'') + ' have a lap time we could not read — those drivers would sort to the back. Check the Lap time column / format.');
+  if (warnLines.length)
+    sum += '<br><span style="color:#7a4f00;font-weight:600">' + warnLines.join('<br>') + '</span>';
   if (Imp.unknownClasses && Imp.unknownClasses.length)
     sum += '<br><span style="color:#7a4f00">Unrecognized class' + (Imp.unknownClasses.length>1?'es':'') + ': ' + Imp.unknownClasses.map(esc).join(', ') + ' — those rows are skipped. Fix the class name or its mapping.</span>';
   if (Imp.emptyClass) sum += '<br><span style="color:#777">' + Imp.emptyClass + ' rows had a blank class and were skipped.</span>';
@@ -3261,7 +3318,8 @@ function impRenderPreview() {
 
   let cf = '';
   if (tConf) cf += '<label style="display:block;font-size:12.5px;margin-bottom:4px;cursor:pointer"><input type="checkbox"' + (Imp.updTrans?' checked':'') + ' onchange="Imp.updTrans=this.checked"> Update stored transponders from the file where they differ</label>';
-  if (nConf) cf += '<label style="display:block;font-size:12.5px;cursor:pointer"><input type="checkbox"' + (Imp.updNum?' checked':'') + ' onchange="Imp.updNum=this.checked"> Update stored kart numbers from the file where they differ</label>';
+  if (nConf) cf += '<label style="display:block;font-size:12.5px;margin-bottom:4px;cursor:pointer"><input type="checkbox"' + (Imp.updNum?' checked':'') + ' onchange="Imp.updNum=this.checked"> Update stored kart numbers from the file where they differ</label>';
+  if (nmConf) cf += '<label style="display:block;font-size:12.5px;cursor:pointer"><input type="checkbox"' + (Imp.updName?' checked':'') + ' onchange="Imp.updName=this.checked"> Update stored driver names from the file where they differ</label>';
   const cr = document.getElementById('impConflictRow');
   cr.innerHTML = cf; cr.style.display = cf ? '' : 'none';
 
@@ -3277,6 +3335,9 @@ function impRenderPreview() {
     const tag = { match:'<span class="ichip ichip-ok">matched</span>', new:'<span class="ichip ichip-new">new</span>', skip:'<span class="ichip ichip-skip">skip</span>', conflict:'<span class="ichip ichip-warn">⚠ trans</span>' }[r.status] || '';
     let warn = '';
     if (r.status !== 'skip' && r.numConflict) warn += ' <span class="ichip ichip-warn">⚠ #' + esc(r.num) + '≠' + esc(String(r.driver.num)) + '</span>';
+    if (r.status !== 'skip' && r.nameConflict) warn += ' <span class="ichip ichip-warn">⚠ name≠book</span>';
+    if (r.status !== 'skip' && r.nameSuspect) warn += ' <span class="ichip ichip-warn">⚠ name?</span>';
+    if (r.status !== 'skip' && r.timeBad) warn += ' <span class="ichip ichip-warn">⚠ time?</span>';
     const noteH = r.note ? ' <span style="font-size:11px;color:var(--muted)">(' + esc(r.note) + ')</span>' : '';
     return '<tr><td>'+dName+'</td><td>'+dNum+'</td><td>'+by+'</td><td>'+val+'</td><td>'+esc(clsName)+'</td><td>'+tag+warn+noteH+'</td></tr>';
   }).join('') || '<tr><td colspan="6" class="empty">No rows — check the column mapping and class above.</td></tr>';
@@ -3353,6 +3414,8 @@ function impApply() {
       if (r.trans && !driver.trans) driver.trans = impNormTrans(r.trans);                       // learn
       if (r.transConflict && Imp.updTrans && r.trans) driver.trans = impNormTrans(r.trans);     // update
       if (r.numConflict && Imp.updNum && r.num && /^[A-Za-z0-9]{1,5}$/.test(r.num)) driver.num = r.num;
+      // Heal a placeholder/numeric book name from the file (self-corrects a prior bad import), or update on request.
+      if (r.name && (impNamePlaceholder(driver.name, driver.num) || (Imp.updName && r.nameConflict))) driver.name = r.name;
     }
     return { ...r, driver };
   });
@@ -3429,7 +3492,7 @@ function openImport(target) {
   if (!S.classes.length) { alert('Add at least one class in Admin first, then import.'); return; }
   Imp = { rows:[], header:[], cols:{trans:-1,num:-1,name:-1,name2:-1,cls:-1,pos:-1,time:-1},
           target: target || 'heat', clsId: (S.classes[0] && S.classes[0].id) || null,
-          useClsCol:false, heatSet:'h1', vendor:null, updTrans:false, updNum:false, unknownClasses:[], emptyClass:0 };
+          useClsCol:false, heatSet:'h1', vendor:null, updTrans:false, updNum:false, updName:false, unknownClasses:[], emptyClass:0 };
   impPreview = [];
   document.getElementById('impCsvInfo').style.display = 'none';
   document.getElementById('impMapRow').style.display = 'none';
