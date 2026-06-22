@@ -3420,10 +3420,14 @@ function impRenderMap() {
   document.getElementById('impMapRow').innerHTML = h;
 }
 
-function impIngestText(text, filename) {
-  if (!Imp) return;
+function impIngestText(text, filename, quiet) {
+  if (!Imp) return false;
   const rows = impParseCSV(String(text || ''));
-  if (rows.length < 2) { alert("That file doesn't look like a results CSV (no data rows)."); return; }
+  if (rows.length < 2) {
+    if (quiet) { impWatchSay('⚠ ' + esc(filename || 'file') + " doesn't look like a results CSV yet — waiting…"); return false; }
+    alert("That file doesn't look like a results CSV (no data rows).");
+    return false;
+  }
   const hi = impPickHeader(rows);
   Imp.preamble = hi;
   Imp.header = rows[hi];
@@ -3441,6 +3445,7 @@ function impIngestText(text, filename) {
   document.getElementById('impPrevWrap').style.display = '';
   impRenderPreview();
   if (Imp.watchAuto) impAutoApply();
+  return true;
 }
 function impLoadCsv(input) {
   const f = input.files && input.files[0];
@@ -3453,6 +3458,15 @@ function impLoadCsv(input) {
 
 // ---------- Folder-watch (Chrome/Edge File System Access API) ----------
 
+function impWatchSay(html) {
+  const status = document.getElementById('impWatchStatus');
+  if (!status) return;
+  const head = (Imp && Imp.watchDir)
+    ? '<span class="imp-watch-pulse"></span> Watching <b>' + esc(Imp.watchDir.name) + '</b> · '
+    : '';
+  status.innerHTML = head + html;
+}
+
 async function impPickFolder() {
   if (!('showDirectoryPicker' in window)) return;
   try {
@@ -3460,11 +3474,13 @@ async function impPickFolder() {
     if (!Imp) return;
     Imp.watchDir = dir;
     Imp.watchSeen = {};
+    Imp.watchPrimed = false;   // first scan records existing files without loading them
+    Imp.watchBusy = false;     // guards against overlapping async scans
     Imp.watchInterval = setInterval(impScanFolder, 3000);
     document.getElementById('impWatchBtn').style.display = 'none';
     document.getElementById('impWatchStop').style.display = '';
-    document.getElementById('impWatchStatus').innerHTML =
-      '<span class="imp-watch-pulse"></span> Watching <b>' + esc(dir.name) + '</b> — will auto-load the newest CSV when it appears.';
+    impScanFolder(); // prime immediately so existing files are baseline, not loaded
+    impWatchSay('export a CSV and it will load automatically.');
   } catch (e) {
     // User cancelled the picker — no error needed
   }
@@ -3472,7 +3488,7 @@ async function impPickFolder() {
 
 function impStopWatch() {
   if (Imp && Imp.watchInterval) { clearInterval(Imp.watchInterval); Imp.watchInterval = null; }
-  if (Imp) { Imp.watchDir = null; Imp.watchSeen = {}; }
+  if (Imp) { Imp.watchDir = null; Imp.watchSeen = {}; Imp.watchPrimed = false; Imp.watchBusy = false; }
   const btn = document.getElementById('impWatchBtn');
   const stop = document.getElementById('impWatchStop');
   const status = document.getElementById('impWatchStatus');
@@ -3482,7 +3498,8 @@ function impStopWatch() {
 }
 
 async function impScanFolder() {
-  if (!Imp || !Imp.watchDir) return;
+  if (!Imp || !Imp.watchDir || Imp.watchBusy) return;
+  Imp.watchBusy = true;
   try {
     const found = [];
     for await (const [name, handle] of Imp.watchDir.entries()) {
@@ -3491,20 +3508,30 @@ async function impScanFolder() {
         found.push({ name, file, lastModified: file.lastModified });
       }
     }
-    if (!found.length) return;
-    const newest = found.reduce((a, b) => a.lastModified > b.lastModified ? a : b);
-    const prev = Imp.watchSeen[newest.name];
-    if (prev !== undefined && prev === newest.lastModified) return; // already processed
+    // First pass after picking the folder: record what's already there as the
+    // baseline so we only react to files exported *after* watching starts.
+    if (!Imp.watchPrimed) {
+      found.forEach(f => { Imp.watchSeen[f.name] = f.lastModified; });
+      Imp.watchPrimed = true;
+      return;
+    }
+    // Pick the newest file that's new or has changed since we last saw it.
+    const changed = found.filter(f => Imp.watchSeen[f.name] !== f.lastModified);
+    if (!changed.length) return;
+    const newest = changed.reduce((a, b) => a.lastModified > b.lastModified ? a : b);
+    // Skip a file that's still being written (mtime within the last ~1.5s) — wait
+    // for the next scan so we don't read a half-flushed export.
+    if (Date.now() - newest.lastModified < 1500) return;
     Imp.watchSeen[newest.name] = newest.lastModified;
     const text = await newest.file.text();
     const ts = new Date(newest.lastModified).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit' });
-    const status = document.getElementById('impWatchStatus');
-    if (status) status.innerHTML =
-      '<span class="imp-watch-pulse"></span> Watching <b>' + esc(Imp.watchDir.name) + '</b> · last file: <b>' + esc(newest.name) + '</b> at ' + ts;
-    impIngestText(text, newest.name);
+    impWatchSay('loaded <b>' + esc(newest.name) + '</b> at ' + ts + '.');
+    impIngestText(text, newest.name, true);
   } catch (e) {
     // Permission revoked or folder gone — stop watching
     impStopWatch();
+  } finally {
+    if (Imp) Imp.watchBusy = false;
   }
 }
 
@@ -3515,24 +3542,26 @@ function impAutoApply() {
   // Only auto-apply if every active row is a clean match: no new drivers, no suspect names, no bad times, no conflicts
   const clean = active.every(r => r.status === 'match' && !r.nameSuspect && !r.timeBad && !r.transConflict && !r.numConflict && !r.nameConflict);
   if (clean) {
-    impApply();
+    impApply({ silent: true });
   } else {
     // Quietly surface the preview so the operator can review — don't auto-apply
-    const status = document.getElementById('impWatchStatus');
-    if (status && Imp.watchDir) status.innerHTML =
-      '<span class="imp-watch-pulse"></span> Watching <b>' + esc(Imp.watchDir.name) + '</b> · ⚠ file has warnings — review &amp; confirm below.';
+    impWatchSay('⚠ file has warnings — review &amp; confirm below.');
   }
 }
 
-function impApply() {
+function impApply(opts) {
+  opts = opts || {};
+  const silent = !!opts.silent;                  // auto-apply: never show blocking dialogs
+  const keepOpen = !!(Imp && Imp.watchDir);      // a watch is active: stay open and keep watching
   if (!Imp) return;
   const toAct = impPreview.filter(r => r.status !== 'skip');
-  if (!toAct.length) { alert('Nothing to import.'); return; }
+  if (!toAct.length) { if (!silent) alert('Nothing to import.'); return; }
   const target = Imp.target;
 
   // New-driver review gate
   const newRows = toAct.filter(r => !r.driver && r.status === 'new');
   if (newRows.length) {
+    if (silent) return;   // auto-apply never creates new drivers (the clean-check guards this)
     const names = newRows.map(r => r.name || (r.num ? 'Car #' + r.num : 'Trans ' + r.trans)).slice(0, 10);
     const more = newRows.length > 10 ? '\n…and ' + (newRows.length - 10) + ' more' : '';
     if (!confirm('This will create ' + newRows.length + ' NEW driver' + (newRows.length>1?'s':'') + ' in the book (not matched by transponder, number, or name):\n\n' + names.join('\n') + more + '\n\nContinue?')) return;
@@ -3541,7 +3570,11 @@ function impApply() {
   // License/trial gate for paths that create entries (mirrors register())
   let willCreateEntries = target === 'qual';
   if (target === 'feat') willCreateEntries = toAct.some(r => r.driver && !(S.raceDay.entries||[]).some(e => e.driverId === r.driver.id && e.classId === r.clsId)) || newRows.length > 0;
-  if (willCreateEntries && !canEnter()) { alert(entryBlockedMsg()); return; }
+  if (willCreateEntries && !canEnter()) {
+    if (silent) { impWatchSay('⚠ ' + esc(entryBlockedMsg())); return; }
+    alert(entryBlockedMsg());
+    return;
+  }
 
   // Resolve / create drivers
   const resolved = toAct.map(r => {
@@ -3622,11 +3655,18 @@ function impApply() {
   if (createdEntry) consumeTrialDay();
   save();
   if (typeof scheduleUsageBeacon === 'function' && createdEntry) scheduleUsageBeacon();
-  closeImport();
   renderHeader();
   render(curPage);
   const what = { qual: done + ' drivers placed on the grid', heat: done + ' heat finishes', feat: done + ' feature finishes' }[target];
-  alert('✅ Imported ' + what + '.' + (skipped ? ' ' + skipped + ' rows skipped.' : ''));
+  const skipMsg = skipped ? ' ' + skipped + ' rows skipped.' : '';
+  if (keepOpen) {
+    // Watch mode: keep the overlay open and the folder watch running; report inline.
+    impRenderPreview();
+    impWatchSay('✅ imported ' + esc(what) + '.' + esc(skipMsg) + ' Still watching…');
+  } else {
+    closeImport();
+    alert('✅ Imported ' + what + '.' + skipMsg);
+  }
 }
 
 function openImport(target) {
@@ -3634,7 +3674,7 @@ function openImport(target) {
   Imp = { rows:[], header:[], cols:{trans:-1,num:-1,name:-1,name2:-1,cls:-1,pos:-1,time:-1},
           target: target || 'heat', clsId: (S.classes[0] && S.classes[0].id) || null,
           useClsCol:false, heatSet:'h1', vendor:null, updTrans:false, updNum:false, updName:false, preamble:0, unknownClasses:[], emptyClass:0,
-          watchDir:null, watchInterval:null, watchSeen:{}, watchAuto:false };
+          watchDir:null, watchInterval:null, watchSeen:{}, watchAuto:false, watchPrimed:false, watchBusy:false };
   impPreview = [];
   document.getElementById('impCsvInfo').style.display = 'none';
   document.getElementById('impMapRow').style.display = 'none';
