@@ -425,6 +425,7 @@
         <div><label>Max in B-main</label><input type="number" id="mBMain" min="2" max="30" onchange="saveSett()" /></div>
         <div><label>B-main transfers</label><input type="number" id="mTrans" min="0" max="10" onchange="saveSett()" /></div>
       </div>
+      <p class="sub" style="margin-top:6px">Heat, feature, and B-main sizes are the track-wide defaults — set a different size for an individual class under <b>Race classes</b> (leave a class's box blank to follow these).</p>
       <label style="margin-top:16px">Pill draw → heats (when a class splits into multiple heats) <button class="info-btn" onclick="toggleHelp('hHeatFill')" title="What's this?">i</button></label>
       <select id="mHeatFill" onchange="saveSett()">
         <option value="alternate">Alternate — fast pills spread across heats (pills 1, 2, 3, 4 are the poles of heats 1, 2, 3, 4)</option>
@@ -1079,10 +1080,16 @@ function invertWithinHeats(heats, cls) {
   if (!n || (cls.invertScope || 'field') !== 'heat') return heats;
   return heats.map(heat => [...heat.slice(0, n).reverse(), ...heat.slice(n)]);
 }
+// Per-class size overrides. Each class may carry its own maxHeat / maxFeature / maxBMain;
+// when unset (or 0), the class falls back to the global default in S.settings. Accepts a
+// class object or a class id. (B-main transfers stay global.)
+function clsHeat(cls)    { const c = (cls && typeof cls === 'object') ? cls : (classById(cls) || {}); return c.maxHeat    > 0 ? c.maxHeat    : S.settings.maxHeat; }
+function clsFeature(cls) { const c = (cls && typeof cls === 'object') ? cls : (classById(cls) || {}); return c.maxFeature > 0 ? c.maxFeature : S.settings.maxFeature; }
+function clsBMain(cls)   { const c = (cls && typeof cls === 'object') ? cls : (classById(cls) || {}); return c.maxBMain   > 0 ? c.maxBMain   : S.settings.maxBMain; }
 // Heat sets for DISPLAY, honoring both invert scopes. (calcStandings uses only the
 // field-invert half directly, since within-heat order never affects standings.)
 function heatSet(racers, cls) {
-  return invertWithinHeats(buildHeats(invertField(racers, cls), S.settings.maxHeat), cls);
+  return invertWithinHeats(buildHeats(invertField(racers, cls), clsHeat(cls)), cls);
 }
 
 // ---------- Navigation ----------
@@ -1626,7 +1633,7 @@ function renderGrid() {
     const scope = cls.invertScope || 'field';
     const heats = classHeats(cls);
     const field = invertField(racers, cls);
-    const set1 = invertWithinHeats(buildHeats(field, S.settings.maxHeat), cls);
+    const set1 = invertWithinHeats(buildHeats(field, clsHeat(cls)), cls);
     const set2 = set1.map(heat => [...heat].reverse());
     const invNote = invN ? ' · top ' + invN + ' inverted (' + (scope === 'heat' ? 'each heat' : 'whole field') + ')' : '';
     if (set1.length === 1) {
@@ -1670,7 +1677,6 @@ function renderGrid() {
 }
 
 function printHeats() {
-  const max = S.settings.maxHeat;
   let html = '<!DOCTYPE html><html><head><title>Heat Assignments</title><style>'
     + 'body{font-family:Arial,sans-serif;font-size:12px;padding:24px;color:#000}'
     + 'h1{font-size:20px;margin-bottom:4px}h2{font-size:15px;margin:20px 0 6px;border-bottom:2px solid #000;padding-bottom:4px}'
@@ -1760,7 +1766,7 @@ function calcStandings(clsId) {
   const cls = classById(clsId);
   const heats = classHeats(cls);
   const racers = classRacers(clsId);
-  const set1 = buildHeats(invertField(racers, cls), S.settings.maxHeat);
+  const set1 = buildHeats(invertField(racers, cls), clsHeat(cls));
   const heatOf = {};
   set1.forEach((heat, hi) => heat.forEach(r => { heatOf[r.id] = hi; }));
   const res = getRes(clsId);
@@ -1788,7 +1794,8 @@ function mainTopIds(clsId, mi, drivers, n) {
 // mains are in running order (cascade lists the lowest main first). transferred = who reaches the feature.
 function featureData(clsId) {
   const standings = calcStandings(clsId);
-  const { maxFeature, maxBMain, transfers } = S.settings;
+  const maxFeature = clsFeature(clsId), maxBMain = clsBMain(clsId);
+  const { transfers } = S.settings;
   const mode = S.settings.bmainMode || 'single';
   if (standings.length <= maxFeature) return { mode, locked: standings, mains: [], transferred: [], transfers, toFeatureSpots: 0 };
 
@@ -1875,8 +1882,8 @@ function dayPoints(clsId) {
   const pts = {};
   classRacers(clsId).forEach(r => { pts[r.id] = beyond; });
   if (mode === 'linear') {
-    // Every feature finisher scores: 1st = feature size, last = 1. Sizes to maxFeature live.
-    const top = Math.max(1, S.settings.maxFeature || 1);
+    // Every feature finisher scores: 1st = feature size, last = 1. Sizes to this class's feature live.
+    const top = Math.max(1, clsFeature(clsId) || 1);
     fin.forEach(f => { pts[f.id] = f.fin >= 1 ? Math.max(1, top - f.fin + 1) : beyond; });
   } else {
     fin.forEach(f => { pts[f.id] = f.fin >= 1 && f.fin <= table.length ? table[f.fin - 1] : beyond; });
@@ -2472,6 +2479,14 @@ function renderClsList() {
           ? '<label style="margin:0;display:flex;align-items:center;gap:6px;font-size:12px">Invert top'
             + '<input class="inline-num" type="number" min="2" max="99" value="' + invN + '" onchange="setClassInvert(' + c.id + ',this.value)"></label>'
           : '')
+      + '<span style="display:flex;align-items:center;gap:8px;font-size:12px;flex-wrap:wrap;color:var(--muted)" title="Blank = follow the global default in Race format">Sizes'
+      +   '<label style="margin:0;display:flex;align-items:center;gap:4px">heat'
+      +     '<input class="inline-num" type="number" min="2" max="30" value="' + (c.maxHeat || '') + '" placeholder="' + S.settings.maxHeat + '" onchange="setClassSize(' + c.id + ',\'maxHeat\',this.value)"></label>'
+      +   '<label style="margin:0;display:flex;align-items:center;gap:4px">feature'
+      +     '<input class="inline-num" type="number" min="2" max="40" value="' + (c.maxFeature || '') + '" placeholder="' + S.settings.maxFeature + '" onchange="setClassSize(' + c.id + ',\'maxFeature\',this.value)"></label>'
+      +   '<label style="margin:0;display:flex;align-items:center;gap:4px">B-main'
+      +     '<input class="inline-num" type="number" min="2" max="30" value="' + (c.maxBMain || '') + '" placeholder="' + S.settings.maxBMain + '" onchange="setClassSize(' + c.id + ',\'maxBMain\',this.value)"></label>'
+      + '</span>'
       + '<button class="btn btn-sm btn-danger" onclick="delClass(' + c.id + ')">Remove</button></div>';
   }).join('');
 }
@@ -2487,6 +2502,15 @@ function setClassInvert(id, val) {
   const c = classById(id); if (!c) return;
   c.invert = Math.max(2, parseInt(val) || 2);
   save(); renderClsList(); renderGrid();
+}
+// Per-class size override (maxHeat / maxFeature / maxBMain). A blank or sub-2 value
+// clears the override so the class follows the global default in Race format.
+function setClassSize(id, field, val) {
+  const c = classById(id); if (!c) return;
+  const n = parseInt(val, 10);
+  if (n >= 2) c[field] = n; else delete c[field];
+  save(); renderClsList(); renderGrid();
+  if (curPage === 'results') renderResults();
 }
 // Per-class qualifying format: 2 = pill draw + two heats; 1 = qualifying sets the grid, one heat to the mains.
 function setClassHeats(id, val) {
@@ -3266,7 +3290,7 @@ function impResolveClsId(row) {
 // Driver → heat index, mirroring calcStandings() so imported keys land on the right heat.
 function impHeatOfMap(clsId) {
   const map = {};
-  buildHeats(invertField(classRacers(clsId), classById(clsId)), S.settings.maxHeat).forEach((heat, hi) => heat.forEach(r => { map[r.id] = hi; }));
+  buildHeats(invertField(classRacers(clsId), classById(clsId)), clsHeat(clsId)).forEach((heat, hi) => heat.forEach(r => { map[r.id] = hi; }));
   return map;
 }
 
@@ -3636,7 +3660,7 @@ function impApply(opts) {
       const k = resKey(cid);
       if (!S.raceDay.heatResults[k]) S.raceDay.heatResults[k] = {};
       const finishers = rows.filter(r => typeof r.finish === 'number').length;
-      if (finishers > (S.settings.maxFeature || 20)) S.settings.maxFeature = finishers;
+      if (cls && finishers > clsFeature(cls)) cls.maxFeature = finishers;
       rows.forEach(r => {
         const inClass = S.raceDay.entries.some(e => e.driverId === r.driver.id && e.classId === cid);
         if (!inClass) {
