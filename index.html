@@ -3388,7 +3388,6 @@ function impComputePreview() {
         const cobj = classById(cid);
         const pendName = Imp.pendingCls[clsId];
         if (cid === -1) { status = 'skip'; note = 'Unknown class'; }
-        else if (cobj && classHeats(cobj) === 2) { status = 'skip'; note = cobj.name + ' runs a pill draw — its grid comes from the draw, not a qualifying import'; }
         else if (!m.driver && !m.canCreate) { status = 'skip'; note = 'No name, number, or transponder'; }
         else if (!m.driver) status = 'new';
         else if (m.transConflict) status = 'conflict';
@@ -3882,21 +3881,11 @@ function closeImport() {
   Imp = null;
   impPreview = [];
 }
-// The session pipeline is built from the class formats actually in use, so it always
-// matches how the track runs: qualifying classes show Qualifying → Heat → Feature;
-// pill-draw classes show Heat 1 → Heat 2 → Feature; a mixed program shows the union.
+// The import sessions. Qualifying (sets the grid) and Feature are always available;
+// the second heat shows only when a class runs the two-set pill-draw format.
 function impPipeline() {
-  // No classes yet (building the day from a qualifying import): qualifying classes are
-  // created one heat each, so show the qualifying-format pipeline.
-  if (!S.classes.length) return [
-    { key: 'qual', label: 'Qualifying', target: 'qual' },
-    { key: 'h1', label: 'Heat', target: 'heat', heatSet: 'h1' },
-    { key: 'ft', label: 'Feature', target: 'feat' },
-  ];
-  const hasQual = S.classes.some(c => classHeats(c) === 1);
-  const hasH2   = S.classes.some(c => classHeats(c) === 2);
-  const steps = [];
-  if (hasQual) steps.push({ key: 'qual', label: 'Qualifying', target: 'qual' });
+  const hasH2 = S.classes.some(c => classHeats(c) === 2);
+  const steps = [{ key: 'qual', label: 'Qualifying', target: 'qual' }];
   steps.push({ key: 'h1', label: hasH2 ? 'Heat 1' : 'Heat', target: 'heat', heatSet: 'h1' });
   if (hasH2) steps.push({ key: 'h2', label: 'Heat 2', target: 'heat', heatSet: 'h2' });
   steps.push({ key: 'ft', label: 'Feature', target: 'feat' });
