@@ -1652,6 +1652,7 @@ function renderGrid() {
     const heats = classHeats(cls);
     const set1 = invertWithinHeats(heatArrays(racers, cls), cls);
     const set2 = set1.map(heat => [...heat].reverse());
+    const field = invertField(racers, cls);   // full field in grid order (for the multi-heat overview row)
     const invNote = invN ? ' · top ' + invN + ' inverted (' + (scope === 'heat' ? 'each heat' : 'whole field') + ')' : '';
     if (set1.length === 1) {
       // whole class fits in one heat: the grid IS the heat
