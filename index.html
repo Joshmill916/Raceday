@@ -3144,8 +3144,9 @@ function impNormName(s) {
     .toLowerCase().replace(/[.,'`’‘´"“”\-]/g, '').replace(/\s+/g, ' ').trim();
 }
 function impParseLapTime(s) {
-  // Normalize European comma decimals (22,031 → 22.031) before parsing.
-  s = String(s || '').trim().replace(/,/g, '.');
+  // Strip best-lap / flag markers (e.g. 00.12.210*) and normalize European comma
+  // decimals (22,031 → 22.031) before parsing.
+  s = String(s || '').trim().replace(/[*#!†]/g, '').replace(/,/g, '.').trim();
   if (!s || /^(dnf|dns|dq|dsq|ret|nc)$/i.test(s)) return Infinity;
   // Colon forms: hh:mm:ss.mmm or mm:ss.mmm
   const h = s.match(/^(\d+):(\d{1,2}):(\d{1,2}(?:\.\d+)?)$/);
@@ -3212,13 +3213,17 @@ function impParseCSV(text) {
 function impGuessColumns(hdr) {
   const h = hdr.map(v => v.trim().toLowerCase());
   const out = { trans:-1, num:-1, name:-1, name2:-1, cls:-1, pos:-1, time:-1 };
+  // A measurement/time column ("Last Lap", "Best Lap", "Elapsed Time", "Gap"…) must never
+  // be read as a driver name — otherwise the lap time gets glued onto the name.
+  const timeish = c => /\b(lap|laps|time|elapsed|gap|diff|difference|clock|sector|split|interval)\b|best|laptime/.test(c);
   for (const [key, syns] of Object.entries(IMP_SYN)) {
-    let idx = h.findIndex(c => syns.includes(c));
-    if (idx < 0) idx = h.findIndex(c => syns.some(s => c.includes(s)));
+    const nameKey = (key === 'name' || key === 'name2');
+    let idx = h.findIndex(c => syns.includes(c) && !(nameKey && timeish(c)));
+    if (idx < 0) idx = h.findIndex(c => syns.some(s => c.includes(s)) && !(nameKey && timeish(c)));
     out[key] = idx;
   }
   if (out.num < 0) out.num = h.findIndex(c => c === 'no' || c === 'no.' || c === '#' || c === 'number' || c === 'car' || c === 'kart');
-  if (out.name < 0) out.name = h.findIndex(c => c.includes('name') || c.includes('driver'));
+  if (out.name < 0) out.name = h.findIndex(c => (c.includes('name') || c.includes('driver')) && !timeish(c));
   if (out.time < 0) out.time = h.findIndex(c => c.includes('time') || c.includes('lap') || c.includes('best'));
   if (out.pos < 0) out.pos = h.findIndex(c => c.includes('pos') || c.includes('place') || c.includes('rank') || c.includes('finish'));
   return out;
