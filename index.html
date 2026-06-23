@@ -774,8 +774,17 @@
         <button id="impCmCol" onclick="impSetClsMode(true)">Use the file's class column</button>
       </div>
       <div id="impClsPick" style="margin-top:8px">
-        <select id="impClsSel" onchange="if(Imp){Imp.clsId=parseInt(this.value)||null;impRenderPreview();}"></select>
+        <select id="impClsSel" onchange="impClsSelChange(this.value)"></select>
+        <div id="impNewClsRow" style="display:none;margin-top:8px">
+          <label style="font-size:12px;color:var(--muted);display:block;margin-bottom:3px">New class name</label>
+          <input id="impNewClsName" type="text" placeholder="e.g. Small Block Open" style="width:100%;box-sizing:border-box;padding:8px;border:1.5px solid #d4d4cf;border-radius:8px;font-family:inherit" oninput="if(Imp){Imp.newClsName=this.value;impRenderPreview();}">
+          <p class="sub" style="margin-top:4px">A new class is created when you import — suggested from the file name, edit if needed.</p>
+        </div>
       </div>
+      <label id="impMakeClsRow" style="display:none;align-items:center;gap:6px;margin-top:8px;font-size:13px;cursor:pointer">
+        <input type="checkbox" id="impMakeClasses" onchange="if(Imp){Imp.makeClasses=this.checked;impRenderPreview();}">
+        Create classes from the file that don't exist yet
+      </label>
 
       <label class="imp-lbl">3 · Load the timing CSV</label>
       <button class="btn" onclick="document.getElementById('impFile').click()">📂 Choose CSV file</button>
@@ -3274,12 +3283,44 @@ function impMatchDriver(row) {
   const canCreate = !!(num || name || trans);
   return { driver, matchedBy, num, name, trans, transConflict, numConflict, nameConflict, nameSuspect, canCreate };
 }
-function impResolveClsId(row) {
-  if (!Imp.useClsCol) return Imp.clsId || null;
-  const v = impCell(row, 'cls').toLowerCase();
-  if (!v) return null;
-  const c = (S.classes || []).find(c => c.name.toLowerCase() === v);
-  return c ? c.id : -1;          // -1 = unknown class name
+// Resolve a row's class. Returns { id, newName }:
+//  • id > 0      → an existing class
+//  • id null     → no class info (row dropped)
+//  • id negative → a class to be CREATED on apply; newName holds its name. -2 is the
+//    single "new class" in one-class mode; -(100+n) are distinct unknown names in
+//    class-column mode (when "create classes from the file" is on).
+function impClsResolve(row) {
+  if (!Imp.useClsCol) {
+    if (Imp.newCls) {
+      const nm = (Imp.newClsName || '').trim();
+      return nm ? { id: -2, newName: nm } : { id: null };
+    }
+    return { id: Imp.clsId || null };
+  }
+  const v = impCell(row, 'cls').trim();
+  if (!v) return { id: null };
+  const c = (S.classes || []).find(c => c.name.toLowerCase() === v.toLowerCase());
+  if (c) return { id: c.id };
+  if (Imp.makeClasses) {
+    const key = v.toLowerCase();
+    if (!Imp._tmpCls) Imp._tmpCls = {};
+    if (!(key in Imp._tmpCls)) Imp._tmpCls[key] = { id: -(100 + Object.keys(Imp._tmpCls).length), name: v };
+    return { id: Imp._tmpCls[key].id, newName: v };
+  }
+  return { id: -1 };   // unknown class name, not creating
+}
+// Back-compat shim: a few callers just need the id.
+function impResolveClsId(row) { return impClsResolve(row).id; }
+// Best-effort class-name suggestion from a results filename: drop the extension and
+// the common event/session/round tokens, leaving the class words to confirm.
+function impClassFromFilename(fn) {
+  let s = String(fn || '').replace(/\.[^.]*$/, '').replace(/[_]+/g, ' ').replace(/\s+/g, ' ').trim();
+  // strip leading "... Results" event preamble
+  s = s.replace(/^.*\bresults\b/i, '').trim();
+  // strip trailing session / round / moto tokens and numbers
+  s = s.replace(/\b(qualifying|qualify|qual|heat|heats|main|mains|feature|features|final|finals|moto|round|race|set|session)\b\s*\d*/ig, ' ');
+  s = s.replace(/\b\d+\b/g, ' ').replace(/\s+/g, ' ').trim();
+  return s ? s.replace(/\b\w/g, m => m.toUpperCase()) : '';
 }
 // Driver → heat index, mirroring calcStandings() so imported keys land on the right heat.
 function impHeatOfMap(clsId) {
@@ -3292,14 +3333,16 @@ function impComputePreview() {
   impPreview = [];
   const unknown = new Set();
   let emptyCls = 0;
+  Imp && (Imp._tmpCls = {}, Imp.pendingCls = {});   // recompute pending new classes each pass
   if (!Imp || !Imp.rows.length) { Imp && (Imp.unknownClasses = [], Imp.emptyClass = 0); return; }
 
   if (Imp.target === 'qual') {
     const groups = {};
     Imp.rows.forEach(row => {
-      const clsId = impResolveClsId(row);
+      const cr = impClsResolve(row); const clsId = cr.id;
       if (clsId === null) { if (Imp.useClsCol) emptyCls++; return; }
       if (clsId === -1) unknown.add(impCell(row, 'cls'));
+      if (cr.newName && clsId <= -2) Imp.pendingCls[clsId] = cr.newName;
       const m = impMatchDriver(row);
       const rawPos  = Imp.cols.pos  >= 0 ? impParseFinish(impCell(row,'pos'))  : null;
       const timeStr = Imp.cols.time >= 0 ? impCell(row,'time') : '';
@@ -3314,12 +3357,15 @@ function impComputePreview() {
       items.forEach(({ m, clsId, timeStr }) => {
         let status = 'match', note = '';
         const timeBad = impTimeUnparsed(timeStr);
-        const cobj = classById(parseInt(clsId));
-        if (parseInt(clsId) < 0) { status = 'skip'; note = 'Unknown class'; }
+        const cid = parseInt(clsId);
+        const cobj = classById(cid);
+        const pendName = Imp.pendingCls[clsId];
+        if (cid === -1) { status = 'skip'; note = 'Unknown class'; }
         else if (cobj && classHeats(cobj) === 2) { status = 'skip'; note = cobj.name + ' runs a pill draw — its grid comes from the draw, not a qualifying import'; }
         else if (!m.driver && !m.canCreate) { status = 'skip'; note = 'No name, number, or transponder'; }
         else if (!m.driver) status = 'new';
         else if (m.transConflict) status = 'conflict';
+        if (pendName && status !== 'skip') note = (note ? note + ' · ' : '') + '+ new class “' + pendName + '”';
         if (status !== 'skip') {
           // Dedupe by transponder when present (so two same-numbered karts with different
           // transponders both keep their grid spot); otherwise by number.
@@ -3335,23 +3381,30 @@ function impComputePreview() {
     }
   } else {
     Imp.rows.forEach(row => {
-      const clsId = impResolveClsId(row);
+      const cr = impClsResolve(row); const clsId = cr.id;
       if (clsId === null) { if (Imp.useClsCol) emptyCls++; return; }
       if (clsId === -1) unknown.add(impCell(row, 'cls'));
+      // New classes can be created from a feature import (it sets entries); not from a heat
+      // import, which needs an existing grid.
+      if (cr.newName && clsId <= -2 && Imp.target === 'feat') Imp.pendingCls[clsId] = cr.newName;
       const m = impMatchDriver(row);
       const finish = Imp.cols.pos >= 0 ? impParseFinish(impCell(row,'pos')) : null;
-      const cobj = classById(parseInt(clsId));
+      const cid = parseInt(clsId);
+      const cobj = classById(cid);
+      const pendName = Imp.pendingCls[clsId];
       let status = 'match', note = '';
-      if (parseInt(clsId) < 0) { status = 'skip'; note = 'Unknown class'; }
+      if (cid === -1) { status = 'skip'; note = 'Unknown class'; }
+      else if (cid <= -2 && Imp.target === 'heat') { status = 'skip'; note = 'New class — import qualifying/grid first'; }
       else if (Imp.target === 'heat' && Imp.heatSet === 'h2' && cobj && classHeats(cobj) === 1) { status = 'skip'; note = cobj.name + ' runs a single qualifying heat — no Heat 2'; }
       else if (!m.driver && !m.canCreate) { status = 'skip'; note = 'No name, number, or transponder'; }
       else if (!m.driver) { if (Imp.target === 'heat') { status = 'skip'; note = 'Not in driver book — import qualifying/grid first'; } else status = 'new'; }
       else if (m.transConflict) status = 'conflict';
-      if (Imp.target === 'heat' && status !== 'skip' && m.driver) {
-        const inClass = (S.raceDay.entries||[]).some(e => e.driverId === m.driver.id && e.classId === parseInt(clsId));
+      if (Imp.target === 'heat' && status !== 'skip' && m.driver && cid > 0) {
+        const inClass = (S.raceDay.entries||[]).some(e => e.driverId === m.driver.id && e.classId === cid);
         if (!inClass) { status = 'skip'; note = 'Not entered in this class (no pill yet)'; }
       }
-      impPreview.push({ ...m, status, note, clsId: parseInt(clsId), finish });
+      if (pendName && status !== 'skip') note = (note ? note + ' · ' : '') + '+ new class “' + pendName + '”';
+      impPreview.push({ ...m, status, note, clsId: cid, finish });
     });
   }
   Imp.unknownClasses = [...unknown].filter(Boolean);
@@ -3456,6 +3509,22 @@ function impIngestText(text, filename, quiet) {
   Imp.rows = rows.slice(hi + 1);
   Imp.cols = impGuessColumns(Imp.header);
   Imp.vendor = impDetectVendor(Imp.header);
+  Imp.lastFile = filename || '';
+  // One-class mode: read the class from the file name and either select the matching
+  // existing class or propose creating it. This makes the one-file-per-class workflow
+  // route each file to the right class automatically (new classes still need a confirm).
+  if (!Imp.useClsCol) {
+    const guess = impClassFromFilename(Imp.lastFile);
+    if (guess) {
+      const match = (S.classes || []).find(c => c.name.toLowerCase() === guess.toLowerCase());
+      if (match) { Imp.newCls = false; Imp.clsId = match.id; }
+      else if (Imp.target !== 'heat') { Imp.newCls = true; Imp.newClsName = guess; }  // qual/feat can create; heat only matches
+      impFillClsSel();
+      const nameEl = document.getElementById('impNewClsName');
+      if (nameEl) nameEl.value = Imp.newClsName || '';
+      document.getElementById('impNewClsRow').style.display = Imp.newCls ? '' : 'none';
+    }
+  }
   const info = document.getElementById('impCsvInfo');
   info.style.display = '';
   info.innerHTML = '<b>' + Imp.rows.length + ' rows</b>'
@@ -3580,6 +3649,14 @@ function impApply(opts) {
   if (!toAct.length) { if (!silent) alert('Nothing to import.'); return; }
   const target = Imp.target;
 
+  // New-class review gate — distinct pending classes (negative clsIds) among the rows.
+  const pendIds = [...new Set(toAct.map(r => r.clsId).filter(id => id <= -2 && Imp.pendingCls[id]))];
+  if (pendIds.length) {
+    if (silent) return;   // auto-apply never creates classes — pause for review
+    const cnames = pendIds.map(id => Imp.pendingCls[id]);
+    if (!confirm('This will create ' + pendIds.length + ' NEW class' + (pendIds.length>1?'es':'') + ':\n\n' + cnames.join('\n') + '\n\nContinue?')) return;
+  }
+
   // New-driver review gate
   const newRows = toAct.filter(r => !r.driver && r.status === 'new');
   if (newRows.length) {
@@ -3590,12 +3667,28 @@ function impApply(opts) {
   }
 
   // License/trial gate for paths that create entries (mirrors register())
-  let willCreateEntries = target === 'qual';
-  if (target === 'feat') willCreateEntries = toAct.some(r => r.driver && !(S.raceDay.entries||[]).some(e => e.driverId === r.driver.id && e.classId === r.clsId)) || newRows.length > 0;
+  let willCreateEntries = target === 'qual' || pendIds.length > 0;
+  if (target === 'feat') willCreateEntries = willCreateEntries || toAct.some(r => r.driver && !(S.raceDay.entries||[]).some(e => e.driverId === r.driver.id && e.classId === r.clsId)) || newRows.length > 0;
   if (willCreateEntries && !canEnter()) {
     if (silent) { impWatchSay('⚠ ' + esc(entryBlockedMsg())); return; }
     alert(entryBlockedMsg());
     return;
+  }
+
+  // Create the pending classes now and remap rows from temp ids to the real class ids.
+  // Classes made during a qualifying import are qualifying-format (one heat); otherwise
+  // they default to the pill-draw/two-heat format.
+  if (pendIds.length) {
+    const idMap = {};
+    pendIds.forEach(tid => {
+      const name = Imp.pendingCls[tid];
+      const cls = { id: Date.now() + Math.floor(Math.random() * 1000), name: name, maxPill: 200, heats: (target === 'qual' ? 1 : 2) };
+      S.classes.push(cls);
+      rememberClass(name, cls.maxPill);
+      idMap[tid] = cls.id;
+      logAudit('Class created from import', '', name, '');
+    });
+    toAct.forEach(r => { if (r.clsId in idMap) r.clsId = idMap[r.clsId]; });
   }
 
   // Resolve / create drivers
@@ -3692,17 +3785,19 @@ function impApply(opts) {
 }
 
 function openImport(target) {
-  if (!S.classes.length) { alert('Add at least one class in Admin first, then import.'); return; }
+  // No classes is fine — a qualifying import can create them. Start in "new class" mode.
   Imp = { rows:[], header:[], cols:{trans:-1,num:-1,name:-1,name2:-1,cls:-1,pos:-1,time:-1},
           target: target || 'heat', clsId: (S.classes[0] && S.classes[0].id) || null,
           useClsCol:false, heatSet:'h1', step:0, vendor:null, updTrans:false, updNum:false, updName:false, preamble:0, unknownClasses:[], emptyClass:0,
+          newCls: !S.classes.length, newClsName:'', makeClasses:false, lastFile:'', pendingCls:{}, _tmpCls:{},
           watchDir:null, watchInterval:null, watchSeen:{}, watchAuto:false, watchPrimed:false, watchBusy:false };
   impPreview = [];
   document.getElementById('impCsvInfo').style.display = 'none';
   document.getElementById('impMapRow').style.display = 'none';
   document.getElementById('impMapRow').innerHTML = '';
   document.getElementById('impPrevWrap').style.display = 'none';
-  document.getElementById('impClsSel').innerHTML = S.classes.map(c => '<option value="'+c.id+'">'+esc(c.name)+'</option>').join('');
+  document.getElementById('impNewClsName').value = '';
+  const mk = document.getElementById('impMakeClasses'); if (mk) mk.checked = false;
   // Show folder-watch section only on browsers that support the File System Access API
   const watchSec = document.getElementById('impWatchSection');
   if (watchSec) watchSec.style.display = ('showDirectoryPicker' in window) ? '' : 'none';
@@ -3731,6 +3826,13 @@ function closeImport() {
 // matches how the track runs: qualifying classes show Qualifying → Heat → Feature;
 // pill-draw classes show Heat 1 → Heat 2 → Feature; a mixed program shows the union.
 function impPipeline() {
+  // No classes yet (building the day from a qualifying import): qualifying classes are
+  // created one heat each, so show the qualifying-format pipeline.
+  if (!S.classes.length) return [
+    { key: 'qual', label: 'Qualifying', target: 'qual' },
+    { key: 'h1', label: 'Heat', target: 'heat', heatSet: 'h1' },
+    { key: 'ft', label: 'Feature', target: 'feat' },
+  ];
   const hasQual = S.classes.some(c => classHeats(c) === 1);
   const hasH2   = S.classes.some(c => classHeats(c) === 2);
   const steps = [];
@@ -3769,12 +3871,35 @@ function impSetStep(i) {
   if (Imp.rows.length) impRenderPreview();
 }
 function impNextStep() { if (Imp) impSetStep(Imp.step + 1); }
+function impFillClsSel() {
+  const sel = document.getElementById('impClsSel');
+  if (!S.classes.length) Imp.newCls = true;
+  sel.innerHTML = S.classes.map(c => '<option value="' + c.id + '">' + esc(c.name) + '</option>').join('')
+    + '<option value="__new__">➕ New class…</option>';
+  sel.value = (Imp.newCls || !S.classes.length) ? '__new__' : String(Imp.clsId || (S.classes[0] && S.classes[0].id) || '');
+}
+function impClsSelChange(val) {
+  if (!Imp) return;
+  if (val === '__new__') {
+    Imp.newCls = true;
+    if (!((Imp.newClsName || '').trim())) Imp.newClsName = impClassFromFilename(Imp.lastFile || '');
+  } else {
+    Imp.newCls = false;
+    Imp.clsId = parseInt(val) || null;
+  }
+  const nameEl = document.getElementById('impNewClsName');
+  if (nameEl) nameEl.value = Imp.newClsName || '';
+  document.getElementById('impNewClsRow').style.display = Imp.newCls ? '' : 'none';
+  impRenderPreview();
+}
 function impSetClsMode(useCol) {
   if (!Imp) return;
   Imp.useClsCol = useCol;
   document.getElementById('impCmOne').classList.toggle('on', !useCol);
   document.getElementById('impCmCol').classList.toggle('on', useCol);
   document.getElementById('impClsPick').style.display = useCol ? 'none' : '';
+  document.getElementById('impMakeClsRow').style.display = useCol ? '' : 'none';
+  if (!useCol) { impFillClsSel(); document.getElementById('impNewClsRow').style.display = Imp.newCls ? '' : 'none'; }
   if (Imp.rows.length) impRenderPreview();
 }
 
