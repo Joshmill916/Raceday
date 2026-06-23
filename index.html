@@ -770,8 +770,8 @@
 
       <label class="imp-lbl">2 · Which class?</label>
       <div class="imp-seg">
-        <button id="impCmOne" onclick="impSetClsMode(false)">One class</button>
-        <button id="impCmCol" onclick="impSetClsMode(true)">Use the file's class column</button>
+        <button id="impCmOne" onclick="impSetClsMode(false, true)">One class</button>
+        <button id="impCmCol" onclick="impSetClsMode(true, true)">Use the file's class column</button>
       </div>
       <div id="impClsPick" style="margin-top:8px">
         <select id="impClsSel" onchange="impClsSelChange(this.value)"></select>
@@ -3515,9 +3515,21 @@ function impIngestText(text, filename, quiet) {
   Imp.cols = impGuessColumns(Imp.header);
   Imp.vendor = impDetectVendor(Imp.header);
   Imp.lastFile = filename || '';
-  // One-class mode: read the class from the file name and either select the matching
-  // existing class or propose creating it. This makes the one-file-per-class workflow
-  // route each file to the right class automatically (new classes still need a confirm).
+  // If the file carries a Class column (the live timing exports do), use it — it names the
+  // class on every row, so it's authoritative and handles multi-class files. Unknown names
+  // are auto-created (still gated by the new-class confirm at apply).
+  if (Imp.cols.cls >= 0 && !Imp.userPickedMode) {
+    Imp.useClsCol = true;
+    Imp.makeClasses = true;
+    document.getElementById('impCmOne').classList.remove('on');
+    document.getElementById('impCmCol').classList.add('on');
+    document.getElementById('impClsPick').style.display = 'none';
+    document.getElementById('impNewClsRow').style.display = 'none';
+    document.getElementById('impMakeClsRow').style.display = '';
+    const mk = document.getElementById('impMakeClasses'); if (mk) mk.checked = true;
+  }
+  // No class column (e.g. the "Results" feature export): read the class from the file name
+  // and either select the matching existing class or propose creating it.
   if (!Imp.useClsCol) {
     const guess = impClassFromFilename(Imp.lastFile);
     if (guess) {
@@ -3794,7 +3806,7 @@ function openImport(target) {
   Imp = { rows:[], header:[], cols:{trans:-1,num:-1,name:-1,name2:-1,cls:-1,pos:-1,time:-1},
           target: target || 'heat', clsId: (S.classes[0] && S.classes[0].id) || null,
           useClsCol:false, heatSet:'h1', step:0, vendor:null, updTrans:false, updNum:false, updName:false, preamble:0, unknownClasses:[], emptyClass:0,
-          newCls: !S.classes.length, newClsName:'', makeClasses:false, lastFile:'', pendingCls:{}, _tmpCls:{},
+          newCls: !S.classes.length, newClsName:'', makeClasses:false, userPickedMode:false, lastFile:'', pendingCls:{}, _tmpCls:{},
           watchDir:null, watchInterval:null, watchSeen:{}, watchAuto:false, watchPrimed:false, watchBusy:false };
   impPreview = [];
   document.getElementById('impCsvInfo').style.display = 'none';
@@ -3897,8 +3909,9 @@ function impClsSelChange(val) {
   document.getElementById('impNewClsRow').style.display = Imp.newCls ? '' : 'none';
   impRenderPreview();
 }
-function impSetClsMode(useCol) {
+function impSetClsMode(useCol, userPicked) {
   if (!Imp) return;
+  if (userPicked) Imp.userPickedMode = true;   // a manual choice stops auto-detection from overriding it
   Imp.useClsCol = useCol;
   document.getElementById('impCmOne').classList.toggle('on', !useCol);
   document.getElementById('impCmCol').classList.toggle('on', useCol);
