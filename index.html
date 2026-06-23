@@ -1037,8 +1037,23 @@ function driverById(id) { return S.roster.find(d => d.id === id); }
 function classById(id) { return S.classes.find(c => c.id === id); }
 function classRacers(clsId) {
   return S.raceDay.entries.filter(e => e.classId === clsId)
-    .map(e => { const d = driverById(e.driverId) || { name: '?', num: '?' }; return { id: e.driverId, name: d.name, num: d.num, pill: e.pill }; })
+    .map(e => { const d = driverById(e.driverId) || { name: '?', num: '?' }; return { id: e.driverId, name: d.name, num: d.num, pill: e.pill, heat: e.heat }; })
     .sort((a, b) => a.pill - b.pill);
+}
+// Heat groups for a class. If entries carry explicit heat assignments (the divisions
+// imported from the timing system), group by those; otherwise split by pill via buildHeats.
+function heatArrays(racers, cls) {
+  const hasExplicit = racers.some(r => r.heat != null && r.heat >= 0);
+  if (hasExplicit) {
+    const groups = [];
+    racers.forEach(r => {
+      const h = (r.heat != null && r.heat >= 0) ? r.heat : 0;
+      while (groups.length <= h) groups.push([]);
+      groups[h].push(r);
+    });
+    return groups.map(g => g.slice().sort((a, b) => a.pill - b.pill));
+  }
+  return buildHeats(invertField(racers, cls), clsHeat(cls));
 }
 function pillsUsed(clsId) { return new Set(S.raceDay.entries.filter(e => e.classId === clsId).map(e => e.pill)); }
 function drawPill(clsId) {
@@ -1092,7 +1107,7 @@ function clsBMain(cls)   { const c = (cls && typeof cls === 'object') ? cls : (c
 // Heat sets for DISPLAY, honoring both invert scopes. (calcStandings uses only the
 // field-invert half directly, since within-heat order never affects standings.)
 function heatSet(racers, cls) {
-  return invertWithinHeats(buildHeats(invertField(racers, cls), clsHeat(cls)), cls);
+  return invertWithinHeats(heatArrays(racers, cls), cls);
 }
 
 // ---------- Navigation ----------
@@ -1635,8 +1650,7 @@ function renderGrid() {
     const invN = classInvertN(cls);
     const scope = cls.invertScope || 'field';
     const heats = classHeats(cls);
-    const field = invertField(racers, cls);
-    const set1 = invertWithinHeats(buildHeats(field, clsHeat(cls)), cls);
+    const set1 = invertWithinHeats(heatArrays(racers, cls), cls);
     const set2 = set1.map(heat => [...heat].reverse());
     const invNote = invN ? ' · top ' + invN + ' inverted (' + (scope === 'heat' ? 'each heat' : 'whole field') + ')' : '';
     if (set1.length === 1) {
@@ -1769,7 +1783,7 @@ function calcStandings(clsId) {
   const cls = classById(clsId);
   const heats = classHeats(cls);
   const racers = classRacers(clsId);
-  const set1 = buildHeats(invertField(racers, cls), clsHeat(cls));
+  const set1 = heatArrays(racers, cls);
   const heatOf = {};
   set1.forEach((heat, hi) => heat.forEach(r => { heatOf[r.id] = hi; }));
   const res = getRes(clsId);
@@ -3327,10 +3341,18 @@ function impClassFromFilename(fn) {
   s = s.replace(/\b\d+\b/g, ' ').replace(/\s+/g, ' ').trim();
   return s ? s.replace(/\b\w/g, m => m.toUpperCase()) : '';
 }
+// The division number in a heat file name is the heat group (DIV 1 → heat 0, DIV 2 → heat 1).
+// Returns a 0-based heat index, or null when the name has no DIV.
+function impHeatFromFilename(fn) {
+  // "…DIV__1__MOTO…" → heat 0. No \b before "div": underscores are word chars, so a
+  // boundary check fails on "_DIV". Require a non-letter (or start) before "div" instead.
+  const m = String(fn || '').match(/(?:^|[^a-z])div[\W_]*(\d+)/i);
+  return m ? Math.max(0, parseInt(m[1], 10) - 1) : null;
+}
 // Driver → heat index, mirroring calcStandings() so imported keys land on the right heat.
 function impHeatOfMap(clsId) {
   const map = {};
-  buildHeats(invertField(classRacers(clsId), classById(clsId)), clsHeat(clsId)).forEach((heat, hi) => heat.forEach(r => { map[r.id] = hi; }));
+  heatArrays(classRacers(clsId), classById(clsId)).forEach((heat, hi) => heat.forEach(r => { map[r.id] = hi; }));
   return map;
 }
 
@@ -3389,9 +3411,10 @@ function impComputePreview() {
       const cr = impClsResolve(row); const clsId = cr.id;
       if (clsId === null) { if (Imp.useClsCol) emptyCls++; return; }
       if (clsId === -1) unknown.add(impCell(row, 'cls'));
-      // New classes can be created from a feature import (it sets entries); not from a heat
-      // import, which needs an existing grid.
-      if (cr.newName && clsId <= -2 && Imp.target === 'feat') Imp.pendingCls[clsId] = cr.newName;
+      // A heat file that names its division (DIV n) is self-contained — it can create the
+      // class, drivers and entries into that heat, just like a feature import.
+      const divKnown = (Imp.target === 'heat' && Imp.div != null);
+      if (cr.newName && clsId <= -2 && (Imp.target === 'feat' || divKnown)) Imp.pendingCls[clsId] = cr.newName;
       const m = impMatchDriver(row);
       const finish = Imp.cols.pos >= 0 ? impParseFinish(impCell(row,'pos')) : null;
       const cid = parseInt(clsId);
@@ -3399,15 +3422,16 @@ function impComputePreview() {
       const pendName = Imp.pendingCls[clsId];
       let status = 'match', note = '';
       if (cid === -1) { status = 'skip'; note = 'Unknown class'; }
-      else if (cid <= -2 && Imp.target === 'heat') { status = 'skip'; note = 'New class — import qualifying/grid first'; }
+      else if (cid <= -2 && Imp.target === 'heat' && !divKnown) { status = 'skip'; note = 'New class — import qualifying/grid first'; }
       else if (Imp.target === 'heat' && Imp.heatSet === 'h2' && cobj && classHeats(cobj) === 1) { status = 'skip'; note = cobj.name + ' runs a single qualifying heat — no Heat 2'; }
       else if (!m.driver && !m.canCreate) { status = 'skip'; note = 'No name, number, or transponder'; }
-      else if (!m.driver) { if (Imp.target === 'heat') { status = 'skip'; note = 'Not in driver book — import qualifying/grid first'; } else status = 'new'; }
+      else if (!m.driver) { if (Imp.target === 'heat' && !divKnown) { status = 'skip'; note = 'Not in driver book — import qualifying/grid first'; } else status = 'new'; }
       else if (m.transConflict) status = 'conflict';
-      if (Imp.target === 'heat' && status !== 'skip' && m.driver && cid > 0) {
+      if (Imp.target === 'heat' && status !== 'skip' && m.driver && cid > 0 && !divKnown) {
         const inClass = (S.raceDay.entries||[]).some(e => e.driverId === m.driver.id && e.classId === cid);
         if (!inClass) { status = 'skip'; note = 'Not entered in this class (no pill yet)'; }
       }
+      if (divKnown && status !== 'skip') note = (note ? note + ' · ' : '') + 'Heat ' + (Imp.div + 1);
       if (pendName && status !== 'skip') note = (note ? note + ' · ' : '') + '+ new class “' + pendName + '”';
       impPreview.push({ ...m, status, note, clsId: cid, finish });
     });
@@ -3515,6 +3539,7 @@ function impIngestText(text, filename, quiet) {
   Imp.cols = impGuessColumns(Imp.header);
   Imp.vendor = impDetectVendor(Imp.header);
   Imp.lastFile = filename || '';
+  Imp.div = impHeatFromFilename(filename);   // 0-based heat group from "DIV n" (null if none)
   // If the file carries a Class column (the live timing exports do), use it — it names the
   // class on every row, so it's authoritative and handles multi-class files. Unknown names
   // are auto-created (still gated by the new-class confirm at apply).
@@ -3685,7 +3710,8 @@ function impApply(opts) {
 
   // License/trial gate for paths that create entries (mirrors register())
   let willCreateEntries = target === 'qual' || pendIds.length > 0;
-  if (target === 'feat') willCreateEntries = willCreateEntries || toAct.some(r => r.driver && !(S.raceDay.entries||[]).some(e => e.driverId === r.driver.id && e.classId === r.clsId)) || newRows.length > 0;
+  if (target === 'feat' || (target === 'heat' && Imp.div != null))
+    willCreateEntries = willCreateEntries || toAct.some(r => r.driver && !(S.raceDay.entries||[]).some(e => e.driverId === r.driver.id && e.classId === r.clsId)) || newRows.length > 0;
   if (willCreateEntries && !canEnter()) {
     if (silent) { impWatchSay('⚠ ' + esc(entryBlockedMsg())); return; }
     alert(entryBlockedMsg());
@@ -3699,7 +3725,7 @@ function impApply(opts) {
     const idMap = {};
     pendIds.forEach(tid => {
       const name = Imp.pendingCls[tid];
-      const cls = { id: Date.now() + Math.floor(Math.random() * 1000), name: name, maxPill: 200, heats: (target === 'qual' ? 1 : 2) };
+      const cls = { id: Date.now() + Math.floor(Math.random() * 1000), name: name, maxPill: 200, heats: (target === 'feat' ? 2 : 1) };
       S.classes.push(cls);
       rememberClass(name, cls.maxPill);
       idMap[tid] = cls.id;
@@ -3750,12 +3776,29 @@ function impApply(opts) {
     }
   } else if (target === 'heat') {
     const hof = {};
+    const divKnown = Imp.div != null;
     resolved.forEach(r => {
       const cid = r.clsId, k = resKey(cid);
       if (!S.raceDay.heatResults[k]) S.raceDay.heatResults[k] = {};
-      if (!hof[cid]) hof[cid] = impHeatOfMap(cid);
-      const hi = hof[cid][r.driver.id];
-      if (hi === undefined) { skipped++; return; }
+      let hi;
+      if (divKnown) {
+        // The file names its division: that IS the heat group. Enter the driver there
+        // (creating the entry if needed) and record the division on the entry so standings
+        // and the grid group exactly the way the track raced — not the app's pill split.
+        hi = Imp.div;
+        let e = S.raceDay.entries.find(x => x.driverId === r.driver.id && x.classId === cid);
+        if (!e) {
+          const used = new Set(S.raceDay.entries.filter(x => x.classId === cid).map(x => x.pill));
+          let pill = 1; while (used.has(pill)) pill++;
+          const cls = classById(cid); if (cls && pill > cls.maxPill) cls.maxPill = pill;
+          e = { driverId: r.driver.id, classId: cid, pill, heat: hi };
+          S.raceDay.entries.push(e); createdEntry = true;
+        } else { e.heat = hi; }
+      } else {
+        if (!hof[cid]) hof[cid] = impHeatOfMap(cid);
+        hi = hof[cid][r.driver.id];
+        if (hi === undefined) { skipped++; return; }
+      }
       if (r.finish != null) { S.raceDay.heatResults[k][Imp.heatSet + '_' + hi + '_' + r.driver.id] = r.finish; done++; }
       else skipped++;
     });
@@ -3806,7 +3849,7 @@ function openImport(target) {
   Imp = { rows:[], header:[], cols:{trans:-1,num:-1,name:-1,name2:-1,cls:-1,pos:-1,time:-1},
           target: target || 'heat', clsId: (S.classes[0] && S.classes[0].id) || null,
           useClsCol:false, heatSet:'h1', step:0, vendor:null, updTrans:false, updNum:false, updName:false, preamble:0, unknownClasses:[], emptyClass:0,
-          newCls: !S.classes.length, newClsName:'', makeClasses:false, userPickedMode:false, lastFile:'', pendingCls:{}, _tmpCls:{},
+          newCls: !S.classes.length, newClsName:'', makeClasses:false, userPickedMode:false, lastFile:'', div:null, pendingCls:{}, _tmpCls:{},
           watchDir:null, watchInterval:null, watchSeen:{}, watchAuto:false, watchPrimed:false, watchBusy:false };
   impPreview = [];
   document.getElementById('impCsvInfo').style.display = 'none';
