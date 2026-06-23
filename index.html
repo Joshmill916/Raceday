@@ -3945,10 +3945,15 @@ function impSetClsMode(useCol, userPicked) {
   if (!Imp) return;
   if (userPicked) Imp.userPickedMode = true;   // a manual choice stops auto-detection from overriding it
   Imp.useClsCol = useCol;
+  // Class-column mode creates unknown classes by default (the whole point — the column
+  // names every class). The new-class confirm at apply still guards against bad data;
+  // the checkbox lets the operator turn creation off.
+  if (useCol) Imp.makeClasses = true;
   document.getElementById('impCmOne').classList.toggle('on', !useCol);
   document.getElementById('impCmCol').classList.toggle('on', useCol);
   document.getElementById('impClsPick').style.display = useCol ? 'none' : '';
   document.getElementById('impMakeClsRow').style.display = useCol ? '' : 'none';
+  const mk = document.getElementById('impMakeClasses'); if (mk) mk.checked = !!Imp.makeClasses;
   if (!useCol) { impFillClsSel(); document.getElementById('impNewClsRow').style.display = Imp.newCls ? '' : 'none'; }
   if (Imp.rows.length) impRenderPreview();
 }
