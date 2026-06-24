@@ -605,8 +605,23 @@
 
   <!-- HELP / GUIDE -->
   <div id="page-help" class="page">
-    <h2>How to use RaceDay</h2>
-    <p class="sub">A quick walkthrough. The tabs along the top take you through a race day in order — left to right.</p>
+    <h2 id="helpTitle">How to use RaceDay</h2>
+    <p class="sub" id="helpSub">A quick walkthrough. The tabs along the top take you through a race day in order — left to right.</p>
+    <div id="viewerGuide" style="display:none">
+      <div class="guide-step"><div class="guide-num">1</div><div class="guide-body">
+        <h3>Pick your class</h3>
+        <p>Use the <b>Class</b> menu at the top of the Lineups tab to find your class.</p>
+      </div></div>
+      <div class="guide-step"><div class="guide-num">2</div><div class="guide-body">
+        <h3>Choose what to see</h3>
+        <p>Tap <b>Qualifying</b>, <b>Heats</b>, <b>B-Mains</b>, or <b>Feature</b> to see that lineup. They fill in through the night as each round is scored.</p>
+      </div></div>
+      <div class="guide-step"><div class="guide-num">3</div><div class="guide-body">
+        <h3>Reading the grid</h3>
+        <p><b>Lowest spot starts up front.</b> Find your kart number — that row is where you line up.</p>
+      </div></div>
+    </div>
+    <div id="fullGuide">
 
     <div class="guide-step">
       <div class="guide-num">1</div>
@@ -686,6 +701,7 @@
       <p style="font-size:13.5px;color:#555;margin:0 0 6px">• Single-device night? The device running sign-ups is the "source of truth" — if you cast to a TV, mirror <b>that</b> device. Running several stations? Use sync instead, and open a <b>TV-role</b> link right on the TV.</p>
       <p style="font-size:13.5px;color:#555;margin:0">• Lowest pill = front of the grid. Lowest heat total = top of the standings. That one rule runs the whole night.</p>
     </div>
+    </div><!-- /fullGuide -->
   </div>
 
   <!-- TERMS OF SERVICE + INTELLECTUAL PROPERTY -->
@@ -1392,6 +1408,7 @@ function fmtExp(k) {
 }
 function renderLicBanner() {
   const b = document.getElementById('licBanner');
+  if (deviceRole() === 'viewer') { b.style.display = 'none'; return; }   // spectators never see licensing
   const st = licStatus();
   const packetLow = st.licensed && st.plan === 'packet' && !st.expired && st.left <= 3;
   if (st.licensed && !st.expired && !packetLow) { b.style.display = 'none'; return; }
@@ -1731,7 +1748,7 @@ function renderViewerLineups() {
   if (!viewClsId || !classById(viewClsId)) viewClsId = S.classes[0].id;
   const cls = classById(viewClsId);
   const racers = classRacers(cls.id);
-  const single = true;   // single-file reads best on a phone
+  const single = S.settings.gridStyle === 'single';   // match how the track grids (double / single file)
   const toRow = s => ({ name: s.name, num: s.num, tag: 'Heat total ' + s.pts });
 
   let h = '<div class="vw-pick"><label>Class</label><select onchange="setViewClass(this.value)">'
@@ -3148,6 +3165,12 @@ function applyRole() {
   const ops = document.getElementById('gridOps'); if (ops) ops.style.display = role === 'viewer' ? 'none' : '';
   const vt = document.getElementById('viewToggle'); if (vt) vt.style.display = role === 'viewer' ? 'none' : '';
   const gs = document.getElementById('gridSub'); if (gs) gs.style.display = role === 'viewer' ? 'none' : '';
+  // Spectators get a lineups-only guide, not the full operator walkthrough.
+  const isV = role === 'viewer';
+  const fg = document.getElementById('fullGuide'); if (fg) fg.style.display = isV ? 'none' : '';
+  const vg = document.getElementById('viewerGuide'); if (vg) vg.style.display = isV ? '' : 'none';
+  const ht = document.getElementById('helpTitle'); if (ht) ht.textContent = isV ? 'How to read the lineups' : 'How to use RaceDay';
+  const hsub = document.getElementById('helpSub'); if (hsub) hsub.style.display = isV ? 'none' : '';
   renderHeader();   // refresh the sync/role badge
   if (!allowed.includes(curPage)) nav(allowed[0]);
   if (role === 'tv' && !tvOn && typeof openTV === 'function') openTV();
