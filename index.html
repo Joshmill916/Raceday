@@ -55,6 +55,23 @@
   details.admin-group > summary::before { content: '▶'; font-size: 9px; flex-shrink: 0; }
   details.admin-group[open] > summary::before { content: '▼'; }
   details.admin-group > summary:hover { color: #555; }
+  /* Admin redesign — grouped tiles + in-section sibling tabs */
+  .adm-grp-lbl { font-family: var(--display); font-size: 12px; font-weight: 700; color: #9a9da4; text-transform: uppercase; letter-spacing: 0.09em; margin: 22px 0 8px; }
+  .adm-grp-lbl:first-child { margin-top: 6px; }
+  .tiles { display: grid; grid-template-columns: repeat(auto-fill, minmax(220px, 1fr)); gap: 12px; }
+  .tile { background: var(--card); border: 1px solid var(--line); border-radius: 14px; padding: 16px; cursor: pointer; transition: box-shadow .12s, transform .12s; text-align: left; }
+  .tile:hover { box-shadow: 0 6px 18px rgba(0,0,0,.10); transform: translateY(-2px); }
+  .tile .ic { font-size: 22px; line-height: 1; }
+  .tile h4 { font-family: var(--display); font-weight: 700; font-size: 17px; text-transform: uppercase; letter-spacing: 0.02em; margin: 8px 0 3px; }
+  .tile p { font-size: 12px; color: var(--muted); margin: 0; line-height: 1.4; }
+  .adm-back { background: none; border: none; color: var(--muted); font-weight: 700; font-size: 14px; cursor: pointer; padding: 6px 0; margin-bottom: 6px; }
+  .adm-back:hover { color: var(--ink); }
+  .adm-tabs { display: flex; gap: 4px; flex-wrap: wrap; border-bottom: 2px solid var(--line); margin-bottom: 16px; }
+  .adm-tabs button { padding: 10px 16px; border: none; background: transparent; color: var(--muted); font-family: var(--display); font-weight: 700; text-transform: uppercase; letter-spacing: 0.04em; font-size: 15px; cursor: pointer; border-bottom: 3px solid transparent; margin-bottom: -2px; white-space: nowrap; }
+  .adm-tabs button.on { color: var(--ink); border-bottom-color: var(--plate); }
+  .adm-tabs button:hover { color: var(--ink); }
+  .adm-sec { display: none; }
+  .adm-sec.on { display: block; }
   /* Results governance */
   .gov-bar { border: 1px solid var(--line); border-radius: 12px; padding: 10px 12px; margin-bottom: 14px; background: #fafaf8; }
   .gov-badge { display: inline-flex; align-items: center; padding: 4px 10px; border-radius: 99px; font-size: 12px; font-weight: 700; }
@@ -392,30 +409,57 @@
       <button class="btn btn-sm" id="lockBtn" onclick="lockAdmin()" style="margin-left:auto;display:none">🔒 Lock admin</button>
     </div>
 
-    <details class="admin-group" open>
-      <summary>Track identity</summary>
-      <div class="card">
-        <div style="display:flex;gap:20px;align-items:flex-start;flex-wrap:wrap">
-          <div style="flex:1;min-width:220px">
-            <label>Track name</label>
-            <input id="trackName" type="text" placeholder="e.g. Riverside Kart Speedway" onchange="saveTrack()" />
-          </div>
-          <div>
-            <label>Track logo</label>
-            <div style="display:flex;align-items:center;gap:10px;flex-wrap:wrap">
-              <img id="logoPrev" alt="Logo preview" style="display:none;height:52px;max-width:130px;object-fit:contain;border:1px solid var(--line);border-radius:8px;background:#fff;padding:4px">
-              <button class="btn btn-sm" onclick="document.getElementById('logoFile').click()">Upload logo</button>
-              <button class="btn btn-sm btn-danger" id="logoRemove" style="display:none" onclick="removeLogo()">Remove</button>
-              <input id="logoFile" type="file" accept="image/*" style="display:none" onchange="uploadLogo(this)">
-            </div>
-          </div>
-        </div>
-        <p style="font-size:12px;color:var(--muted);margin-top:10px">The name and logo show in the header and on printed lineups.</p>
-      </div>
-    </details>
+    <!-- Tile home (built by renderAdminNav) -->
+    <div id="adminHome"></div>
 
-    <details class="admin-group" open>
-      <summary>Race classes &amp; running order</summary>
+    <!-- Section view: sibling tabs + one open section at a time -->
+    <div id="adminSection" style="display:none">
+      <button class="adm-back" onclick="adminHome()">← All settings</button>
+      <div id="adminTabs" class="adm-tabs"></div>
+
+      <section class="adm-sec" id="asec-entries">
+      <div class="card">
+      <div style="display:flex;gap:10px;flex-wrap:wrap;align-items:center">
+        <button class="btn" onclick="refillLastDay()">↻ Re-enter last race day's field</button>
+        <span style="font-size:12px;color:var(--muted)">Everyone from the last archived day, fresh pill draws.</span>
+      </div>
+      <hr class="divider">
+      <label>Quick add from the driver book</label>
+      <div style="display:flex;gap:8px;flex-wrap:wrap">
+        <select id="qaDriver" style="flex:2;min-width:170px;width:auto"></select>
+        <select id="qaClass" style="flex:1.4;min-width:130px;width:auto"></select>
+        <button class="btn btn-primary" onclick="quickAdd()">Add + draw pill</button>
+      </div>
+      <hr class="divider">
+      <input id="entrySearch" type="text" placeholder="Find a driver — search name, vehicle #, or class" oninput="renderEntryList()" autocomplete="off" />
+      <div id="entryList" style="margin-top:12px"></div>
+      <p style="font-size:12px;color:var(--muted);margin-top:8px">Removing an entry pulls that driver from that class only — the pill goes back in the draw and their other classes are untouched.</p>
+    </div>
+      </section>
+
+      <section class="adm-sec" id="asec-newday">
+      <div class="card">
+        <div style="display:flex;gap:10px;flex-wrap:wrap;align-items:center">
+          <button class="btn btn-primary" onclick="newRaceDay()">🏁 Start a new race day</button>
+        </div>
+        <p style="font-size:12px;color:var(--muted);margin-top:8px">Archives today's entries and results to history, then clears the board for the next event — your driver book and classes are kept.</p>
+      </div>
+      </section>
+
+      <section class="adm-sec" id="asec-backup">
+      <div class="card">
+        <div style="display:flex;gap:10px;flex-wrap:wrap">
+          <button class="btn" onclick="exportBackup()">⬇ Download full backup</button>
+          <button class="btn" onclick="document.getElementById('importFile').click()">⬆ Restore from backup</button>
+          <input id="importFile" type="file" accept=".json,application/json" style="display:none" onchange="importBackup(this)">
+          <button class="btn" onclick="exportEntriesCSV()">Entries → CSV</button>
+          <button class="btn" onclick="exportResultsCSV()">Results → CSV</button>
+        </div>
+        <p style="font-size:12px;color:var(--muted);margin-top:8px">This app stores everything in this browser only. Download a backup now and then — restoring it on any device brings back the driver book, classes, settings, history, and today's race day.</p>
+      </div>
+      </section>
+
+      <section class="adm-sec" id="asec-classes">
       <div class="card">
       <div style="display:flex;gap:8px;flex-wrap:wrap">
         <input id="newClass" type="text" placeholder="Class name (e.g. Junior 80cc)" style="flex:2;min-width:180px" />
@@ -426,10 +470,9 @@
       <div id="clsList" style="margin-top:12px"></div>
       <div id="clsLib"></div>
     </div>
-    </details>
+      </section>
 
-    <details class="admin-group">
-      <summary>Race format</summary>
+      <section class="adm-sec" id="asec-format">
       <div class="card">
       <div class="g4">
         <div><label>Max karts per heat</label><input type="number" id="mHeat" min="2" max="30" onchange="saveSett()" /></div>
@@ -465,10 +508,9 @@
         <p><b>Cascade:</b> the slowest qualifiers start in the lowest main; the top finishers climb up to the next main and race again, all the way up to the feature. Run the mains lowest-first.</p>
       </div>
     </div>
-    </details>
+      </section>
 
-    <details class="admin-group">
-      <summary>Points series</summary>
+      <section class="adm-sec" id="asec-points">
       <div class="card">
       <div style="margin-bottom:12px">
         <label>Points system</label>
@@ -493,67 +535,57 @@
       <p id="ptsLinearNote" style="display:none;font-size:12px;color:var(--accent,#0a7);margin-top:8px"></p>
       <p style="font-size:12px;color:var(--muted);margin-top:8px">Pick a known system or type your own — editing the list makes it "Custom". Feature finish decides points; make the list as long as your biggest feature. Anyone finishing past it, not making the feature, or scoring DNF/DNS/DQ gets the "everyone else" value (use it for show-up points, or 0). Classes count by default; untick "counts toward the points series" on the Results tab for non-points days.</p>
     </div>
-    </details>
+      </section>
 
-    <details class="admin-group" open>
-      <summary>Today's entries</summary>
+      <section class="adm-sec" id="asec-track">
       <div class="card">
-      <div style="display:flex;gap:10px;flex-wrap:wrap;align-items:center">
-        <button class="btn" onclick="refillLastDay()">↻ Re-enter last race day's field</button>
-        <span style="font-size:12px;color:var(--muted)">Everyone from the last archived day, fresh pill draws.</span>
-      </div>
-      <hr class="divider">
-      <label>Quick add from the driver book</label>
-      <div style="display:flex;gap:8px;flex-wrap:wrap">
-        <select id="qaDriver" style="flex:2;min-width:170px;width:auto"></select>
-        <select id="qaClass" style="flex:1.4;min-width:130px;width:auto"></select>
-        <button class="btn btn-primary" onclick="quickAdd()">Add + draw pill</button>
-      </div>
-      <hr class="divider">
-      <input id="entrySearch" type="text" placeholder="Find a driver — search name, vehicle #, or class" oninput="renderEntryList()" autocomplete="off" />
-      <div id="entryList" style="margin-top:12px"></div>
-      <p style="font-size:12px;color:var(--muted);margin-top:8px">Removing an entry pulls that driver from that class only — the pill goes back in the draw and their other classes are untouched.</p>
-    </div>
-    </details>
-
-    <details class="admin-group" open>
-      <summary>Driver book <span style="font-weight:500;text-transform:none;letter-spacing:0;font-size:11px">— saved across race days</span></summary>
-      <div class="card" id="rosterList"></div>
-    </details>
-
-    <details class="admin-group">
-      <summary>Backup &amp; export</summary>
-      <div class="card">
-        <div style="display:flex;gap:10px;flex-wrap:wrap">
-          <button class="btn" onclick="exportBackup()">⬇ Download full backup</button>
-          <button class="btn" onclick="document.getElementById('importFile').click()">⬆ Restore from backup</button>
-          <input id="importFile" type="file" accept=".json,application/json" style="display:none" onchange="importBackup(this)">
-          <button class="btn" onclick="exportEntriesCSV()">Entries → CSV</button>
-          <button class="btn" onclick="exportResultsCSV()">Results → CSV</button>
+        <div style="display:flex;gap:20px;align-items:flex-start;flex-wrap:wrap">
+          <div style="flex:1;min-width:220px">
+            <label>Track name</label>
+            <input id="trackName" type="text" placeholder="e.g. Riverside Kart Speedway" onchange="saveTrack()" />
+          </div>
+          <div>
+            <label>Track logo</label>
+            <div style="display:flex;align-items:center;gap:10px;flex-wrap:wrap">
+              <img id="logoPrev" alt="Logo preview" style="display:none;height:52px;max-width:130px;object-fit:contain;border:1px solid var(--line);border-radius:8px;background:#fff;padding:4px">
+              <button class="btn btn-sm" onclick="document.getElementById('logoFile').click()">Upload logo</button>
+              <button class="btn btn-sm btn-danger" id="logoRemove" style="display:none" onclick="removeLogo()">Remove</button>
+              <input id="logoFile" type="file" accept="image/*" style="display:none" onchange="uploadLogo(this)">
+            </div>
+          </div>
         </div>
-        <p style="font-size:12px;color:var(--muted);margin-top:8px">This app stores everything in this browser only. Download a backup now and then — restoring it on any device brings back the driver book, classes, settings, history, and today's race day.</p>
+        <p style="font-size:12px;color:var(--muted);margin-top:10px">The name and logo show in the header and on printed lineups.</p>
       </div>
-    </details>
+      </section>
 
-    <details class="admin-group">
-      <summary>Race day history</summary>
-      <div class="card" id="historyList"></div>
-    </details>
+      <section class="adm-sec" id="asec-pin">
+        <div class="card" id="pinCard"></div>
+      </section>
 
-    <details class="admin-group">
-      <summary>Account &amp; sync</summary>
-      <div class="slbl">Admin PIN</div>
-      <div class="card" id="pinCard"></div>
-      <div class="slbl">License</div>
-      <div class="card" id="licCard"></div>
-      <div id="syncLbl">
-        <div class="slbl">Multi-device sync</div>
-        <div class="card" id="syncCard"></div>
-      </div>
-    </details>
+      <section class="adm-sec" id="asec-license">
+        <div class="card" id="licCard"></div>
+      </section>
 
-    <details class="admin-group">
-      <summary>Legal &amp; business</summary>
+      <section class="adm-sec" id="asec-sync">
+        <div id="syncLbl"><div class="card" id="syncCard"></div></div>
+      </section>
+
+      <section class="adm-sec" id="asec-book">
+        <div class="card" id="rosterList"></div>
+      </section>
+
+      <section class="adm-sec" id="asec-history">
+        <div class="card" id="historyList"></div>
+      </section>
+
+      <section class="adm-sec" id="asec-logs">
+        <div class="slbl">Acceptance log</div>
+        <div class="card" id="consentCard"></div>
+        <div class="slbl">Audit log — overrides, locks &amp; result changes</div>
+        <div class="card" id="auditCard"></div>
+      </section>
+
+      <section class="adm-sec" id="asec-legal">
       <div class="card">
         <p style="font-size:12.5px;color:var(--muted);margin:0 0 12px">These names appear in the Terms of Service, Intellectual Property, and Privacy Policy shown to participants. Set your business's legal entity so the documents name the right party.</p>
         <div style="display:flex;gap:14px;flex-wrap:wrap">
@@ -580,27 +612,18 @@
           <button class="btn btn-sm" onclick="openDoc('bizrec')">📋 Business recommendations</button>
         </div>
       </div>
-    </details>
+      </section>
 
-    <details class="admin-group">
-      <summary>Records &amp; audit</summary>
-      <div class="slbl">Acceptance log</div>
-      <div class="card" id="consentCard"></div>
-      <div class="slbl">Audit log — overrides, locks &amp; result changes</div>
-      <div class="card" id="auditCard"></div>
-    </details>
-
-    <details class="admin-group">
-      <summary>Danger zone</summary>
+      <section class="adm-sec" id="asec-danger">
       <div class="card">
         <div style="display:flex;gap:10px;flex-wrap:wrap">
-          <button class="btn" onclick="newRaceDay()">🏁 Start a new race day</button>
           <button class="btn" onclick="seedDemo()">Load demo race day</button>
           <button class="btn btn-danger" onclick="resetAll()">Erase everything</button>
         </div>
-        <p style="font-size:12px;color:var(--muted);margin-top:8px">A new race day archives today's entries and results to history, then clears the board — the driver book and classes are kept. Erase everything wipes the driver book, history, and track settings too.</p>
+        <p style="font-size:12px;color:var(--muted);margin-top:8px">Load demo fills a sample race day (archives today first). Erase everything wipes the driver book, history, and track settings — there's no undo, so back up first.</p>
       </div>
-    </details>
+      </section>
+    </div>
   </div>
 
   <!-- HELP / GUIDE -->
@@ -1156,6 +1179,7 @@ function nav(p) {
   const allowed = ROLE_PAGES[deviceRole()] || ROLE_PAGES.admin;
   if (!allowed.includes(p)) return;
   if (p === 'admin' && !adminOk()) return;
+  if (p === 'admin') adminSection = null;   // entering Admin starts on the tile home
   curPage = p;
   document.querySelectorAll('.page').forEach(el => el.classList.remove('active'));
   document.querySelectorAll('#mainNav button').forEach(b => b.classList.remove('active'));
@@ -2427,9 +2451,68 @@ function removeLogo() {
 }
 
 // ---------- Admin ----------
+// ---------- Admin navigation: grouped tiles → section with sibling tabs ----------
+const ADMIN_NAV = [
+  { grp: 'Today', sections: [
+    { key: 'entries', ic: '🏁', title: "Today's entries", hint: 'Add, search, reorder, remove entries' },
+    { key: 'newday',  ic: '🟢', title: 'New race day',     hint: 'Archive today and clear the board' },
+    { key: 'backup',  ic: '💾', title: 'Backup & export',  hint: 'Download backup, restore, CSVs' },
+  ]},
+  { grp: 'Race setup', sections: [
+    { key: 'classes', ic: '🏷️', title: 'Classes & order',  hint: 'Classes, running order, formats, sizes' },
+    { key: 'format',  ic: '⚙️', title: 'Race format',      hint: 'Heat / feature / B-main defaults' },
+    { key: 'points',  ic: '🏆', title: 'Points series',    hint: 'Preset or custom points table' },
+    { key: 'track',   ic: '📛', title: 'Track identity',   hint: 'Name and logo' },
+  ]},
+  { grp: 'Account', sections: [
+    { key: 'pin',     ic: '🔒', title: 'Admin PIN',        hint: 'Lock the Admin page' },
+    { key: 'license', ic: '🔑', title: 'License',          hint: 'Activate an access code' },
+    { key: 'sync',    ic: '📡', title: 'Sync & Spectator QR', hint: 'Multi-device + fan QR' },
+  ]},
+  { grp: 'Records', sections: [
+    { key: 'book',    ic: '📖', title: 'Driver book',      hint: 'Drivers saved across race days' },
+    { key: 'history', ic: '🗂️', title: 'Race day history', hint: 'Past days — view, export, delete' },
+    { key: 'logs',    ic: '📑', title: 'Acceptance & audit', hint: 'Consent and admin audit logs' },
+  ]},
+  { grp: 'Advanced', sections: [
+    { key: 'legal',   ic: '⚖️', title: 'Legal & business', hint: 'Owner/operator, consent, Terms' },
+    { key: 'danger',  ic: '⚠️', title: 'Danger zone',      hint: 'Demo data and full erase' },
+  ]},
+];
+let adminSection = null;   // null = tile home; otherwise a section key
+function adminSecOf(key) { for (const g of ADMIN_NAV) { const s = g.sections.find(x => x.key === key); if (s) return { g, s }; } return null; }
+function renderAdminNav() {
+  const home = document.getElementById('adminHome');
+  const sect = document.getElementById('adminSection');
+  if (!home || !sect) return;
+  if (!adminSection || !adminSecOf(adminSection)) {
+    let h = '';
+    ADMIN_NAV.forEach(g => {
+      h += '<div class="adm-grp-lbl">' + esc(g.grp) + '</div><div class="tiles">';
+      g.sections.forEach(s => {
+        h += '<div class="tile" onclick="adminOpen(\'' + s.key + '\')"><div class="ic">' + s.ic + '</div><h4>' + esc(s.title) + '</h4><p>' + esc(s.hint) + '</p></div>';
+      });
+      h += '</div>';
+    });
+    home.innerHTML = h;
+    home.style.display = '';
+    sect.style.display = 'none';
+  } else {
+    const { g } = adminSecOf(adminSection);
+    document.getElementById('adminTabs').innerHTML = g.sections.map(x =>
+      '<button class="' + (x.key === adminSection ? 'on' : '') + '" onclick="adminOpen(\'' + x.key + '\')">' + esc(x.title) + '</button>').join('');
+    document.querySelectorAll('.adm-sec').forEach(el => el.classList.toggle('on', el.id === 'asec-' + adminSection));
+    home.style.display = 'none';
+    sect.style.display = '';
+  }
+}
+function adminOpen(key) { adminSection = key; renderAdminNav(); try { window.scrollTo(0, 0); } catch (e) {} }
+function adminHome() { adminSection = null; renderAdminNav(); }
+
 function renderAdmin() {
   renderClsList(); renderClsLib(); renderQuickAdd(); renderEntryList(); renderRosterList(); renderHistory(); renderPinCard(); renderLicCard(); renderSyncCard(); renderPointsInputs();
   renderLegalInputs(); renderConsentCard(); renderAuditCard();
+  renderAdminNav();
   document.getElementById('trackName').value = S.track.name;
   const prev = document.getElementById('logoPrev');
   if (S.track.logo) { prev.src = S.track.logo; prev.style.display = ''; }
