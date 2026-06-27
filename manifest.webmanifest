@@ -1,8 +1,8 @@
 {
-  "name": "RaceDay",
+  "name": "RaceDay — Lineups & Results",
   "short_name": "RaceDay",
-  "description": "Race day manager — sign-ups, pill draws, heats, mains, points, and TV display. Works offline.",
-  "start_url": "./index.html",
+  "description": "Sign-ups, live lineups, results, and points for kart and dirt-track race days.",
+  "start_url": "./",
   "scope": "./",
   "display": "standalone",
   "orientation": "any",
