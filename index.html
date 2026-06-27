@@ -147,6 +147,25 @@
   .heat-cap { display: flex; align-items: baseline; gap: 8px; font-family: var(--display); font-weight: 700; font-size: 15px; text-transform: uppercase; letter-spacing: .04em; margin: 16px 0 2px; }
   .heat-cap small { font-family: var(--body); font-weight: 500; font-size: 11.5px; color: var(--muted); text-transform: none; letter-spacing: 0; }
   .heat-cap.inv span { background: #fdf3d7; color: #6b5410; padding: 1px 8px; border-radius: 6px; }
+  /* Driver card (tap a name in a lineup) */
+  .dc-link { cursor: pointer; border-bottom: 1px dotted rgba(0,0,0,.28); }
+  .dc-link:hover { color: var(--pit-red); }
+  .dc-overlay { position: fixed; inset: 0; background: rgba(0,0,0,.55); display: none; align-items: center; justify-content: center; z-index: 120; padding: 16px; }
+  .dc-overlay.on { display: flex; }
+  .dc-panel { background: var(--card); border-radius: 18px; max-width: 440px; width: 100%; max-height: 90vh; overflow: auto; position: relative; box-shadow: 0 24px 70px rgba(0,0,0,.45); }
+  .dc-close { position: absolute; top: 8px; right: 10px; background: rgba(255,255,255,.15); border: none; width: 30px; height: 30px; border-radius: 50%; font-size: 16px; color: #fff; cursor: pointer; z-index: 2; }
+  .dc-hd { background: var(--asphalt); color: #fff; padding: 22px 20px; border-radius: 18px 18px 0 0; display: flex; align-items: center; gap: 14px; }
+  .dc-hd .nm { font-family: var(--display); font-weight: 800; font-size: 25px; text-transform: uppercase; line-height: 1.05; }
+  .dc-hd .cls { color: var(--plate); font-size: 12.5px; font-weight: 700; text-transform: uppercase; letter-spacing: .04em; margin-top: 5px; }
+  .dc-stats { display: grid; grid-template-columns: repeat(3, 1fr); gap: 1px; background: var(--line); }
+  .dc-stat { background: #fff; padding: 14px 6px; text-align: center; }
+  .dc-stat .n { font-family: var(--display); font-weight: 800; font-size: 26px; line-height: 1; }
+  .dc-stat .l { font-size: 10.5px; text-transform: uppercase; letter-spacing: .05em; color: var(--muted); margin-top: 4px; }
+  .dc-body { padding: 16px 20px; }
+  .dc-row { display: flex; gap: 10px; font-size: 14px; padding: 7px 0; border-bottom: 1px solid #f4f4ef; }
+  .dc-row b { min-width: 86px; color: var(--muted); font-weight: 600; }
+  .dc-body label { display: block; font-size: 12px; font-weight: 600; color: var(--muted); margin: 8px 0 3px; }
+  .dc-body input { width: 100%; box-sizing: border-box; padding: 8px 10px; border: 1.5px solid #d4d4cf; border-radius: 8px; font-family: inherit; font-size: 14px; }
   .vw-pick { display:flex; align-items:center; gap:8px; margin:6px 0 12px; }
   .vw-pick label { font-family:var(--display); font-weight:700; font-size:13px; text-transform:uppercase; letter-spacing:.04em; color:var(--muted); }
   .vw-pick select { flex:1; padding:10px 12px; border-radius:10px; border:1.5px solid #d4d4cf; font-family:inherit; font-size:16px; background:#fff; }
@@ -847,6 +866,14 @@
 
 <!-- Always-visible, PIN-gated role switch for locked stations (hidden for the admin role) -->
 <button id="roleEscape" onclick="changeDeviceRole()" style="display:none">⚙ Role</button>
+
+<!-- Driver card (spectator profile) -->
+<div id="driverCard" class="dc-overlay" onclick="if(event.target===this)closeDriverCard()">
+  <div class="dc-panel">
+    <button class="dc-close" onclick="closeDriverCard()" aria-label="Close">✕</button>
+    <div id="dcBody"></div>
+  </div>
+</div>
 
 <script>
 // ---------- State ----------
@@ -1657,11 +1684,13 @@ function discNum(num) {
 }
 function gridMarkup(racers, single) {
   const sub = r => r.tag || ('Pill #' + r.pill);
+  // Tap a name to open the driver card (when we know which driver the row is).
+  const nameEl = r => r.id ? '<b class="dc-link" onclick="openDriverCard(' + r.id + ')">' + esc(r.name) + '</b>' : '<b>' + esc(r.name) + '</b>';
   if (single) {
     let h = '<div class="hb">';
     racers.forEach((r, i) => {
       h += '<div class="hr"><div class="pnum">P' + (i + 1) + '</div>' + discNum(r.num)
-        + '<div class="nm"><b>' + esc(r.name) + '</b> <span>' + esc(sub(r)) + '</span></div>'
+        + '<div class="nm">' + nameEl(r) + ' <span>' + esc(sub(r)) + '</span></div>'
         + (i === 0 ? '<span class="poletag" style="position:static"></span>' : '') + '</div>';
     });
     return h + '</div>';
@@ -1673,9 +1702,84 @@ function gridMarkup(racers, single) {
       + (pos % 2 ? '<span class="rowlbl">Row ' + pt.row + '</span>' : '')
       + (pos === 1 ? '<span class="poletag"></span>' : '')
       + '<div class="posn">P' + pos + '</div>' + discNum(r.num)
-      + '<div class="who"><b>' + esc(r.name) + '</b><span>' + esc(sub(r)) + '</span></div></div>';
+      + '<div class="who">' + nameEl(r) + '<span>' + esc(sub(r)) + '</span></div></div>';
   });
   return h + '</div>';
+}
+
+// ---------- Driver cards (spectator profiles) ----------
+let driverCardId = null;
+function ordinal(n) { const s = ['th','st','nd','rd'], v = n % 100; return n + (s[(v - 20) % 10] || s[v] || s[0]); }
+// Career tally from saved race-day history + today's live features (this track).
+function driverStats(driverId) {
+  let starts = 0, wins = 0, podiums = 0, top5 = 0, best = null, points = 0; const days = {};
+  function take(fin, dateKey) {
+    if (typeof fin !== 'number') return;
+    starts++; if (fin === 1) wins++; if (fin <= 3) podiums++; if (fin <= 5) top5++;
+    if (best === null || fin < best) best = fin; if (dateKey) days[dateKey] = 1;
+  }
+  (S.history || []).forEach(day => (day.classes || []).forEach(cls => {
+    (cls.featureFinish || []).forEach(f => { if (f.driverId === driverId) take(f.fin, day.date); });
+    (cls.points || []).forEach(p => { if (p.driverId === driverId) points += (p.pts || 0); });
+  }));
+  (S.classes || []).forEach(cls => {
+    featureFinish(cls.id).forEach(f => { if (f.id === driverId) take(f.fin, S.raceDay.date); });
+    if (isPointsRace(cls.id)) { const dp = dayPoints(cls.id); if (dp && dp[driverId] != null) points += dp[driverId]; }
+  });
+  return { starts, wins, podiums, top5, best, points, days: Object.keys(days).length };
+}
+function openDriverCard(driverId) {
+  if (!driverById(driverId)) return;
+  driverCardId = driverId;
+  renderDriverCard();
+  document.getElementById('driverCard').classList.add('on');
+}
+function closeDriverCard() { document.getElementById('driverCard').classList.remove('on'); driverCardId = null; }
+function dcStat(n, l) { return '<div class="dc-stat"><div class="n">' + esc(String(n)) + '</div><div class="l">' + esc(l) + '</div></div>'; }
+function renderDriverCard() {
+  const d = driverById(driverCardId); if (!d) return;
+  const st = driverStats(driverCardId);
+  const classes = (S.raceDay.entries || []).filter(e => e.driverId === driverCardId).map(e => (classById(e.classId) || {}).name).filter(Boolean);
+  const p = d.profile || {};
+  let h = '<div class="dc-hd">' + discNum(d.num) + '<div><div class="nm">' + esc(d.name) + '</div>'
+    + (classes.length ? '<div class="cls">' + classes.map(esc).join(' · ') + '</div>' : '') + '</div></div>';
+  h += '<div class="dc-stats">'
+    + dcStat(st.wins, 'Wins') + dcStat(st.podiums, 'Podiums') + dcStat(st.top5, 'Top 5')
+    + dcStat(st.starts, 'Starts') + dcStat(st.best != null ? ordinal(st.best) : '—', 'Best') + dcStat(st.points || 0, 'Points')
+    + '</div>';
+  h += '<div class="dc-body">';
+  const rows = [];
+  if (p.age) rows.push(['Age', p.age]);
+  if (p.hometown) rows.push(['Hometown', p.hometown]);
+  if (p.sponsors) rows.push(['Sponsors', p.sponsors]);
+  h += rows.length ? rows.map(r => '<div class="dc-row"><b>' + esc(r[0]) + '</b><span>' + esc(String(r[1])) + '</span></div>').join('')
+    : '<p style="color:var(--muted);font-size:13px;margin:0">No profile details yet' + (deviceRole() === 'admin' ? ' — add them below.' : '.') + '</p>';
+  if (st.starts === 0) h += '<p style="color:var(--muted);font-size:12px;margin:10px 0 0">Race stats fill in as race days are saved to history.</p>';
+  if (deviceRole() === 'admin') h += '<div style="margin-top:14px"><button class="btn btn-sm" onclick="editDriverCard()">✎ Edit profile</button></div>';
+  h += '</div>';
+  document.getElementById('dcBody').innerHTML = h;
+}
+function editDriverCard() {
+  const d = driverById(driverCardId); if (!d) return;
+  const p = d.profile || {};
+  let h = '<div class="dc-hd">' + discNum(d.num) + '<div><div class="nm">' + esc(d.name) + '</div></div></div>';
+  h += '<div class="dc-body">'
+    + '<label>Age</label><input id="dcAge" type="text" value="' + esc(p.age || '') + '">'
+    + '<label>Hometown</label><input id="dcHome" type="text" value="' + esc(p.hometown || '') + '">'
+    + '<label>Sponsors</label><input id="dcSpon" type="text" placeholder="e.g. Smith Tire, NAPA" value="' + esc(p.sponsors || '') + '">'
+    + '<div style="margin-top:14px;display:flex;gap:8px"><button class="btn btn-primary" onclick="saveDriverProfile()">Save</button><button class="btn" onclick="renderDriverCard()">Cancel</button></div>'
+    + '</div>';
+  document.getElementById('dcBody').innerHTML = h;
+}
+function saveDriverProfile() {
+  const d = driverById(driverCardId); if (!d) return;
+  d.profile = {
+    age: document.getElementById('dcAge').value.trim(),
+    hometown: document.getElementById('dcHome').value.trim(),
+    sponsors: document.getElementById('dcSpon').value.trim()
+  };
+  save();
+  renderDriverCard();
 }
 
 function renderGrid() {
@@ -1717,7 +1821,7 @@ function renderGrid() {
     // once every heat finish is entered, the main-event grids post here too
     if (classComplete(cls.id)) {
       const fd = featureData(cls.id);
-      const toRow = s => ({ name: s.name, num: s.num, tag: 'Heat total ' + s.pts });
+      const toRow = s => ({ name: s.name, num: s.num, tag: 'Heat total ' + s.pts, id: s.id });
       if (fd.mains.length) {
         fd.mains.forEach(m => {
           const feedTxt = m.feeds === 'the feature' ? 'the feature' : m.feeds;
@@ -1749,7 +1853,7 @@ function renderViewerLineups() {
   const cls = classById(viewClsId);
   const racers = classRacers(cls.id);
   const single = S.settings.gridStyle === 'single';   // match how the track grids (double / single file)
-  const toRow = s => ({ name: s.name, num: s.num, tag: 'Heat total ' + s.pts });
+  const toRow = s => ({ name: s.name, num: s.num, tag: 'Heat total ' + s.pts, id: s.id });
 
   let h = '<div class="vw-pick"><label>Class</label><select onchange="setViewClass(this.value)">'
     + S.classes.map(c => '<option value="' + c.id + '"' + (c.id === viewClsId ? ' selected' : '') + '>' + esc(c.name) + '</option>').join('')
