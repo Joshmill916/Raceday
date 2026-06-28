@@ -606,9 +606,10 @@
         <div style="display:flex;gap:10px;flex-wrap:wrap">
           <button class="btn" onclick="newRaceDay()">🏁 Start a new race day</button>
           <button class="btn" onclick="seedDemo()">Load demo race day</button>
+          <button class="btn btn-danger" onclick="resetForNewTrack()">Set up for a new track</button>
           <button class="btn btn-danger" onclick="resetAll()">Erase everything</button>
         </div>
-        <p style="font-size:12px;color:var(--muted);margin-top:8px">A new race day archives today's entries and results to history, then clears the board — the driver book and classes are kept. Erase everything wipes the driver book, history, and track settings too.</p>
+        <p style="font-size:12px;color:var(--muted);margin-top:8px">A new race day archives today's entries and results to history, then clears the board — the driver book and classes are kept. Set up for a new track keeps the race data but clears the license and starts a fresh trial — for handing the app to a different track. Erase everything wipes the driver book, history, and track settings too.</p>
       </div>
     </details>
   </div>
@@ -1347,6 +1348,21 @@ function resetAll() {
   renderHeader();
   resetReg();
   render(curPage);
+}
+// Inverse of resetAll: keep the race data, clear the device's identity (license + trial +
+// packet usage). For handing this device — or a restored backup — to a different track so
+// they start on a fresh trial and activate their own license.
+function resetForNewTrack() {
+  if (!adminOk()) return;
+  if (!confirm('Set up this device for a new track?\n\nKEEPS: drivers, classes, today\'s lineups, results, and history.\nCLEARS: the license and the free-trial count (a fresh trial starts).\n\nUse this when handing the app to a different track so they activate their own license.')) return;
+  if (!confirm('Confirm: clear the license and reset the trial on this device? The race data stays.')) return;
+  S.license = null;
+  S.trialDays = [];
+  S.licUse = {};
+  logAudit('Reset license & trial for new track', '', 'fresh trial, no license', '');
+  save();
+  renderHeader(); renderLicCard(); renderLicBanner(); render(curPage);
+  alert('Done — fresh trial, no license. The track can activate their own code in Admin → License.');
 }
 
 // ---------- License & free trial ----------
@@ -2369,11 +2385,19 @@ function importBackup(input) {
     let s;
     try { s = JSON.parse(fr.result); } catch (e) { alert("That file isn't a RaceDay backup."); return; }
     if (!s || !s.raceDay || !s.classes) { alert("That file isn't a RaceDay backup."); return; }
-    if (!confirm('Restore this backup? Everything currently in the app will be replaced by the backup\'s contents.')) return;
+    if (!confirm('Restore this backup? The race data (drivers, classes, lineups, results, history) will be replaced by the backup.\n\nThis device keeps its OWN license and trial — a backup never transfers a license.')) return;
+    // License, trial days, and packet usage belong to THIS device, not the backup file.
+    // A backup shared between people must never carry one track's license onto another's
+    // device, so we preserve the importing device's own identity (mirrors resetAll's keep).
+    const keep = { license: S.license, trialDays: S.trialDays, licUse: S.licUse };
     S = migrate(s);
+    S.license = keep.license;
+    S.trialDays = keep.trialDays;
+    S.licUse = keep.licUse;
     save();
     renderHeader();
     resetReg();
+    renderLicCard(); renderLicBanner();
     render(curPage);
   };
   fr.readAsText(f);
