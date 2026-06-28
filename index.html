@@ -2808,15 +2808,17 @@ function renderEntryList() {
   const rows = S.raceDay.entries.map((e, i) => {
     const d = driverById(e.driverId) || { name: '?', num: '?' };
     const c = classById(e.classId) || { name: '?' };
-    return { i, name: d.name, num: d.num, cls: c.name, pill: e.pill };
+    return { i, name: d.name, num: d.num, cls: c.name, clsId: e.classId, pill: e.pill };
   }).filter(r => !q || r.name.toLowerCase().includes(q) || String(r.num).toLowerCase().includes(q) || r.cls.toLowerCase().includes(q))
     .sort((a, b) => a.cls.localeCompare(b.cls) || a.pill - b.pill);
   if (!rows.length) { el.innerHTML = '<p class="empty">No entries match “' + esc(q) + '”.</p>'; return; }
-  el.innerHTML = '<p class="sub" style="font-size:12px;color:var(--muted);margin:0 0 8px"><b>Kart #</b> changes the driver\'s number (everywhere they race today). <b>Grid spot</b> is where they start: tap ▲ ▼ to nudge one spot; changing it re-orders the whole class lineup.</p>'
+  el.innerHTML = '<p class="sub" style="font-size:12px;color:var(--muted);margin:0 0 8px"><b>Kart #</b> changes the driver\'s number (everywhere they race today). <b>Class</b> moves them to another class (they keep their pill if it\'s free). <b>Grid spot</b> is where they start: tap ▲ ▼ to nudge one spot; changing it re-orders the whole class lineup.</p>'
     + '<table><thead><tr><th>Driver</th><th>Kart #</th><th>Class</th><th>Grid spot</th><th></th></tr></thead><tbody>'
     + rows.map(r => '<tr><td style="font-weight:600">' + esc(r.name) + '</td>'
       + '<td><input type="text" maxlength="5" value="' + esc(r.num) + '" title="Kart number" style="width:52px;text-align:center;padding:5px 4px;font-size:14px;font-weight:700" onchange="setEntryNum(' + r.i + ',this.value)"></td>'
-      + '<td style="color:var(--muted)">' + esc(r.cls) + '</td>'
+      + '<td><select title="Move this driver to another class" style="max-width:150px;padding:5px 6px;font-size:13px" onchange="moveEntryClass(' + r.i + ',this.value)">'
+        + S.classes.map(c => '<option value="' + c.id + '"' + (c.id === r.clsId ? ' selected' : '') + '>' + esc(c.name) + '</option>').join('')
+        + '</select></td>'
       + '<td><div style="display:flex;align-items:center;gap:3px;justify-content:center">'
         + '<button class="btn btn-sm" style="padding:2px 7px" title="Move toward pole" onclick="bumpEntryPill(' + r.i + ',-1)">▲</button>'
         + '<input type="number" min="1" value="' + r.pill + '" title="Grid spot — re-orders the whole lineup" style="width:46px;text-align:center;padding:5px 4px;font-size:14px;font-weight:700" onchange="setEntryPill(' + r.i + ',this.value,{confirm:true})">'
@@ -2849,6 +2851,34 @@ function setEntryPill(i, val, opts) {
   renderEntryList();
 }
 function bumpEntryPill(i, delta) { const e = S.raceDay.entries[i]; if (e) setEntryPill(i, e.pill + delta); }
+// Move a driver's entry from one class to another. Keeps the same pill when it's free in the
+// target class; otherwise draws a fresh one. Only classId/pill change, so every lineup view
+// recomputes exactly as before. Mirrors the sign-up guards (no duplicate entry, unique number).
+function moveEntryClass(i, newClassId) {
+  const e = S.raceDay.entries[i]; if (!e) return;
+  const from = classById(e.classId), to = classById(parseInt(newClassId, 10));
+  if (!to || to.id === e.classId) { renderEntryList(); return; }
+  const d = driverById(e.driverId) || { name: '?', num: '?' };
+  if (S.raceDay.entries.some(x => x !== e && x.driverId === e.driverId && x.classId === to.id)) {
+    alert(d.name + ' is already entered in ' + to.name + '.'); renderEntryList(); return;
+  }
+  const numClash = S.raceDay.entries.some(x => x.classId === to.id && x.driverId !== e.driverId
+    && String((driverById(x.driverId) || {}).num).toLowerCase() === String(d.num).toLowerCase());
+  if (numClash) { alert('#' + d.num + ' is already racing in ' + to.name + '. Change the number first.'); renderEntryList(); return; }
+  const used = pillsUsed(to.id);
+  let newPill;
+  if (!used.has(e.pill) && e.pill <= (to.maxPill || 200)) newPill = e.pill;
+  else { newPill = drawPill(to.id); if (newPill == null) { alert('All pills are taken in ' + to.name + '. Raise that class\'s pill count first.'); renderEntryList(); return; } }
+  const pillMsg = newPill === e.pill ? 'keeps pill #' + e.pill : 'pill #' + e.pill + ' was taken there, so gets pill #' + newPill;
+  if (!confirm('Move ' + d.name + ' from ' + (from ? from.name : 'this class') + ' to ' + to.name + '?\n\nThey ' + pillMsg + '. The lineups for both classes update automatically.')) { renderEntryList(); return; }
+  const oldPill = e.pill, oldCls = from ? from.name : '';
+  e.classId = to.id;
+  e.pill = newPill;
+  delete e.heat;                       // drop any imported heat-division so the new class groups by pill normally
+  logAudit('Moved driver to another class', d.name + ' · ' + oldCls + ' P' + oldPill, to.name + ' P' + newPill, '');
+  save();
+  renderEntryList();
+}
 // Change a driver's kart number inline. Mirrors the sign-up rules: 1–5 letters/numbers,
 // unique within every class the driver races today. The number lives on the driver,
 // so this updates them in the book and every class they're in — no lineup reshuffle.
