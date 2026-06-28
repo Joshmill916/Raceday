@@ -2525,7 +2525,6 @@ function clearAudit() {
   if (!confirm('Clear the entire audit log? This cannot be undone. Export a CSV first if you need a record.')) return;
   S.audit = []; save(); renderAuditCard();
 }
-function csvCell(v) { return '"' + String(v == null ? '' : v).replace(/"/g, '""') + '"'; }
 function downloadCSV(name, rows) {
   const csv = rows.map(r => r.map(csvCell).join(',')).join('\r\n');
   const blob = new Blob([csv], { type: 'text/csv' });
@@ -3033,7 +3032,7 @@ window.addEventListener('unhandledrejection', e => { sendUsage('crash', { msg: S
 // ---------- Multi-device sync (Firebase) ----------
 // Dormant unless FIREBASE_CONFIG is filled in AND a track has activated sync.
 // Only the SYNC_FIELDS subtrees are mirrored; admin PIN / license / history stay local.
-let _syncDb = null, _syncTimer = null, _syncApplying = false;
+let _syncDb = null, _syncTimer = null, _syncApplying = false, _syncActivating = false;
 const _syncLast = {};   // field -> last JSON string seen, so we only push real changes
 
 function syncKey() { return (S.sync && S.sync.key) || ''; }
@@ -3069,7 +3068,7 @@ function initSync() {
       SYNC_FIELDS.forEach(f => { _syncLast[f] = JSON.stringify(syncGet(f) === undefined ? null : syncGet(f)); });
       _syncDb.on('value', snap => {
         const v = snap.val();
-        if (!v) { syncPushFull(); return; }     // empty room: this device seeds it
+        if (!v || _syncActivating) { _syncActivating = false; syncPushFull(); return; }  // empty room or admin re-activating: push local state, don't pull stale Firebase data
         _syncApplying = true;
         SYNC_FIELDS.forEach(f => {
           const raw = syncGetIn(v, f);
@@ -3113,6 +3112,7 @@ function syncActivate() {
   S.sync.key = normKey(k);
   S.sync.enabled = true;
   setDeviceRole('admin');
+  _syncActivating = true;   // admin owns the room: push local state, ignore whatever Firebase has
   save();
   initSync();
   renderSyncCard();
