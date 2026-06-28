@@ -2788,9 +2788,11 @@ function renderEntryList() {
   }).filter(r => !q || r.name.toLowerCase().includes(q) || String(r.num).toLowerCase().includes(q) || r.cls.toLowerCase().includes(q))
     .sort((a, b) => a.cls.localeCompare(b.cls) || a.pill - b.pill);
   if (!rows.length) { el.innerHTML = '<p class="empty">No entries match “' + esc(q) + '”.</p>'; return; }
-  el.innerHTML = '<p class="sub" style="font-size:12px;color:var(--muted);margin:0 0 8px"><b>Kart #</b> is the driver\'s number — change it in the Driver book, not here. <b>Grid spot</b> is where they start: tap ▲ ▼ to nudge one spot; changing it re-orders the whole class lineup.</p>'
+  el.innerHTML = '<p class="sub" style="font-size:12px;color:var(--muted);margin:0 0 8px"><b>Kart #</b> changes the driver\'s number (everywhere they race today). <b>Grid spot</b> is where they start: tap ▲ ▼ to nudge one spot; changing it re-orders the whole class lineup.</p>'
     + '<table><thead><tr><th>Driver</th><th>Kart #</th><th>Class</th><th>Grid spot</th><th></th></tr></thead><tbody>'
-    + rows.map(r => '<tr><td style="font-weight:600">' + esc(r.name) + '</td><td>#' + esc(r.num) + '</td><td style="color:var(--muted)">' + esc(r.cls) + '</td>'
+    + rows.map(r => '<tr><td style="font-weight:600">' + esc(r.name) + '</td>'
+      + '<td><input type="text" maxlength="5" value="' + esc(r.num) + '" title="Kart number" style="width:52px;text-align:center;padding:5px 4px;font-size:14px;font-weight:700" onchange="setEntryNum(' + r.i + ',this.value)"></td>'
+      + '<td style="color:var(--muted)">' + esc(r.cls) + '</td>'
       + '<td><div style="display:flex;align-items:center;gap:3px;justify-content:center">'
         + '<button class="btn btn-sm" style="padding:2px 7px" title="Move toward pole" onclick="bumpEntryPill(' + r.i + ',-1)">▲</button>'
         + '<input type="number" min="1" value="' + r.pill + '" title="Grid spot — re-orders the whole lineup" style="width:46px;text-align:center;padding:5px 4px;font-size:14px;font-weight:700" onchange="setEntryPill(' + r.i + ',this.value,{confirm:true})">'
@@ -2823,6 +2825,33 @@ function setEntryPill(i, val, opts) {
   renderEntryList();
 }
 function bumpEntryPill(i, delta) { const e = S.raceDay.entries[i]; if (e) setEntryPill(i, e.pill + delta); }
+// Change a driver's kart number inline. Mirrors the sign-up rules: 1–5 letters/numbers,
+// unique within every class the driver races today. The number lives on the driver,
+// so this updates them in the book and every class they're in — no lineup reshuffle.
+function setEntryNum(i, val) {
+  const e = S.raceDay.entries[i]; if (!e) return;
+  const d = driverById(e.driverId); if (!d) { renderEntryList(); return; }
+  const num = String(val == null ? '' : val).trim();
+  if (num === String(d.num)) { renderEntryList(); return; }      // no real change
+  if (!/^[A-Za-z0-9]{1,5}$/.test(num)) {
+    alert('Kart number must be 1–5 letters or numbers (e.g. 7, 12, 12A).');
+    renderEntryList(); return;
+  }
+  const myClasses = [...new Set(S.raceDay.entries.filter(x => x.driverId === d.id).map(x => x.classId))];
+  for (const cid of myClasses) {
+    const clash = S.raceDay.entries.find(x => x.classId === cid && x.driverId !== d.id
+      && String((driverById(x.driverId) || {}).num).toLowerCase() === num.toLowerCase());
+    if (clash) {
+      alert('#' + num + ' is already racing in ' + ((classById(cid) || {}).name || 'that class') + '. Pick a different number.');
+      renderEntryList(); return;
+    }
+  }
+  const old = d.num;
+  d.num = num;
+  logAudit('Kart number edit', '#' + old + ' ' + d.name, '#' + num, '');
+  save();
+  renderEntryList();
+}
 function delEntry(i) {
   const e = S.raceDay.entries[i]; if (!e) return;
   const d = driverById(e.driverId) || { name: 'this driver' };
