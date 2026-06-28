@@ -2788,19 +2788,20 @@ function renderEntryList() {
   }).filter(r => !q || r.name.toLowerCase().includes(q) || String(r.num).toLowerCase().includes(q) || r.cls.toLowerCase().includes(q))
     .sort((a, b) => a.cls.localeCompare(b.cls) || a.pill - b.pill);
   if (!rows.length) { el.innerHTML = '<p class="empty">No entries match “' + esc(q) + '”.</p>'; return; }
-  el.innerHTML = '<p class="sub" style="font-size:12px;color:var(--muted);margin:0 0 8px">Tip: use ▲ ▼ or type a number to fix a driver\'s grid spot after a bad qualifying read — the field renumbers automatically.</p>'
-    + '<table><thead><tr><th>Driver</th><th>#</th><th>Class</th><th>Grid spot</th><th></th></tr></thead><tbody>'
+  el.innerHTML = '<p class="sub" style="font-size:12px;color:var(--muted);margin:0 0 8px"><b>Kart #</b> is the driver\'s number — change it in the Driver book, not here. <b>Grid spot</b> is where they start: tap ▲ ▼ to nudge one spot; changing it re-orders the whole class lineup.</p>'
+    + '<table><thead><tr><th>Driver</th><th>Kart #</th><th>Class</th><th>Grid spot</th><th></th></tr></thead><tbody>'
     + rows.map(r => '<tr><td style="font-weight:600">' + esc(r.name) + '</td><td>#' + esc(r.num) + '</td><td style="color:var(--muted)">' + esc(r.cls) + '</td>'
       + '<td><div style="display:flex;align-items:center;gap:3px;justify-content:center">'
         + '<button class="btn btn-sm" style="padding:2px 7px" title="Move toward pole" onclick="bumpEntryPill(' + r.i + ',-1)">▲</button>'
-        + '<input type="number" min="1" value="' + r.pill + '" style="width:46px;text-align:center;padding:5px 4px;font-size:14px;font-weight:700" onchange="setEntryPill(' + r.i + ',this.value)">'
+        + '<input type="number" min="1" value="' + r.pill + '" title="Grid spot — re-orders the whole lineup" style="width:46px;text-align:center;padding:5px 4px;font-size:14px;font-weight:700" onchange="setEntryPill(' + r.i + ',this.value,{confirm:true})">'
         + '<button class="btn btn-sm" style="padding:2px 7px" title="Move back" onclick="bumpEntryPill(' + r.i + ',1)">▼</button>'
       + '</div></td>'
       + '<td style="text-align:right"><button class="btn btn-sm btn-danger" onclick="delEntry(' + r.i + ')">Remove</button></td></tr>').join('')
     + '</tbody></table>';
 }
 // Fix a driver's grid spot: insert at the chosen position and renumber the class 1..N (audited).
-function setEntryPill(i, val) {
+function setEntryPill(i, val, opts) {
+  opts = opts || {};
   const e = S.raceDay.entries[i]; if (!e) return;
   const cls = classById(e.classId) || {};
   let p = parseInt(val, 10);
@@ -2809,6 +2810,10 @@ function setEntryPill(i, val) {
   p = Math.min(p, field.length);
   if (p === e.pill) { renderEntryList(); return; }
   const d = driverById(e.driverId) || { name: '?', num: '?' };
+  // Safeguard: a typed grid-spot change re-orders the whole class — confirm intent (the ▲▼ nudges skip this).
+  if (opts.confirm && !confirm('Move ' + d.name + ' (kart #' + d.num + ') from grid spot ' + e.pill + ' to ' + p + '?\n\nThis re-orders the entire ' + (cls.name || 'class') + ' lineup.\n\n(To change the kart NUMBER instead, edit the driver in the Driver book.)')) {
+    renderEntryList(); return;                        // cancelled → revert the input to the stored spot
+  }
   const old = e.pill;
   const ordered = field.filter(x => x !== e);
   ordered.splice(p - 1, 0, e);
