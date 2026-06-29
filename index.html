@@ -899,7 +899,8 @@
 
 <!-- First-run setup wizard -->
 <div id="setupWizard" class="wiz-overlay" style="display:none">
-  <div class="wiz-box">
+  <div class="wiz-box" style="position:relative">
+    <button onclick="document.getElementById('setupWizard').style.display='none'" style="position:absolute;top:12px;right:12px;background:none;border:none;font-size:20px;line-height:1;cursor:pointer;color:var(--muted);padding:2px 6px" title="Close">✕</button>
     <div class="wiz-title">RaceDay Setup</div>
     <div class="wiz-progress">Step <span id="wizStepNum">1</span> of 5</div>
     <div id="wizS1">
@@ -915,6 +916,7 @@
       <div style="display:flex;align-items:center;gap:10px;flex-wrap:wrap">
         <img id="wizLogoPrev" alt="" style="display:none;height:44px;max-width:110px;object-fit:contain;border:1px solid var(--line);border-radius:6px;padding:3px">
         <button class="btn btn-sm" type="button" onclick="document.getElementById('wizLogoFile').click()">Upload logo</button>
+        <button id="wizLogoRemove" class="btn btn-sm btn-danger" type="button" style="display:none" onclick="wizRemoveLogo()">Remove</button>
         <input id="wizLogoFile" type="file" accept="image/*" style="display:none" onchange="wizUploadLogo(this)">
       </div>
     </div>
@@ -4493,7 +4495,10 @@ function wizShow(n) {
   if (n === 2) {
     document.getElementById('wizTrackName').value = S.track.name || '';
     nextBtn.disabled = !S.track.name;
-    if (S.track.logo) { const p = document.getElementById('wizLogoPrev'); p.src = S.track.logo; p.style.display = ''; }
+    const lp = document.getElementById('wizLogoPrev');
+    const lr = document.getElementById('wizLogoRemove');
+    if (S.track.logo) { lp.src = S.track.logo; lp.style.display = ''; lr.style.display = ''; }
+    else { lp.style.display = 'none'; lr.style.display = 'none'; }
   }
   if (n === 3) renderWizClasses();
   if (n === 4) { document.getElementById('wizPin1').value = ''; document.getElementById('wizPin2').value = ''; }
@@ -4537,8 +4542,15 @@ function wizUploadLogo(input) {
   reader.onload = e => {
     S.track.logo = e.target.result; save();
     const p = document.getElementById('wizLogoPrev'); p.src = e.target.result; p.style.display = '';
+    document.getElementById('wizLogoRemove').style.display = '';
   };
   reader.readAsDataURL(file);
+}
+function wizRemoveLogo() {
+  S.track.logo = ''; save(); renderHeader();
+  const p = document.getElementById('wizLogoPrev'); p.src = ''; p.style.display = 'none';
+  document.getElementById('wizLogoRemove').style.display = 'none';
+  document.getElementById('wizLogoFile').value = '';
 }
 
 // ---------- Live sync across tabs + init ----------
