@@ -59,12 +59,19 @@
   .sub { font-size: 14px; color: var(--muted); margin-bottom: 18px; }
   .card { background: var(--card); border: 1px solid var(--line); border-radius: 14px; padding: 18px 20px; margin-bottom: 14px; }
   .slbl { font-family: var(--display); font-size: 13px; font-weight: 700; color: #8a8d94; text-transform: uppercase; letter-spacing: 0.09em; margin: 20px 0 8px; }
-  details.admin-group { margin: 0; }
-  details.admin-group > summary { cursor: pointer; display: flex; align-items: center; gap: 8px; list-style: none; font-family: var(--display); font-size: 13px; font-weight: 700; color: #8a8d94; text-transform: uppercase; letter-spacing: 0.09em; margin: 20px 0 8px; user-select: none; }
-  details.admin-group > summary::-webkit-details-marker { display: none; }
-  details.admin-group > summary::before { content: '▶'; font-size: 9px; flex-shrink: 0; }
-  details.admin-group[open] > summary::before { content: '▼'; }
-  details.admin-group > summary:hover { color: #555; }
+  /* Admin tile nav */
+  #adminHome { margin-top:12px; }
+  .adm-grp-lbl { font-size:11px; font-weight:700; color:var(--muted); text-transform:uppercase; letter-spacing:0.09em; margin:16px 0 6px; }
+  .adm-grp-lbl:first-child { margin-top:4px; }
+  .tiles { display:grid; grid-template-columns:repeat(auto-fill,minmax(140px,1fr)); gap:8px; }
+  .tile { display:flex; flex-direction:column; align-items:center; justify-content:center; gap:5px; padding:14px 10px; border:1px solid var(--line); border-radius:10px; background:var(--card); cursor:pointer; font-size:13px; font-weight:600; color:var(--text); text-align:center; min-height:76px; transition:background 0.12s; }
+  .tile:hover { background:#e8f5ee; }
+  .tile-danger { border-color:#fcc; color:#c33; }
+  .tile-danger:hover { background:#fff0f0; }
+  #adminTabs { display:flex; align-items:center; gap:6px; flex-wrap:wrap; margin:12px 0 16px; padding-bottom:12px; border-bottom:1px solid var(--line); }
+  .adm-tab { padding:5px 13px; border:1px solid var(--line); border-radius:20px; background:none; cursor:pointer; font-size:13px; font-weight:500; color:var(--muted); }
+  .adm-tab.active, .adm-tab:hover { background:var(--accent,#0a7); color:#fff; border-color:transparent; }
+  .adm-sec { display:none; }
   /* Results governance */
   .gov-bar { border: 1px solid var(--line); border-radius: 12px; padding: 10px 12px; margin-bottom: 14px; background: #fafaf8; }
   .gov-badge { display: inline-flex; align-items: center; padding: 4px 10px; border-radius: 99px; font-size: 12px; font-weight: 700; }
@@ -405,245 +412,240 @@
   </div>
 
   <!-- ADMIN -->
-  <div id="page-admin" class="page">
-    <div style="display:flex;align-items:center;gap:10px;flex-wrap:wrap">
-      <h2 style="margin-bottom:0">Admin</h2>
-      <button class="btn btn-sm" id="lockBtn" onclick="lockAdmin()" style="margin-left:auto;display:none">🔒 Lock admin</button>
+  <div id=”page-admin” class=”page”>
+    <div style=”display:flex;align-items:center;gap:10px;flex-wrap:wrap”>
+      <h2 style=”margin-bottom:0”>Admin</h2>
+      <button class=”btn btn-sm” id=”lockBtn” onclick=”lockAdmin()” style=”margin-left:auto;display:none”>🔒 Lock admin</button>
     </div>
 
-    <details class="admin-group" open>
-      <summary>Track identity</summary>
-      <div class="card">
-        <div style="display:flex;gap:20px;align-items:flex-start;flex-wrap:wrap">
-          <div style="flex:1;min-width:220px">
+    <div id=”adminHome”></div>
+    <div id=”adminTabs” style=”display:none”></div>
+
+    <section class=”adm-sec” id=”adm-track”>
+      <div class=”card”>
+        <div style=”display:flex;gap:20px;align-items:flex-start;flex-wrap:wrap”>
+          <div style=”flex:1;min-width:220px”>
             <label>Track name</label>
-            <input id="trackName" type="text" placeholder="e.g. Riverside Kart Speedway" onchange="saveTrack()" />
+            <input id=”trackName” type=”text” placeholder=”e.g. Riverside Kart Speedway” onchange=”saveTrack()” />
           </div>
           <div>
             <label>Track logo</label>
-            <div style="display:flex;align-items:center;gap:10px;flex-wrap:wrap">
-              <img id="logoPrev" alt="Logo preview" style="display:none;height:52px;max-width:130px;object-fit:contain;border:1px solid var(--line);border-radius:8px;background:#fff;padding:4px">
-              <button class="btn btn-sm" onclick="document.getElementById('logoFile').click()">Upload logo</button>
-              <button class="btn btn-sm btn-danger" id="logoRemove" style="display:none" onclick="removeLogo()">Remove</button>
-              <input id="logoFile" type="file" accept="image/*" style="display:none" onchange="uploadLogo(this)">
+            <div style=”display:flex;align-items:center;gap:10px;flex-wrap:wrap”>
+              <img id=”logoPrev” alt=”Logo preview” style=”display:none;height:52px;max-width:130px;object-fit:contain;border:1px solid var(--line);border-radius:8px;background:#fff;padding:4px”>
+              <button class=”btn btn-sm” onclick=”document.getElementById('logoFile').click()”>Upload logo</button>
+              <button class=”btn btn-sm btn-danger” id=”logoRemove” style=”display:none” onclick=”removeLogo()”>Remove</button>
+              <input id=”logoFile” type=”file” accept=”image/*” style=”display:none” onchange=”uploadLogo(this)”>
             </div>
           </div>
         </div>
-        <p style="font-size:12px;color:var(--muted);margin-top:10px">The name and logo show in the header and on printed lineups.</p>
-        <div style="margin-top:10px"><button class="btn btn-sm" onclick="openSetupWizard()">Setup wizard</button></div>
+        <p style=”font-size:12px;color:var(--muted);margin-top:10px”>The name and logo show in the header and on printed lineups.</p>
+        <div style=”margin-top:10px”><button class=”btn btn-sm” onclick=”openSetupWizard()”>Setup wizard</button></div>
       </div>
-    </details>
+    </section>
 
-    <details class="admin-group" open>
-      <summary>Race classes &amp; running order</summary>
-      <div class="card">
-      <div style="display:flex;gap:8px;flex-wrap:wrap">
-        <input id="newClass" type="text" placeholder="Class name (e.g. Junior 80cc)" style="flex:2;min-width:180px" />
-        <input id="newClassMax" type="number" placeholder="Pills" title="Highest pill number" value="200" min="2" max="999" style="width:90px" />
-        <button class="btn btn-primary" onclick="addClass()">Add class</button>
+    <section class=”adm-sec” id=”adm-classes”>
+      <div class=”card”>
+      <div style=”display:flex;gap:8px;flex-wrap:wrap”>
+        <input id=”newClass” type=”text” placeholder=”Class name (e.g. Junior 80cc)” style=”flex:2;min-width:180px” />
+        <input id=”newClassMax” type=”number” placeholder=”Pills” title=”Highest pill number” value=”200” min=”2” max=”999” style=”width:90px” />
+        <button class=”btn btn-primary” onclick=”addClass()”>Add class</button>
       </div>
-      <p style="font-size:12px;color:var(--muted);margin-top:8px">"Pills" is the highest pill number in that class's draw (pills run 1 up to this number). The order below is the <b>running order</b> — use ↑ / ↓ to set which class races first. It's used on the Lineups, Results, TV display, and printout.</p>
-      <div id="clsList" style="margin-top:12px"></div>
-      <div id="clsLib"></div>
+      <p style=”font-size:12px;color:var(--muted);margin-top:8px”>”Pills” is the highest pill number in that class's draw (pills run 1 up to this number). The order below is the <b>running order</b> — use ↑ / ↓ to set which class races first. It's used on the Lineups, Results, TV display, and printout.</p>
+      <div id=”clsList” style=”margin-top:12px”></div>
+      <div id=”clsLib”></div>
     </div>
-    </details>
+    </section>
 
-    <details class="admin-group">
-      <summary>Race format</summary>
-      <div class="card">
-      <div class="g4">
-        <div><label>Max karts per heat</label><input type="number" id="mHeat" min="2" max="30" onchange="saveSett()" /></div>
-        <div><label>Max in feature</label><input type="number" id="mFeat" min="2" max="40" onchange="saveSett()" /></div>
-        <div><label>Max in B-main</label><input type="number" id="mBMain" min="2" max="30" onchange="saveSett()" /></div>
-        <div><label>B-main transfers</label><input type="number" id="mTrans" min="0" max="10" onchange="saveSett()" /></div>
+    <section class=”adm-sec” id=”adm-format”>
+      <div class=”card”>
+      <div class=”g4”>
+        <div><label>Max karts per heat</label><input type=”number” id=”mHeat” min=”2” max=”30” onchange=”saveSett()” /></div>
+        <div><label>Max in feature</label><input type=”number” id=”mFeat” min=”2” max=”40” onchange=”saveSett()” /></div>
+        <div><label>Max in B-main</label><input type=”number” id=”mBMain” min=”2” max=”30” onchange=”saveSett()” /></div>
+        <div><label>B-main transfers</label><input type=”number” id=”mTrans” min=”0” max=”10” onchange=”saveSett()” /></div>
       </div>
-      <p class="sub" style="margin-top:6px">Heat, feature, and B-main sizes are the track-wide defaults — set a different size for an individual class under <b>Race classes</b> (leave a class's box blank to follow these).</p>
-      <label style="margin-top:16px">Pill draw → heats (when a class splits into multiple heats) <button class="info-btn" onclick="toggleHelp('hHeatFill')" title="What's this?">i</button></label>
-      <select id="mHeatFill" onchange="saveSett()">
-        <option value="alternate">Alternate — fast pills spread across heats (pills 1, 2, 3, 4 are the poles of heats 1, 2, 3, 4)</option>
-        <option value="block">Block — heat 1 gets the lowest pills, heat 2 the next, and so on</option>
+      <p class=”sub” style=”margin-top:6px”>Heat, feature, and B-main sizes are the track-wide defaults — set a different size for an individual class under <b>Race classes</b> (leave a class's box blank to follow these).</p>
+      <label style=”margin-top:16px”>Pill draw → heats (when a class splits into multiple heats) <button class=”info-btn” onclick=”toggleHelp('hHeatFill')” title=”What's this?”>i</button></label>
+      <select id=”mHeatFill” onchange=”saveSett()”>
+        <option value=”alternate”>Alternate — fast pills spread across heats (pills 1, 2, 3, 4 are the poles of heats 1, 2, 3, 4)</option>
+        <option value=”block”>Block — heat 1 gets the lowest pills, heat 2 the next, and so on</option>
       </select>
-      <div id="hHeatFill" class="helpbox" style="display:none">
+      <div id=”hHeatFill” class=”helpbox” style=”display:none”>
         <b>Alternate</b> deals pills across the heats one at a time, so the fast pills are spread out — pills 1, 2, 3, 4 become the poles of heats 1, 2, 3, 4, then 5, 6, 7, 8 fill the next row, and so on through the whole field.
         <p><b>Block</b> keeps the lowest pills together — heat 1 gets pills 1–8, heat 2 gets 9–16, etc.</p>
         <p>Affects Lineups, Results, TV display, and the printout. With a single heat there's no difference.</p>
       </div>
-
-      <label style="margin-top:16px">B-mains <button class="info-btn" onclick="toggleHelp('hBmain')" title="What's this?">i</button></label>
-      <div style="display:flex;gap:8px;flex-wrap:wrap;align-items:center">
-        <select id="mBmainMode" onchange="saveSett()" style="flex:2;min-width:200px;width:auto">
-          <option value="single">Single — one B-main, drivers past it don't race</option>
-          <option value="parallel">Parallel — several B-mains, top of each goes to the feature</option>
-          <option value="cascade">Cascade — climb up through the mains to the feature</option>
+      <label style=”margin-top:16px”>B-mains <button class=”info-btn” onclick=”toggleHelp('hBmain')” title=”What's this?”>i</button></label>
+      <div style=”display:flex;gap:8px;flex-wrap:wrap;align-items:center”>
+        <select id=”mBmainMode” onchange=”saveSett()” style=”flex:2;min-width:200px;width:auto”>
+          <option value=”single”>Single — one B-main, drivers past it don't race</option>
+          <option value=”parallel”>Parallel — several B-mains, top of each goes to the feature</option>
+          <option value=”cascade”>Cascade — climb up through the mains to the feature</option>
         </select>
-        <label style="margin:0;display:flex;align-items:center;gap:6px;font-size:12px">How many<input class="inline-num" id="mBmainCount" type="number" min="2" max="8" onchange="saveSett()" style="width:64px"></label>
+        <label style=”margin:0;display:flex;align-items:center;gap:6px;font-size:12px”>How many<input class=”inline-num” id=”mBmainCount” type=”number” min=”2” max=”8” onchange=”saveSett()” style=”width:64px”></label>
       </div>
-      <div id="hBmain" class="helpbox" style="display:none">
-        When a class has more drivers than the feature holds, this decides how the rest race their way in. The <b>“How many”</b> box sets the number of mains (Parallel and Cascade only). “B-main transfers” above sets how many move up from each main.
+      <div id=”hBmain” class=”helpbox” style=”display:none”>
+        When a class has more drivers than the feature holds, this decides how the rest race their way in. The <b>”How many”</b> box sets the number of mains (Parallel and Cascade only). “B-main transfers” above sets how many move up from each main.
         <p><b>Single:</b> one B-main; the top finishers transfer to the feature and anyone past the B-main doesn't race. (Original behavior.)</p>
         <p><b>Parallel:</b> everyone left is split into equal B-mains (balanced by heat standings). The top finishers from <i>each</i> B-main go straight to the feature — so nobody is cut and everyone gets a run.</p>
         <p><b>Cascade:</b> the slowest qualifiers start in the lowest main; the top finishers climb up to the next main and race again, all the way up to the feature. Run the mains lowest-first.</p>
       </div>
     </div>
-    </details>
+    </section>
 
-    <details class="admin-group">
-      <summary>Points series</summary>
-      <div class="card">
-      <div style="margin-bottom:12px">
+    <section class=”adm-sec” id=”adm-points”>
+      <div class=”card”>
+      <div style=”margin-bottom:12px”>
         <label>Points system</label>
-        <select id="ptsPreset" onchange="applyPointsPreset(this.value)">
-          <option value="standard">Standard (10-8-6-5-4-3-2-1)</option>
-          <option value="f1">F1-style (top 10)</option>
-          <option value="linear">Full-field linear (everyone scores)</option>
-          <option value="podium">Podium only (5-3-1)</option>
-          <option value="custom">Custom — type your own below</option>
+        <select id=”ptsPreset” onchange=”applyPointsPreset(this.value)”>
+          <option value=”standard”>Standard (10-8-6-5-4-3-2-1)</option>
+          <option value=”f1”>F1-style (top 10)</option>
+          <option value=”linear”>Full-field linear (everyone scores)</option>
+          <option value=”podium”>Podium only (5-3-1)</option>
+          <option value=”custom”>Custom — type your own below</option>
         </select>
       </div>
-      <div style="display:flex;gap:12px;flex-wrap:wrap;align-items:flex-end">
-        <div id="ptsTableWrap" style="flex:3;min-width:220px">
+      <div style=”display:flex;gap:12px;flex-wrap:wrap;align-items:flex-end”>
+        <div id=”ptsTableWrap” style=”flex:3;min-width:220px”>
           <label>Points by feature finish — 1st, 2nd, 3rd…</label>
-          <input id="ptsTable" type="text" placeholder="10, 8, 6, 5, 4, 3, 2, 1" onchange="savePoints()" autocomplete="off" />
+          <input id=”ptsTable” type=”text” placeholder=”10, 8, 6, 5, 4, 3, 2, 1” onchange=”savePoints()” autocomplete=”off” />
         </div>
-        <div style="flex:1;min-width:110px">
+        <div style=”flex:1;min-width:110px”>
           <label>Everyone else</label>
-          <input id="ptsBeyond" type="number" min="0" max="999" onchange="savePoints()" />
+          <input id=”ptsBeyond” type=”number” min=”0” max=”999” onchange=”savePoints()” />
         </div>
       </div>
-      <p id="ptsLinearNote" style="display:none;font-size:12px;color:var(--accent,#0a7);margin-top:8px"></p>
-      <p style="font-size:12px;color:var(--muted);margin-top:8px">Pick a known system or type your own — editing the list makes it "Custom". Feature finish decides points; make the list as long as your biggest feature. Anyone finishing past it, not making the feature, or scoring DNF/DNS/DQ gets the "everyone else" value (use it for show-up points, or 0). Classes count by default; untick "counts toward the points series" on the Results tab for non-points days.</p>
+      <p id=”ptsLinearNote” style=”display:none;font-size:12px;color:var(--accent,#0a7);margin-top:8px”></p>
+      <p style=”font-size:12px;color:var(--muted);margin-top:8px”>Pick a known system or type your own — editing the list makes it “Custom”. Feature finish decides points; make the list as long as your biggest feature. Anyone finishing past it, not making the feature, or scoring DNF/DNS/DQ gets the “everyone else” value (use it for show-up points, or 0). Classes count by default; untick “counts toward the points series” on the Results tab for non-points days.</p>
     </div>
-    </details>
+    </section>
 
-    <details class="admin-group" open>
-      <summary>Today's entries</summary>
-      <div class="card">
-      <div style="display:flex;gap:10px;flex-wrap:wrap;align-items:center">
-        <button class="btn" onclick="refillLastDay()">↻ Re-enter last race day's field</button>
-        <span style="font-size:12px;color:var(--muted)">Everyone from the last archived day, fresh pill draws.</span>
+    <section class=”adm-sec” id=”adm-entries”>
+      <div class=”card”>
+      <div style=”display:flex;gap:10px;flex-wrap:wrap;align-items:center”>
+        <button class=”btn” onclick=”refillLastDay()”>↻ Re-enter last race day's field</button>
+        <span style=”font-size:12px;color:var(--muted)”>Everyone from the last archived day, fresh pill draws.</span>
       </div>
-      <hr class="divider">
+      <hr class=”divider”>
       <label>Quick add from the driver book</label>
-      <div style="display:flex;gap:8px;flex-wrap:wrap">
-        <select id="qaDriver" style="flex:2;min-width:170px;width:auto"></select>
-        <select id="qaClass" style="flex:1.4;min-width:130px;width:auto"></select>
-        <button id="qaAddBtn" class="btn btn-primary" onclick="quickAdd()">Add + draw pill</button>
+      <div style=”display:flex;gap:8px;flex-wrap:wrap”>
+        <select id=”qaDriver” style=”flex:2;min-width:170px;width:auto”></select>
+        <select id=”qaClass” style=”flex:1.4;min-width:130px;width:auto”></select>
+        <button id=”qaAddBtn” class=”btn btn-primary” onclick=”quickAdd()”>Add + draw pill</button>
       </div>
-      <hr class="divider">
-      <input id="entrySearch" type="text" placeholder="Find a driver — search name, vehicle #, or class" oninput="renderEntryList()" autocomplete="off" />
-      <div id="entryList" style="margin-top:12px"></div>
-      <p style="font-size:12px;color:var(--muted);margin-top:8px">Removing an entry pulls that driver from that class only — the pill goes back in the draw and their other classes are untouched.</p>
+      <hr class=”divider”>
+      <input id=”entrySearch” type=”text” placeholder=”Find a driver — search name, vehicle #, or class” oninput=”renderEntryList()” autocomplete=”off” />
+      <div id=”entryList” style=”margin-top:12px”></div>
+      <p style=”font-size:12px;color:var(--muted);margin-top:8px”>Removing an entry pulls that driver from that class only — the pill goes back in the draw and their other classes are untouched.</p>
     </div>
-    </details>
+    </section>
 
-    <details class="admin-group" open>
-      <summary>Driver book <span style="font-weight:500;text-transform:none;letter-spacing:0;font-size:11px">— saved across race days</span></summary>
-      <div class="card" id="rosterList"></div>
-    </details>
+    <section class=”adm-sec” id=”adm-roster”>
+      <div class=”card” id=”rosterList”></div>
+    </section>
 
-    <details class="admin-group">
-      <summary>Backup &amp; export</summary>
-      <div class="card">
-        <div style="display:flex;gap:10px;flex-wrap:wrap">
-          <button class="btn" onclick="exportBackup()">⬇ Download full backup</button>
-          <button class="btn" onclick="document.getElementById('importFile').click()">⬆ Restore from backup</button>
-          <input id="importFile" type="file" accept=".json,application/json" style="display:none" onchange="importBackup(this)">
-          <button class="btn" onclick="exportEntriesCSV()">Entries → CSV</button>
-          <button class="btn" onclick="exportResultsCSV()">Results → CSV</button>
+    <section class=”adm-sec” id=”adm-backup”>
+      <div class=”card”>
+        <div style=”display:flex;gap:10px;flex-wrap:wrap”>
+          <button class=”btn” onclick=”exportBackup()”>⬇ Download full backup</button>
+          <button class=”btn” onclick=”document.getElementById('importFile').click()”>⬆ Restore from backup</button>
+          <input id=”importFile” type=”file” accept=”.json,application/json” style=”display:none” onchange=”importBackup(this)”>
+          <button class=”btn” onclick=”exportEntriesCSV()”>Entries → CSV</button>
+          <button class=”btn” onclick=”exportResultsCSV()”>Results → CSV</button>
         </div>
-        <p style="font-size:12px;color:var(--muted);margin-top:8px">This app stores everything in this browser only. Download a backup now and then — restoring it on any device brings back the driver book, classes, settings, history, and today's race day.</p>
+        <p style=”font-size:12px;color:var(--muted);margin-top:8px”>This app stores everything in this browser only. Download a backup now and then — restoring it on any device brings back the driver book, classes, settings, history, and today's race day.</p>
       </div>
-    </details>
+    </section>
 
-    <details class="admin-group">
-      <summary>Race day history</summary>
-      <div class="card" id="historyList"></div>
-    </details>
+    <section class=”adm-sec” id=”adm-history”>
+      <div class=”card” id=”historyList”></div>
+    </section>
 
-    <details class="admin-group">
-      <summary>Account &amp; sync</summary>
-      <div class="slbl">Admin PIN</div>
-      <div class="card" id="pinCard"></div>
-      <div class="slbl">License</div>
-      <div class="card" id="licCard"></div>
-      <div id="syncLbl">
-        <div class="slbl">Multi-device sync</div>
-        <div class="card" id="syncCard"></div>
+    <section class=”adm-sec” id=”adm-pin”>
+      <div class=”slbl”>Admin PIN</div>
+      <div class=”card” id=”pinCard”></div>
+    </section>
+
+    <section class=”adm-sec” id=”adm-license”>
+      <div class=”slbl”>License</div>
+      <div class=”card” id=”licCard”></div>
+    </section>
+
+    <section class=”adm-sec” id=”adm-sync”>
+      <div id=”syncLbl”>
+        <div class=”slbl”>Multi-device sync</div>
+        <div class=”card” id=”syncCard”></div>
       </div>
-    </details>
+    </section>
 
-    <details class="admin-group">
-      <summary>Legal &amp; business</summary>
-      <div class="card">
-        <p style="font-size:12.5px;color:var(--muted);margin:0 0 12px">These names appear in the Terms of Service, Intellectual Property, and Privacy Policy shown to participants. Set your business's legal entity so the documents name the right party.</p>
-        <div style="display:flex;gap:14px;flex-wrap:wrap">
-          <div style="flex:1;min-width:220px">
+    <section class=”adm-sec” id=”adm-legal”>
+      <div class=”card”>
+        <p style=”font-size:12.5px;color:var(--muted);margin:0 0 12px”>These names appear in the Terms of Service, Intellectual Property, and Privacy Policy shown to participants. Set your business's legal entity so the documents name the right party.</p>
+        <div style=”display:flex;gap:14px;flex-wrap:wrap”>
+          <div style=”flex:1;min-width:220px”>
             <label>Software owner — legal entity (Provider)</label>
-            <input id="provLegal" type="text" placeholder="e.g. Acme Racing Software LLC" onchange="saveProvider()" />
+            <input id=”provLegal” type=”text” placeholder=”e.g. Acme Racing Software LLC” onchange=”saveProvider()” />
           </div>
-          <div style="flex:1;min-width:220px">
+          <div style=”flex:1;min-width:220px”>
             <label>Operator — track / promoter legal name</label>
-            <input id="provOperator" type="text" placeholder="e.g. Riverside Speedway LLC" onchange="saveProvider()" />
+            <input id=”provOperator” type=”text” placeholder=”e.g. Riverside Speedway LLC” onchange=”saveProvider()” />
           </div>
         </div>
-        <label style="display:flex;align-items:center;gap:8px;margin-top:16px;font-size:13.5px;font-weight:600;cursor:pointer">
-          <input type="checkbox" id="reqConsent" style="width:18px;height:18px" onchange="saveConsentSettings()">
+        <label style=”display:flex;align-items:center;gap:8px;margin-top:16px;font-size:13.5px;font-weight:600;cursor:pointer”>
+          <input type=”checkbox” id=”reqConsent” style=”width:18px;height:18px” onchange=”saveConsentSettings()”>
           Require drivers to accept the Terms &amp; Privacy Policy at sign-up</label>
-        <label style="display:flex;align-items:center;gap:8px;margin-top:8px;font-size:13.5px;font-weight:600;cursor:pointer">
-          <input type="checkbox" id="capIP" style="width:18px;height:18px" onchange="saveConsentSettings()">
+        <label style=”display:flex;align-items:center;gap:8px;margin-top:8px;font-size:13.5px;font-weight:600;cursor:pointer”>
+          <input type=”checkbox” id=”capIP” style=”width:18px;height:18px” onchange=”saveConsentSettings()”>
           Record the device's public IP with each acceptance (best-effort)</label>
-        <p style="font-size:12px;color:var(--muted);margin-top:8px">IP capture makes one lookup to a public service when a driver accepts. Turn it off for fully offline/no-network operation.</p>
-        <hr class="divider">
-        <div style="display:flex;gap:10px;flex-wrap:wrap">
-          <button class="btn btn-sm" onclick="openDoc('terms')">View Terms of Service</button>
-          <button class="btn btn-sm" onclick="openDoc('privacy')">View Privacy Policy</button>
-          <button class="btn btn-sm" onclick="openDoc('bizrec')">📋 Business recommendations</button>
+        <p style=”font-size:12px;color:var(--muted);margin-top:8px”>IP capture makes one lookup to a public service when a driver accepts. Turn it off for fully offline/no-network operation.</p>
+        <hr class=”divider”>
+        <div style=”display:flex;gap:10px;flex-wrap:wrap”>
+          <button class=”btn btn-sm” onclick=”openDoc('terms')”>View Terms of Service</button>
+          <button class=”btn btn-sm” onclick=”openDoc('privacy')”>View Privacy Policy</button>
+          <button class=”btn btn-sm” onclick=”openDoc('bizrec')”>📋 Business recommendations</button>
         </div>
       </div>
-    </details>
+    </section>
 
-    <details class="admin-group">
-      <summary>Records &amp; audit</summary>
-      <div class="slbl">Acceptance log</div>
-      <div class="card" id="consentCard"></div>
-      <div class="slbl">Audit log — overrides, locks &amp; result changes</div>
-      <div class="card" id="auditCard"></div>
-    </details>
+    <section class=”adm-sec” id=”adm-audit”>
+      <div class=”slbl”>Acceptance log</div>
+      <div class=”card” id=”consentCard”></div>
+      <div class=”slbl”>Audit log — overrides, locks &amp; result changes</div>
+      <div class=”card” id=”auditCard”></div>
+    </section>
 
-    <details class="admin-group">
-      <summary>Import past race</summary>
-      <div class="card">
-        <p style="font-size:13px;color:var(--muted);margin-bottom:12px">Add results from a previous race night so points standings are accurate from day one. Enter one night at a time.</p>
-        <div style="display:flex;gap:8px;flex-wrap:wrap;margin-bottom:10px">
-          <div style="flex:1;min-width:160px"><label>Race date</label><input id="impDate" type="date" /></div>
-          <div style="flex:2;min-width:180px"><label>Class</label><select id="impClass" style="width:100%"></select></div>
+    <section class=”adm-sec” id=”adm-import”>
+      <div class=”card”>
+        <p style=”font-size:13px;color:var(--muted);margin-bottom:12px”>Add results from a previous race night so points standings are accurate from day one. Enter one night at a time.</p>
+        <div style=”display:flex;gap:8px;flex-wrap:wrap;margin-bottom:10px”>
+          <div style=”flex:1;min-width:160px”><label>Race date</label><input id=”impDate” type=”date” /></div>
+          <div style=”flex:2;min-width:180px”><label>Class</label><select id=”impClass” style=”width:100%”></select></div>
         </div>
-        <div id="impDriverRows" style="margin-bottom:8px"></div>
-        <div style="display:flex;gap:8px;flex-wrap:wrap;align-items:center;margin-bottom:10px">
-          <input id="impDriverSearch" type="text" placeholder="Search driver name or kart #" style="flex:2;min-width:160px" oninput="renderImpSearch()" />
-          <button class="btn btn-sm" onclick="addImpRow()">+ Add driver</button>
+        <div id=”impDriverRows” style=”margin-bottom:8px”></div>
+        <div style=”display:flex;gap:8px;flex-wrap:wrap;align-items:center;margin-bottom:10px”>
+          <input id=”impDriverSearch” type=”text” placeholder=”Search driver name or kart #” style=”flex:2;min-width:160px” oninput=”renderImpSearch()” />
+          <button class=”btn btn-sm” onclick=”addImpRow()”>+ Add driver</button>
         </div>
-        <div id="impSearchResults" style="margin-bottom:8px"></div>
-        <div style="display:flex;gap:8px;flex-wrap:wrap">
-          <button class="btn btn-primary" onclick="saveImportedRace()">Save race night</button>
-          <button class="btn" onclick="clearImpForm()">Clear</button>
+        <div id=”impSearchResults” style=”margin-bottom:8px”></div>
+        <div style=”display:flex;gap:8px;flex-wrap:wrap”>
+          <button class=”btn btn-primary” onclick=”saveImportedRace()”>Save race night</button>
+          <button class=”btn” onclick=”clearImpForm()”>Clear</button>
         </div>
-        <p id="impMsg" style="display:none;font-size:13px;margin-top:8px"></p>
+        <p id=”impMsg” style=”display:none;font-size:13px;margin-top:8px”></p>
       </div>
-    </details>
+    </section>
 
-    <details class="admin-group">
-      <summary>Danger zone</summary>
-      <div class="card">
-        <div style="display:flex;gap:10px;flex-wrap:wrap">
-          <button class="btn" onclick="newRaceDay()">🏁 Start a new race day</button>
-          <button class="btn" onclick="seedDemo()">Load demo race day</button>
-          <button class="btn btn-danger" onclick="resetForNewTrack()">Set up for a new track</button>
-          <button class="btn btn-danger" onclick="resetAll()">Erase everything</button>
+    <section class=”adm-sec” id=”adm-danger”>
+      <div class=”card”>
+        <div style=”display:flex;gap:10px;flex-wrap:wrap”>
+          <button class=”btn” onclick=”newRaceDay()”>🏁 Start a new race day</button>
+          <button class=”btn” onclick=”seedDemo()”>Load demo race day</button>
+          <button class=”btn btn-danger” onclick=”resetForNewTrack()”>Set up for a new track</button>
+          <button class=”btn btn-danger” onclick=”resetAll()”>Erase everything</button>
         </div>
-        <p style="font-size:12px;color:var(--muted);margin-top:8px">A new race day archives today's entries and results to history, then clears the board — the driver book and classes are kept. Set up for a new track keeps the race data but clears the license and starts a fresh trial — for handing the app to a different track. Erase everything wipes the driver book, history, and track settings too.</p>
+        <p style=”font-size:12px;color:var(--muted);margin-top:8px”>A new race day archives today's entries and results to history, then clears the board — the driver book and classes are kept. Set up for a new track keeps the race data but clears the license and starts a fresh trial — for handing the app to a different track. Erase everything wipes the driver book, history, and track settings too.</p>
       </div>
-    </details>
+    </section>
   </div>
 
   <!-- HELP / GUIDE -->
@@ -1271,6 +1273,7 @@ function nav(p) {
   const allowed = ROLE_PAGES[deviceRole()] || ROLE_PAGES.admin;
   if (!allowed.includes(p)) return;
   if (p === 'admin' && !adminOk()) return;
+  if (p === 'admin') _admOpen = null;
   curPage = p;
   document.querySelectorAll('.page').forEach(el => el.classList.remove('active'));
   document.querySelectorAll('#mainNav button').forEach(b => b.classList.remove('active'));
@@ -2688,6 +2691,58 @@ function removeLogo() {
 }
 
 // ---------- Admin ----------
+const ADMIN_NAV = [
+  { id:'adm-entries',  label:'Today\'s entries',    icon:'📋', group:'Today' },
+  { id:'adm-history',  label:'Race day history',    icon:'📅', group:'Today' },
+  { id:'adm-track',    label:'Track identity',      icon:'🏁', group:'Race setup' },
+  { id:'adm-classes',  label:'Race classes',        icon:'🏎', group:'Race setup' },
+  { id:'adm-format',   label:'Race format',         icon:'⚙️', group:'Race setup' },
+  { id:'adm-points',   label:'Points series',       icon:'🏆', group:'Race setup' },
+  { id:'adm-pin',      label:'Admin PIN',           icon:'🔐', group:'Account' },
+  { id:'adm-license',  label:'License',             icon:'🪪', group:'Account' },
+  { id:'adm-sync',     label:'Multi-device sync',   icon:'🔄', group:'Account' },
+  { id:'adm-roster',   label:'Driver book',         icon:'👥', group:'Records' },
+  { id:'adm-backup',   label:'Backup & export',     icon:'💾', group:'Records' },
+  { id:'adm-import',   label:'Import past race',    icon:'📥', group:'Records' },
+  { id:'adm-legal',    label:'Legal & business',    icon:'📄', group:'Records' },
+  { id:'adm-audit',    label:'Records & audit',     icon:'📊', group:'Records' },
+  { id:'adm-danger',   label:'Danger zone',         icon:'⚠️', group:'Danger' },
+];
+let _admOpen = null;
+function renderAdminNav() {
+  const home = document.getElementById('adminHome');
+  const tabs = document.getElementById('adminTabs');
+  if (!home || !tabs) return;
+  if (!_admOpen) {
+    tabs.style.display = 'none';
+    ADMIN_NAV.forEach(s => { const el = document.getElementById(s.id); if (el) el.style.display = 'none'; });
+    const groups = [...new Set(ADMIN_NAV.map(s => s.group))];
+    home.innerHTML = groups.map(g => {
+      const isDanger = g === 'Danger';
+      return '<div class="adm-grp-lbl">' + g + '</div>'
+        + '<div class="tiles">'
+        + ADMIN_NAV.filter(s => s.group === g).map(s =>
+            '<button class="tile' + (isDanger ? ' tile-danger' : '') + '" onclick="adminOpen(\'' + s.id + '\')">'
+            + '<span style="font-size:22px">' + s.icon + '</span><span>' + esc(s.label) + '</span></button>'
+          ).join('')
+        + '</div>';
+    }).join('');
+    home.style.display = '';
+  } else {
+    home.style.display = 'none';
+    const cur = ADMIN_NAV.find(s => s.id === _admOpen);
+    const siblings = cur ? ADMIN_NAV.filter(s => s.group === cur.group) : [];
+    tabs.innerHTML = '<button class="btn btn-sm" style="flex-shrink:0" onclick="adminHome()">← All</button>'
+      + (siblings.length > 1 ? siblings.map(s =>
+          '<button class="adm-tab' + (s.id === _admOpen ? ' active' : '') + '" onclick="adminOpen(\'' + s.id + '\')">' + esc(s.label) + '</button>'
+        ).join('') : '');
+    tabs.style.display = '';
+    ADMIN_NAV.forEach(s => { const el = document.getElementById(s.id); if (el) el.style.display = s.id === _admOpen ? '' : 'none'; });
+  }
+}
+function adminOpen(secId) { _admOpen = secId; renderAdminNav(); }
+function adminHome() { _admOpen = null; renderAdminNav(); }
+
 function renderAdmin() {
   renderClsList(); renderClsLib(); renderQuickAdd(); renderEntryList(); renderRosterList(); renderHistory(); renderImpForm(); renderPinCard(); renderLicCard(); renderSyncCard(); renderPointsInputs();
   renderLegalInputs(); renderConsentCard(); renderAuditCard();
@@ -2704,6 +2759,7 @@ function renderAdmin() {
   document.getElementById('mBmainMode').value = S.settings.bmainMode;
   document.getElementById('mBmainCount').value = S.settings.bmainCount;
   document.getElementById('mBmainCount').disabled = S.settings.bmainMode === 'single';
+  renderAdminNav();
 }
 
 // ---------- Legal & business ----------
