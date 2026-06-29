@@ -2636,7 +2636,7 @@ function renderHeader() {
   }
   const sy = document.getElementById('hdrSync');
   if (sy) {
-    if (syncOn()) {
+    if (syncOn() && _syncConnected) {
       const r = deviceRole();
       sy.style.display = '';
       sy.textContent = '🔗 ' + ((S.sync && S.sync.key) || 'synced') + (r && r !== 'admin' ? ' · ' + r : '');
@@ -3387,7 +3387,7 @@ window.addEventListener('unhandledrejection', e => { sendUsage('crash', { msg: S
 // ---------- Multi-device sync (Firebase) ----------
 // Dormant unless FIREBASE_CONFIG is filled in AND a track has activated sync.
 // Only the SYNC_FIELDS subtrees are mirrored; admin PIN / license / history stay local.
-let _syncDb = null, _syncTimer = null, _syncApplying = false, _syncActivating = false;
+let _syncDb = null, _syncTimer = null, _syncApplying = false, _syncActivating = false, _syncConnected = false;
 const _syncLast = {};   // field -> last JSON string seen, so we only push real changes
 
 function syncKey() { return (S.sync && S.sync.key) || ''; }
@@ -3420,6 +3420,7 @@ function initSync() {
       if (!firebase.apps.length) firebase.initializeApp(FIREBASE_CONFIG);
       if (_syncDb) { try { _syncDb.off(); } catch (e) {} }
       _syncDb = firebase.database().ref('tracks/' + syncKey());
+      firebase.database().ref('.info/connected').on('value', snap => { _syncConnected = !!snap.val(); renderHeader(); });
       SYNC_FIELDS.forEach(f => { _syncLast[f] = JSON.stringify(syncGet(f) === undefined ? null : syncGet(f)); });
       _syncDb.on('value', snap => {
         const v = snap.val();
@@ -3485,6 +3486,7 @@ function syncJoin() {
 function syncDisable() {
   if (!confirm('Turn off live sync on this device? It will go back to working on its own. The track\'s synced data stays in the cloud.')) return;
   if (_syncDb) { try { _syncDb.off(); } catch (e) {} _syncDb = null; }
+  _syncConnected = false;
   S.sync.enabled = false;
   save();
   renderSyncCard();
