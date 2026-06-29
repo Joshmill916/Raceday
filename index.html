@@ -285,6 +285,15 @@
     .disc.sm { width: 34px; height: 34px; font-size: 16px; }
   }
   @media (prefers-reduced-motion: reduce) { * { animation: none !important; transition: none !important; } }
+  /* Setup wizard & pill-choice modal */
+  .wiz-overlay { position:fixed;inset:0;background:rgba(0,0,0,.65);z-index:9999;display:flex;align-items:center;justify-content:center;padding:16px; }
+  .wiz-box { background:#fff;border-radius:14px;padding:1.75rem 1.5rem;max-width:480px;width:100%;max-height:90vh;overflow-y:auto;box-shadow:0 8px 32px rgba(0,0,0,.18); }
+  .wiz-title { font-family:var(--display);font-size:22px;font-weight:800;text-transform:uppercase;letter-spacing:.04em;color:var(--ink);margin-bottom:.35rem; }
+  .wiz-progress { font-size:12px;color:var(--muted);margin-bottom:1.25rem; }
+  .wiz-nav { display:flex;justify-content:space-between;align-items:center;margin-top:1.5rem;gap:8px; }
+  .wiz-cls-row { display:flex;align-items:center;gap:8px;margin-bottom:6px; }
+  .wiz-cls-row input { flex:1;padding:6px 10px;font-size:14px;border:1px solid var(--line);border-radius:6px; }
+  .wiz-cls-row .pill-hint { font-size:11px;color:var(--muted);white-space:nowrap; }
 </style>
 </head>
 <body>
@@ -421,6 +430,7 @@
           </div>
         </div>
         <p style="font-size:12px;color:var(--muted);margin-top:10px">The name and logo show in the header and on printed lineups.</p>
+        <div style="margin-top:10px"><button class="btn btn-sm" onclick="openSetupWizard()">Setup wizard</button></div>
       </div>
     </details>
 
@@ -598,6 +608,28 @@
       <div class="card" id="consentCard"></div>
       <div class="slbl">Audit log — overrides, locks &amp; result changes</div>
       <div class="card" id="auditCard"></div>
+    </details>
+
+    <details class="admin-group">
+      <summary>Import past race</summary>
+      <div class="card">
+        <p style="font-size:13px;color:var(--muted);margin-bottom:12px">Add results from a previous race night so points standings are accurate from day one. Enter one night at a time.</p>
+        <div style="display:flex;gap:8px;flex-wrap:wrap;margin-bottom:10px">
+          <div style="flex:1;min-width:160px"><label>Race date</label><input id="impDate" type="date" /></div>
+          <div style="flex:2;min-width:180px"><label>Class</label><select id="impClass" style="width:100%"></select></div>
+        </div>
+        <div id="impDriverRows" style="margin-bottom:8px"></div>
+        <div style="display:flex;gap:8px;flex-wrap:wrap;align-items:center;margin-bottom:10px">
+          <input id="impDriverSearch" type="text" placeholder="Search driver name or kart #" style="flex:2;min-width:160px" oninput="renderImpSearch()" />
+          <button class="btn btn-sm" onclick="addImpRow()">+ Add driver</button>
+        </div>
+        <div id="impSearchResults" style="margin-bottom:8px"></div>
+        <div style="display:flex;gap:8px;flex-wrap:wrap">
+          <button class="btn btn-primary" onclick="saveImportedRace()">Save race night</button>
+          <button class="btn" onclick="clearImpForm()">Clear</button>
+        </div>
+        <p id="impMsg" style="display:none;font-size:13px;margin-top:8px"></p>
+      </div>
     </details>
 
     <details class="admin-group">
@@ -859,6 +891,69 @@
 <!-- Always-visible, PIN-gated role switch for locked stations (hidden for the admin role) -->
 <button id="roleEscape" onclick="changeDeviceRole()" style="display:none">⚙ Role</button>
 
+<!-- First-run setup wizard -->
+<div id="setupWizard" class="wiz-overlay" style="display:none">
+  <div class="wiz-box">
+    <div class="wiz-title">RaceDay Setup</div>
+    <div class="wiz-progress">Step <span id="wizStepNum">1</span> of 5</div>
+    <div id="wizS1">
+      <p style="margin-bottom:.75rem">Welcome to RaceDay — the fastest way to run pill draws, lineups, heats, and points at the track.</p>
+      <p style="margin-bottom:.75rem">This quick setup takes about a minute. You'll set your track name, review your classes, and optionally lock admin controls with a PIN.</p>
+      <p style="font-size:13px;color:var(--muted)">Use the tabs along the top during race night: <b>Sign up → Lineups → Results → Points</b>.</p>
+    </div>
+    <div id="wizS2" style="display:none">
+      <p style="margin-bottom:1rem;font-weight:600">What's your track called?</p>
+      <label>Track name</label>
+      <input id="wizTrackName" type="text" placeholder="e.g. Riverside Kart Speedway" maxlength="60" style="margin-bottom:.75rem" oninput="document.getElementById('wizNextBtn').disabled=!this.value.trim()" />
+      <p style="margin-bottom:8px;font-weight:600">Logo (optional)</p>
+      <div style="display:flex;align-items:center;gap:10px;flex-wrap:wrap">
+        <img id="wizLogoPrev" alt="" style="display:none;height:44px;max-width:110px;object-fit:contain;border:1px solid var(--line);border-radius:6px;padding:3px">
+        <button class="btn btn-sm" type="button" onclick="document.getElementById('wizLogoFile').click()">Upload logo</button>
+        <input id="wizLogoFile" type="file" accept="image/*" style="display:none" onchange="wizUploadLogo(this)">
+      </div>
+    </div>
+    <div id="wizS3" style="display:none">
+      <p style="margin-bottom:.75rem;font-weight:600">Your race classes</p>
+      <p style="font-size:13px;color:var(--muted);margin-bottom:10px">Rename any class to match your track. Add or remove classes in Admin → Classes after setup.</p>
+      <div id="wizClassList"></div>
+    </div>
+    <div id="wizS4" style="display:none">
+      <p style="margin-bottom:.75rem;font-weight:600">Admin PIN (optional)</p>
+      <p style="font-size:13px;color:var(--muted);margin-bottom:10px">A PIN locks the Admin tab and certain controls so only you can change settings. Leave blank to skip — you can set it later in Admin.</p>
+      <label>PIN (4–8 digits)</label>
+      <input id="wizPin1" type="password" inputmode="numeric" maxlength="8" placeholder="e.g. 1234" style="margin-bottom:.5rem" />
+      <label>Confirm PIN</label>
+      <input id="wizPin2" type="password" inputmode="numeric" maxlength="8" placeholder="Repeat PIN" />
+    </div>
+    <div id="wizS5" style="display:none">
+      <p style="margin-bottom:.75rem;font-weight:600">Other devices</p>
+      <p style="margin-bottom:.75rem">RaceDay can run on multiple devices at once with different roles:</p>
+      <ul style="font-size:14px;line-height:1.8;padding-left:1.2rem;margin-bottom:.75rem">
+        <li><b>Sign-up station</b> — drivers use this tablet to enter</li>
+        <li><b>Scoring</b> — for entering heat and feature results</li>
+        <li><b>Spectator/TV</b> — shows the live lineup on a big screen</li>
+      </ul>
+      <p style="font-size:13px;color:var(--muted)">Go to <b>Admin → Device Access</b> to generate QR codes for each station. You're all set!</p>
+    </div>
+    <div class="wiz-nav">
+      <button id="wizBackBtn" class="btn" type="button" onclick="wizBack()" style="display:none">Back</button>
+      <button id="wizNextBtn" class="btn btn-primary" type="button" onclick="wizNext()">Next</button>
+    </div>
+  </div>
+</div>
+
+<!-- Pill choice modal (move between classes) -->
+<div id="pillChoiceModal" class="wiz-overlay" style="display:none">
+  <div class="wiz-box" style="max-width:380px">
+    <p id="pillChoiceMsg" style="margin-bottom:1.25rem;line-height:1.55;font-size:15px"></p>
+    <div style="display:flex;gap:8px;flex-wrap:wrap">
+      <button id="pillChoiceKeep" class="btn btn-primary" type="button" onclick="_pillChoiceDo('keep')"></button>
+      <button id="pillChoiceDraw" class="btn btn-primary" type="button" onclick="_pillChoiceDo('draw')">Draw new pill</button>
+      <button class="btn" type="button" onclick="_pillChoiceDo('cancel')">Cancel</button>
+    </div>
+  </div>
+</div>
+
 <script>
 // ---------- State ----------
 const KEY = 'raceday_v1';
@@ -970,6 +1065,7 @@ function migrate(s) {
   if (!s.consents) s.consents = [];
   if (!s.audit) s.audit = [];
   if (!s.sync) s.sync = { enabled: false, key: '' };
+  if (s.roster) s.roster.forEach(d => { if (d.noPoints == null) d.noPoints = false; });
   return s;
 }
 function load() {
@@ -1621,7 +1717,7 @@ function register() {
   // save / update the driver book
   let driver = match;
   if (driver) { driver.num = cur.num; driver.name = cur.name; }
-  else { driver = { id: S.nextId++, name: cur.name, num: cur.num }; S.roster.push(driver); }
+  else { driver = { id: S.nextId++, name: cur.name, num: cur.num, noPoints: false }; S.roster.push(driver); }
 
   // record the Terms/Privacy acceptance (timestamp, role, version; IP filled best-effort)
   if (S.settings && S.settings.requireConsent) recordConsent(driver.name, driver.num);
@@ -1635,7 +1731,6 @@ function register() {
     drawn.push({ cls: c, pill });
   });
   save();
-  scheduleUsageBeacon();
   renderDone(driver, drawn);
   showStep(3);
 }
@@ -2032,6 +2127,7 @@ function dayPoints(clsId) {
   } else {
     fin.forEach(f => { pts[f.id] = f.fin >= 1 && f.fin <= table.length ? table[f.fin - 1] : beyond; });
   }
+  S.raceDay.entries.filter(e => e.classId === clsId && (e.noPoints || (driverById(e.driverId) || {}).noPoints)).forEach(e => { delete pts[e.driverId]; });
   return pts;
 }
 function seriesClassNames() {
@@ -2050,7 +2146,11 @@ function seriesStandings(className) {
   };
   S.history.forEach(hd => hd.classes.forEach(c => {
     if (c.name.toLowerCase() !== key || !c.points) return;
-    c.points.forEach(p => add(p.driverId, p.name, p.num, p.pts));
+    c.points.forEach(p => {
+      const d = driverById(p.driverId);
+      if (d && d.noPoints) return;
+      add(p.driverId, p.name, p.num, p.pts);
+    });
   }));
   const cls = S.classes.find(c => c.name.toLowerCase() === key);
   if (cls) {
@@ -2300,6 +2400,111 @@ function archiveDay() {
   if (!snap.classes.length) return;
   S.history.unshift(snap);
   if (S.history.length > 60) S.history.length = 60;
+  scheduleUsageBeacon();
+}
+
+// ---------- Import past race ----------
+let _impRows = [];   // [{driverId, name, num, pts}]
+function renderImpForm() {
+  const sel = document.getElementById('impClass');
+  if (!sel) return;
+  sel.innerHTML = S.classes.map(c => '<option value="' + c.id + '">' + esc(c.name) + '</option>').join('');
+  const d = document.getElementById('impDate');
+  if (d && !d.value) d.value = today();
+  renderImpRows();
+}
+function renderImpRows() {
+  const el = document.getElementById('impDriverRows');
+  if (!el) return;
+  if (!_impRows.length) { el.innerHTML = ''; return; }
+  el.innerHTML = '<table style="width:100%;margin-bottom:4px"><thead><tr><th>Driver</th><th>#</th><th>Points</th><th></th></tr></thead><tbody>'
+    + _impRows.map((r, i) => '<tr><td style="font-weight:600">' + esc(r.name) + '</td><td>#' + esc(r.num) + '</td>'
+      + '<td><input type="number" min="0" value="' + (r.pts || 0) + '" style="width:70px;padding:4px 6px" oninput="_impRows[' + i + '].pts=parseInt(this.value)||0"></td>'
+      + '<td><button class="btn btn-sm btn-danger" onclick="_impRows.splice(' + i + ',1);renderImpRows()">✕</button></td></tr>').join('')
+    + '</tbody></table>';
+}
+function renderImpSearch() {
+  const q = (document.getElementById('impDriverSearch').value || '').trim().toLowerCase();
+  const el = document.getElementById('impSearchResults');
+  if (!q) { el.innerHTML = ''; return; }
+  const already = new Set(_impRows.map(r => r.driverId));
+  const matches = S.roster.filter(d => !already.has(d.id) && (d.name.toLowerCase().includes(q) || String(d.num).toLowerCase().includes(q))).slice(0, 6);
+  if (!matches.length) { el.innerHTML = '<p style="font-size:12px;color:var(--muted);margin:0">No match — use "+ Add driver" to add someone new.</p>'; return; }
+  el.innerHTML = '<div style="display:flex;gap:6px;flex-wrap:wrap">' + matches.map(d =>
+    '<button class="btn btn-sm" onclick="addImpRowDriver(' + d.id + ')">' + esc(d.name) + ' #' + esc(d.num) + '</button>').join('') + '</div>';
+}
+function addImpRowDriver(id) {
+  const d = driverById(id); if (!d) return;
+  if (_impRows.some(r => r.driverId === id)) return;
+  _impRows.push({ driverId: id, name: d.name, num: d.num, pts: 0 });
+  document.getElementById('impDriverSearch').value = '';
+  document.getElementById('impSearchResults').innerHTML = '';
+  renderImpRows();
+}
+function addImpRow() {
+  const q = (document.getElementById('impDriverSearch').value || '').trim();
+  if (!q) { alert('Type a driver name or kart # to search, then click their name. Or type a new name to add them.'); return; }
+  // Try to find in roster first
+  const match = S.roster.find(d => d.name.toLowerCase() === q.toLowerCase());
+  if (match) { addImpRowDriver(match.id); return; }
+  // Create a new roster entry
+  const num = prompt('Kart number for ' + q + '?', ''); if (num == null) return;
+  if (!/^[A-Za-z0-9]{1,5}$/.test(num.trim())) { alert('Kart number must be 1–5 letters or digits.'); return; }
+  const d = { id: S.nextId++, name: q.trim(), num: num.trim(), noPoints: false };
+  S.roster.push(d); save();
+  _impRows.push({ driverId: d.id, name: d.name, num: d.num, pts: 0 });
+  document.getElementById('impDriverSearch').value = '';
+  document.getElementById('impSearchResults').innerHTML = '';
+  renderImpRows();
+}
+function saveImportedRace() {
+  const dateEl = document.getElementById('impDate');
+  const clsEl = document.getElementById('impClass');
+  const msgEl = document.getElementById('impMsg');
+  const date = (dateEl && dateEl.value) || '';
+  const clsId = clsEl ? parseInt(clsEl.value, 10) : 0;
+  const cls = classById(clsId);
+  if (!date) { showImpMsg('Please enter a race date.', 'error'); return; }
+  if (!cls) { showImpMsg('Please select a class.', 'error'); return; }
+  if (!_impRows.length) { showImpMsg('Add at least one driver.', 'error'); return; }
+  // Check for duplicate: same date + class already in history
+  const dup = S.history.some(hd => hd.date === date && hd.classes.some(c => c.name === cls.name));
+  if (dup && !confirm('A history entry for ' + cls.name + ' on ' + date + ' already exists. Add another anyway?')) return;
+  const entry = {
+    date: date,
+    savedAt: Date.now(),
+    imported: true,
+    classes: [{
+      name: cls.name,
+      pointsRace: true,
+      points: _impRows.map(r => ({ driverId: r.driverId, name: r.name, num: r.num, pts: r.pts || 0 })),
+      standings: [],
+      feature: [],
+      featureFinish: []
+    }]
+  };
+  S.history.push(entry);
+  S.history.sort((a, b) => (b.date > a.date ? 1 : b.date < a.date ? -1 : 0));
+  if (S.history.length > 60) S.history.length = 60;
+  logAudit('Imported past race', cls.name + ' · ' + date, _impRows.length + ' drivers', '');
+  save();
+  showImpMsg('Saved — ' + _impRows.length + ' drivers added to ' + cls.name + ' on ' + date + '.', 'ok');
+  _impRows = []; renderImpRows();
+}
+function showImpMsg(msg, type) {
+  const el = document.getElementById('impMsg');
+  if (!el) return;
+  el.textContent = msg;
+  el.style.display = '';
+  el.style.color = type === 'error' ? 'var(--pit-red)' : 'var(--flag-green)';
+  setTimeout(() => { el.style.display = 'none'; }, 4000);
+}
+function clearImpForm() {
+  _impRows = []; renderImpRows();
+  const d = document.getElementById('impDate'); if (d) d.value = today();
+  const s = document.getElementById('impDriverSearch'); if (s) s.value = '';
+  const r = document.getElementById('impSearchResults'); if (r) r.innerHTML = '';
+  const m = document.getElementById('impMsg'); if (m) m.style.display = 'none';
 }
 
 let histOpen = null;
@@ -2307,7 +2512,7 @@ function renderHistory() {
   const el = document.getElementById('historyList');
   if (!S.history.length) { el.innerHTML = '<p class="empty">Nothing archived yet — a finished race day lands here when you start a new one.</p>'; return; }
   el.innerHTML = S.history.map((hd, i) => {
-    const drivers = hd.classes.reduce((n, c) => n + c.standings.length, 0);
+    const drivers = hd.classes.reduce((n, c) => n + (c.standings.length || (c.points ? c.points.length : 0)), 0);
     let h = '<div style="border-bottom:1px solid #f0f0eb;padding:10px 0">'
       + '<div style="display:flex;align-items:center;gap:10px;flex-wrap:wrap">'
       + '<b style="font-family:var(--display);font-size:16px">' + esc(hd.date) + '</b>'
@@ -2318,12 +2523,19 @@ function renderHistory() {
       + '<button class="btn btn-sm btn-danger" onclick="delHist(' + i + ')">Delete</button></span></div>';
     if (histOpen === i) {
       hd.classes.forEach(c => {
-        h += '<div class="slbl" style="margin:12px 0 6px">' + esc(c.name) + '</div>'
-          + '<table><thead><tr><th>Pos</th><th>Driver</th><th>#</th><th>Pill</th><th>H1</th><th>H2</th><th>Total</th></tr></thead><tbody>'
-          + c.standings.map(s =>
-            '<tr><td>' + s.pos + '</td><td style="font-weight:600">' + esc(s.name) + '</td><td>#' + esc(s.num) + '</td><td>' + s.pill + '</td>'
-            + '<td>' + (s.f1 === '' ? '·' : esc(String(s.f1))) + '</td><td>' + (s.f2 === '' ? '·' : esc(String(s.f2))) + '</td><td>' + (s.pts === '' ? '—' : s.pts) + '</td></tr>').join('')
-          + '</tbody></table>';
+        const isImported = hd.imported || (c.standings.length === 0 && c.points && c.points.length);
+        h += '<div class="slbl" style="margin:12px 0 6px">' + esc(c.name) + (isImported ? ' <span style="font-size:11px;color:var(--muted)">(imported)</span>' : '') + '</div>';
+        if (isImported) {
+          h += '<table><thead><tr><th>Driver</th><th>#</th><th>Points</th></tr></thead><tbody>'
+            + (c.points || []).map(p => '<tr><td style="font-weight:600">' + esc(p.name) + '</td><td>#' + esc(p.num) + '</td><td>' + p.pts + '</td></tr>').join('')
+            + '</tbody></table>';
+        } else {
+          h += '<table><thead><tr><th>Pos</th><th>Driver</th><th>#</th><th>Pill</th><th>H1</th><th>H2</th><th>Total</th></tr></thead><tbody>'
+            + c.standings.map(s =>
+              '<tr><td>' + s.pos + '</td><td style="font-weight:600">' + esc(s.name) + '</td><td>#' + esc(s.num) + '</td><td>' + s.pill + '</td>'
+              + '<td>' + (s.f1 === '' ? '·' : esc(String(s.f1))) + '</td><td>' + (s.f2 === '' ? '·' : esc(String(s.f2))) + '</td><td>' + (s.pts === '' ? '—' : s.pts) + '</td></tr>').join('')
+            + '</tbody></table>';
+        }
       });
     }
     return h + '</div>';
@@ -2462,7 +2674,7 @@ function removeLogo() {
 
 // ---------- Admin ----------
 function renderAdmin() {
-  renderClsList(); renderClsLib(); renderQuickAdd(); renderEntryList(); renderRosterList(); renderHistory(); renderPinCard(); renderLicCard(); renderSyncCard(); renderPointsInputs();
+  renderClsList(); renderClsLib(); renderQuickAdd(); renderEntryList(); renderRosterList(); renderHistory(); renderImpForm(); renderPinCard(); renderLicCard(); renderSyncCard(); renderPointsInputs();
   renderLegalInputs(); renderConsentCard(); renderAuditCard();
   document.getElementById('trackName').value = S.track.name;
   const prev = document.getElementById('logoPrev');
@@ -2808,7 +3020,7 @@ function renderEntryList() {
   const rows = S.raceDay.entries.map((e, i) => {
     const d = driverById(e.driverId) || { name: '?', num: '?' };
     const c = classById(e.classId) || { name: '?' };
-    return { i, name: d.name, num: d.num, cls: c.name, clsId: e.classId, pill: e.pill };
+    return { i, name: d.name, num: d.num, cls: c.name, clsId: e.classId, pill: e.pill, noPoints: !!(e.noPoints || (d && d.noPoints)) };
   }).filter(r => !q || r.name.toLowerCase().includes(q) || String(r.num).toLowerCase().includes(q) || r.cls.toLowerCase().includes(q))
     .sort((a, b) => a.cls.localeCompare(b.cls) || a.pill - b.pill);
   if (!rows.length) { el.innerHTML = '<p class="empty">No entries match “' + esc(q) + '”.</p>'; return; }
@@ -2824,8 +3036,16 @@ function renderEntryList() {
         + '<input type="number" min="1" value="' + r.pill + '" title="Grid spot — re-orders the whole lineup" style="width:46px;text-align:center;padding:5px 4px;font-size:14px;font-weight:700" onchange="setEntryPill(' + r.i + ',this.value,{confirm:true})">'
         + '<button class="btn btn-sm" style="padding:2px 7px" title="Move back" onclick="bumpEntryPill(' + r.i + ',1)">▼</button>'
       + '</div></td>'
-      + '<td style="text-align:right"><button class="btn btn-sm btn-danger" onclick="delEntry(' + r.i + ')">Remove</button></td></tr>').join('')
+      + '<td style="text-align:right;display:flex;gap:4px;justify-content:flex-end;align-items:center">'
+      + '<button class="btn btn-sm' + (r.noPoints ? ' btn-danger' : '') + '" onclick="toggleEntryNoPoints(' + r.i + ')" title="' + (r.noPoints ? 'Non-points today — click to restore' : 'Points member — click to mark non-points for today') + '">' + (r.noPoints ? 'No pts' : 'Pts') + '</button>'
+      + '<button class="btn btn-sm btn-danger" onclick="delEntry(' + r.i + ')">Remove</button></td></tr>').join('')
     + '</tbody></table>';
+}
+function toggleEntryNoPoints(i) {
+  const e = S.raceDay.entries[i]; if (!e) return;
+  const d = driverById(e.driverId) || { name: '?' };
+  e.noPoints = !e.noPoints;
+  save(); renderEntryList();
 }
 // Fix a driver's grid spot: insert at the chosen position and renumber the class 1..N (audited).
 function setEntryPill(i, val, opts) {
@@ -2854,6 +3074,21 @@ function bumpEntryPill(i, delta) { const e = S.raceDay.entries[i]; if (e) setEnt
 // Move a driver's entry from one class to another. Keeps the same pill when it's free in the
 // target class; otherwise draws a fresh one. Only classId/pill change, so every lineup view
 // recomputes exactly as before. Mirrors the sign-up guards (no duplicate entry, unique number).
+let _pillChoiceCb = null;
+function showPillChoice(msg, keepLabel, drawLabel, cb) {
+  document.getElementById('pillChoiceMsg').innerHTML = esc(msg);
+  const keepBtn = document.getElementById('pillChoiceKeep');
+  const drawBtn = document.getElementById('pillChoiceDraw');
+  keepBtn.style.display = keepLabel ? '' : 'none';
+  keepBtn.textContent = keepLabel || '';
+  drawBtn.textContent = drawLabel || 'Draw new pill';
+  _pillChoiceCb = cb;
+  document.getElementById('pillChoiceModal').style.display = 'flex';
+}
+function _pillChoiceDo(choice) {
+  document.getElementById('pillChoiceModal').style.display = 'none';
+  if (_pillChoiceCb) { const cb = _pillChoiceCb; _pillChoiceCb = null; cb(choice); }
+}
 function moveEntryClass(i, newClassId) {
   const e = S.raceDay.entries[i]; if (!e) return;
   const from = classById(e.classId), to = classById(parseInt(newClassId, 10));
@@ -2866,18 +3101,36 @@ function moveEntryClass(i, newClassId) {
     && String((driverById(x.driverId) || {}).num).toLowerCase() === String(d.num).toLowerCase());
   if (numClash) { alert('#' + d.num + ' is already racing in ' + to.name + '. Change the number first.'); renderEntryList(); return; }
   const used = pillsUsed(to.id);
-  let newPill;
-  if (!used.has(e.pill) && e.pill <= (to.maxPill || 200)) newPill = e.pill;
-  else { newPill = drawPill(to.id); if (newPill == null) { alert('All pills are taken in ' + to.name + '. Raise that class\'s pill count first.'); renderEntryList(); return; } }
-  const pillMsg = newPill === e.pill ? 'keeps pill #' + e.pill : 'pill #' + e.pill + ' was taken there, so gets pill #' + newPill;
-  if (!confirm('Move ' + d.name + ' from ' + (from ? from.name : 'this class') + ' to ' + to.name + '?\n\nThey ' + pillMsg + '. The lineups for both classes update automatically.')) { renderEntryList(); return; }
-  const oldPill = e.pill, oldCls = from ? from.name : '';
-  e.classId = to.id;
-  e.pill = newPill;
-  delete e.heat;                       // drop any imported heat-division so the new class groups by pill normally
-  logAudit('Moved driver to another class', d.name + ' · ' + oldCls + ' P' + oldPill, to.name + ' P' + newPill, '');
-  save();
-  renderEntryList();
+  const pillFree = !used.has(e.pill) && e.pill <= (to.maxPill || 200);
+  const anyFree = drawPill(to.id) !== null;
+  if (!pillFree && !anyFree) { alert('All pills are taken in ' + to.name + '. Raise that class\'s pill count first.'); renderEntryList(); return; }
+  const fromName = from ? from.name : 'this class';
+  if (pillFree) {
+    // Give admin the choice: keep same pill or draw fresh
+    showPillChoice(
+      'Move ' + d.name + ' from ' + fromName + ' to ' + to.name + '?',
+      'Keep pill #' + e.pill, 'Draw new pill',
+      function(choice) {
+        if (choice === 'cancel') { renderEntryList(); return; }
+        let newPill;
+        if (choice === 'keep') { newPill = e.pill; }
+        else { newPill = drawPill(to.id); if (newPill == null) { alert('All pills are taken in ' + to.name + '.'); renderEntryList(); return; } }
+        const oldPill = e.pill, oldCls = from ? from.name : '';
+        e.classId = to.id; e.pill = newPill; delete e.heat;
+        logAudit('Moved driver to another class', d.name + ' · ' + oldCls + ' P' + oldPill, to.name + ' P' + newPill, '');
+        save(); renderEntryList();
+      }
+    );
+  } else {
+    // Original pill taken — only option is draw new
+    if (!confirm('Move ' + d.name + ' from ' + fromName + ' to ' + to.name + '?\n\nPill #' + e.pill + ' is taken there, so they\'ll get a new pill drawn. The lineups for both classes update automatically.')) { renderEntryList(); return; }
+    const newPill = drawPill(to.id);
+    if (newPill == null) { alert('All pills are taken in ' + to.name + '.'); renderEntryList(); return; }
+    const oldPill = e.pill, oldCls = from ? from.name : '';
+    e.classId = to.id; e.pill = newPill; delete e.heat;
+    logAudit('Moved driver to another class', d.name + ' · ' + oldCls + ' P' + oldPill, to.name + ' P' + newPill, '');
+    save(); renderEntryList();
+  }
 }
 // Change a driver's kart number inline. Mirrors the sign-up rules: 1–5 letters/numbers,
 // unique within every class the driver races today. The number lives on the driver,
@@ -2917,11 +3170,19 @@ function delEntry(i) {
 function renderRosterList() {
   const el = document.getElementById('rosterList');
   if (!S.roster.length) { el.innerHTML = '<p class="empty">Empty — drivers are saved here automatically the first time they sign up.</p>'; return; }
-  el.innerHTML = '<table><thead><tr><th>Driver</th><th>#</th><th></th></tr></thead><tbody>'
+  el.innerHTML = '<p style="font-size:12px;color:var(--muted);margin:0 0 8px">Mark a driver <b>No points</b> to exclude them from the Points standings — they still race and appear in lineups and results.</p>'
+    + '<table><thead><tr><th>Driver</th><th>#</th><th>Points</th><th></th></tr></thead><tbody>'
     + [...S.roster].sort((a, b) => a.name.localeCompare(b.name)).map(d =>
       '<tr><td style="font-weight:600">' + esc(d.name) + '</td><td>#' + esc(d.num) + '</td>'
+      + '<td><button class="btn btn-sm' + (d.noPoints ? ' btn-danger' : '') + '" onclick="toggleNoPoints(' + d.id + ')" title="' + (d.noPoints ? 'Non-points — click to restore' : 'Points member — click to mark non-points') + '">' + (d.noPoints ? 'No points' : 'Points') + '</button></td>'
       + '<td style="text-align:right"><button class="btn btn-sm btn-danger" onclick="delRoster(' + d.id + ')">Remove</button></td></tr>').join('')
     + '</tbody></table>';
+}
+function toggleNoPoints(id) {
+  const d = driverById(id); if (!d) return;
+  d.noPoints = !d.noPoints;
+  logAudit(d.noPoints ? 'Marked non-points' : 'Restored to points', d.name, d.noPoints ? 'non-points' : 'points member', '');
+  save(); renderRosterList();
 }
 function delRoster(id) {
   const d = driverById(id); if (!d) return;
@@ -4078,7 +4339,6 @@ function impApply(opts) {
 
   if (createdEntry) consumeTrialDay();
   save();
-  if (typeof scheduleUsageBeacon === 'function' && createdEntry) scheduleUsageBeacon();
   renderHeader();
   render(curPage);
   const what = { qual: done + ' drivers placed on the grid', heat: done + ' heat finishes', feat: done + ' feature finishes' }[target];
@@ -4208,6 +4468,71 @@ function impSetClsMode(useCol, userPicked) {
   if (Imp.rows.length) impRenderPreview();
 }
 
+// ---------- First-run setup wizard ----------
+let _wizStep = 1;
+function openSetupWizard() {
+  _wizStep = 1;
+  document.getElementById('setupWizard').style.display = 'flex';
+  wizShow(1);
+}
+function wizShow(n) {
+  for (let i = 1; i <= 5; i++) document.getElementById('wizS' + i).style.display = i === n ? '' : 'none';
+  document.getElementById('wizStepNum').textContent = n;
+  document.getElementById('wizBackBtn').style.display = n === 1 ? 'none' : '';
+  const nextBtn = document.getElementById('wizNextBtn');
+  nextBtn.textContent = n === 5 ? 'Done' : 'Next';
+  nextBtn.disabled = false;
+  if (n === 2) {
+    document.getElementById('wizTrackName').value = S.track.name || '';
+    nextBtn.disabled = !S.track.name;
+    if (S.track.logo) { const p = document.getElementById('wizLogoPrev'); p.src = S.track.logo; p.style.display = ''; }
+  }
+  if (n === 3) renderWizClasses();
+  if (n === 4) { document.getElementById('wizPin1').value = ''; document.getElementById('wizPin2').value = ''; }
+}
+function wizBack() { if (_wizStep > 1) { _wizStep--; wizShow(_wizStep); } }
+function wizNext() {
+  if (_wizStep === 2) {
+    const name = (document.getElementById('wizTrackName').value || '').trim();
+    if (!name) { alert('Please enter your track name.'); return; }
+    S.track.name = name; save(); renderHeader();
+  }
+  if (_wizStep === 3) { wizSaveClasses(); save(); renderHeader(); }
+  if (_wizStep === 4) {
+    const p1 = document.getElementById('wizPin1').value.trim();
+    const p2 = document.getElementById('wizPin2').value.trim();
+    if (p1 || p2) {
+      if (p1 !== p2) { alert('PINs do not match.'); return; }
+      if (!/^\d{4,8}$/.test(p1)) { alert('PIN must be 4–8 digits.'); return; }
+      S.adminPin = p1; save();
+    }
+  }
+  if (_wizStep === 5) { document.getElementById('setupWizard').style.display = 'none'; return; }
+  _wizStep++; wizShow(_wizStep);
+}
+function renderWizClasses() {
+  const el = document.getElementById('wizClassList');
+  if (!el) return;
+  el.innerHTML = S.classes.map((c, i) =>
+    '<div class="wiz-cls-row"><input id="wizCls' + i + '" type="text" value="' + esc(c.name) + '" maxlength="40" placeholder="Class name"><span class="pill-hint">Pills 1–' + c.maxPill + '</span></div>'
+  ).join('');
+}
+function wizSaveClasses() {
+  S.classes.forEach((c, i) => {
+    const el = document.getElementById('wizCls' + i);
+    if (el) { const v = el.value.trim(); if (v) c.name = v; }
+  });
+}
+function wizUploadLogo(input) {
+  const file = input.files && input.files[0]; if (!file) return;
+  const reader = new FileReader();
+  reader.onload = e => {
+    S.track.logo = e.target.result; save();
+    const p = document.getElementById('wizLogoPrev'); p.src = e.target.result; p.style.display = '';
+  };
+  reader.readAsDataURL(file);
+}
+
 // ---------- Live sync across tabs + init ----------
 window.addEventListener('storage', e => { if (e.key === KEY) { S = load(); renderHeader(); render(curPage); if (tvOn) tvRender(); } });
 handleUrlParams();
@@ -4219,6 +4544,7 @@ checkDayBanner();
 renderLicBanner();
 renderGrid();
 initSync();
+if (!S.track.name) openSetupWizard();
 </script>
 </body>
 </html>
