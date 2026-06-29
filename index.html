@@ -3524,8 +3524,8 @@ function applyRole() {
   const kiosk = role === 'register' && S.settings && S.settings.kioskReg;
   document.getElementById('mainNav').style.display = kiosk ? 'none' : '';
   const esc = document.getElementById('roleEscape');
-  // Locked stations get the in-app role switch; a spectator's phone stays clean (they just close the tab).
-  if (esc) esc.style.display = (role === 'admin' || role === 'viewer') ? 'none' : '';
+  // All non-admin roles get the escape button (PIN-gated so spectators can't misuse it).
+  if (esc) esc.style.display = role === 'admin' ? 'none' : '';
   // Hide the Lineups operator controls (TV / print / import / file toggle) for the read-only viewer.
   const ops = document.getElementById('gridOps'); if (ops) ops.style.display = role === 'viewer' ? 'none' : '';
   const vt = document.getElementById('viewToggle'); if (vt) vt.style.display = role === 'viewer' ? 'none' : '';
