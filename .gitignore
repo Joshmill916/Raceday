@@ -4,4 +4,5 @@ raceday-codegen.html
 
 # How-to video recorder and output — local only, not part of the app
 record-demo.js
+add-audio.py
 videos/
