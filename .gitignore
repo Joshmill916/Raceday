@@ -1,3 +1,7 @@
 # Private code generator — must NEVER be committed (holds the secret salt).
 # Keep this file only on the owner's own device.
 raceday-codegen.html
+
+# How-to video recorder and output — local only, not part of the app
+record-demo.js
+videos/
