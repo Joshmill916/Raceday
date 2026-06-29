@@ -527,7 +527,7 @@
       <div style="display:flex;gap:8px;flex-wrap:wrap">
         <select id="qaDriver" style="flex:2;min-width:170px;width:auto"></select>
         <select id="qaClass" style="flex:1.4;min-width:130px;width:auto"></select>
-        <button class="btn btn-primary" onclick="quickAdd()">Add + draw pill</button>
+        <button id="qaAddBtn" class="btn btn-primary" onclick="quickAdd()">Add + draw pill</button>
       </div>
       <hr class="divider">
       <input id="entrySearch" type="text" placeholder="Find a driver — search name, vehicle #, or class" oninput="renderEntryList()" autocomplete="off" />
@@ -2274,8 +2274,15 @@ function renderClassResults(clsId) {
   let h = resultGovBar(clsId);
   const locked = resLocked(clsId);
   h += '<div style="' + (locked ? 'opacity:.55;pointer-events:none' : '') + '">';
-  h += '<label style="display:flex;align-items:center;gap:8px;margin:0 0 6px;font-size:13.5px;font-weight:600;cursor:pointer">'
-    + '<input type="checkbox" style="width:18px;height:18px"' + (isPointsRace(clsId) ? ' checked' : '') + ' onchange="togglePointsRace(' + clsId + ',this.checked)">'
+  const _ftd = featureData(clsId), _ftFin = featureFinish(clsId);
+  const _ftField = _ftd.locked.length + _ftd.transferred.length;
+  const _featureDone = _ftField > 0 && _ftFin.length >= _ftField;
+  h += '<label style="display:flex;align-items:center;gap:8px;margin:0 0 6px;font-size:13.5px;font-weight:600;cursor:pointer'
+    + (_featureDone ? '' : ';opacity:.55') + '">'
+    + '<input type="checkbox" style="width:18px;height:18px"'
+    + (isPointsRace(clsId) ? ' checked' : '')
+    + (_featureDone ? '' : ' disabled title="Enter all feature finishes to enable"')
+    + ' onchange="togglePointsRace(' + clsId + ',this.checked)">'
     + 'Today counts toward the points series</label>';
   const heats = classHeats(classById(clsId));
   h += heatEntryBlock(clsId, 'h1', set1, heats === 1 ? 'Qualifying heat' : 'Set 1 heats — pill order', '');
@@ -2477,7 +2484,7 @@ function saveImportedRace() {
   if (!_impRows.length) { showImpMsg('Add at least one driver.', 'error'); return; }
   // Check for duplicate: same date + class already in history
   const dup = S.history.some(hd => hd.date === date && hd.classes.some(c => c.name === cls.name));
-  if (dup && !confirm('A history entry for ' + cls.name + ' on ' + date + ' already exists. Add another anyway?')) return;
+  if (dup) { alert('A history entry for ' + cls.name + ' on ' + date + ' already exists.\n\nEdit or delete the existing entry instead.'); return; }
   const entry = {
     date: date,
     savedAt: Date.now(),
@@ -2963,6 +2970,7 @@ function refillLastDay() {
   if (!pairs || !pairs.length) { alert('No archived race day to copy from yet — this works from your Race day history.'); return; }
   if (!confirm("Re-enter everyone from the last race day (" + S.history[0].date + ")? Each entry gets a fresh pill draw.")) return;
   let added = 0, skipped = 0;
+  const pillsExhausted = [];
   pairs.forEach(p => {
     const d = driverById(p.driverId);
     let c = p.classId != null ? classById(p.classId) : null;
@@ -2976,15 +2984,17 @@ function refillLastDay() {
     });
     if (clash) { skipped++; return; }
     const pill = drawPill(c.id);
-    if (pill === null) { skipped++; return; }
+    if (pill === null) { pillsExhausted.push(d.name + ' #' + d.num + ' (' + c.name + ')'); skipped++; return; }
     S.raceDay.entries.push({ driverId: d.id, classId: c.id, pill });
     added++;
   });
   if (added) consumeTrialDay();
   save();
   renderAdmin();
+  const otherSkipped = skipped - pillsExhausted.length;
   alert('🏁 Re-entered ' + added + (added === 1 ? ' entry' : ' entries') + ' with fresh pills.'
-    + (skipped ? ' Skipped ' + skipped + ' (already entered, removed from the book, or no pills left).' : ''));
+    + (pillsExhausted.length ? '\n\nSkipped — no pills left:\n• ' + pillsExhausted.join('\n• ') : '')
+    + (otherSkipped > 0 ? '\n\nAlso skipped ' + otherSkipped + ' (already entered, not in roster, or kart # conflict).' : ''));
 }
 
 // Quick entry: returning driver + class, one tap, pill drawn automatically
@@ -3023,6 +3033,8 @@ function quickAdd() {
 }
 function renderEntryList() {
   const el = document.getElementById('entryList');
+  const qaBtn = document.getElementById('qaAddBtn');
+  if (qaBtn) qaBtn.disabled = !canEnter();
   if (!S.raceDay.entries.length) { el.innerHTML = '<p class="empty">No entries yet today.</p>'; return; }
   const q = document.getElementById('entrySearch').value.trim().toLowerCase();
   const rows = S.raceDay.entries.map((e, i) => {
@@ -4510,7 +4522,7 @@ function wizNext() {
     if (!name) { alert('Please enter your track name.'); return; }
     S.track.name = name; save(); renderHeader();
   }
-  if (_wizStep === 3) { wizSaveClasses(); save(); renderHeader(); }
+  if (_wizStep === 3) { if (!wizSaveClasses()) return; save(); renderHeader(); }
   if (_wizStep === 4) {
     const p1 = document.getElementById('wizPin1').value.trim();
     const p2 = document.getElementById('wizPin2').value.trim();
@@ -4531,10 +4543,22 @@ function renderWizClasses() {
   ).join('');
 }
 function wizSaveClasses() {
+  const warnings = [];
+  S.classes.forEach((c, i) => {
+    const el = document.getElementById('wizCls' + i);
+    if (!el) return;
+    const v = el.value.trim();
+    if (v && v.toLowerCase() !== c.name.toLowerCase()) {
+      const count = S.history.filter(h => h.classes.some(hc => hc.name.toLowerCase() === c.name.toLowerCase())).length;
+      if (count > 0) warnings.push('"' + c.name + '" → "' + v + '" (' + count + ' archived race' + (count === 1 ? '' : 's') + ')');
+    }
+  });
+  if (warnings.length && !confirm('Renaming these classes will split their points series — past results won\'t merge with the new name.\n\n' + warnings.join('\n') + '\n\nRename anyway?')) return false;
   S.classes.forEach((c, i) => {
     const el = document.getElementById('wizCls' + i);
     if (el) { const v = el.value.trim(); if (v) c.name = v; }
   });
+  return true;
 }
 function wizUploadLogo(input) {
   const file = input.files && input.files[0]; if (!file) return;
