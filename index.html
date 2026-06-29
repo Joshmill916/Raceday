@@ -59,12 +59,19 @@
   .sub { font-size: 14px; color: var(--muted); margin-bottom: 18px; }
   .card { background: var(--card); border: 1px solid var(--line); border-radius: 14px; padding: 18px 20px; margin-bottom: 14px; }
   .slbl { font-family: var(--display); font-size: 13px; font-weight: 700; color: #8a8d94; text-transform: uppercase; letter-spacing: 0.09em; margin: 20px 0 8px; }
-  details.admin-group { margin: 0; }
-  details.admin-group > summary { cursor: pointer; display: flex; align-items: center; gap: 8px; list-style: none; font-family: var(--display); font-size: 13px; font-weight: 700; color: #8a8d94; text-transform: uppercase; letter-spacing: 0.09em; margin: 20px 0 8px; user-select: none; }
-  details.admin-group > summary::-webkit-details-marker { display: none; }
-  details.admin-group > summary::before { content: '▶'; font-size: 9px; flex-shrink: 0; }
-  details.admin-group[open] > summary::before { content: '▼'; }
-  details.admin-group > summary:hover { color: #555; }
+  /* Admin tile nav */
+  #adminHome { margin-top:12px; }
+  .adm-grp-lbl { font-size:11px; font-weight:700; color:var(--muted); text-transform:uppercase; letter-spacing:0.09em; margin:16px 0 6px; }
+  .adm-grp-lbl:first-child { margin-top:4px; }
+  .tiles { display:grid; grid-template-columns:repeat(auto-fill,minmax(140px,1fr)); gap:8px; }
+  .tile { display:flex; flex-direction:column; align-items:center; justify-content:center; gap:5px; padding:14px 10px; border:1px solid var(--line); border-radius:10px; background:var(--card); cursor:pointer; font-size:13px; font-weight:600; color:var(--text); text-align:center; min-height:76px; transition:background 0.12s; }
+  .tile:hover { background:#e8f5ee; }
+  .tile-danger { border-color:#fcc; color:#c33; }
+  .tile-danger:hover { background:#fff0f0; }
+  #adminTabs { display:flex; align-items:center; gap:6px; flex-wrap:wrap; margin:12px 0 16px; padding-bottom:12px; border-bottom:1px solid var(--line); }
+  .adm-tab { padding:5px 13px; border:1px solid var(--line); border-radius:20px; background:none; cursor:pointer; font-size:13px; font-weight:500; color:var(--muted); }
+  .adm-tab.active, .adm-tab:hover { background:var(--accent,#0a7); color:#fff; border-color:transparent; }
+  .adm-sec { display:none; }
   /* Results governance */
   .gov-bar { border: 1px solid var(--line); border-radius: 12px; padding: 10px 12px; margin-bottom: 14px; background: #fafaf8; }
   .gov-badge { display: inline-flex; align-items: center; padding: 4px 10px; border-radius: 99px; font-size: 12px; font-weight: 700; }
@@ -411,8 +418,10 @@
       <button class="btn btn-sm" id="lockBtn" onclick="lockAdmin()" style="margin-left:auto;display:none">🔒 Lock admin</button>
     </div>
 
-    <details class="admin-group" open>
-      <summary>Track identity</summary>
+    <div id="adminHome"></div>
+    <div id="adminTabs" style="display:none"></div>
+
+    <section class="adm-sec" id="adm-track">
       <div class="card">
         <div style="display:flex;gap:20px;align-items:flex-start;flex-wrap:wrap">
           <div style="flex:1;min-width:220px">
@@ -432,10 +441,9 @@
         <p style="font-size:12px;color:var(--muted);margin-top:10px">The name and logo show in the header and on printed lineups.</p>
         <div style="margin-top:10px"><button class="btn btn-sm" onclick="openSetupWizard()">Setup wizard</button></div>
       </div>
-    </details>
+    </section>
 
-    <details class="admin-group" open>
-      <summary>Race classes &amp; running order</summary>
+    <section class="adm-sec" id="adm-classes">
       <div class="card">
       <div style="display:flex;gap:8px;flex-wrap:wrap">
         <input id="newClass" type="text" placeholder="Class name (e.g. Junior 80cc)" style="flex:2;min-width:180px" />
@@ -446,10 +454,9 @@
       <div id="clsList" style="margin-top:12px"></div>
       <div id="clsLib"></div>
     </div>
-    </details>
+    </section>
 
-    <details class="admin-group">
-      <summary>Race format</summary>
+    <section class="adm-sec" id="adm-format">
       <div class="card">
       <div class="g4">
         <div><label>Max karts per heat</label><input type="number" id="mHeat" min="2" max="30" onchange="saveSett()" /></div>
@@ -468,7 +475,6 @@
         <p><b>Block</b> keeps the lowest pills together — heat 1 gets pills 1–8, heat 2 gets 9–16, etc.</p>
         <p>Affects Lineups, Results, TV display, and the printout. With a single heat there's no difference.</p>
       </div>
-
       <label style="margin-top:16px">B-mains <button class="info-btn" onclick="toggleHelp('hBmain')" title="What's this?">i</button></label>
       <div style="display:flex;gap:8px;flex-wrap:wrap;align-items:center">
         <select id="mBmainMode" onchange="saveSett()" style="flex:2;min-width:200px;width:auto">
@@ -479,16 +485,15 @@
         <label style="margin:0;display:flex;align-items:center;gap:6px;font-size:12px">How many<input class="inline-num" id="mBmainCount" type="number" min="2" max="8" onchange="saveSett()" style="width:64px"></label>
       </div>
       <div id="hBmain" class="helpbox" style="display:none">
-        When a class has more drivers than the feature holds, this decides how the rest race their way in. The <b>“How many”</b> box sets the number of mains (Parallel and Cascade only). “B-main transfers” above sets how many move up from each main.
+        When a class has more drivers than the feature holds, this decides how the rest race their way in. The <b>"How many"</b> box sets the number of mains (Parallel and Cascade only). "B-main transfers" above sets how many move up from each main.
         <p><b>Single:</b> one B-main; the top finishers transfer to the feature and anyone past the B-main doesn't race. (Original behavior.)</p>
         <p><b>Parallel:</b> everyone left is split into equal B-mains (balanced by heat standings). The top finishers from <i>each</i> B-main go straight to the feature — so nobody is cut and everyone gets a run.</p>
         <p><b>Cascade:</b> the slowest qualifiers start in the lowest main; the top finishers climb up to the next main and race again, all the way up to the feature. Run the mains lowest-first.</p>
       </div>
     </div>
-    </details>
+    </section>
 
-    <details class="admin-group">
-      <summary>Points series</summary>
+    <section class="adm-sec" id="adm-points">
       <div class="card">
       <div style="margin-bottom:12px">
         <label>Points system</label>
@@ -513,10 +518,9 @@
       <p id="ptsLinearNote" style="display:none;font-size:12px;color:var(--accent,#0a7);margin-top:8px"></p>
       <p style="font-size:12px;color:var(--muted);margin-top:8px">Pick a known system or type your own — editing the list makes it "Custom". Feature finish decides points; make the list as long as your biggest feature. Anyone finishing past it, not making the feature, or scoring DNF/DNS/DQ gets the "everyone else" value (use it for show-up points, or 0). Classes count by default; untick "counts toward the points series" on the Results tab for non-points days.</p>
     </div>
-    </details>
+    </section>
 
-    <details class="admin-group" open>
-      <summary>Today's entries</summary>
+    <section class="adm-sec" id="adm-entries">
       <div class="card">
       <div style="display:flex;gap:10px;flex-wrap:wrap;align-items:center">
         <button class="btn" onclick="refillLastDay()">↻ Re-enter last race day's field</button>
@@ -527,22 +531,20 @@
       <div style="display:flex;gap:8px;flex-wrap:wrap">
         <select id="qaDriver" style="flex:2;min-width:170px;width:auto"></select>
         <select id="qaClass" style="flex:1.4;min-width:130px;width:auto"></select>
-        <button class="btn btn-primary" onclick="quickAdd()">Add + draw pill</button>
+        <button id="qaAddBtn" class="btn btn-primary" onclick="quickAdd()">Add + draw pill</button>
       </div>
       <hr class="divider">
       <input id="entrySearch" type="text" placeholder="Find a driver — search name, vehicle #, or class" oninput="renderEntryList()" autocomplete="off" />
       <div id="entryList" style="margin-top:12px"></div>
       <p style="font-size:12px;color:var(--muted);margin-top:8px">Removing an entry pulls that driver from that class only — the pill goes back in the draw and their other classes are untouched.</p>
     </div>
-    </details>
+    </section>
 
-    <details class="admin-group" open>
-      <summary>Driver book <span style="font-weight:500;text-transform:none;letter-spacing:0;font-size:11px">— saved across race days</span></summary>
+    <section class="adm-sec" id="adm-roster">
       <div class="card" id="rosterList"></div>
-    </details>
+    </section>
 
-    <details class="admin-group">
-      <summary>Backup &amp; export</summary>
+    <section class="adm-sec" id="adm-backup">
       <div class="card">
         <div style="display:flex;gap:10px;flex-wrap:wrap">
           <button class="btn" onclick="exportBackup()">⬇ Download full backup</button>
@@ -553,27 +555,30 @@
         </div>
         <p style="font-size:12px;color:var(--muted);margin-top:8px">This app stores everything in this browser only. Download a backup now and then — restoring it on any device brings back the driver book, classes, settings, history, and today's race day.</p>
       </div>
-    </details>
+    </section>
 
-    <details class="admin-group">
-      <summary>Race day history</summary>
+    <section class="adm-sec" id="adm-history">
       <div class="card" id="historyList"></div>
-    </details>
+    </section>
 
-    <details class="admin-group">
-      <summary>Account &amp; sync</summary>
+    <section class="adm-sec" id="adm-pin">
       <div class="slbl">Admin PIN</div>
       <div class="card" id="pinCard"></div>
+    </section>
+
+    <section class="adm-sec" id="adm-license">
       <div class="slbl">License</div>
       <div class="card" id="licCard"></div>
+    </section>
+
+    <section class="adm-sec" id="adm-sync">
       <div id="syncLbl">
         <div class="slbl">Multi-device sync</div>
         <div class="card" id="syncCard"></div>
       </div>
-    </details>
+    </section>
 
-    <details class="admin-group">
-      <summary>Legal &amp; business</summary>
+    <section class="adm-sec" id="adm-legal">
       <div class="card">
         <p style="font-size:12.5px;color:var(--muted);margin:0 0 12px">These names appear in the Terms of Service, Intellectual Property, and Privacy Policy shown to participants. Set your business's legal entity so the documents name the right party.</p>
         <div style="display:flex;gap:14px;flex-wrap:wrap">
@@ -600,18 +605,16 @@
           <button class="btn btn-sm" onclick="openDoc('bizrec')">📋 Business recommendations</button>
         </div>
       </div>
-    </details>
+    </section>
 
-    <details class="admin-group">
-      <summary>Records &amp; audit</summary>
+    <section class="adm-sec" id="adm-audit">
       <div class="slbl">Acceptance log</div>
       <div class="card" id="consentCard"></div>
       <div class="slbl">Audit log — overrides, locks &amp; result changes</div>
       <div class="card" id="auditCard"></div>
-    </details>
+    </section>
 
-    <details class="admin-group">
-      <summary>Import past race</summary>
+    <section class="adm-sec" id="adm-import">
       <div class="card">
         <p style="font-size:13px;color:var(--muted);margin-bottom:12px">Add results from a previous race night so points standings are accurate from day one. Enter one night at a time.</p>
         <div style="display:flex;gap:8px;flex-wrap:wrap;margin-bottom:10px">
@@ -630,10 +633,9 @@
         </div>
         <p id="impMsg" style="display:none;font-size:13px;margin-top:8px"></p>
       </div>
-    </details>
+    </section>
 
-    <details class="admin-group">
-      <summary>Danger zone</summary>
+    <section class="adm-sec" id="adm-danger">
       <div class="card">
         <div style="display:flex;gap:10px;flex-wrap:wrap">
           <button class="btn" onclick="newRaceDay()">🏁 Start a new race day</button>
@@ -643,7 +645,7 @@
         </div>
         <p style="font-size:12px;color:var(--muted);margin-top:8px">A new race day archives today's entries and results to history, then clears the board — the driver book and classes are kept. Set up for a new track keeps the race data but clears the license and starts a fresh trial — for handing the app to a different track. Erase everything wipes the driver book, history, and track settings too.</p>
       </div>
-    </details>
+    </section>
   </div>
 
   <!-- HELP / GUIDE -->
@@ -1271,6 +1273,7 @@ function nav(p) {
   const allowed = ROLE_PAGES[deviceRole()] || ROLE_PAGES.admin;
   if (!allowed.includes(p)) return;
   if (p === 'admin' && !adminOk()) return;
+  if (p === 'admin') _admOpen = null;
   curPage = p;
   document.querySelectorAll('.page').forEach(el => el.classList.remove('active'));
   document.querySelectorAll('#mainNav button').forEach(b => b.classList.remove('active'));
@@ -2274,8 +2277,15 @@ function renderClassResults(clsId) {
   let h = resultGovBar(clsId);
   const locked = resLocked(clsId);
   h += '<div style="' + (locked ? 'opacity:.55;pointer-events:none' : '') + '">';
-  h += '<label style="display:flex;align-items:center;gap:8px;margin:0 0 6px;font-size:13.5px;font-weight:600;cursor:pointer">'
-    + '<input type="checkbox" style="width:18px;height:18px"' + (isPointsRace(clsId) ? ' checked' : '') + ' onchange="togglePointsRace(' + clsId + ',this.checked)">'
+  const _ftd = featureData(clsId), _ftFin = featureFinish(clsId);
+  const _ftField = _ftd.locked.length + _ftd.transferred.length;
+  const _featureDone = _ftField > 0 && _ftFin.length >= _ftField;
+  h += '<label style="display:flex;align-items:center;gap:8px;margin:0 0 6px;font-size:13.5px;font-weight:600;cursor:pointer'
+    + (_featureDone ? '' : ';opacity:.55') + '">'
+    + '<input type="checkbox" style="width:18px;height:18px"'
+    + (isPointsRace(clsId) ? ' checked' : '')
+    + (_featureDone ? '' : ' disabled title="Enter all feature finishes to enable"')
+    + ' onchange="togglePointsRace(' + clsId + ',this.checked)">'
     + 'Today counts toward the points series</label>';
   const heats = classHeats(classById(clsId));
   h += heatEntryBlock(clsId, 'h1', set1, heats === 1 ? 'Qualifying heat' : 'Set 1 heats — pill order', '');
@@ -2477,7 +2487,7 @@ function saveImportedRace() {
   if (!_impRows.length) { showImpMsg('Add at least one driver.', 'error'); return; }
   // Check for duplicate: same date + class already in history
   const dup = S.history.some(hd => hd.date === date && hd.classes.some(c => c.name === cls.name));
-  if (dup && !confirm('A history entry for ' + cls.name + ' on ' + date + ' already exists. Add another anyway?')) return;
+  if (dup) { alert('A history entry for ' + cls.name + ' on ' + date + ' already exists.\n\nEdit or delete the existing entry instead.'); return; }
   const entry = {
     date: date,
     savedAt: Date.now(),
@@ -2681,6 +2691,58 @@ function removeLogo() {
 }
 
 // ---------- Admin ----------
+const ADMIN_NAV = [
+  { id:'adm-entries',  label:'Today\'s entries',    icon:'📋', group:'Today' },
+  { id:'adm-history',  label:'Race day history',    icon:'📅', group:'Today' },
+  { id:'adm-track',    label:'Track identity',      icon:'🏁', group:'Race setup' },
+  { id:'adm-classes',  label:'Race classes',        icon:'🏎', group:'Race setup' },
+  { id:'adm-format',   label:'Race format',         icon:'⚙️', group:'Race setup' },
+  { id:'adm-points',   label:'Points series',       icon:'🏆', group:'Race setup' },
+  { id:'adm-pin',      label:'Admin PIN',           icon:'🔐', group:'Account' },
+  { id:'adm-license',  label:'License',             icon:'🪪', group:'Account' },
+  { id:'adm-sync',     label:'Multi-device sync',   icon:'🔄', group:'Account' },
+  { id:'adm-roster',   label:'Driver book',         icon:'👥', group:'Records' },
+  { id:'adm-backup',   label:'Backup & export',     icon:'💾', group:'Records' },
+  { id:'adm-import',   label:'Import past race',    icon:'📥', group:'Records' },
+  { id:'adm-legal',    label:'Legal & business',    icon:'📄', group:'Records' },
+  { id:'adm-audit',    label:'Records & audit',     icon:'📊', group:'Records' },
+  { id:'adm-danger',   label:'Danger zone',         icon:'⚠️', group:'Danger' },
+];
+let _admOpen = null;
+function renderAdminNav() {
+  const home = document.getElementById('adminHome');
+  const tabs = document.getElementById('adminTabs');
+  if (!home || !tabs) return;
+  if (!_admOpen) {
+    tabs.style.display = 'none';
+    ADMIN_NAV.forEach(s => { const el = document.getElementById(s.id); if (el) el.style.display = 'none'; });
+    const groups = [...new Set(ADMIN_NAV.map(s => s.group))];
+    home.innerHTML = groups.map(g => {
+      const isDanger = g === 'Danger';
+      return '<div class="adm-grp-lbl">' + g + '</div>'
+        + '<div class="tiles">'
+        + ADMIN_NAV.filter(s => s.group === g).map(s =>
+            '<button class="tile' + (isDanger ? ' tile-danger' : '') + '" onclick="adminOpen(\'' + s.id + '\')">'
+            + '<span style="font-size:22px">' + s.icon + '</span><span>' + esc(s.label) + '</span></button>'
+          ).join('')
+        + '</div>';
+    }).join('');
+    home.style.display = '';
+  } else {
+    home.style.display = 'none';
+    const cur = ADMIN_NAV.find(s => s.id === _admOpen);
+    const siblings = cur ? ADMIN_NAV.filter(s => s.group === cur.group) : [];
+    tabs.innerHTML = '<button class="btn btn-sm" style="flex-shrink:0" onclick="adminHome()">← All</button>'
+      + (siblings.length > 1 ? siblings.map(s =>
+          '<button class="adm-tab' + (s.id === _admOpen ? ' active' : '') + '" onclick="adminOpen(\'' + s.id + '\')">' + esc(s.label) + '</button>'
+        ).join('') : '');
+    tabs.style.display = '';
+    ADMIN_NAV.forEach(s => { const el = document.getElementById(s.id); if (el) el.style.display = s.id === _admOpen ? 'block' : 'none'; });
+  }
+}
+function adminOpen(secId) { _admOpen = secId; renderAdminNav(); }
+function adminHome() { _admOpen = null; renderAdminNav(); }
+
 function renderAdmin() {
   renderClsList(); renderClsLib(); renderQuickAdd(); renderEntryList(); renderRosterList(); renderHistory(); renderImpForm(); renderPinCard(); renderLicCard(); renderSyncCard(); renderPointsInputs();
   renderLegalInputs(); renderConsentCard(); renderAuditCard();
@@ -2697,6 +2759,7 @@ function renderAdmin() {
   document.getElementById('mBmainMode').value = S.settings.bmainMode;
   document.getElementById('mBmainCount').value = S.settings.bmainCount;
   document.getElementById('mBmainCount').disabled = S.settings.bmainMode === 'single';
+  renderAdminNav();
 }
 
 // ---------- Legal & business ----------
@@ -2963,6 +3026,7 @@ function refillLastDay() {
   if (!pairs || !pairs.length) { alert('No archived race day to copy from yet — this works from your Race day history.'); return; }
   if (!confirm("Re-enter everyone from the last race day (" + S.history[0].date + ")? Each entry gets a fresh pill draw.")) return;
   let added = 0, skipped = 0;
+  const pillsExhausted = [];
   pairs.forEach(p => {
     const d = driverById(p.driverId);
     let c = p.classId != null ? classById(p.classId) : null;
@@ -2976,15 +3040,17 @@ function refillLastDay() {
     });
     if (clash) { skipped++; return; }
     const pill = drawPill(c.id);
-    if (pill === null) { skipped++; return; }
+    if (pill === null) { pillsExhausted.push(d.name + ' #' + d.num + ' (' + c.name + ')'); skipped++; return; }
     S.raceDay.entries.push({ driverId: d.id, classId: c.id, pill });
     added++;
   });
   if (added) consumeTrialDay();
   save();
   renderAdmin();
+  const otherSkipped = skipped - pillsExhausted.length;
   alert('🏁 Re-entered ' + added + (added === 1 ? ' entry' : ' entries') + ' with fresh pills.'
-    + (skipped ? ' Skipped ' + skipped + ' (already entered, removed from the book, or no pills left).' : ''));
+    + (pillsExhausted.length ? '\n\nSkipped — no pills left:\n• ' + pillsExhausted.join('\n• ') : '')
+    + (otherSkipped > 0 ? '\n\nAlso skipped ' + otherSkipped + ' (already entered, not in roster, or kart # conflict).' : ''));
 }
 
 // Quick entry: returning driver + class, one tap, pill drawn automatically
@@ -3023,6 +3089,8 @@ function quickAdd() {
 }
 function renderEntryList() {
   const el = document.getElementById('entryList');
+  const qaBtn = document.getElementById('qaAddBtn');
+  if (qaBtn) qaBtn.disabled = !canEnter();
   if (!S.raceDay.entries.length) { el.innerHTML = '<p class="empty">No entries yet today.</p>'; return; }
   const q = document.getElementById('entrySearch').value.trim().toLowerCase();
   const rows = S.raceDay.entries.map((e, i) => {
@@ -4510,7 +4578,7 @@ function wizNext() {
     if (!name) { alert('Please enter your track name.'); return; }
     S.track.name = name; save(); renderHeader();
   }
-  if (_wizStep === 3) { wizSaveClasses(); save(); renderHeader(); }
+  if (_wizStep === 3) { if (!wizSaveClasses()) return; save(); renderHeader(); }
   if (_wizStep === 4) {
     const p1 = document.getElementById('wizPin1').value.trim();
     const p2 = document.getElementById('wizPin2').value.trim();
@@ -4531,10 +4599,22 @@ function renderWizClasses() {
   ).join('');
 }
 function wizSaveClasses() {
+  const warnings = [];
+  S.classes.forEach((c, i) => {
+    const el = document.getElementById('wizCls' + i);
+    if (!el) return;
+    const v = el.value.trim();
+    if (v && v.toLowerCase() !== c.name.toLowerCase()) {
+      const count = S.history.filter(h => h.classes.some(hc => hc.name.toLowerCase() === c.name.toLowerCase())).length;
+      if (count > 0) warnings.push('"' + c.name + '" → "' + v + '" (' + count + ' archived race' + (count === 1 ? '' : 's') + ')');
+    }
+  });
+  if (warnings.length && !confirm('Renaming these classes will split their points series — past results won\'t merge with the new name.\n\n' + warnings.join('\n') + '\n\nRename anyway?')) return false;
   S.classes.forEach((c, i) => {
     const el = document.getElementById('wizCls' + i);
     if (el) { const v = el.value.trim(); if (v) c.name = v; }
   });
+  return true;
 }
 function wizUploadLogo(input) {
   const file = input.files && input.files[0]; if (!file) return;
