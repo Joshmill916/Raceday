@@ -32,6 +32,8 @@
     --pit-red-bg: #fdeeec;
     --display: 'Saira Condensed', 'Arial Narrow', sans-serif;
     --body: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+    --text: var(--ink);       /* alias used by tile/tab rules */
+    --accent: #0a7;           /* green accent for active states */
   }
   * { box-sizing: border-box; margin: 0; padding: 0; }
   html { -webkit-text-size-adjust: 100%; }
@@ -70,7 +72,7 @@
   .tile-danger:hover { background:#fff0f0; }
   #adminTabs { display:flex; align-items:center; gap:6px; flex-wrap:wrap; margin:12px 0 16px; padding-bottom:12px; border-bottom:1px solid var(--line); }
   .adm-tab { padding:5px 13px; border:1px solid var(--line); border-radius:20px; background:none; cursor:pointer; font-size:13px; font-weight:500; color:var(--muted); }
-  .adm-tab.active, .adm-tab:hover { background:var(--accent,#0a7); color:#fff; border-color:transparent; }
+  .adm-tab.active, .adm-tab:hover { background:var(--accent); color:#fff; border-color:transparent; }
   .adm-sec { display:none; }
   /* Results governance */
   .gov-bar { border: 1px solid var(--line); border-radius: 12px; padding: 10px 12px; margin-bottom: 14px; background: #fafaf8; }
@@ -219,7 +221,15 @@
   /* In-app timing import overlay */
   #impOverlay { display:none; position:fixed; inset:0; z-index:120; background:rgba(20,20,24,.55); overflow:auto; padding:20px 12px; }
   #roleEscape { position:fixed; left:12px; bottom:12px; z-index:90; padding:7px 12px; border-radius:99px; border:1.5px solid #d4d4cf; background:rgba(255,255,255,.93); color:#555; font-family:inherit; font-size:12.5px; font-weight:600; cursor:pointer; box-shadow:0 2px 8px rgba(0,0,0,.18); }
-  #impOverlay.on { display:block; }
+  /* Operator mode bottom bar */
+  #opBar { position:fixed; left:0; right:0; bottom:0; z-index:95; display:flex; align-items:center; justify-content:space-between; gap:10px; padding:8px 14px; font-size:13px; font-weight:600; box-shadow:0 -2px 10px rgba(0,0,0,.2); }
+  #opBar.op-watch-bar { background:#0c1b3a; color:#cfe0ff; }
+  #opBar.op-ctrl-bar { background:#7a1020; color:#fff; }
+  #opBar .btn { padding:5px 10px; }
+  body.has-opbar #app { padding-bottom:64px; }
+  /* While watching, lock the consequential mutators so a stray tap can't change even the
+     local view — the track itself is already protected at the sync layer. */
+  body.op-watch .fin-sel, body.op-watch .btn-primary, body.op-watch .btn-danger { pointer-events:none !important; opacity:.5; }
   .imp-panel { max-width:680px; margin:0 auto; background:var(--card); border-radius:16px; overflow:hidden; box-shadow:0 20px 60px rgba(0,0,0,.4); }
   .imp-hd { display:flex; align-items:center; justify-content:space-between; gap:10px; padding:14px 18px; background:var(--asphalt); color:#fff; font-family:var(--display); font-weight:700; }
   .imp-body { padding:18px; }
@@ -433,7 +443,7 @@
             <div style="display:flex;align-items:center;gap:10px;flex-wrap:wrap">
               <img id="logoPrev" alt="Logo preview" style="display:none;height:52px;max-width:130px;object-fit:contain;border:1px solid var(--line);border-radius:8px;background:#fff;padding:4px">
               <button class="btn btn-sm" onclick="document.getElementById('logoFile').click()">Upload logo</button>
-              <button class="btn btn-sm btn-danger" id="logoRemove" style="display:none" onclick="removeLogo()">Remove</button>
+              <button class="btn btn-sm btn-danger" id="logoRemove" style="display:none" onclick="delLogo()">Remove</button>
               <input id="logoFile" type="file" accept="image/*" style="display:none" onchange="uploadLogo(this)">
             </div>
           </div>
@@ -515,7 +525,7 @@
           <input id="ptsBeyond" type="number" min="0" max="999" onchange="savePoints()" />
         </div>
       </div>
-      <p id="ptsLinearNote" style="display:none;font-size:12px;color:var(--accent,#0a7);margin-top:8px"></p>
+      <p id="ptsLinearNote" style="display:none;font-size:12px;color:var(--accent);margin-top:8px"></p>
       <p style="font-size:12px;color:var(--muted);margin-top:8px">Pick a known system or type your own — editing the list makes it "Custom". Feature finish decides points; make the list as long as your biggest feature. Anyone finishing past it, not making the feature, or scoring DNF/DNS/DQ gets the "everyone else" value (use it for show-up points, or 0). Classes count by default; untick "counts toward the points series" on the Results tab for non-points days.</p>
     </div>
     </section>
@@ -899,10 +909,13 @@
 <!-- Always-visible, PIN-gated role switch for locked stations (hidden for the admin role) -->
 <button id="roleEscape" onclick="changeDeviceRole()" style="display:none">⚙ Role</button>
 
+<!-- Operator mode bar: watch (read-only) / control (live), with its own PIN -->
+<div id="opBar" style="display:none"></div>
+
 <!-- First-run setup wizard -->
 <div id="setupWizard" class="wiz-overlay" style="display:none">
   <div class="wiz-box" style="position:relative">
-    <button onclick="document.getElementById('setupWizard').style.display='none'" style="position:absolute;top:12px;right:12px;background:none;border:none;font-size:20px;line-height:1;cursor:pointer;color:var(--muted);padding:2px 6px" title="Close">✕</button>
+    <button onclick="hideModal('setupWizard')" style="position:absolute;top:12px;right:12px;background:none;border:none;font-size:20px;line-height:1;cursor:pointer;color:var(--muted);padding:2px 6px" title="Close">✕</button>
     <div class="wiz-title">RaceDay Setup</div>
     <div class="wiz-progress">Step <span id="wizStepNum">1</span> of 5</div>
     <div id="wizS1">
@@ -1001,7 +1014,8 @@ const ROLE_PAGES = {
   register: ['signup', 'help'],
   scoring:  ['grid', 'results', 'points', 'help'],
   tv:       ['grid', 'help'],
-  viewer:   ['grid', 'help']        // spectator: read-only Lineups only (QR link)
+  viewer:   ['grid', 'help'],       // spectator: read-only Lineups only (QR link)
+  operator: ['signup', 'grid', 'results', 'points', 'admin', 'help']   // owner: sees everything, read-only until "Take control"
 };
 function syncOn() { return !!(S.sync && S.sync.enabled && FIREBASE_CONFIG.apiKey); }
 
@@ -1029,6 +1043,7 @@ function defaults() {
     track: { name: '', logo: '' },                // track identity: logo is a data URL
     provider: { legalName: '', operator: '', jurisdiction: '' }, // legalName = software owner; operator = track/customer legal entity (for docs)
     adminPin: '',                                 // empty = Admin tab is open to everyone
+    operatorPin: '',                              // owner's private PIN to "take control" in operator mode (local only, never synced)
     consents: [],                                 // Terms/Privacy acceptance audit: {ts,date,time,driver,num,role,version,legalVersion,ip,accepted}
     audit: [],                                    // admin action log: {ts,date,time,user,action,target,oldValue,newValue}
     history: [],                                  // archived race days (newest first)
@@ -1049,6 +1064,7 @@ function defaults() {
     settings: { maxHeat: 8, maxBMain: 12, maxFeature: 20, transfers: 2, gridStyle: 'double', heatFill: 'alternate', bmainMode: 'single', bmainCount: 2, points: { mode: 'fixed', table: [10, 8, 6, 5, 4, 3, 2, 1], beyond: 0 }, requireConsent: true, captureConsentIP: true },
     raceDay: { date: today(), entries: [], heatResults: {}, pointsRace: {}, resultGov: {}, resultVersions: {} },  // entries: {driverId, classId, pill}; resultGov: per-class {status,locked}; resultVersions: per-class snapshots
     nextId: 100,
+    schemaVersion: 1,
     sync: { enabled: false, key: '' }             // live multi-device sync (off until activated)
   };
 }
@@ -1056,6 +1072,7 @@ function migrate(s) {
   if (!s.track) s.track = { name: '', logo: '' };
   if (!s.history) s.history = [];
   if (s.adminPin == null) s.adminPin = '';
+  if (s.operatorPin == null) s.operatorPin = '';
   if (!s.classLib) s.classLib = s.classes.map(c => ({ name: c.name, maxPill: c.maxPill || 200 }));
   if (s.license === undefined) s.license = null;
   if (!s.trialDays) s.trialDays = [];
@@ -1076,6 +1093,21 @@ function migrate(s) {
   if (!s.audit) s.audit = [];
   if (!s.sync) s.sync = { enabled: false, key: '' };
   if (s.roster) s.roster.forEach(d => { if (d.noPoints == null) d.noPoints = false; });
+  // Heat finish keys dropped the volatile heat-index segment (h1_<hi>_<id> → h1_<id>)
+  // so editing entries after scoring no longer orphans a driver's finishes. Lossless:
+  // a driver has at most one h1/h2 key, so stripping the index can't collide.
+  if (!s.schemaVersion || s.schemaVersion < 1) {
+    const fixHeatKeys = obj => {
+      if (!obj) return;
+      Object.keys(obj).forEach(key => {
+        const m = key.match(/^(h[12])_\d+_(\d+)$/);
+        if (m) { const nk = m[1] + '_' + m[2]; if (obj[nk] === undefined) obj[nk] = obj[key]; delete obj[key]; }
+      });
+    };
+    if (s.raceDay && s.raceDay.heatResults) Object.values(s.raceDay.heatResults).forEach(fixHeatKeys);
+    if (s.raceDay && s.raceDay.resultVersions) Object.values(s.raceDay.resultVersions).forEach(vers => { if (Array.isArray(vers)) vers.forEach(v => v && fixHeatKeys(v.data)); });
+  }
+  s.schemaVersion = 1;
   return s;
 }
 function load() {
@@ -1184,6 +1216,7 @@ function recalcPoints(clsId) {
   if (typeof flashMsg === 'function') flashMsg('Points recalculated from current finishes.');
 }
 
+const UI = { viewClsId: null, viewStage: 'qual', ptsTab: null, ptsNames: [], histOpen: null, admOpen: null, pillChoiceCb: null, wizStep: 1 };
 let S = load();
 let cur = null;          // driver mid-signup: {name, num}
 let curPage = 'signup';
@@ -1273,7 +1306,7 @@ function nav(p) {
   const allowed = ROLE_PAGES[deviceRole()] || ROLE_PAGES.admin;
   if (!allowed.includes(p)) return;
   if (p === 'admin' && !adminOk()) return;
-  if (p === 'admin') _admOpen = null;
+  if (p === 'admin') UI.admOpen = null;
   curPage = p;
   document.querySelectorAll('.page').forEach(el => el.classList.remove('active'));
   document.querySelectorAll('#mainNav button').forEach(b => b.classList.remove('active'));
@@ -1570,7 +1603,7 @@ function activateLic() {
   renderLicCard(); renderLicBanner();
   alert('✅ Activated — licensed to ' + parts[0] + ', ' + fmtExp(parts[1]) + '.');
 }
-function removeLic() {
+function delLic() {
   if (!confirm('Remove this license? The app goes back to free-trial rules on this device.')) return;
   S.license = null;
   save();
@@ -1587,7 +1620,7 @@ function renderLicCard() {
     else line = '✅ Licensed to <b>' + esc(st.name) + '</b> — ' + esc(fmtExp(st.exp));
     h = '<div style="display:flex;gap:10px;flex-wrap:wrap;align-items:center">'
       + '<span style="font-size:13.5px">' + line + '</span>'
-      + '<button class="btn btn-sm btn-danger" style="margin-left:auto" onclick="removeLic()">Remove license</button></div>';
+      + '<button class="btn btn-sm btn-danger" style="margin-left:auto" onclick="delLic()">Remove license</button></div>';
     if (st.plan === 'packet') h += '<p style="font-size:12px;color:var(--muted);margin-top:8px">A race day is counted the first time you add an entry that day. Re-entering this same code never resets the count.</p>';
   } else {
     h = '<p style="font-size:13.5px;margin-bottom:10px">Free trial — <b>' + S.trialDays.length + ' of ' + TRIAL_DAYS + '</b> race days used. Enter an access code to unlock more.</p>'
@@ -1623,7 +1656,7 @@ function setPin() {
   save();
   renderAdmin();
 }
-function removePin() {
+function delPin() {
   if (prompt('Enter the current PIN to remove it') !== S.adminPin) { alert('Wrong PIN.'); return; }
   S.adminPin = '';
   sessionStorage.removeItem('rd_admin_ok');
@@ -1671,6 +1704,8 @@ function step2() {
   showStep(2);
 }
 function showStep(n) { [1,2,3].forEach(i => document.getElementById('s' + i).style.display = i === n ? '' : 'none'); }
+function showModal(id, display) { const el = document.getElementById(id); if (el) el.style.display = display || 'block'; }
+function hideModal(id) { const el = document.getElementById(id); if (el) el.style.display = 'none'; }
 function findRosterMatch(name) { return S.roster.find(d => d.name.toLowerCase() === name.toLowerCase()); }
 
 function renderChips() {
@@ -1718,6 +1753,17 @@ function register() {
       return d && String(d.num).toLowerCase() === cur.num.toLowerCase() && (!match || e.driverId !== match.id);
     });
     if (clash) { err.style.display = ''; err.textContent = 'Number #' + cur.num + ' is already racing in ' + classById(c.id).name + '. Pick a different number for that class.'; return; }
+  }
+  // A returning driver changing their number rewrites it in EVERY class they already
+  // race today — so validate the new number against those classes too, not just the
+  // newly-selected ones, or we'd silently create a duplicate kart # elsewhere.
+  if (match && String(match.num).toLowerCase() !== cur.num.toLowerCase()) {
+    const myClassIds = [...new Set(S.raceDay.entries.filter(e => e.driverId === match.id).map(e => e.classId))];
+    for (const cid of myClassIds) {
+      const clash = S.raceDay.entries.find(e => e.classId === cid && e.driverId !== match.id
+        && String((driverById(e.driverId) || {}).num).toLowerCase() === cur.num.toLowerCase());
+      if (clash) { err.style.display = ''; err.textContent = 'Number #' + cur.num + ' is already racing in ' + classById(cid).name + ', where you\'re also entered. Pick a different number.'; return; }
+    }
   }
   // make sure every selected class still has pills left
   for (const c of sel) {
@@ -1870,32 +1916,31 @@ function renderGrid() {
 }
 
 // ---------- Spectator (read-only) lineups: one class, one stage at a time ----------
-let viewClsId = null, viewStage = 'qual';
-function setViewClass(id) { viewClsId = parseInt(id, 10) || null; renderGrid(); }
-function setViewStage(s) { viewStage = s; renderGrid(); }
+function setViewClass(id) { UI.viewClsId = parseInt(id, 10) || null; renderGrid(); }
+function setViewStage(s) { UI.viewStage = s; renderGrid(); }
 function renderViewerLineups() {
   const el = document.getElementById('gridContent');
   if (!el) return;
   if (!S.classes.length) { el.innerHTML = '<p class="empty">Lineups will appear here once the race day starts.</p>'; return; }
-  if (!viewClsId || !classById(viewClsId)) viewClsId = S.classes[0].id;
-  const cls = classById(viewClsId);
+  if (!UI.viewClsId || !classById(UI.viewClsId)) UI.viewClsId = S.classes[0].id;
+  const cls = classById(UI.viewClsId);
   const racers = classRacers(cls.id);
   const single = S.settings.gridStyle === 'single';   // match how the track grids (double / single file)
   const toRow = s => ({ name: s.name, num: s.num, tag: 'Heat total ' + s.pts });
 
   let h = '<div class="vw-pick"><label>Class</label><select onchange="setViewClass(this.value)">'
-    + S.classes.map(c => '<option value="' + c.id + '"' + (c.id === viewClsId ? ' selected' : '') + '>' + esc(c.name) + '</option>').join('')
+    + S.classes.map(c => '<option value="' + c.id + '"' + (c.id === UI.viewClsId ? ' selected' : '') + '>' + esc(c.name) + '</option>').join('')
     + '</select></div>';
   const stages = [['qual', 'Qualifying'], ['heats', 'Heats'], ['bmain', 'B-Mains'], ['feat', 'Feature']];
   h += '<div class="vw-tabs">' + stages.map(([k, lbl]) =>
-    '<button class="' + (viewStage === k ? 'on' : '') + '" onclick="setViewStage(\'' + k + '\')">' + lbl + '</button>').join('') + '</div>';
+    '<button class="' + (UI.viewStage === k ? 'on' : '') + '" onclick="setViewStage(\'' + k + '\')">' + lbl + '</button>').join('') + '</div>';
   h += '<div class="vw-body">';
 
   if (!racers.length) {
     h += '<p class="empty">No drivers in this class yet.</p>';
-  } else if (viewStage === 'qual') {
+  } else if (UI.viewStage === 'qual') {
     h += '<div class="slbl">Qualifying order</div>' + gridMarkup(invertField(racers, cls), single);
-  } else if (viewStage === 'heats') {
+  } else if (UI.viewStage === 'heats') {
     const heats = classHeats(cls);
     const set1 = invertWithinHeats(heatArrays(racers, cls), cls);
     h += '<div class="slbl">' + (heats === 1 ? 'Heat lineups' : 'Set 1 heats') + '</div>';
@@ -1904,7 +1949,7 @@ function renderViewerLineups() {
       h += '<div class="slbl">Set 2 — inverted</div>';
       set1.map(ht => [...ht].reverse()).forEach((heat, hi) => { h += '<div class="heat-cap inv"><span>Heat ' + (hi + 1) + '</span></div>' + gridMarkup(heat, single); });
     }
-  } else if (viewStage === 'bmain') {
+  } else if (UI.viewStage === 'bmain') {
     if (!classComplete(cls.id)) h += '<p class="empty">B-main lineups post once the heats are scored.</p>';
     else {
       const fd = featureData(cls.id);
@@ -2022,8 +2067,8 @@ function calcStandings(clsId) {
   const res = getRes(clsId);
   return racers.map(r => {
     const hi = heatOf[r.id], n = set1[hi].length;
-    const f1 = res['h1_' + hi + '_' + r.id];
-    const f2 = heats === 2 ? res['h2_' + hi + '_' + r.id] : undefined;   // 1-heat classes ignore set 2
+    const f1 = res['h1_' + r.id];
+    const f2 = heats === 2 ? res['h2_' + r.id] : undefined;   // 1-heat classes ignore set 2
     const scored = (f1 != null ? 1 : 0) + (f2 != null ? 1 : 0);
     const pts = (f1 != null ? finPoints(f1, n) : 0) + (f2 != null ? finPoints(f2, n) : 0);
     return { ...r, pts, scored, f1, f2 };
@@ -2075,7 +2120,11 @@ function featureData(clsId) {
     // (B1-1st, B2-1st, B1-2nd, B2-2nd …) instead of stacking one whole main ahead of the next.
     let transferred = [];
     for (let r = 0; r < transfers; r++) madeLists.forEach(list => { if (list[r]) transferred.push(list[r]); });
-    return { mode, locked, mains, transferred, transfers, toFeatureSpots: Math.min(totalT, remaining.length, maxFeature - locked.length) };
+    // Never seat more transferees than open feature spots — otherwise the posted/TV
+    // feature would exceed maxFeature and disagree with the results-entry screen.
+    const toFeatureSpots = Math.min(totalT, remaining.length, maxFeature - locked.length);
+    transferred = transferred.slice(0, toFeatureSpots);
+    return { mode, locked, mains, transferred, transfers, toFeatureSpots };
   }
 
   if (mode === 'cascade') {
@@ -2157,11 +2206,10 @@ function seriesStandings(className) {
   };
   S.history.forEach(hd => hd.classes.forEach(c => {
     if (c.name.toLowerCase() !== key || !c.points) return;
-    c.points.forEach(p => {
-      const d = driverById(p.driverId);
-      if (d && d.noPoints) return;
-      add(p.driverId, p.name, p.num, p.pts);
-    });
+    // History rows are already filtered at archive time (a noPoints driver never lands
+    // in c.points), so don't re-filter here on the *current* roster flag — doing so would
+    // retroactively erase points a driver legitimately earned before being marked noPoints.
+    c.points.forEach(p => add(p.driverId, p.name, p.num, p.pts));
   }));
   const cls = S.classes.find(c => c.name.toLowerCase() === key);
   if (cls) {
@@ -2217,21 +2265,20 @@ function renderPointsInputs() {
   }
   document.getElementById('ptsBeyond').value = p.beyond;
 }
-let ptsTab = null, ptsNames = [];
 function renderPoints() {
   const el = document.getElementById('pointsContent');
-  ptsNames = seriesClassNames();
-  if (!ptsNames.length) { el.innerHTML = '<p class="empty">No classes yet — set up classes in Admin first.</p>'; return; }
-  if (!ptsTab || !ptsNames.includes(ptsTab)) ptsTab = ptsNames[0];
-  let h = '<div class="tab-row">' + ptsNames.map((n, i) =>
-    '<button class="tab' + (n === ptsTab ? ' on' : '') + '" onclick="ptsTab=ptsNames[' + i + '];renderPoints()">' + esc(n) + '</button>').join('') + '</div>';
-  const cls = S.classes.find(c => c.name.toLowerCase() === ptsTab.toLowerCase());
+  UI.ptsNames = seriesClassNames();
+  if (!UI.ptsNames.length) { el.innerHTML = '<p class="empty">No classes yet — set up classes in Admin first.</p>'; return; }
+  if (!UI.ptsTab || !UI.ptsNames.includes(UI.ptsTab)) UI.ptsTab = UI.ptsNames[0];
+  let h = '<div class="tab-row">' + UI.ptsNames.map((n, i) =>
+    '<button class="tab' + (n === UI.ptsTab ? ' on' : '') + '" onclick="UI.ptsTab=UI.ptsNames[' + i + '];renderPoints()">' + esc(n) + '</button>').join('') + '</div>';
+  const cls = S.classes.find(c => c.name.toLowerCase() === UI.ptsTab.toLowerCase());
   if (cls && classRacers(cls.id).length) {
     h += '<p class="sub" style="margin-bottom:12px">' + (isPointsRace(cls.id)
       ? (dayPoints(cls.id) ? "🟢 Today is a points race — today's feature finishes are counted below." : '🟡 Today is a points race — it counts here once feature finishes are entered on the Results tab.')
       : '⚪ Today is not a points race for this class (toggle on the Results tab).') + '</p>';
   }
-  const rows = seriesStandings(ptsTab);
+  const rows = seriesStandings(UI.ptsTab);
   if (!rows.length) {
     h += '<p class="empty">No points yet — they appear once feature finishes are entered on the Results tab, and add up as race days are archived.</p>';
   } else {
@@ -2242,6 +2289,15 @@ function renderPoints() {
       + '</tbody></table></div>';
   }
   el.innerHTML = h;
+}
+
+// Flags when two drivers in the same group (heat / main / feature) share a finishing
+// position — the most common race-night data-entry slip. Returns a badge or ''.
+function dupFinishWarn(res, ids, keyFn) {
+  const counts = {};
+  ids.forEach(id => { const v = res[keyFn(id)]; if (typeof v === 'number' && v > 0) counts[v] = (counts[v] || 0) + 1; });
+  const dups = Object.keys(counts).filter(v => counts[v] > 1).sort((a, b) => a - b).map(v => 'P' + v);
+  return dups.length ? '<span class="transfer-tag" style="background:#fde2e2;color:#b42318">⚠ duplicate ' + dups.join(', ') + '</span>' : '';
 }
 
 function finSelect(clsId, rk, n, val) {
@@ -2255,9 +2311,10 @@ function heatEntryBlock(clsId, set, heats, label, invClass) {
   const res = getRes(clsId);
   let h = '<div class="slbl">' + label + '</div>';
   heats.forEach((heat, hi) => {
-    h += '<div class="hb"><div class="hh' + invClass + '"><span>Heat ' + (hi + 1) + '</span><small>pick each driver\'s finish</small></div>';
+    h += '<div class="hb"><div class="hh' + invClass + '"><span>Heat ' + (hi + 1) + '</span><small>pick each driver\'s finish</small>'
+      + dupFinishWarn(res, heat.map(r => r.id), id => set + '_' + id) + '</div>';
     heat.forEach(r => {
-      const rk = set + '_' + hi + '_' + r.id;
+      const rk = set + '_' + r.id;
       h += '<div class="hr"><div class="nm"><b>' + esc(r.name) + '</b> <span>#' + esc(r.num) + '</span></div>'
         + finSelect(clsId, rk, heat.length, res[rk]) + '</div>';
     });
@@ -2277,9 +2334,11 @@ function renderClassResults(clsId) {
   let h = resultGovBar(clsId);
   const locked = resLocked(clsId);
   h += '<div style="' + (locked ? 'opacity:.55;pointer-events:none' : '') + '">';
-  const _ftd = featureData(clsId), _ftFin = featureFinish(clsId);
-  const _ftField = _ftd.locked.length + _ftd.transferred.length;
-  const _featureDone = _ftField > 0 && _ftFin.length >= _ftField;
+  const _ftd = featureData(clsId);
+  // A DNF/DNS/DQ is a finished result for completeness — count any stored feature
+  // value, not just numeric ones, so one DNF can't permanently lock the points toggle.
+  const _ftField = [...(_ftd.locked), ...(_ftd.transferred)];
+  const _featureDone = _ftField.length > 0 && _ftField.every(r => res['ft_' + r.id] != null);
   h += '<label style="display:flex;align-items:center;gap:8px;margin:0 0 6px;font-size:13.5px;font-weight:600;cursor:pointer'
     + (_featureDone ? '' : ';opacity:.55') + '">'
     + '<input type="checkbox" style="width:18px;height:18px"'
@@ -2314,7 +2373,8 @@ function renderClassResults(clsId) {
 
   fd.mains.forEach(m => {
     const feedTxt = m.feeds === 'the feature' ? 'Feature' : m.feeds;
-    h += '<div class="slbl">' + esc(m.label) + '</div><div class="hb"><div class="hh bmain"><span>' + esc(m.label) + ' lineup</span><small>top ' + fd.transfers + ' → ' + esc(feedTxt) + '</small></div>';
+    h += '<div class="slbl">' + esc(m.label) + '</div><div class="hb"><div class="hh bmain"><span>' + esc(m.label) + ' lineup</span><small>top ' + fd.transfers + ' → ' + esc(feedTxt) + '</small>'
+      + dupFinishWarn(res, m.drivers.map(r => r.id), id => bmKey(m.key, id)) + '</div>';
     m.drivers.forEach((r, i) => {
       const made = m.made.some(t => t.id === r.id);
       h += '<div class="hr"><div class="pnum">' + (i + 1) + '</div>'
@@ -2337,7 +2397,8 @@ function renderClassResults(clsId) {
   };
   h += '<div class="slbl">Feature lineup &amp; finish</div><div class="hb"><div class="hh feat"><span>🏁 Feature</span><small>'
     + (fd.mains.length ? fd.locked.length + ' on heat totals + ' + fd.toFeatureSpots + ' transferring up' : 'lined up by heat totals')
-    + (isPointsRace(clsId) ? ' · finishes award series points' : '') + '</small></div>';
+    + (isPointsRace(clsId) ? ' · finishes award series points' : '') + '</small>'
+    + dupFinishWarn(res, [...fd.locked, ...fd.transferred].map(r => r.id), id => 'ft_' + id) + '</div>';
   let pos = 0;
   fd.locked.forEach(s => {
     pos++;
@@ -2408,7 +2469,10 @@ function buildSnapshot() {
       feature: [...fd.locked, ...fd.transferred].map(s => ({ name: s.name, num: s.num })),
       featureFinish: featureFinish(cls.id).map(f => ({ driverId: f.id, name: f.name, num: f.num, fin: f.fin })),
       pointsRace: isPointsRace(cls.id),
-      points: dp ? classRacers(cls.id).map(r => ({ driverId: r.id, name: r.name, num: r.num, pts: dp[r.id] || 0 })) : null
+      // dayPoints drops noPoints drivers from dp, so filtering on dp[r.id] != null keeps
+      // them out of the archived points entirely (they never score history). A genuine
+      // last-place scorer keeps pts 0 (beyond), since 0 != null.
+      points: dp ? classRacers(cls.id).filter(r => dp[r.id] != null).map(r => ({ driverId: r.id, name: r.name, num: r.num, pts: dp[r.id] })) : null
     });
   });
   return snap;
@@ -2486,7 +2550,7 @@ function saveImportedRace() {
   if (!cls) { showImpMsg('Please select a class.', 'error'); return; }
   if (!_impRows.length) { showImpMsg('Add at least one driver.', 'error'); return; }
   // Check for duplicate: same date + class already in history
-  const dup = S.history.some(hd => hd.date === date && hd.classes.some(c => c.name === cls.name));
+  const dup = S.history.some(hd => hd.date === date && hd.classes.some(c => c.name.toLowerCase() === cls.name.toLowerCase()));
   if (dup) { alert('A history entry for ' + cls.name + ' on ' + date + ' already exists.\n\nEdit or delete the existing entry instead.'); return; }
   const entry = {
     date: date,
@@ -2525,7 +2589,6 @@ function clearImpForm() {
   const m = document.getElementById('impMsg'); if (m) m.style.display = 'none';
 }
 
-let histOpen = null;
 function renderHistory() {
   const el = document.getElementById('historyList');
   if (!S.history.length) { el.innerHTML = '<p class="empty">Nothing archived yet — a finished race day lands here when you start a new one.</p>'; return; }
@@ -2536,10 +2599,10 @@ function renderHistory() {
       + '<b style="font-family:var(--display);font-size:16px">' + esc(hd.date) + '</b>'
       + '<span style="font-size:12px;color:var(--muted)">' + hd.classes.length + (hd.classes.length === 1 ? ' class' : ' classes') + ' · ' + drivers + ' entries</span>'
       + '<span style="margin-left:auto;display:flex;gap:6px">'
-      + '<button class="btn btn-sm" onclick="toggleHist(' + i + ')">' + (histOpen === i ? 'Hide' : 'View') + '</button>'
+      + '<button class="btn btn-sm" onclick="toggleHist(' + i + ')">' + (UI.histOpen === i ? 'Hide' : 'View') + '</button>'
       + '<button class="btn btn-sm" onclick="histCSV(' + i + ')">CSV</button>'
       + '<button class="btn btn-sm btn-danger" onclick="delHist(' + i + ')">Delete</button></span></div>';
-    if (histOpen === i) {
+    if (UI.histOpen === i) {
       hd.classes.forEach(c => {
         const isImported = hd.imported || (c.standings.length === 0 && c.points && c.points.length);
         h += '<div class="slbl" style="margin:12px 0 6px">' + esc(c.name) + (isImported ? ' <span style="font-size:11px;color:var(--muted)">(imported)</span>' : '') + '</div>';
@@ -2559,11 +2622,11 @@ function renderHistory() {
     return h + '</div>';
   }).join('');
 }
-function toggleHist(i) { histOpen = histOpen === i ? null : i; renderHistory(); }
+function toggleHist(i) { UI.histOpen = UI.histOpen === i ? null : i; renderHistory(); }
 function delHist(i) {
   if (!confirm('Delete the archived race day from ' + S.history[i].date + '? This cannot be undone.')) return;
   S.history.splice(i, 1);
-  histOpen = null;
+  UI.histOpen = null;
   save();
   renderHistory();
 }
@@ -2648,7 +2711,7 @@ function renderHeader() {
   }
   const sy = document.getElementById('hdrSync');
   if (sy) {
-    if (syncOn() && _syncConnected) {
+    if (syncOn() && Sync.connected) {
       const r = deviceRole();
       sy.style.display = '';
       sy.textContent = '🔗 ' + ((S.sync && S.sync.key) || 'synced') + (r && r !== 'admin' ? ' · ' + r : '');
@@ -2683,7 +2746,7 @@ function uploadLogo(input) {
   img.onerror = () => { URL.revokeObjectURL(url); alert("Couldn't read that file as an image."); };
   img.src = url;
 }
-function removeLogo() {
+function delLogo() {
   S.track.logo = '';
   save();
   renderHeader();
@@ -2708,12 +2771,11 @@ const ADMIN_NAV = [
   { id:'adm-audit',    label:'Records & audit',     icon:'📊', group:'Records' },
   { id:'adm-danger',   label:'Danger zone',         icon:'⚠️', group:'Danger' },
 ];
-let _admOpen = null;
 function renderAdminNav() {
   const home = document.getElementById('adminHome');
   const tabs = document.getElementById('adminTabs');
   if (!home || !tabs) return;
-  if (!_admOpen) {
+  if (!UI.admOpen) {
     tabs.style.display = 'none';
     ADMIN_NAV.forEach(s => { const el = document.getElementById(s.id); if (el) el.style.display = 'none'; });
     const groups = [...new Set(ADMIN_NAV.map(s => s.group))];
@@ -2730,18 +2792,18 @@ function renderAdminNav() {
     home.style.display = '';
   } else {
     home.style.display = 'none';
-    const cur = ADMIN_NAV.find(s => s.id === _admOpen);
+    const cur = ADMIN_NAV.find(s => s.id === UI.admOpen);
     const siblings = cur ? ADMIN_NAV.filter(s => s.group === cur.group) : [];
     tabs.innerHTML = '<button class="btn btn-sm" style="flex-shrink:0" onclick="adminHome()">← All</button>'
       + (siblings.length > 1 ? siblings.map(s =>
-          '<button class="adm-tab' + (s.id === _admOpen ? ' active' : '') + '" onclick="adminOpen(\'' + s.id + '\')">' + esc(s.label) + '</button>'
+          '<button class="adm-tab' + (s.id === UI.admOpen ? ' active' : '') + '" onclick="adminOpen(\'' + s.id + '\')">' + esc(s.label) + '</button>'
         ).join('') : '');
     tabs.style.display = '';
-    ADMIN_NAV.forEach(s => { const el = document.getElementById(s.id); if (el) el.style.display = s.id === _admOpen ? 'block' : 'none'; });
+    ADMIN_NAV.forEach(s => { const el = document.getElementById(s.id); if (el) el.style.display = s.id === UI.admOpen ? 'block' : 'none'; });
   }
 }
-function adminOpen(secId) { _admOpen = secId; renderAdminNav(); }
-function adminHome() { _admOpen = null; renderAdminNav(); }
+function adminOpen(secId) { UI.admOpen = secId; renderAdminNav(); }
+function adminHome() { UI.admOpen = null; renderAdminNav(); }
 
 function renderAdmin() {
   renderClsList(); renderClsLib(); renderQuickAdd(); renderEntryList(); renderRosterList(); renderHistory(); renderImpForm(); renderPinCard(); renderLicCard(); renderSyncCard(); renderPointsInputs();
@@ -2857,7 +2919,7 @@ function renderPinCard() {
       + '<span style="font-size:13.5px">🔒 The Admin tab is PIN-protected on this device.</span>'
       + '<span style="margin-left:auto;display:flex;gap:6px">'
       + '<button class="btn btn-sm" onclick="setPin()">Change PIN</button>'
-      + '<button class="btn btn-sm btn-danger" onclick="removePin()">Remove PIN</button></span></div>'
+      + '<button class="btn btn-sm btn-danger" onclick="delPin()">Remove PIN</button></span></div>'
       + '<p style="font-size:12px;color:var(--muted);margin-top:8px">If the PIN is forgotten, clearing this site\'s browser data resets it — along with everything else, so keep a backup.</p>';
   } else {
     el.innerHTML = '<div style="display:flex;gap:10px;flex-wrap:wrap;align-items:center">'
@@ -3150,7 +3212,6 @@ function bumpEntryPill(i, delta) { const e = S.raceDay.entries[i]; if (e) setEnt
 // Move a driver's entry from one class to another. Keeps the same pill when it's free in the
 // target class; otherwise draws a fresh one. Only classId/pill change, so every lineup view
 // recomputes exactly as before. Mirrors the sign-up guards (no duplicate entry, unique number).
-let _pillChoiceCb = null;
 function showPillChoice(msg, keepLabel, drawLabel, cb) {
   document.getElementById('pillChoiceMsg').innerHTML = esc(msg);
   const keepBtn = document.getElementById('pillChoiceKeep');
@@ -3158,12 +3219,12 @@ function showPillChoice(msg, keepLabel, drawLabel, cb) {
   keepBtn.style.display = keepLabel ? '' : 'none';
   keepBtn.textContent = keepLabel || '';
   drawBtn.textContent = drawLabel || 'Draw new pill';
-  _pillChoiceCb = cb;
-  document.getElementById('pillChoiceModal').style.display = 'flex';
+  UI.pillChoiceCb = cb;
+  showModal('pillChoiceModal', 'flex');
 }
 function _pillChoiceDo(choice) {
-  document.getElementById('pillChoiceModal').style.display = 'none';
-  if (_pillChoiceCb) { const cb = _pillChoiceCb; _pillChoiceCb = null; cb(choice); }
+  hideModal('pillChoiceModal');
+  if (UI.pillChoiceCb) { const cb = UI.pillChoiceCb; UI.pillChoiceCb = null; cb(choice); }
 }
 function moveEntryClass(i, newClassId) {
   const e = S.raceDay.entries[i]; if (!e) return;
@@ -3270,7 +3331,7 @@ function delRoster(id) {
 }
 
 // ---------- TV display: no interface, one visual ----------
-let tvOn = false, tvIdx = 0, tvLocked = false, tvTimer = null, tvCtlTimer = null;
+const TV = { on: false, idx: 0, locked: false, timer: null, ctlTimer: null };
 const TV_SECS = 12;
 
 function tvSlides() {
@@ -3343,12 +3404,12 @@ function tvGridMarkup(racers, single) {
 }
 
 function tvRender() {
-  if (!tvOn) return;
+  if (!TV.on) return;
   document.getElementById('tvTrack').textContent = S.track.name || 'RaceDay';
   const logo = document.getElementById('tvLogo');
   if (S.track.logo) { logo.src = S.track.logo; logo.style.display = ''; } else { logo.style.display = 'none'; }
   document.getElementById('tvClock').textContent = new Date().toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' });
-  document.getElementById('tvLockTag').style.display = tvLocked ? '' : 'none';
+  document.getElementById('tvLockTag').style.display = TV.locked ? '' : 'none';
   const sl = document.getElementById('tvSlide');
   const slides = tvSlides();
   if (!slides.length) {
@@ -3356,27 +3417,27 @@ function tvRender() {
     document.getElementById('tvPage').textContent = '';
     return;
   }
-  tvIdx = ((tvIdx % slides.length) + slides.length) % slides.length;
-  const s = slides[tvIdx];
+  TV.idx = ((TV.idx % slides.length) + slides.length) % slides.length;
+  const s = slides[TV.idx];
   sl.innerHTML = '<div class="tv-h"><span>' + esc(s.title) + '</span><span class="tv-sub">' + esc(s.sub) + '</span></div>'
     + tvGridMarkup(s.racers, S.settings.gridStyle === 'single');
-  document.getElementById('tvPage').textContent = (tvIdx + 1) + ' / ' + slides.length;
+  document.getElementById('tvPage').textContent = (TV.idx + 1) + ' / ' + slides.length;
 }
 
-function tvTick() { if (!tvLocked) tvIdx++; tvRender(); }
+function tvTick() { if (!TV.locked) TV.idx++; tvRender(); }
 function openTV() {
-  tvOn = true; tvIdx = 0; tvLocked = false;
+  TV.on = true; TV.idx = 0; TV.locked = false;
   document.getElementById('tvLockBtn').textContent = '🔒 Lock screen';
   document.getElementById('tvOverlay').classList.add('on');
   if (document.documentElement.requestFullscreen) document.documentElement.requestFullscreen().catch(() => {});
   tvRender();
-  clearInterval(tvTimer);
-  tvTimer = setInterval(tvTick, TV_SECS * 1000);
+  clearInterval(TV.timer);
+  TV.timer = setInterval(tvTick, TV_SECS * 1000);
 }
 function closeTV(ev) {
   if (ev) ev.stopPropagation();
-  tvOn = false;
-  clearInterval(tvTimer);
+  TV.on = false;
+  clearInterval(TV.timer);
   document.getElementById('tvOverlay').classList.remove('on');
   document.getElementById('tvCtl').classList.remove('show');
   if (document.fullscreenElement && document.exitFullscreen) document.exitFullscreen().catch(() => {});
@@ -3384,21 +3445,23 @@ function closeTV(ev) {
 function tvShowCtl() {
   const c = document.getElementById('tvCtl');
   c.classList.add('show');
-  clearTimeout(tvCtlTimer);
-  tvCtlTimer = setTimeout(() => c.classList.remove('show'), 4000);
+  clearTimeout(TV.ctlTimer);
+  TV.ctlTimer = setTimeout(() => c.classList.remove('show'), 4000);
 }
-function tvPrev(ev) { ev.stopPropagation(); tvIdx--; tvRender(); tvShowCtl(); }
-function tvNext(ev) { ev.stopPropagation(); tvIdx++; tvRender(); tvShowCtl(); }
+function tvPrev(ev) { ev.stopPropagation(); TV.idx--; tvRender(); tvShowCtl(); }
+function tvNext(ev) { ev.stopPropagation(); TV.idx++; tvRender(); tvShowCtl(); }
 function tvToggleLock(ev) {
   ev.stopPropagation();
-  tvLocked = !tvLocked;
-  document.getElementById('tvLockBtn').textContent = tvLocked ? '🔓 Unlock rotation' : '🔒 Lock screen';
+  TV.locked = !TV.locked;
+  document.getElementById('tvLockBtn').textContent = TV.locked ? '🔓 Unlock rotation' : '🔒 Lock screen';
   tvRender(); tvShowCtl();
 }
-document.addEventListener('keydown', e => { if (tvOn && e.key === 'Escape') closeTV(); });
+document.addEventListener('keydown', e => { if (TV.on && e.key === 'Escape') closeTV(); });
 
 // ---------- Demo data (for showing the app to a track) ----------
 function seedDemo() {
+  if (!S.classes.length) { alert('Add at least one race class before loading a demo race day.'); return; }
+  if (syncOn()) { alert('This device is on Multi-device sync — loading demo here would push demo data to every synced device and replace the real race.\n\nTurn off sync on this device first (Admin → Multi-device sync), then load the demo.'); return; }
   if (!confirm('Load a demo race day with 25 sample drivers? Current entries are archived to history first (driver book is kept).')) return;
   archiveDay();
   resOverride = {};
@@ -3457,8 +3520,14 @@ window.addEventListener('unhandledrejection', e => { sendUsage('crash', { msg: S
 // ---------- Multi-device sync (Firebase) ----------
 // Dormant unless FIREBASE_CONFIG is filled in AND a track has activated sync.
 // Only the SYNC_FIELDS subtrees are mirrored; admin PIN / license / history stay local.
-let _syncDb = null, _syncTimer = null, _syncApplying = false, _syncActivating = false, _syncConnected = false;
+const Sync = { db: null, timer: null, applying: false, activating: false, connected: false };
+let _operatorControl = false;   // operator mode: false = watching (read-only), true = controlling (writes live)
 const _syncLast = {};   // field -> last JSON string seen, so we only push real changes
+
+// Operator is connected to a track but in read-only "watch" mode. While watching, NO
+// write ever reaches the cloud room — the track is untouchable until the owner taps
+// "Take control" (separate operator PIN). This is the core safeguard of operator mode.
+function operatorWatching() { return deviceRole() === 'operator' && !_operatorControl; }
 
 function syncKey() { return (S.sync && S.sync.key) || ''; }
 function normKey(k) { return String(k || '').toUpperCase().replace(/[^A-Z0-9]/g, ''); }
@@ -3488,57 +3557,68 @@ function initSync() {
   loadFirebase().then(() => {
     try {
       if (!firebase.apps.length) firebase.initializeApp(FIREBASE_CONFIG);
-      if (_syncDb) { try { _syncDb.off(); } catch (e) {} }
-      _syncDb = firebase.database().ref('tracks/' + syncKey());
-      firebase.database().ref('.info/connected').on('value', snap => { _syncConnected = !!snap.val(); renderHeader(); });
+      if (Sync.db) { try { Sync.db.off(); } catch (e) {} }
+      Sync.db = firebase.database().ref('tracks/' + syncKey());
+      firebase.database().ref('.info/connected').on('value', snap => { Sync.connected = !!snap.val(); renderHeader(); }, () => {});
       SYNC_FIELDS.forEach(f => { _syncLast[f] = JSON.stringify(syncGet(f) === undefined ? null : syncGet(f)); });
-      _syncDb.on('value', snap => {
+      Sync.db.on('value', snap => {
         const v = snap.val();
-        if (!v || _syncActivating) { _syncActivating = false; syncPushFull(); return; }  // empty room or admin re-activating: push local state, don't pull stale Firebase data
-        _syncApplying = true;
-        SYNC_FIELDS.forEach(f => {
-          const raw = syncGetIn(v, f);
-          if (raw == null) return;
-          try { const parsed = JSON.parse(raw); syncSet(f, parsed); _syncLast[f] = raw; } catch (e) {}
-        });
-        _syncApplying = false;
-        try { localStorage.setItem(KEY, JSON.stringify(S)); } catch (e) {}
-        renderHeader(); render(curPage); if (tvOn) tvRender();
+        if (!v || Sync.activating) { Sync.activating = false; syncPushFull(); return; }  // empty room or admin re-activating: push local state, don't pull stale Firebase data
+        syncApplySnapshot(v);
       });
-    } catch (e) {}
-  }).catch(() => {});
+    } catch (e) { console.warn('RaceDay sync init:', e && e.message || e); }
+  }).catch(e => console.warn('RaceDay sync:', e && e.message || e));
+}
+// Pull a cloud snapshot into local state (used by the live listener and by operator
+// take-control / back-to-watching, which re-pull fresh to discard any local scratch).
+function syncApplySnapshot(v) {
+  if (!v) return;
+  Sync.applying = true;
+  SYNC_FIELDS.forEach(f => {
+    const raw = syncGetIn(v, f);
+    if (raw == null) return;
+    try { const parsed = JSON.parse(raw); syncSet(f, parsed); _syncLast[f] = raw; } catch (e) {}
+  });
+  Sync.applying = false;
+  try { localStorage.setItem(KEY, JSON.stringify(S)); } catch (e) {}  // intentional: bypasses save() to prevent sync echo loop
+  renderHeader(); render(curPage); if (TV.on) tvRender();
 }
 
 // Debounced incremental push: only fields whose JSON actually changed.
 function syncPush() {
-  if (deviceRole() === 'viewer') return;   // spectators never write to the shared room
-  if (!syncOn() || !_syncDb || _syncApplying) return;
-  clearTimeout(_syncTimer);
-  _syncTimer = setTimeout(() => {
+  if (deviceRole() === 'viewer' || operatorWatching()) return;   // spectators + watching operators never write to the shared room
+  if (!syncOn() || !Sync.db || Sync.applying) return;
+  clearTimeout(Sync.timer);
+  Sync.timer = setTimeout(() => {
     const upd = {};
     SYNC_FIELDS.forEach(f => {
       const j = JSON.stringify(syncGet(f) === undefined ? null : syncGet(f));
       if (j !== _syncLast[f]) { upd[f] = j; _syncLast[f] = j; }
     });
-    if (Object.keys(upd).length && _syncDb) _syncDb.update(upd).catch(() => {});
+    if (Object.keys(upd).length && Sync.db) Sync.db.update(upd).catch(e => console.warn('RaceDay sync:', e && e.message || e));
   }, 400);
 }
 function syncPushFull() {
-  if (deviceRole() === 'viewer' || !_syncDb) return;   // spectators never seed/write the room
+  if (deviceRole() === 'viewer' || operatorWatching() || !Sync.db) return;   // spectators + watching operators never seed/write the room
   const upd = {};
   SYNC_FIELDS.forEach(f => { const j = JSON.stringify(syncGet(f) === undefined ? null : syncGet(f)); upd[f] = j; _syncLast[f] = j; });
-  _syncDb.update(upd).catch(() => {});
+  Sync.db.update(upd).catch(e => console.warn('RaceDay sync:', e && e.message || e));
 }
 
 function syncActivate() {
   if (!FIREBASE_CONFIG.apiKey) { alert('Live sync is not set up on this build yet — the app owner adds the Firebase settings once to turn it on.'); return; }
-  const seed = normKey((S.license && S.license.name) || S.sync.key || '');
-  const k = prompt('Choose a sync code for this track. Every device for this track uses the same code:', seed || 'TRACK1');
+  // Keep an existing code as-is (devices/QR posters already use it); only suggest a
+  // fresh code for a brand-new setup, with a random suffix so two tracks can't collide
+  // in the same cloud room (e.g. two "Victory" tracks both landing in tracks/VICTORY).
+  const existing = normKey(S.sync.key || '');
+  const rand = Math.random().toString(36).replace(/[^a-z0-9]/g, '').slice(0, 3).toUpperCase();
+  const seed = existing || (normKey((S.license && S.license.name) || 'TRACK') + rand);
+  const k = prompt('Choose a sync code for this track. Every device for this track uses the SAME code — keep it unique so no other track lands in the same room:', seed);
   if (!k) return;
   S.sync.key = normKey(k);
   S.sync.enabled = true;
   setDeviceRole('admin');
-  _syncActivating = true;   // admin owns the room: push local state, ignore whatever Firebase has
+  Sync.activating = true;   // admin owns the room: push local state, ignore whatever Firebase has
   save();
   initSync();
   renderSyncCard();
@@ -3547,28 +3627,105 @@ function syncJoin() {
   if (!FIREBASE_CONFIG.apiKey) { alert('Live sync is not set up on this build yet.'); return; }
   const k = prompt('Enter the track sync code shown on the main (admin) device:');
   if (!k) return;
+  // Joining pulls the cloud copy over this device — warn if real local data is at stake.
+  if (S.raceDay.entries && S.raceDay.entries.length && !confirm('Joining code "' + normKey(k) + '" will replace this device\'s current entries and results with the cloud copy. Continue?')) return;
   S.sync.key = normKey(k);
   S.sync.enabled = true;
   save();
   initSync();
   renderSyncCard();
 }
+// Force the cloud room to match THIS device, overwriting stale data other devices may
+// have pulled from a reused code. Uses update (not delete) so there's no empty-room
+// window where another synced device could re-seed it with its own stale state.
+function syncMakeSource() {
+  if (!syncOn() || !Sync.db) { alert('Turn on Multi-device sync first.'); return; }
+  if (deviceRole() === 'viewer') { alert('Spectator devices can\'t change the shared race.'); return; }
+  if (!confirm('Push THIS device\'s race data to the cloud, replacing what every other synced device is showing?\n\nUse this when another device pulled old data from a reused code — this device becomes the source of truth.')) return;
+  syncPushFull();
+  flashMsg('This device is now the source of truth ✓');
+}
 function syncDisable() {
   if (!confirm('Turn off live sync on this device? It will go back to working on its own. The track\'s synced data stays in the cloud.')) return;
-  if (_syncDb) { try { _syncDb.off(); } catch (e) {} _syncDb = null; }
-  _syncConnected = false;
+  if (Sync.db) { try { Sync.db.off(); } catch (e) {} Sync.db = null; }
+  Sync.connected = false;
   S.sync.enabled = false;
   save();
   renderSyncCard();
 }
 function setRolePrompt() {
-  const r = prompt('Set this device\'s job — type one of:  admin  ·  register  ·  scoring  ·  tv', deviceRole());
+  const r = prompt('Set this device\'s job — type one of:  admin  ·  register  ·  scoring  ·  tv  ·  operator', deviceRole());
   if (!r) return;
   const rr = r.trim().toLowerCase();
-  if (!ROLE_PAGES[rr]) { alert('Unknown role. Use admin, register, scoring, or tv.'); return; }
+  if (!ROLE_PAGES[rr]) { alert('Unknown role. Use admin, register, scoring, tv, or operator.'); return; }
+  if (rr === 'operator') _operatorControl = false;   // always start in safe read-only watch mode
   setDeviceRole(rr);
   applyRole();
   renderSyncCard();
+}
+
+// ---------- Operator mode (owner monitors / can control test tracks) ----------
+// Gate take-control / stop with a PRIVATE operator PIN, separate from each track's
+// admin PIN. First use creates it on this device; the tracks never see it.
+function opPinOk(action) {
+  if (!S.operatorPin) {
+    const p1 = prompt('Create a private Operator PIN (4–8 digits). Only you know this — the tracks never see it:');
+    if (p1 === null) return false;
+    if (!/^\d{4,8}$/.test(p1)) { alert('The PIN must be 4–8 digits.'); return false; }
+    S.operatorPin = p1; try { localStorage.setItem(KEY, JSON.stringify(S)); } catch (e) {}  // intentional: operatorPin is local-only, must not go through syncPush
+    return true;
+  }
+  const t = prompt('Enter your Operator PIN to ' + action + ':');
+  if (t === null) return false;
+  if (t === S.operatorPin) return true;
+  alert('Wrong Operator PIN.'); return false;
+}
+function opTakeControl() {
+  if (deviceRole() !== 'operator') return;
+  if (!opPinOk('take control')) return;
+  // Re-pull fresh from the cloud first so we never push stale local scratch up.
+  const go = () => { _operatorControl = true; applyRole(); flashMsg('🔴 You control ' + syncKey() + ' — changes are LIVE'); };
+  if (Sync.db) { try { Sync.db.once('value', s => { syncApplySnapshot(s.val()); go(); }); return; } catch (e) { console.warn('RaceDay sync:', e && e.message || e); } }
+  go();
+}
+function opBackToWatch() {
+  _operatorControl = false;
+  // Discard anything edited while controlling by re-pulling the live truth.
+  if (Sync.db) { try { Sync.db.once('value', s => syncApplySnapshot(s.val())); } catch (e) { console.warn('RaceDay sync:', e && e.message || e); } }
+  applyRole();
+  flashMsg('👁 Back to watching — read-only');
+}
+function opStop() {
+  if (!opPinOk('stop monitoring')) return;
+  _operatorControl = false;
+  if (Sync.db) { try { Sync.db.off(); } catch (e) {} Sync.db = null; }
+  Sync.connected = false;
+  S.sync.enabled = false;
+  setDeviceRole('admin');
+  try { localStorage.setItem(KEY, JSON.stringify(S)); } catch (e) {}  // intentional: sync just turned off, must not trigger syncPush
+  applyRole();
+  flashMsg('Stopped monitoring — back to your own device');
+}
+function renderOpBar() {
+  const bar = document.getElementById('opBar');
+  if (!bar) return;
+  const isOp = deviceRole() === 'operator';
+  document.body.classList.toggle('has-opbar', isOp);
+  document.body.classList.toggle('op-watch', isOp && !_operatorControl);
+  if (!isOp) { bar.style.display = 'none'; return; }
+  bar.style.display = '';
+  const code = esc(syncKey() || '—');
+  if (!_operatorControl) {
+    bar.className = 'op-watch-bar';
+    bar.innerHTML = '<span>👁 Watching <b>' + code + '</b> · read-only</span>'
+      + '<span style="display:flex;gap:6px"><button class="btn btn-sm" onclick="opTakeControl()">🔧 Take control</button>'
+      + '<button class="btn btn-sm" onclick="opStop()">✕ Stop</button></span>';
+  } else {
+    bar.className = 'op-ctrl-bar';
+    bar.innerHTML = '<span>🔴 CONTROLLING <b>' + code + '</b> · changes are LIVE</span>'
+      + '<span style="display:flex;gap:6px"><button class="btn btn-sm" onclick="opBackToWatch()">👁 Back to watching</button>'
+      + '<button class="btn btn-sm" onclick="opStop()">✕ Stop</button></span>';
+  }
 }
 function toggleKiosk(on) { S.settings.kioskReg = !!on; save(); applyRole(); }
 // Escape hatch for a device locked to register/scoring/tv (Admin tab hidden): PIN-gate, then pick a role.
@@ -3596,8 +3753,9 @@ function applyRole() {
   const kiosk = role === 'register' && S.settings && S.settings.kioskReg;
   document.getElementById('mainNav').style.display = kiosk ? 'none' : '';
   const esc = document.getElementById('roleEscape');
-  // All non-admin roles get the escape button (PIN-gated so spectators can't misuse it).
-  if (esc) esc.style.display = role === 'admin' ? 'none' : '';
+  // Admin needs no escape; operator uses its own bottom bar (its own PIN), not the
+  // track-admin-PIN escape — so hide the generic escape for both.
+  if (esc) esc.style.display = (role === 'admin' || role === 'operator') ? 'none' : '';
   // Hide the Lineups operator controls (TV / print / import / file toggle) for the read-only viewer.
   const ops = document.getElementById('gridOps'); if (ops) ops.style.display = role === 'viewer' ? 'none' : '';
   const vt = document.getElementById('viewToggle'); if (vt) vt.style.display = role === 'viewer' ? 'none' : '';
@@ -3608,9 +3766,10 @@ function applyRole() {
   const vg = document.getElementById('viewerGuide'); if (vg) vg.style.display = isV ? '' : 'none';
   const ht = document.getElementById('helpTitle'); if (ht) ht.textContent = isV ? 'How to read the lineups' : 'How to use RaceDay';
   const hsub = document.getElementById('helpSub'); if (hsub) hsub.style.display = isV ? 'none' : '';
+  renderOpBar();    // operator watch/control bar (hidden for other roles)
   renderHeader();   // refresh the sync/role badge
   if (!allowed.includes(curPage)) nav(allowed[0]);
-  if (role === 'tv' && !tvOn && typeof openTV === 'function') openTV();
+  if (role === 'tv' && !TV.on && typeof openTV === 'function') openTV();
 }
 
 function renderSyncCard() {
@@ -3647,6 +3806,12 @@ function renderSyncCard() {
       + '<button class="btn btn-sm" onclick="copyText(\'' + link('scoring') + '\',\'Scoring link\')">📋 Scoring tower link</button>'
       + '<button class="btn btn-sm" onclick="copyText(\'' + link('tv') + '\',\'TV link\')">📋 TV display link</button>'
       + '</div>';
+    // Operator link (private) — owner monitors this track and can take control.
+    h += '<div style="margin-top:14px;border-top:1px solid var(--line,#d4d4cf);padding-top:12px">'
+      + '<div class="slbl" style="margin:0 0 6px">🛡 Operator link (private)</div>'
+      + '<p style="font-size:12.5px;color:var(--muted);margin:0 0 8px">For YOUR own device only — keep it private. Opens this track in <b>watch</b> mode (read-only); tap <b>Take control</b> (your Operator PIN) to make live changes. Don\'t share it with the track.</p>'
+      + '<button class="btn btn-sm" onclick="copyText(\'' + link('operator') + '\',\'Operator link\')">📋 Copy operator link</button>'
+      + '</div>';
     // Spectator QR — fans scan to a read-only lineups page.
     h += '<div style="margin-top:14px;border-top:1px solid var(--line,#d4d4cf);padding-top:12px">'
       + '<div class="slbl" style="margin:0 0 6px">📱 Spectator QR</div>'
@@ -3659,6 +3824,13 @@ function renderSyncCard() {
     h += '<div style="margin-top:14px;border-top:1px solid var(--line,#d4d4cf);padding-top:12px">'
       + '<label style="font-size:13px;display:flex;align-items:center;gap:8px"><input type="checkbox" ' + (S.settings.kioskReg ? 'checked' : '') + ' onchange="toggleKiosk(this.checked)"> Self-serve kiosk mode on registration devices (hides the menu — racers only see sign-up)</label>'
       + '</div>';
+    if (role === 'admin') {
+      h += '<div style="margin-top:14px;border-top:1px solid var(--line,#d4d4cf);padding-top:12px">'
+        + '<div class="slbl" style="margin:0 0 6px">🔄 Fix mismatched devices</div>'
+        + '<p style="font-size:12.5px;color:var(--muted);margin:0 0 8px">If another device pulled old data from a reused code, push <b>this</b> device\'s race to the cloud so every device matches it. This device becomes the source of truth.</p>'
+        + '<button class="btn btn-sm" onclick="syncMakeSource()">Make this device the source of truth</button>'
+        + '</div>';
+    }
     h += '<p style="font-size:12px;color:var(--muted);margin-top:12px">Driver names, numbers, lineups and results sync to the cloud so every device matches. The admin PIN, license, and history stay on this device only.</p>';
     h += '<div style="margin-top:10px"><button class="btn btn-sm btn-danger" onclick="syncDisable()">Turn off sync on this device</button></div>';
   } else {
@@ -3702,14 +3874,34 @@ function printQRPoster() {
 }
 
 // Apply ?role= and ?sync= from a shared station link, then clean the URL.
+// One-shot per unique link: iOS home-screen icons relaunch from the exact URL they
+// were saved at, so a saved ?sync=/?role= link would otherwise re-apply on EVERY open
+// and keep undoing the user's later changes (turn off sync, switch role). We remember
+// the last link we consumed and skip an identical one on relaunch.
 function handleUrlParams() {
   try {
     const q = new URLSearchParams(location.search);
     const role = q.get('role'), sk = q.get('sync');
-    let changed = false;
-    if (role && ROLE_PAGES[role]) { setDeviceRole(role); changed = true; }
-    if (sk) { S.sync.key = normKey(sk); S.sync.enabled = true; save(); changed = true; }
-    if (changed) history.replaceState({}, '', location.pathname);
+    if (!role && !sk) return;
+    let applied = null;
+    try { applied = localStorage.getItem('rd_url_applied'); } catch (e) {}
+    if (location.search === applied) { history.replaceState({}, '', location.pathname); return; }
+    try { localStorage.setItem('rd_url_applied', location.search); } catch (e) {}
+    if (sk) {
+      const incoming = normKey(sk);
+      const hasLocal = S.raceDay.entries && S.raceDay.entries.length > 0;
+      const diff = incoming !== normKey(S.sync.key || '');
+      // A QR / share link silently REPLACES this device's race with the cloud copy.
+      // Warn before clobbering real local data (the demo-test / stale-pull footgun).
+      if (hasLocal && diff && !confirm('This link connects this device to the shared race for code "' + incoming + '".\n\nThis device\'s current entries and results will be REPLACED by the cloud copy. Continue?')) {
+        history.replaceState({}, '', location.pathname);
+        return;
+      }
+      S.sync.key = incoming; S.sync.enabled = true;
+    }
+    if (role && ROLE_PAGES[role]) setDeviceRole(role);
+    save();
+    history.replaceState({}, '', location.pathname);
   } catch (e) {}
 }
 
@@ -3917,8 +4109,6 @@ function impClsResolve(row) {
   }
   return { id: -1 };   // unknown class name, not creating
 }
-// Back-compat shim: a few callers just need the id.
-function impResolveClsId(row) { return impClsResolve(row).id; }
 // Best-effort class-name suggestion from a results filename: drop the extension and
 // the common event/session/round tokens, leaving the class words to confirm.
 function impClassFromFilename(fn) {
@@ -4387,7 +4577,7 @@ function impApply(opts) {
         hi = hof[cid][r.driver.id];
         if (hi === undefined) { skipped++; return; }
       }
-      if (r.finish != null) { S.raceDay.heatResults[k][Imp.heatSet + '_' + hi + '_' + r.driver.id] = r.finish; done++; }
+      if (r.finish != null) { S.raceDay.heatResults[k][Imp.heatSet + '_' + r.driver.id] = r.finish; done++; }
       else skipped++;
     });
   } else {
@@ -4461,11 +4651,11 @@ function openImport(target) {
   if (startIdx < 0) startIdx = 0;
   impSetClsMode(false);
   impSetStep(startIdx);
-  document.getElementById('impOverlay').classList.add('on');
+  showModal('impOverlay');
 }
 function closeImport() {
   impStopWatch();
-  document.getElementById('impOverlay').classList.remove('on');
+  hideModal('impOverlay');
   Imp = null;
   impPreview = [];
 }
@@ -4547,10 +4737,9 @@ function impSetClsMode(useCol, userPicked) {
 }
 
 // ---------- First-run setup wizard ----------
-let _wizStep = 1;
 function openSetupWizard() {
-  _wizStep = 1;
-  document.getElementById('setupWizard').style.display = 'flex';
+  UI.wizStep = 1;
+  showModal('setupWizard', 'flex');
   wizShow(1);
 }
 function wizShow(n) {
@@ -4571,15 +4760,15 @@ function wizShow(n) {
   if (n === 3) renderWizClasses();
   if (n === 4) { document.getElementById('wizPin1').value = ''; document.getElementById('wizPin2').value = ''; }
 }
-function wizBack() { if (_wizStep > 1) { _wizStep--; wizShow(_wizStep); } }
+function wizBack() { if (UI.wizStep > 1) { UI.wizStep--; wizShow(UI.wizStep); } }
 function wizNext() {
-  if (_wizStep === 2) {
+  if (UI.wizStep === 2) {
     const name = (document.getElementById('wizTrackName').value || '').trim();
     if (!name) { alert('Please enter your track name.'); return; }
     S.track.name = name; save(); renderHeader();
   }
-  if (_wizStep === 3) { if (!wizSaveClasses()) return; save(); renderHeader(); }
-  if (_wizStep === 4) {
+  if (UI.wizStep === 3) { if (!wizSaveClasses()) return; save(); renderHeader(); }
+  if (UI.wizStep === 4) {
     const p1 = document.getElementById('wizPin1').value.trim();
     const p2 = document.getElementById('wizPin2').value.trim();
     if (p1 || p2) {
@@ -4588,8 +4777,8 @@ function wizNext() {
       S.adminPin = p1; save();
     }
   }
-  if (_wizStep === 5) { document.getElementById('setupWizard').style.display = 'none'; return; }
-  _wizStep++; wizShow(_wizStep);
+  if (UI.wizStep === 5) { hideModal('setupWizard'); return; }
+  UI.wizStep++; wizShow(UI.wizStep);
 }
 function renderWizClasses() {
   const el = document.getElementById('wizClassList');
@@ -4634,7 +4823,7 @@ function wizRemoveLogo() {
 }
 
 // ---------- Live sync across tabs + init ----------
-window.addEventListener('storage', e => { if (e.key === KEY) { S = load(); renderHeader(); render(curPage); if (tvOn) tvRender(); } });
+window.addEventListener('storage', e => { if (e.key === KEY) { S = load(); renderHeader(); render(curPage); if (TV.on) tvRender(); } });
 handleUrlParams();
 renderHeader();
 renderFooter();
