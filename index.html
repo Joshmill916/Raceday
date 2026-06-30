@@ -3443,6 +3443,7 @@ document.addEventListener('keydown', e => { if (tvOn && e.key === 'Escape') clos
 // ---------- Demo data (for showing the app to a track) ----------
 function seedDemo() {
   if (!S.classes.length) { alert('Add at least one race class before loading a demo race day.'); return; }
+  if (syncOn()) { alert('This device is on Multi-device sync — loading demo here would push demo data to every synced device and replace the real race.\n\nTurn off sync on this device first (Admin → Multi-device sync), then load the demo.'); return; }
   if (!confirm('Load a demo race day with 25 sample drivers? Current entries are archived to history first (driver book is kept).')) return;
   archiveDay();
   resOverride = {};
@@ -3576,8 +3577,13 @@ function syncPushFull() {
 
 function syncActivate() {
   if (!FIREBASE_CONFIG.apiKey) { alert('Live sync is not set up on this build yet — the app owner adds the Firebase settings once to turn it on.'); return; }
-  const seed = normKey((S.license && S.license.name) || S.sync.key || '');
-  const k = prompt('Choose a sync code for this track. Every device for this track uses the same code:', seed || 'TRACK1');
+  // Keep an existing code as-is (devices/QR posters already use it); only suggest a
+  // fresh code for a brand-new setup, with a random suffix so two tracks can't collide
+  // in the same cloud room (e.g. two "Victory" tracks both landing in tracks/VICTORY).
+  const existing = normKey(S.sync.key || '');
+  const rand = Math.random().toString(36).replace(/[^a-z0-9]/g, '').slice(0, 3).toUpperCase();
+  const seed = existing || (normKey((S.license && S.license.name) || 'TRACK') + rand);
+  const k = prompt('Choose a sync code for this track. Every device for this track uses the SAME code — keep it unique so no other track lands in the same room:', seed);
   if (!k) return;
   S.sync.key = normKey(k);
   S.sync.enabled = true;
@@ -3591,11 +3597,23 @@ function syncJoin() {
   if (!FIREBASE_CONFIG.apiKey) { alert('Live sync is not set up on this build yet.'); return; }
   const k = prompt('Enter the track sync code shown on the main (admin) device:');
   if (!k) return;
+  // Joining pulls the cloud copy over this device — warn if real local data is at stake.
+  if (S.raceDay.entries && S.raceDay.entries.length && !confirm('Joining code "' + normKey(k) + '" will replace this device\'s current entries and results with the cloud copy. Continue?')) return;
   S.sync.key = normKey(k);
   S.sync.enabled = true;
   save();
   initSync();
   renderSyncCard();
+}
+// Force the cloud room to match THIS device, overwriting stale data other devices may
+// have pulled from a reused code. Uses update (not delete) so there's no empty-room
+// window where another synced device could re-seed it with its own stale state.
+function syncMakeSource() {
+  if (!syncOn() || !_syncDb) { alert('Turn on Multi-device sync first.'); return; }
+  if (deviceRole() === 'viewer') { alert('Spectator devices can\'t change the shared race.'); return; }
+  if (!confirm('Push THIS device\'s race data to the cloud, replacing what every other synced device is showing?\n\nUse this when another device pulled old data from a reused code — this device becomes the source of truth.')) return;
+  syncPushFull();
+  flashMsg('This device is now the source of truth ✓');
 }
 function syncDisable() {
   if (!confirm('Turn off live sync on this device? It will go back to working on its own. The track\'s synced data stays in the cloud.')) return;
@@ -3703,6 +3721,13 @@ function renderSyncCard() {
     h += '<div style="margin-top:14px;border-top:1px solid var(--line,#d4d4cf);padding-top:12px">'
       + '<label style="font-size:13px;display:flex;align-items:center;gap:8px"><input type="checkbox" ' + (S.settings.kioskReg ? 'checked' : '') + ' onchange="toggleKiosk(this.checked)"> Self-serve kiosk mode on registration devices (hides the menu — racers only see sign-up)</label>'
       + '</div>';
+    if (role === 'admin') {
+      h += '<div style="margin-top:14px;border-top:1px solid var(--line,#d4d4cf);padding-top:12px">'
+        + '<div class="slbl" style="margin:0 0 6px">🔄 Fix mismatched devices</div>'
+        + '<p style="font-size:12.5px;color:var(--muted);margin:0 0 8px">If another device pulled old data from a reused code, push <b>this</b> device\'s race to the cloud so every device matches it. This device becomes the source of truth.</p>'
+        + '<button class="btn btn-sm" onclick="syncMakeSource()">Make this device the source of truth</button>'
+        + '</div>';
+    }
     h += '<p style="font-size:12px;color:var(--muted);margin-top:12px">Driver names, numbers, lineups and results sync to the cloud so every device matches. The admin PIN, license, and history stay on this device only.</p>';
     h += '<div style="margin-top:10px"><button class="btn btn-sm btn-danger" onclick="syncDisable()">Turn off sync on this device</button></div>';
   } else {
@@ -3750,10 +3775,22 @@ function handleUrlParams() {
   try {
     const q = new URLSearchParams(location.search);
     const role = q.get('role'), sk = q.get('sync');
-    let changed = false;
-    if (role && ROLE_PAGES[role]) { setDeviceRole(role); changed = true; }
-    if (sk) { S.sync.key = normKey(sk); S.sync.enabled = true; save(); changed = true; }
-    if (changed) history.replaceState({}, '', location.pathname);
+    if (!role && !sk) return;
+    if (sk) {
+      const incoming = normKey(sk);
+      const hasLocal = S.raceDay.entries && S.raceDay.entries.length > 0;
+      const diff = incoming !== normKey(S.sync.key || '');
+      // A QR / share link silently REPLACES this device's race with the cloud copy.
+      // Warn before clobbering real local data (the demo-test / stale-pull footgun).
+      if (hasLocal && diff && !confirm('This link connects this device to the shared race for code "' + incoming + '".\n\nThis device\'s current entries and results will be REPLACED by the cloud copy. Continue?')) {
+        history.replaceState({}, '', location.pathname);
+        return;
+      }
+      S.sync.key = incoming; S.sync.enabled = true;
+    }
+    if (role && ROLE_PAGES[role]) setDeviceRole(role);
+    save();
+    history.replaceState({}, '', location.pathname);
   } catch (e) {}
 }
 
