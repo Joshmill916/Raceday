@@ -1,0 +1,39 @@
+{
+  "hooks": {
+    "PostToolUse": [
+      {
+        "matcher": "Edit|Write",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "FILE=$(echo \"$CLAUDE_TOOL_INPUT\" | python3 -c \"import json,sys; d=json.load(sys.stdin); print(d.get('file_path',''))\" 2>/dev/null || echo ''); if [[ \"$FILE\" == *index.html* ]]; then python3 -c \"import re; html=open('index.html').read(); blocks=re.findall(r'<script[^>]*>(.*?)</script>',html,re.DOTALL); open('/tmp/check.js','w').write(max(blocks,key=len))\" && node --check /tmp/check.js 2>&1 | sed 's|/tmp/check.js|index.html (JS)|g' && echo 'JS syntax OK'; fi"
+          }
+        ]
+      }
+    ]
+  },
+  "permissions": {
+    "allow": [
+      "Bash(git add *)",
+      "Bash(git branch*)",
+      "Bash(git checkout *)",
+      "Bash(git commit*)",
+      "Bash(git diff*)",
+      "Bash(git fetch *)",
+      "Bash(git log *)",
+      "Bash(git merge *)",
+      "Bash(git push *)",
+      "Bash(git show *)",
+      "Bash(git status*)",
+      "Bash(git tag *)",
+      "Bash(node --check *)",
+      "Bash(python3 *)",
+      "Bash(python3 -c *)",
+      "Bash(diff *)",
+      "Bash(grep *)",
+      "Bash(wc *)",
+      "Bash(ls *)",
+      "Bash(mkdir *)"
+    ]
+  }
+}

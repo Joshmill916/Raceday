@@ -7,5 +7,5 @@ record-demo.js
 add-audio.py
 videos/
 
-# Claude Code internal directory — settings and worktrees, not part of the app
-.claude/
+# Claude Code worktrees (ephemeral, not part of the app)
+.claude/worktrees/
