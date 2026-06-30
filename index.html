@@ -989,6 +989,13 @@
   </div>
 </div>
 
+<div id="classInfoCard" class="vdc-overlay" style="display:none" onclick="if(event.target===this)hideClassCard()">
+  <div class="vdc-box">
+    <div id="cicContent"></div>
+    <span class="vdc-close" onclick="hideClassCard()">✕ Close</span>
+  </div>
+</div>
+
 <script>
 // ---------- State ----------
 const KEY = 'raceday_v1';
@@ -1076,7 +1083,7 @@ function defaults() {
     settings: { maxHeat: 8, maxBMain: 12, maxFeature: 20, transfers: 2, gridStyle: 'double', heatFill: 'alternate', bmainMode: 'single', bmainCount: 2, points: { mode: 'fixed', table: [10, 8, 6, 5, 4, 3, 2, 1], beyond: 0 }, requireConsent: true, captureConsentIP: true },
     raceDay: { date: today(), entries: [], heatResults: {}, pointsRace: {}, resultGov: {}, resultVersions: {} },  // entries: {driverId, classId, pill}; resultGov: per-class {status,locked}; resultVersions: per-class snapshots
     nextId: 100,
-    schemaVersion: 1,
+    schemaVersion: 2,
     sync: { enabled: false, key: '' }             // live multi-device sync (off until activated)
   };
 }
@@ -1118,8 +1125,16 @@ function migrate(s) {
     };
     if (s.raceDay && s.raceDay.heatResults) Object.values(s.raceDay.heatResults).forEach(fixHeatKeys);
     if (s.raceDay && s.raceDay.resultVersions) Object.values(s.raceDay.resultVersions).forEach(vers => { if (Array.isArray(vers)) vers.forEach(v => v && fixHeatKeys(v.data)); });
+    s.schemaVersion = 1;
   }
-  s.schemaVersion = 1;
+  if (s.schemaVersion < 2) {
+    if (s.classes) s.classes.forEach(c => {
+      if (!c.description) c.description = '';
+      if (!c.ageGroup) c.ageGroup = '';
+      if (!c.specs) c.specs = '';
+    });
+    s.schemaVersion = 2;
+  }
   return s;
 }
 function load() {
@@ -1943,7 +1958,7 @@ function renderViewerLineups() {
 
   let h = '<div class="vw-pick"><label>Class</label><select onchange="setViewClass(this.value)">'
     + S.classes.map(c => '<option value="' + c.id + '"' + (c.id === UI.viewClsId ? ' selected' : '') + '>' + esc(c.name) + '</option>').join('')
-    + '</select></div>';
+    + '</select><button class="btn btn-sm" style="flex-shrink:0;padding:5px 12px" onclick="showClassCard(' + UI.viewClsId + ')" title="About this class">ℹ About</button></div>';
   const stages = [['qual', 'Qualifying'], ['heats', 'Heats'], ['bmain', 'B-Mains'], ['feat', 'Feature']];
   h += '<div class="vw-tabs">' + stages.map(([k, lbl]) =>
     '<button class="' + (UI.viewStage === k ? 'on' : '') + '" onclick="setViewStage(\'' + k + '\')">' + lbl + '</button>').join('') + '</div>';
@@ -2001,6 +2016,22 @@ function showViewerCard(id) {
   showModal('viewerDriverCard', 'flex');
 }
 function hideViewerCard() { hideModal('viewerDriverCard'); }
+function showClassCard(id) {
+  const c = classById(id); if (!c) return;
+  const entered = S.raceDay.entries.filter(e => e.classId === id).length;
+  const desc = (c.description || '').trim();
+  const age = (c.ageGroup || '').trim();
+  const specs = (c.specs || '').trim();
+  document.getElementById('cicContent').innerHTML =
+    '<div style="font-family:var(--display);font-size:22px;font-weight:800;margin-bottom:6px">' + esc(c.name) + '</div>'
+    + (age ? '<div style="font-size:13px;color:var(--muted);margin-bottom:4px">👤 ' + esc(age) + '</div>' : '')
+    + (specs ? '<div style="font-size:13px;color:var(--muted);margin-bottom:4px">⚙️ ' + esc(specs) + '</div>' : '')
+    + (entered ? '<div style="font-size:13px;color:var(--muted);margin-bottom:10px">🏁 ' + entered + ' driver' + (entered === 1 ? '' : 's') + ' entered today</div>' : '')
+    + (desc ? '<div style="font-size:14px;line-height:1.6;color:var(--ink);border-top:1px solid var(--line);padding-top:12px;margin-top:4px">' + esc(desc).replace(/\n/g, '<br>') + '</div>'
+            : '<div style="font-size:13px;color:var(--muted);font-style:italic">No class description added yet.</div>');
+  showModal('classInfoCard', 'flex');
+}
+function hideClassCard() { hideModal('classInfoCard'); }
 
 function printHeats() {
   let html = '<!DOCTYPE html><html><head><title>Heat Assignments</title><style>'
@@ -3014,8 +3045,20 @@ function renderClsList() {
       +   '<label style="margin:0;display:flex;align-items:center;gap:4px">B-main'
       +     '<input class="inline-num" type="number" min="2" max="30" value="' + (c.maxBMain || '') + '" placeholder="' + S.settings.maxBMain + '" onchange="setClassSize(' + c.id + ',\'maxBMain\',this.value)"></label>'
       + '</span>'
-      + '<button class="btn btn-sm btn-danger" onclick="delClass(' + c.id + ')">Remove</button></div>';
+      + '<button class="btn btn-sm btn-danger" onclick="delClass(' + c.id + ')">Remove</button>'
+      + '<button class="btn btn-sm" onclick="this.parentElement.nextElementSibling.style.display=this.parentElement.nextElementSibling.style.display===\'none\'?\'block\':\'none\'">'
+        + ((c.description || c.ageGroup || c.specs) ? '📝 Edit info' : '📝 Add info') + '</button></div>'
+      + '<div style="display:none;padding:10px 0 6px 40px;display:none"><div style="display:grid;gap:8px">'
+        + '<label style="font-size:12px">Age group / eligibility<input type="text" value="' + esc(c.ageGroup || '') + '" placeholder="e.g. Ages 8–14" style="display:block;width:100%;margin-top:3px" onchange="saveClassInfo(' + c.id + ',\'ageGroup\',this.value)"></label>'
+        + '<label style="font-size:12px">Kart / engine specs<input type="text" value="' + esc(c.specs || '') + '" placeholder="e.g. Yamaha KT100, 55 lb min weight" style="display:block;width:100%;margin-top:3px" onchange="saveClassInfo(' + c.id + ',\'specs\',this.value)"></label>'
+        + '<label style="font-size:12px">Description for spectators<textarea rows="3" style="display:block;width:100%;margin-top:3px;resize:vertical" placeholder="Explain what makes this class unique — who races it, what the racing is like, anything fans should know." onchange="saveClassInfo(' + c.id + ',\'description\',this.value)">' + esc(c.description || '') + '</textarea></label>'
+      + '</div></div>';
   }).join('');
+}
+function saveClassInfo(id, field, val) {
+  const c = classById(id); if (!c) return;
+  c[field] = val.trim();
+  save();
 }
 // Per-class heat-start format. Standard = fastest qualifier on pole (no invert).
 // 'field'/'heat' = invert the top N qualifiers (whole field, or within each heat).
@@ -3071,7 +3114,7 @@ function addClass() {
   const name = nameEl.value.trim();
   if (!name) return;
   const maxPill = Math.max(2, parseInt(maxEl.value) || 200);
-  S.classes.push({ id: Date.now(), name, maxPill });
+  S.classes.push({ id: Date.now(), name, maxPill, description: '', ageGroup: '', specs: '' });
   rememberClass(name, maxPill);
   nameEl.value = ''; maxEl.value = '200';
   save(); renderClsList(); renderClsLib();
