@@ -1076,6 +1076,18 @@ function migrate(s) {
   if (!s.audit) s.audit = [];
   if (!s.sync) s.sync = { enabled: false, key: '' };
   if (s.roster) s.roster.forEach(d => { if (d.noPoints == null) d.noPoints = false; });
+  // Heat finish keys dropped the volatile heat-index segment (h1_<hi>_<id> → h1_<id>)
+  // so editing entries after scoring no longer orphans a driver's finishes. Lossless:
+  // a driver has at most one h1/h2 key, so stripping the index can't collide.
+  const fixHeatKeys = obj => {
+    if (!obj) return;
+    Object.keys(obj).forEach(key => {
+      const m = key.match(/^(h[12])_\d+_(\d+)$/);
+      if (m) { const nk = m[1] + '_' + m[2]; if (obj[nk] === undefined) obj[nk] = obj[key]; delete obj[key]; }
+    });
+  };
+  if (s.raceDay && s.raceDay.heatResults) Object.values(s.raceDay.heatResults).forEach(fixHeatKeys);
+  if (s.raceDay && s.raceDay.resultVersions) Object.values(s.raceDay.resultVersions).forEach(vers => { if (Array.isArray(vers)) vers.forEach(v => v && fixHeatKeys(v.data)); });
   return s;
 }
 function load() {
@@ -1719,6 +1731,17 @@ function register() {
     });
     if (clash) { err.style.display = ''; err.textContent = 'Number #' + cur.num + ' is already racing in ' + classById(c.id).name + '. Pick a different number for that class.'; return; }
   }
+  // A returning driver changing their number rewrites it in EVERY class they already
+  // race today — so validate the new number against those classes too, not just the
+  // newly-selected ones, or we'd silently create a duplicate kart # elsewhere.
+  if (match && String(match.num).toLowerCase() !== cur.num.toLowerCase()) {
+    const myClassIds = [...new Set(S.raceDay.entries.filter(e => e.driverId === match.id).map(e => e.classId))];
+    for (const cid of myClassIds) {
+      const clash = S.raceDay.entries.find(e => e.classId === cid && e.driverId !== match.id
+        && String((driverById(e.driverId) || {}).num).toLowerCase() === cur.num.toLowerCase());
+      if (clash) { err.style.display = ''; err.textContent = 'Number #' + cur.num + ' is already racing in ' + classById(cid).name + ', where you\'re also entered. Pick a different number.'; return; }
+    }
+  }
   // make sure every selected class still has pills left
   for (const c of sel) {
     if (drawPill(c.id) === null) { err.style.display = ''; err.textContent = 'All pills are taken in ' + c.name + '. The admin can raise that class\'s pill count.'; return; }
@@ -2022,8 +2045,8 @@ function calcStandings(clsId) {
   const res = getRes(clsId);
   return racers.map(r => {
     const hi = heatOf[r.id], n = set1[hi].length;
-    const f1 = res['h1_' + hi + '_' + r.id];
-    const f2 = heats === 2 ? res['h2_' + hi + '_' + r.id] : undefined;   // 1-heat classes ignore set 2
+    const f1 = res['h1_' + r.id];
+    const f2 = heats === 2 ? res['h2_' + r.id] : undefined;   // 1-heat classes ignore set 2
     const scored = (f1 != null ? 1 : 0) + (f2 != null ? 1 : 0);
     const pts = (f1 != null ? finPoints(f1, n) : 0) + (f2 != null ? finPoints(f2, n) : 0);
     return { ...r, pts, scored, f1, f2 };
@@ -2075,7 +2098,11 @@ function featureData(clsId) {
     // (B1-1st, B2-1st, B1-2nd, B2-2nd …) instead of stacking one whole main ahead of the next.
     let transferred = [];
     for (let r = 0; r < transfers; r++) madeLists.forEach(list => { if (list[r]) transferred.push(list[r]); });
-    return { mode, locked, mains, transferred, transfers, toFeatureSpots: Math.min(totalT, remaining.length, maxFeature - locked.length) };
+    // Never seat more transferees than open feature spots — otherwise the posted/TV
+    // feature would exceed maxFeature and disagree with the results-entry screen.
+    const toFeatureSpots = Math.min(totalT, remaining.length, maxFeature - locked.length);
+    transferred = transferred.slice(0, toFeatureSpots);
+    return { mode, locked, mains, transferred, transfers, toFeatureSpots };
   }
 
   if (mode === 'cascade') {
@@ -2157,11 +2184,10 @@ function seriesStandings(className) {
   };
   S.history.forEach(hd => hd.classes.forEach(c => {
     if (c.name.toLowerCase() !== key || !c.points) return;
-    c.points.forEach(p => {
-      const d = driverById(p.driverId);
-      if (d && d.noPoints) return;
-      add(p.driverId, p.name, p.num, p.pts);
-    });
+    // History rows are already filtered at archive time (a noPoints driver never lands
+    // in c.points), so don't re-filter here on the *current* roster flag — doing so would
+    // retroactively erase points a driver legitimately earned before being marked noPoints.
+    c.points.forEach(p => add(p.driverId, p.name, p.num, p.pts));
   }));
   const cls = S.classes.find(c => c.name.toLowerCase() === key);
   if (cls) {
@@ -2244,6 +2270,15 @@ function renderPoints() {
   el.innerHTML = h;
 }
 
+// Flags when two drivers in the same group (heat / main / feature) share a finishing
+// position — the most common race-night data-entry slip. Returns a badge or ''.
+function dupFinishWarn(res, ids, keyFn) {
+  const counts = {};
+  ids.forEach(id => { const v = res[keyFn(id)]; if (typeof v === 'number' && v > 0) counts[v] = (counts[v] || 0) + 1; });
+  const dups = Object.keys(counts).filter(v => counts[v] > 1).sort((a, b) => a - b).map(v => 'P' + v);
+  return dups.length ? '<span class="transfer-tag" style="background:#fde2e2;color:#b42318">⚠ duplicate ' + dups.join(', ') + '</span>' : '';
+}
+
 function finSelect(clsId, rk, n, val) {
   let o = '<option value="">—</option>';
   for (let i = 1; i <= n; i++) o += '<option value="' + i + '"' + (val == i ? ' selected' : '') + '>' + i + '</option>';
@@ -2255,9 +2290,10 @@ function heatEntryBlock(clsId, set, heats, label, invClass) {
   const res = getRes(clsId);
   let h = '<div class="slbl">' + label + '</div>';
   heats.forEach((heat, hi) => {
-    h += '<div class="hb"><div class="hh' + invClass + '"><span>Heat ' + (hi + 1) + '</span><small>pick each driver\'s finish</small></div>';
+    h += '<div class="hb"><div class="hh' + invClass + '"><span>Heat ' + (hi + 1) + '</span><small>pick each driver\'s finish</small>'
+      + dupFinishWarn(res, heat.map(r => r.id), id => set + '_' + id) + '</div>';
     heat.forEach(r => {
-      const rk = set + '_' + hi + '_' + r.id;
+      const rk = set + '_' + r.id;
       h += '<div class="hr"><div class="nm"><b>' + esc(r.name) + '</b> <span>#' + esc(r.num) + '</span></div>'
         + finSelect(clsId, rk, heat.length, res[rk]) + '</div>';
     });
@@ -2277,9 +2313,11 @@ function renderClassResults(clsId) {
   let h = resultGovBar(clsId);
   const locked = resLocked(clsId);
   h += '<div style="' + (locked ? 'opacity:.55;pointer-events:none' : '') + '">';
-  const _ftd = featureData(clsId), _ftFin = featureFinish(clsId);
-  const _ftField = _ftd.locked.length + _ftd.transferred.length;
-  const _featureDone = _ftField > 0 && _ftFin.length >= _ftField;
+  const _ftd = featureData(clsId);
+  // A DNF/DNS/DQ is a finished result for completeness — count any stored feature
+  // value, not just numeric ones, so one DNF can't permanently lock the points toggle.
+  const _ftField = [...(_ftd.locked), ...(_ftd.transferred)];
+  const _featureDone = _ftField.length > 0 && _ftField.every(r => res['ft_' + r.id] != null);
   h += '<label style="display:flex;align-items:center;gap:8px;margin:0 0 6px;font-size:13.5px;font-weight:600;cursor:pointer'
     + (_featureDone ? '' : ';opacity:.55') + '">'
     + '<input type="checkbox" style="width:18px;height:18px"'
@@ -2314,7 +2352,8 @@ function renderClassResults(clsId) {
 
   fd.mains.forEach(m => {
     const feedTxt = m.feeds === 'the feature' ? 'Feature' : m.feeds;
-    h += '<div class="slbl">' + esc(m.label) + '</div><div class="hb"><div class="hh bmain"><span>' + esc(m.label) + ' lineup</span><small>top ' + fd.transfers + ' → ' + esc(feedTxt) + '</small></div>';
+    h += '<div class="slbl">' + esc(m.label) + '</div><div class="hb"><div class="hh bmain"><span>' + esc(m.label) + ' lineup</span><small>top ' + fd.transfers + ' → ' + esc(feedTxt) + '</small>'
+      + dupFinishWarn(res, m.drivers.map(r => r.id), id => bmKey(m.key, id)) + '</div>';
     m.drivers.forEach((r, i) => {
       const made = m.made.some(t => t.id === r.id);
       h += '<div class="hr"><div class="pnum">' + (i + 1) + '</div>'
@@ -2337,7 +2376,8 @@ function renderClassResults(clsId) {
   };
   h += '<div class="slbl">Feature lineup &amp; finish</div><div class="hb"><div class="hh feat"><span>🏁 Feature</span><small>'
     + (fd.mains.length ? fd.locked.length + ' on heat totals + ' + fd.toFeatureSpots + ' transferring up' : 'lined up by heat totals')
-    + (isPointsRace(clsId) ? ' · finishes award series points' : '') + '</small></div>';
+    + (isPointsRace(clsId) ? ' · finishes award series points' : '') + '</small>'
+    + dupFinishWarn(res, [...fd.locked, ...fd.transferred].map(r => r.id), id => 'ft_' + id) + '</div>';
   let pos = 0;
   fd.locked.forEach(s => {
     pos++;
@@ -2408,7 +2448,10 @@ function buildSnapshot() {
       feature: [...fd.locked, ...fd.transferred].map(s => ({ name: s.name, num: s.num })),
       featureFinish: featureFinish(cls.id).map(f => ({ driverId: f.id, name: f.name, num: f.num, fin: f.fin })),
       pointsRace: isPointsRace(cls.id),
-      points: dp ? classRacers(cls.id).map(r => ({ driverId: r.id, name: r.name, num: r.num, pts: dp[r.id] || 0 })) : null
+      // dayPoints drops noPoints drivers from dp, so filtering on dp[r.id] != null keeps
+      // them out of the archived points entirely (they never score history). A genuine
+      // last-place scorer keeps pts 0 (beyond), since 0 != null.
+      points: dp ? classRacers(cls.id).filter(r => dp[r.id] != null).map(r => ({ driverId: r.id, name: r.name, num: r.num, pts: dp[r.id] })) : null
     });
   });
   return snap;
@@ -2486,7 +2529,7 @@ function saveImportedRace() {
   if (!cls) { showImpMsg('Please select a class.', 'error'); return; }
   if (!_impRows.length) { showImpMsg('Add at least one driver.', 'error'); return; }
   // Check for duplicate: same date + class already in history
-  const dup = S.history.some(hd => hd.date === date && hd.classes.some(c => c.name === cls.name));
+  const dup = S.history.some(hd => hd.date === date && hd.classes.some(c => c.name.toLowerCase() === cls.name.toLowerCase()));
   if (dup) { alert('A history entry for ' + cls.name + ' on ' + date + ' already exists.\n\nEdit or delete the existing entry instead.'); return; }
   const entry = {
     date: date,
@@ -3399,6 +3442,7 @@ document.addEventListener('keydown', e => { if (tvOn && e.key === 'Escape') clos
 
 // ---------- Demo data (for showing the app to a track) ----------
 function seedDemo() {
+  if (!S.classes.length) { alert('Add at least one race class before loading a demo race day.'); return; }
   if (!confirm('Load a demo race day with 25 sample drivers? Current entries are archived to history first (driver book is kept).')) return;
   archiveDay();
   resOverride = {};
@@ -4387,7 +4431,7 @@ function impApply(opts) {
         hi = hof[cid][r.driver.id];
         if (hi === undefined) { skipped++; return; }
       }
-      if (r.finish != null) { S.raceDay.heatResults[k][Imp.heatSet + '_' + hi + '_' + r.driver.id] = r.finish; done++; }
+      if (r.finish != null) { S.raceDay.heatResults[k][Imp.heatSet + '_' + r.driver.id] = r.finish; done++; }
       else skipped++;
     });
   } else {
