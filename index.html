@@ -32,6 +32,8 @@
     --pit-red-bg: #fdeeec;
     --display: 'Saira Condensed', 'Arial Narrow', sans-serif;
     --body: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+    --text: var(--ink);       /* alias used by tile/tab rules */
+    --accent: #0a7;           /* green accent for active states */
   }
   * { box-sizing: border-box; margin: 0; padding: 0; }
   html { -webkit-text-size-adjust: 100%; }
@@ -70,7 +72,7 @@
   .tile-danger:hover { background:#fff0f0; }
   #adminTabs { display:flex; align-items:center; gap:6px; flex-wrap:wrap; margin:12px 0 16px; padding-bottom:12px; border-bottom:1px solid var(--line); }
   .adm-tab { padding:5px 13px; border:1px solid var(--line); border-radius:20px; background:none; cursor:pointer; font-size:13px; font-weight:500; color:var(--muted); }
-  .adm-tab.active, .adm-tab:hover { background:var(--accent,#0a7); color:#fff; border-color:transparent; }
+  .adm-tab.active, .adm-tab:hover { background:var(--accent); color:#fff; border-color:transparent; }
   .adm-sec { display:none; }
   /* Results governance */
   .gov-bar { border: 1px solid var(--line); border-radius: 12px; padding: 10px 12px; margin-bottom: 14px; background: #fafaf8; }
@@ -228,7 +230,6 @@
   /* While watching, lock the consequential mutators so a stray tap can't change even the
      local view — the track itself is already protected at the sync layer. */
   body.op-watch .fin-sel, body.op-watch .btn-primary, body.op-watch .btn-danger { pointer-events:none !important; opacity:.5; }
-  #impOverlay.on { display:block; }
   .imp-panel { max-width:680px; margin:0 auto; background:var(--card); border-radius:16px; overflow:hidden; box-shadow:0 20px 60px rgba(0,0,0,.4); }
   .imp-hd { display:flex; align-items:center; justify-content:space-between; gap:10px; padding:14px 18px; background:var(--asphalt); color:#fff; font-family:var(--display); font-weight:700; }
   .imp-body { padding:18px; }
@@ -442,7 +443,7 @@
             <div style="display:flex;align-items:center;gap:10px;flex-wrap:wrap">
               <img id="logoPrev" alt="Logo preview" style="display:none;height:52px;max-width:130px;object-fit:contain;border:1px solid var(--line);border-radius:8px;background:#fff;padding:4px">
               <button class="btn btn-sm" onclick="document.getElementById('logoFile').click()">Upload logo</button>
-              <button class="btn btn-sm btn-danger" id="logoRemove" style="display:none" onclick="removeLogo()">Remove</button>
+              <button class="btn btn-sm btn-danger" id="logoRemove" style="display:none" onclick="delLogo()">Remove</button>
               <input id="logoFile" type="file" accept="image/*" style="display:none" onchange="uploadLogo(this)">
             </div>
           </div>
@@ -524,7 +525,7 @@
           <input id="ptsBeyond" type="number" min="0" max="999" onchange="savePoints()" />
         </div>
       </div>
-      <p id="ptsLinearNote" style="display:none;font-size:12px;color:var(--accent,#0a7);margin-top:8px"></p>
+      <p id="ptsLinearNote" style="display:none;font-size:12px;color:var(--accent);margin-top:8px"></p>
       <p style="font-size:12px;color:var(--muted);margin-top:8px">Pick a known system or type your own — editing the list makes it "Custom". Feature finish decides points; make the list as long as your biggest feature. Anyone finishing past it, not making the feature, or scoring DNF/DNS/DQ gets the "everyone else" value (use it for show-up points, or 0). Classes count by default; untick "counts toward the points series" on the Results tab for non-points days.</p>
     </div>
     </section>
@@ -914,7 +915,7 @@
 <!-- First-run setup wizard -->
 <div id="setupWizard" class="wiz-overlay" style="display:none">
   <div class="wiz-box" style="position:relative">
-    <button onclick="document.getElementById('setupWizard').style.display='none'" style="position:absolute;top:12px;right:12px;background:none;border:none;font-size:20px;line-height:1;cursor:pointer;color:var(--muted);padding:2px 6px" title="Close">✕</button>
+    <button onclick="hideModal('setupWizard')" style="position:absolute;top:12px;right:12px;background:none;border:none;font-size:20px;line-height:1;cursor:pointer;color:var(--muted);padding:2px 6px" title="Close">✕</button>
     <div class="wiz-title">RaceDay Setup</div>
     <div class="wiz-progress">Step <span id="wizStepNum">1</span> of 5</div>
     <div id="wizS1">
@@ -1063,6 +1064,7 @@ function defaults() {
     settings: { maxHeat: 8, maxBMain: 12, maxFeature: 20, transfers: 2, gridStyle: 'double', heatFill: 'alternate', bmainMode: 'single', bmainCount: 2, points: { mode: 'fixed', table: [10, 8, 6, 5, 4, 3, 2, 1], beyond: 0 }, requireConsent: true, captureConsentIP: true },
     raceDay: { date: today(), entries: [], heatResults: {}, pointsRace: {}, resultGov: {}, resultVersions: {} },  // entries: {driverId, classId, pill}; resultGov: per-class {status,locked}; resultVersions: per-class snapshots
     nextId: 100,
+    schemaVersion: 1,
     sync: { enabled: false, key: '' }             // live multi-device sync (off until activated)
   };
 }
@@ -1094,15 +1096,18 @@ function migrate(s) {
   // Heat finish keys dropped the volatile heat-index segment (h1_<hi>_<id> → h1_<id>)
   // so editing entries after scoring no longer orphans a driver's finishes. Lossless:
   // a driver has at most one h1/h2 key, so stripping the index can't collide.
-  const fixHeatKeys = obj => {
-    if (!obj) return;
-    Object.keys(obj).forEach(key => {
-      const m = key.match(/^(h[12])_\d+_(\d+)$/);
-      if (m) { const nk = m[1] + '_' + m[2]; if (obj[nk] === undefined) obj[nk] = obj[key]; delete obj[key]; }
-    });
-  };
-  if (s.raceDay && s.raceDay.heatResults) Object.values(s.raceDay.heatResults).forEach(fixHeatKeys);
-  if (s.raceDay && s.raceDay.resultVersions) Object.values(s.raceDay.resultVersions).forEach(vers => { if (Array.isArray(vers)) vers.forEach(v => v && fixHeatKeys(v.data)); });
+  if (!s.schemaVersion || s.schemaVersion < 1) {
+    const fixHeatKeys = obj => {
+      if (!obj) return;
+      Object.keys(obj).forEach(key => {
+        const m = key.match(/^(h[12])_\d+_(\d+)$/);
+        if (m) { const nk = m[1] + '_' + m[2]; if (obj[nk] === undefined) obj[nk] = obj[key]; delete obj[key]; }
+      });
+    };
+    if (s.raceDay && s.raceDay.heatResults) Object.values(s.raceDay.heatResults).forEach(fixHeatKeys);
+    if (s.raceDay && s.raceDay.resultVersions) Object.values(s.raceDay.resultVersions).forEach(vers => { if (Array.isArray(vers)) vers.forEach(v => v && fixHeatKeys(v.data)); });
+  }
+  s.schemaVersion = 1;
   return s;
 }
 function load() {
@@ -1211,6 +1216,7 @@ function recalcPoints(clsId) {
   if (typeof flashMsg === 'function') flashMsg('Points recalculated from current finishes.');
 }
 
+const UI = { viewClsId: null, viewStage: 'qual', ptsTab: null, ptsNames: [], histOpen: null, admOpen: null, pillChoiceCb: null, wizStep: 1 };
 let S = load();
 let cur = null;          // driver mid-signup: {name, num}
 let curPage = 'signup';
@@ -1300,7 +1306,7 @@ function nav(p) {
   const allowed = ROLE_PAGES[deviceRole()] || ROLE_PAGES.admin;
   if (!allowed.includes(p)) return;
   if (p === 'admin' && !adminOk()) return;
-  if (p === 'admin') _admOpen = null;
+  if (p === 'admin') UI.admOpen = null;
   curPage = p;
   document.querySelectorAll('.page').forEach(el => el.classList.remove('active'));
   document.querySelectorAll('#mainNav button').forEach(b => b.classList.remove('active'));
@@ -1597,7 +1603,7 @@ function activateLic() {
   renderLicCard(); renderLicBanner();
   alert('✅ Activated — licensed to ' + parts[0] + ', ' + fmtExp(parts[1]) + '.');
 }
-function removeLic() {
+function delLic() {
   if (!confirm('Remove this license? The app goes back to free-trial rules on this device.')) return;
   S.license = null;
   save();
@@ -1614,7 +1620,7 @@ function renderLicCard() {
     else line = '✅ Licensed to <b>' + esc(st.name) + '</b> — ' + esc(fmtExp(st.exp));
     h = '<div style="display:flex;gap:10px;flex-wrap:wrap;align-items:center">'
       + '<span style="font-size:13.5px">' + line + '</span>'
-      + '<button class="btn btn-sm btn-danger" style="margin-left:auto" onclick="removeLic()">Remove license</button></div>';
+      + '<button class="btn btn-sm btn-danger" style="margin-left:auto" onclick="delLic()">Remove license</button></div>';
     if (st.plan === 'packet') h += '<p style="font-size:12px;color:var(--muted);margin-top:8px">A race day is counted the first time you add an entry that day. Re-entering this same code never resets the count.</p>';
   } else {
     h = '<p style="font-size:13.5px;margin-bottom:10px">Free trial — <b>' + S.trialDays.length + ' of ' + TRIAL_DAYS + '</b> race days used. Enter an access code to unlock more.</p>'
@@ -1650,7 +1656,7 @@ function setPin() {
   save();
   renderAdmin();
 }
-function removePin() {
+function delPin() {
   if (prompt('Enter the current PIN to remove it') !== S.adminPin) { alert('Wrong PIN.'); return; }
   S.adminPin = '';
   sessionStorage.removeItem('rd_admin_ok');
@@ -1698,6 +1704,8 @@ function step2() {
   showStep(2);
 }
 function showStep(n) { [1,2,3].forEach(i => document.getElementById('s' + i).style.display = i === n ? '' : 'none'); }
+function showModal(id, display) { const el = document.getElementById(id); if (el) el.style.display = display || 'block'; }
+function hideModal(id) { const el = document.getElementById(id); if (el) el.style.display = 'none'; }
 function findRosterMatch(name) { return S.roster.find(d => d.name.toLowerCase() === name.toLowerCase()); }
 
 function renderChips() {
@@ -1908,32 +1916,31 @@ function renderGrid() {
 }
 
 // ---------- Spectator (read-only) lineups: one class, one stage at a time ----------
-let viewClsId = null, viewStage = 'qual';
-function setViewClass(id) { viewClsId = parseInt(id, 10) || null; renderGrid(); }
-function setViewStage(s) { viewStage = s; renderGrid(); }
+function setViewClass(id) { UI.viewClsId = parseInt(id, 10) || null; renderGrid(); }
+function setViewStage(s) { UI.viewStage = s; renderGrid(); }
 function renderViewerLineups() {
   const el = document.getElementById('gridContent');
   if (!el) return;
   if (!S.classes.length) { el.innerHTML = '<p class="empty">Lineups will appear here once the race day starts.</p>'; return; }
-  if (!viewClsId || !classById(viewClsId)) viewClsId = S.classes[0].id;
-  const cls = classById(viewClsId);
+  if (!UI.viewClsId || !classById(UI.viewClsId)) UI.viewClsId = S.classes[0].id;
+  const cls = classById(UI.viewClsId);
   const racers = classRacers(cls.id);
   const single = S.settings.gridStyle === 'single';   // match how the track grids (double / single file)
   const toRow = s => ({ name: s.name, num: s.num, tag: 'Heat total ' + s.pts });
 
   let h = '<div class="vw-pick"><label>Class</label><select onchange="setViewClass(this.value)">'
-    + S.classes.map(c => '<option value="' + c.id + '"' + (c.id === viewClsId ? ' selected' : '') + '>' + esc(c.name) + '</option>').join('')
+    + S.classes.map(c => '<option value="' + c.id + '"' + (c.id === UI.viewClsId ? ' selected' : '') + '>' + esc(c.name) + '</option>').join('')
     + '</select></div>';
   const stages = [['qual', 'Qualifying'], ['heats', 'Heats'], ['bmain', 'B-Mains'], ['feat', 'Feature']];
   h += '<div class="vw-tabs">' + stages.map(([k, lbl]) =>
-    '<button class="' + (viewStage === k ? 'on' : '') + '" onclick="setViewStage(\'' + k + '\')">' + lbl + '</button>').join('') + '</div>';
+    '<button class="' + (UI.viewStage === k ? 'on' : '') + '" onclick="setViewStage(\'' + k + '\')">' + lbl + '</button>').join('') + '</div>';
   h += '<div class="vw-body">';
 
   if (!racers.length) {
     h += '<p class="empty">No drivers in this class yet.</p>';
-  } else if (viewStage === 'qual') {
+  } else if (UI.viewStage === 'qual') {
     h += '<div class="slbl">Qualifying order</div>' + gridMarkup(invertField(racers, cls), single);
-  } else if (viewStage === 'heats') {
+  } else if (UI.viewStage === 'heats') {
     const heats = classHeats(cls);
     const set1 = invertWithinHeats(heatArrays(racers, cls), cls);
     h += '<div class="slbl">' + (heats === 1 ? 'Heat lineups' : 'Set 1 heats') + '</div>';
@@ -1942,7 +1949,7 @@ function renderViewerLineups() {
       h += '<div class="slbl">Set 2 — inverted</div>';
       set1.map(ht => [...ht].reverse()).forEach((heat, hi) => { h += '<div class="heat-cap inv"><span>Heat ' + (hi + 1) + '</span></div>' + gridMarkup(heat, single); });
     }
-  } else if (viewStage === 'bmain') {
+  } else if (UI.viewStage === 'bmain') {
     if (!classComplete(cls.id)) h += '<p class="empty">B-main lineups post once the heats are scored.</p>';
     else {
       const fd = featureData(cls.id);
@@ -2258,21 +2265,20 @@ function renderPointsInputs() {
   }
   document.getElementById('ptsBeyond').value = p.beyond;
 }
-let ptsTab = null, ptsNames = [];
 function renderPoints() {
   const el = document.getElementById('pointsContent');
-  ptsNames = seriesClassNames();
-  if (!ptsNames.length) { el.innerHTML = '<p class="empty">No classes yet — set up classes in Admin first.</p>'; return; }
-  if (!ptsTab || !ptsNames.includes(ptsTab)) ptsTab = ptsNames[0];
-  let h = '<div class="tab-row">' + ptsNames.map((n, i) =>
-    '<button class="tab' + (n === ptsTab ? ' on' : '') + '" onclick="ptsTab=ptsNames[' + i + '];renderPoints()">' + esc(n) + '</button>').join('') + '</div>';
-  const cls = S.classes.find(c => c.name.toLowerCase() === ptsTab.toLowerCase());
+  UI.ptsNames = seriesClassNames();
+  if (!UI.ptsNames.length) { el.innerHTML = '<p class="empty">No classes yet — set up classes in Admin first.</p>'; return; }
+  if (!UI.ptsTab || !UI.ptsNames.includes(UI.ptsTab)) UI.ptsTab = UI.ptsNames[0];
+  let h = '<div class="tab-row">' + UI.ptsNames.map((n, i) =>
+    '<button class="tab' + (n === UI.ptsTab ? ' on' : '') + '" onclick="UI.ptsTab=UI.ptsNames[' + i + '];renderPoints()">' + esc(n) + '</button>').join('') + '</div>';
+  const cls = S.classes.find(c => c.name.toLowerCase() === UI.ptsTab.toLowerCase());
   if (cls && classRacers(cls.id).length) {
     h += '<p class="sub" style="margin-bottom:12px">' + (isPointsRace(cls.id)
       ? (dayPoints(cls.id) ? "🟢 Today is a points race — today's feature finishes are counted below." : '🟡 Today is a points race — it counts here once feature finishes are entered on the Results tab.')
       : '⚪ Today is not a points race for this class (toggle on the Results tab).') + '</p>';
   }
-  const rows = seriesStandings(ptsTab);
+  const rows = seriesStandings(UI.ptsTab);
   if (!rows.length) {
     h += '<p class="empty">No points yet — they appear once feature finishes are entered on the Results tab, and add up as race days are archived.</p>';
   } else {
@@ -2583,7 +2589,6 @@ function clearImpForm() {
   const m = document.getElementById('impMsg'); if (m) m.style.display = 'none';
 }
 
-let histOpen = null;
 function renderHistory() {
   const el = document.getElementById('historyList');
   if (!S.history.length) { el.innerHTML = '<p class="empty">Nothing archived yet — a finished race day lands here when you start a new one.</p>'; return; }
@@ -2594,10 +2599,10 @@ function renderHistory() {
       + '<b style="font-family:var(--display);font-size:16px">' + esc(hd.date) + '</b>'
       + '<span style="font-size:12px;color:var(--muted)">' + hd.classes.length + (hd.classes.length === 1 ? ' class' : ' classes') + ' · ' + drivers + ' entries</span>'
       + '<span style="margin-left:auto;display:flex;gap:6px">'
-      + '<button class="btn btn-sm" onclick="toggleHist(' + i + ')">' + (histOpen === i ? 'Hide' : 'View') + '</button>'
+      + '<button class="btn btn-sm" onclick="toggleHist(' + i + ')">' + (UI.histOpen === i ? 'Hide' : 'View') + '</button>'
       + '<button class="btn btn-sm" onclick="histCSV(' + i + ')">CSV</button>'
       + '<button class="btn btn-sm btn-danger" onclick="delHist(' + i + ')">Delete</button></span></div>';
-    if (histOpen === i) {
+    if (UI.histOpen === i) {
       hd.classes.forEach(c => {
         const isImported = hd.imported || (c.standings.length === 0 && c.points && c.points.length);
         h += '<div class="slbl" style="margin:12px 0 6px">' + esc(c.name) + (isImported ? ' <span style="font-size:11px;color:var(--muted)">(imported)</span>' : '') + '</div>';
@@ -2617,11 +2622,11 @@ function renderHistory() {
     return h + '</div>';
   }).join('');
 }
-function toggleHist(i) { histOpen = histOpen === i ? null : i; renderHistory(); }
+function toggleHist(i) { UI.histOpen = UI.histOpen === i ? null : i; renderHistory(); }
 function delHist(i) {
   if (!confirm('Delete the archived race day from ' + S.history[i].date + '? This cannot be undone.')) return;
   S.history.splice(i, 1);
-  histOpen = null;
+  UI.histOpen = null;
   save();
   renderHistory();
 }
@@ -2706,7 +2711,7 @@ function renderHeader() {
   }
   const sy = document.getElementById('hdrSync');
   if (sy) {
-    if (syncOn() && _syncConnected) {
+    if (syncOn() && Sync.connected) {
       const r = deviceRole();
       sy.style.display = '';
       sy.textContent = '🔗 ' + ((S.sync && S.sync.key) || 'synced') + (r && r !== 'admin' ? ' · ' + r : '');
@@ -2741,7 +2746,7 @@ function uploadLogo(input) {
   img.onerror = () => { URL.revokeObjectURL(url); alert("Couldn't read that file as an image."); };
   img.src = url;
 }
-function removeLogo() {
+function delLogo() {
   S.track.logo = '';
   save();
   renderHeader();
@@ -2766,12 +2771,11 @@ const ADMIN_NAV = [
   { id:'adm-audit',    label:'Records & audit',     icon:'📊', group:'Records' },
   { id:'adm-danger',   label:'Danger zone',         icon:'⚠️', group:'Danger' },
 ];
-let _admOpen = null;
 function renderAdminNav() {
   const home = document.getElementById('adminHome');
   const tabs = document.getElementById('adminTabs');
   if (!home || !tabs) return;
-  if (!_admOpen) {
+  if (!UI.admOpen) {
     tabs.style.display = 'none';
     ADMIN_NAV.forEach(s => { const el = document.getElementById(s.id); if (el) el.style.display = 'none'; });
     const groups = [...new Set(ADMIN_NAV.map(s => s.group))];
@@ -2788,18 +2792,18 @@ function renderAdminNav() {
     home.style.display = '';
   } else {
     home.style.display = 'none';
-    const cur = ADMIN_NAV.find(s => s.id === _admOpen);
+    const cur = ADMIN_NAV.find(s => s.id === UI.admOpen);
     const siblings = cur ? ADMIN_NAV.filter(s => s.group === cur.group) : [];
     tabs.innerHTML = '<button class="btn btn-sm" style="flex-shrink:0" onclick="adminHome()">← All</button>'
       + (siblings.length > 1 ? siblings.map(s =>
-          '<button class="adm-tab' + (s.id === _admOpen ? ' active' : '') + '" onclick="adminOpen(\'' + s.id + '\')">' + esc(s.label) + '</button>'
+          '<button class="adm-tab' + (s.id === UI.admOpen ? ' active' : '') + '" onclick="adminOpen(\'' + s.id + '\')">' + esc(s.label) + '</button>'
         ).join('') : '');
     tabs.style.display = '';
-    ADMIN_NAV.forEach(s => { const el = document.getElementById(s.id); if (el) el.style.display = s.id === _admOpen ? 'block' : 'none'; });
+    ADMIN_NAV.forEach(s => { const el = document.getElementById(s.id); if (el) el.style.display = s.id === UI.admOpen ? 'block' : 'none'; });
   }
 }
-function adminOpen(secId) { _admOpen = secId; renderAdminNav(); }
-function adminHome() { _admOpen = null; renderAdminNav(); }
+function adminOpen(secId) { UI.admOpen = secId; renderAdminNav(); }
+function adminHome() { UI.admOpen = null; renderAdminNav(); }
 
 function renderAdmin() {
   renderClsList(); renderClsLib(); renderQuickAdd(); renderEntryList(); renderRosterList(); renderHistory(); renderImpForm(); renderPinCard(); renderLicCard(); renderSyncCard(); renderPointsInputs();
@@ -2915,7 +2919,7 @@ function renderPinCard() {
       + '<span style="font-size:13.5px">🔒 The Admin tab is PIN-protected on this device.</span>'
       + '<span style="margin-left:auto;display:flex;gap:6px">'
       + '<button class="btn btn-sm" onclick="setPin()">Change PIN</button>'
-      + '<button class="btn btn-sm btn-danger" onclick="removePin()">Remove PIN</button></span></div>'
+      + '<button class="btn btn-sm btn-danger" onclick="delPin()">Remove PIN</button></span></div>'
       + '<p style="font-size:12px;color:var(--muted);margin-top:8px">If the PIN is forgotten, clearing this site\'s browser data resets it — along with everything else, so keep a backup.</p>';
   } else {
     el.innerHTML = '<div style="display:flex;gap:10px;flex-wrap:wrap;align-items:center">'
@@ -3208,7 +3212,6 @@ function bumpEntryPill(i, delta) { const e = S.raceDay.entries[i]; if (e) setEnt
 // Move a driver's entry from one class to another. Keeps the same pill when it's free in the
 // target class; otherwise draws a fresh one. Only classId/pill change, so every lineup view
 // recomputes exactly as before. Mirrors the sign-up guards (no duplicate entry, unique number).
-let _pillChoiceCb = null;
 function showPillChoice(msg, keepLabel, drawLabel, cb) {
   document.getElementById('pillChoiceMsg').innerHTML = esc(msg);
   const keepBtn = document.getElementById('pillChoiceKeep');
@@ -3216,12 +3219,12 @@ function showPillChoice(msg, keepLabel, drawLabel, cb) {
   keepBtn.style.display = keepLabel ? '' : 'none';
   keepBtn.textContent = keepLabel || '';
   drawBtn.textContent = drawLabel || 'Draw new pill';
-  _pillChoiceCb = cb;
-  document.getElementById('pillChoiceModal').style.display = 'flex';
+  UI.pillChoiceCb = cb;
+  showModal('pillChoiceModal', 'flex');
 }
 function _pillChoiceDo(choice) {
-  document.getElementById('pillChoiceModal').style.display = 'none';
-  if (_pillChoiceCb) { const cb = _pillChoiceCb; _pillChoiceCb = null; cb(choice); }
+  hideModal('pillChoiceModal');
+  if (UI.pillChoiceCb) { const cb = UI.pillChoiceCb; UI.pillChoiceCb = null; cb(choice); }
 }
 function moveEntryClass(i, newClassId) {
   const e = S.raceDay.entries[i]; if (!e) return;
@@ -3328,7 +3331,7 @@ function delRoster(id) {
 }
 
 // ---------- TV display: no interface, one visual ----------
-let tvOn = false, tvIdx = 0, tvLocked = false, tvTimer = null, tvCtlTimer = null;
+const TV = { on: false, idx: 0, locked: false, timer: null, ctlTimer: null };
 const TV_SECS = 12;
 
 function tvSlides() {
@@ -3401,12 +3404,12 @@ function tvGridMarkup(racers, single) {
 }
 
 function tvRender() {
-  if (!tvOn) return;
+  if (!TV.on) return;
   document.getElementById('tvTrack').textContent = S.track.name || 'RaceDay';
   const logo = document.getElementById('tvLogo');
   if (S.track.logo) { logo.src = S.track.logo; logo.style.display = ''; } else { logo.style.display = 'none'; }
   document.getElementById('tvClock').textContent = new Date().toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' });
-  document.getElementById('tvLockTag').style.display = tvLocked ? '' : 'none';
+  document.getElementById('tvLockTag').style.display = TV.locked ? '' : 'none';
   const sl = document.getElementById('tvSlide');
   const slides = tvSlides();
   if (!slides.length) {
@@ -3414,27 +3417,27 @@ function tvRender() {
     document.getElementById('tvPage').textContent = '';
     return;
   }
-  tvIdx = ((tvIdx % slides.length) + slides.length) % slides.length;
-  const s = slides[tvIdx];
+  TV.idx = ((TV.idx % slides.length) + slides.length) % slides.length;
+  const s = slides[TV.idx];
   sl.innerHTML = '<div class="tv-h"><span>' + esc(s.title) + '</span><span class="tv-sub">' + esc(s.sub) + '</span></div>'
     + tvGridMarkup(s.racers, S.settings.gridStyle === 'single');
-  document.getElementById('tvPage').textContent = (tvIdx + 1) + ' / ' + slides.length;
+  document.getElementById('tvPage').textContent = (TV.idx + 1) + ' / ' + slides.length;
 }
 
-function tvTick() { if (!tvLocked) tvIdx++; tvRender(); }
+function tvTick() { if (!TV.locked) TV.idx++; tvRender(); }
 function openTV() {
-  tvOn = true; tvIdx = 0; tvLocked = false;
+  TV.on = true; TV.idx = 0; TV.locked = false;
   document.getElementById('tvLockBtn').textContent = '🔒 Lock screen';
   document.getElementById('tvOverlay').classList.add('on');
   if (document.documentElement.requestFullscreen) document.documentElement.requestFullscreen().catch(() => {});
   tvRender();
-  clearInterval(tvTimer);
-  tvTimer = setInterval(tvTick, TV_SECS * 1000);
+  clearInterval(TV.timer);
+  TV.timer = setInterval(tvTick, TV_SECS * 1000);
 }
 function closeTV(ev) {
   if (ev) ev.stopPropagation();
-  tvOn = false;
-  clearInterval(tvTimer);
+  TV.on = false;
+  clearInterval(TV.timer);
   document.getElementById('tvOverlay').classList.remove('on');
   document.getElementById('tvCtl').classList.remove('show');
   if (document.fullscreenElement && document.exitFullscreen) document.exitFullscreen().catch(() => {});
@@ -3442,18 +3445,18 @@ function closeTV(ev) {
 function tvShowCtl() {
   const c = document.getElementById('tvCtl');
   c.classList.add('show');
-  clearTimeout(tvCtlTimer);
-  tvCtlTimer = setTimeout(() => c.classList.remove('show'), 4000);
+  clearTimeout(TV.ctlTimer);
+  TV.ctlTimer = setTimeout(() => c.classList.remove('show'), 4000);
 }
-function tvPrev(ev) { ev.stopPropagation(); tvIdx--; tvRender(); tvShowCtl(); }
-function tvNext(ev) { ev.stopPropagation(); tvIdx++; tvRender(); tvShowCtl(); }
+function tvPrev(ev) { ev.stopPropagation(); TV.idx--; tvRender(); tvShowCtl(); }
+function tvNext(ev) { ev.stopPropagation(); TV.idx++; tvRender(); tvShowCtl(); }
 function tvToggleLock(ev) {
   ev.stopPropagation();
-  tvLocked = !tvLocked;
-  document.getElementById('tvLockBtn').textContent = tvLocked ? '🔓 Unlock rotation' : '🔒 Lock screen';
+  TV.locked = !TV.locked;
+  document.getElementById('tvLockBtn').textContent = TV.locked ? '🔓 Unlock rotation' : '🔒 Lock screen';
   tvRender(); tvShowCtl();
 }
-document.addEventListener('keydown', e => { if (tvOn && e.key === 'Escape') closeTV(); });
+document.addEventListener('keydown', e => { if (TV.on && e.key === 'Escape') closeTV(); });
 
 // ---------- Demo data (for showing the app to a track) ----------
 function seedDemo() {
@@ -3517,7 +3520,7 @@ window.addEventListener('unhandledrejection', e => { sendUsage('crash', { msg: S
 // ---------- Multi-device sync (Firebase) ----------
 // Dormant unless FIREBASE_CONFIG is filled in AND a track has activated sync.
 // Only the SYNC_FIELDS subtrees are mirrored; admin PIN / license / history stay local.
-let _syncDb = null, _syncTimer = null, _syncApplying = false, _syncActivating = false, _syncConnected = false;
+const Sync = { db: null, timer: null, applying: false, activating: false, connected: false };
 let _operatorControl = false;   // operator mode: false = watching (read-only), true = controlling (writes live)
 const _syncLast = {};   // field -> last JSON string seen, so we only push real changes
 
@@ -3554,52 +3557,52 @@ function initSync() {
   loadFirebase().then(() => {
     try {
       if (!firebase.apps.length) firebase.initializeApp(FIREBASE_CONFIG);
-      if (_syncDb) { try { _syncDb.off(); } catch (e) {} }
-      _syncDb = firebase.database().ref('tracks/' + syncKey());
-      firebase.database().ref('.info/connected').on('value', snap => { _syncConnected = !!snap.val(); renderHeader(); });
+      if (Sync.db) { try { Sync.db.off(); } catch (e) {} }
+      Sync.db = firebase.database().ref('tracks/' + syncKey());
+      firebase.database().ref('.info/connected').on('value', snap => { Sync.connected = !!snap.val(); renderHeader(); }, () => {});
       SYNC_FIELDS.forEach(f => { _syncLast[f] = JSON.stringify(syncGet(f) === undefined ? null : syncGet(f)); });
-      _syncDb.on('value', snap => {
+      Sync.db.on('value', snap => {
         const v = snap.val();
-        if (!v || _syncActivating) { _syncActivating = false; syncPushFull(); return; }  // empty room or admin re-activating: push local state, don't pull stale Firebase data
+        if (!v || Sync.activating) { Sync.activating = false; syncPushFull(); return; }  // empty room or admin re-activating: push local state, don't pull stale Firebase data
         syncApplySnapshot(v);
       });
-    } catch (e) {}
-  }).catch(() => {});
+    } catch (e) { console.warn('RaceDay sync init:', e && e.message || e); }
+  }).catch(e => console.warn('RaceDay sync:', e && e.message || e));
 }
 // Pull a cloud snapshot into local state (used by the live listener and by operator
 // take-control / back-to-watching, which re-pull fresh to discard any local scratch).
 function syncApplySnapshot(v) {
   if (!v) return;
-  _syncApplying = true;
+  Sync.applying = true;
   SYNC_FIELDS.forEach(f => {
     const raw = syncGetIn(v, f);
     if (raw == null) return;
     try { const parsed = JSON.parse(raw); syncSet(f, parsed); _syncLast[f] = raw; } catch (e) {}
   });
-  _syncApplying = false;
-  try { localStorage.setItem(KEY, JSON.stringify(S)); } catch (e) {}
-  renderHeader(); render(curPage); if (tvOn) tvRender();
+  Sync.applying = false;
+  try { localStorage.setItem(KEY, JSON.stringify(S)); } catch (e) {}  // intentional: bypasses save() to prevent sync echo loop
+  renderHeader(); render(curPage); if (TV.on) tvRender();
 }
 
 // Debounced incremental push: only fields whose JSON actually changed.
 function syncPush() {
   if (deviceRole() === 'viewer' || operatorWatching()) return;   // spectators + watching operators never write to the shared room
-  if (!syncOn() || !_syncDb || _syncApplying) return;
-  clearTimeout(_syncTimer);
-  _syncTimer = setTimeout(() => {
+  if (!syncOn() || !Sync.db || Sync.applying) return;
+  clearTimeout(Sync.timer);
+  Sync.timer = setTimeout(() => {
     const upd = {};
     SYNC_FIELDS.forEach(f => {
       const j = JSON.stringify(syncGet(f) === undefined ? null : syncGet(f));
       if (j !== _syncLast[f]) { upd[f] = j; _syncLast[f] = j; }
     });
-    if (Object.keys(upd).length && _syncDb) _syncDb.update(upd).catch(() => {});
+    if (Object.keys(upd).length && Sync.db) Sync.db.update(upd).catch(e => console.warn('RaceDay sync:', e && e.message || e));
   }, 400);
 }
 function syncPushFull() {
-  if (deviceRole() === 'viewer' || operatorWatching() || !_syncDb) return;   // spectators + watching operators never seed/write the room
+  if (deviceRole() === 'viewer' || operatorWatching() || !Sync.db) return;   // spectators + watching operators never seed/write the room
   const upd = {};
   SYNC_FIELDS.forEach(f => { const j = JSON.stringify(syncGet(f) === undefined ? null : syncGet(f)); upd[f] = j; _syncLast[f] = j; });
-  _syncDb.update(upd).catch(() => {});
+  Sync.db.update(upd).catch(e => console.warn('RaceDay sync:', e && e.message || e));
 }
 
 function syncActivate() {
@@ -3615,7 +3618,7 @@ function syncActivate() {
   S.sync.key = normKey(k);
   S.sync.enabled = true;
   setDeviceRole('admin');
-  _syncActivating = true;   // admin owns the room: push local state, ignore whatever Firebase has
+  Sync.activating = true;   // admin owns the room: push local state, ignore whatever Firebase has
   save();
   initSync();
   renderSyncCard();
@@ -3636,7 +3639,7 @@ function syncJoin() {
 // have pulled from a reused code. Uses update (not delete) so there's no empty-room
 // window where another synced device could re-seed it with its own stale state.
 function syncMakeSource() {
-  if (!syncOn() || !_syncDb) { alert('Turn on Multi-device sync first.'); return; }
+  if (!syncOn() || !Sync.db) { alert('Turn on Multi-device sync first.'); return; }
   if (deviceRole() === 'viewer') { alert('Spectator devices can\'t change the shared race.'); return; }
   if (!confirm('Push THIS device\'s race data to the cloud, replacing what every other synced device is showing?\n\nUse this when another device pulled old data from a reused code — this device becomes the source of truth.')) return;
   syncPushFull();
@@ -3644,8 +3647,8 @@ function syncMakeSource() {
 }
 function syncDisable() {
   if (!confirm('Turn off live sync on this device? It will go back to working on its own. The track\'s synced data stays in the cloud.')) return;
-  if (_syncDb) { try { _syncDb.off(); } catch (e) {} _syncDb = null; }
-  _syncConnected = false;
+  if (Sync.db) { try { Sync.db.off(); } catch (e) {} Sync.db = null; }
+  Sync.connected = false;
   S.sync.enabled = false;
   save();
   renderSyncCard();
@@ -3669,7 +3672,7 @@ function opPinOk(action) {
     const p1 = prompt('Create a private Operator PIN (4–8 digits). Only you know this — the tracks never see it:');
     if (p1 === null) return false;
     if (!/^\d{4,8}$/.test(p1)) { alert('The PIN must be 4–8 digits.'); return false; }
-    S.operatorPin = p1; try { localStorage.setItem(KEY, JSON.stringify(S)); } catch (e) {}
+    S.operatorPin = p1; try { localStorage.setItem(KEY, JSON.stringify(S)); } catch (e) {}  // intentional: operatorPin is local-only, must not go through syncPush
     return true;
   }
   const t = prompt('Enter your Operator PIN to ' + action + ':');
@@ -3682,24 +3685,24 @@ function opTakeControl() {
   if (!opPinOk('take control')) return;
   // Re-pull fresh from the cloud first so we never push stale local scratch up.
   const go = () => { _operatorControl = true; applyRole(); flashMsg('🔴 You control ' + syncKey() + ' — changes are LIVE'); };
-  if (_syncDb) { try { _syncDb.once('value', s => { syncApplySnapshot(s.val()); go(); }); return; } catch (e) {} }
+  if (Sync.db) { try { Sync.db.once('value', s => { syncApplySnapshot(s.val()); go(); }); return; } catch (e) { console.warn('RaceDay sync:', e && e.message || e); } }
   go();
 }
 function opBackToWatch() {
   _operatorControl = false;
   // Discard anything edited while controlling by re-pulling the live truth.
-  if (_syncDb) { try { _syncDb.once('value', s => syncApplySnapshot(s.val())); } catch (e) {} }
+  if (Sync.db) { try { Sync.db.once('value', s => syncApplySnapshot(s.val())); } catch (e) { console.warn('RaceDay sync:', e && e.message || e); } }
   applyRole();
   flashMsg('👁 Back to watching — read-only');
 }
 function opStop() {
   if (!opPinOk('stop monitoring')) return;
   _operatorControl = false;
-  if (_syncDb) { try { _syncDb.off(); } catch (e) {} _syncDb = null; }
-  _syncConnected = false;
+  if (Sync.db) { try { Sync.db.off(); } catch (e) {} Sync.db = null; }
+  Sync.connected = false;
   S.sync.enabled = false;
   setDeviceRole('admin');
-  try { localStorage.setItem(KEY, JSON.stringify(S)); } catch (e) {}
+  try { localStorage.setItem(KEY, JSON.stringify(S)); } catch (e) {}  // intentional: sync just turned off, must not trigger syncPush
   applyRole();
   flashMsg('Stopped monitoring — back to your own device');
 }
@@ -3766,7 +3769,7 @@ function applyRole() {
   renderOpBar();    // operator watch/control bar (hidden for other roles)
   renderHeader();   // refresh the sync/role badge
   if (!allowed.includes(curPage)) nav(allowed[0]);
-  if (role === 'tv' && !tvOn && typeof openTV === 'function') openTV();
+  if (role === 'tv' && !TV.on && typeof openTV === 'function') openTV();
 }
 
 function renderSyncCard() {
@@ -4106,8 +4109,6 @@ function impClsResolve(row) {
   }
   return { id: -1 };   // unknown class name, not creating
 }
-// Back-compat shim: a few callers just need the id.
-function impResolveClsId(row) { return impClsResolve(row).id; }
 // Best-effort class-name suggestion from a results filename: drop the extension and
 // the common event/session/round tokens, leaving the class words to confirm.
 function impClassFromFilename(fn) {
@@ -4650,11 +4651,11 @@ function openImport(target) {
   if (startIdx < 0) startIdx = 0;
   impSetClsMode(false);
   impSetStep(startIdx);
-  document.getElementById('impOverlay').classList.add('on');
+  showModal('impOverlay');
 }
 function closeImport() {
   impStopWatch();
-  document.getElementById('impOverlay').classList.remove('on');
+  hideModal('impOverlay');
   Imp = null;
   impPreview = [];
 }
@@ -4736,10 +4737,9 @@ function impSetClsMode(useCol, userPicked) {
 }
 
 // ---------- First-run setup wizard ----------
-let _wizStep = 1;
 function openSetupWizard() {
-  _wizStep = 1;
-  document.getElementById('setupWizard').style.display = 'flex';
+  UI.wizStep = 1;
+  showModal('setupWizard', 'flex');
   wizShow(1);
 }
 function wizShow(n) {
@@ -4760,15 +4760,15 @@ function wizShow(n) {
   if (n === 3) renderWizClasses();
   if (n === 4) { document.getElementById('wizPin1').value = ''; document.getElementById('wizPin2').value = ''; }
 }
-function wizBack() { if (_wizStep > 1) { _wizStep--; wizShow(_wizStep); } }
+function wizBack() { if (UI.wizStep > 1) { UI.wizStep--; wizShow(UI.wizStep); } }
 function wizNext() {
-  if (_wizStep === 2) {
+  if (UI.wizStep === 2) {
     const name = (document.getElementById('wizTrackName').value || '').trim();
     if (!name) { alert('Please enter your track name.'); return; }
     S.track.name = name; save(); renderHeader();
   }
-  if (_wizStep === 3) { if (!wizSaveClasses()) return; save(); renderHeader(); }
-  if (_wizStep === 4) {
+  if (UI.wizStep === 3) { if (!wizSaveClasses()) return; save(); renderHeader(); }
+  if (UI.wizStep === 4) {
     const p1 = document.getElementById('wizPin1').value.trim();
     const p2 = document.getElementById('wizPin2').value.trim();
     if (p1 || p2) {
@@ -4777,8 +4777,8 @@ function wizNext() {
       S.adminPin = p1; save();
     }
   }
-  if (_wizStep === 5) { document.getElementById('setupWizard').style.display = 'none'; return; }
-  _wizStep++; wizShow(_wizStep);
+  if (UI.wizStep === 5) { hideModal('setupWizard'); return; }
+  UI.wizStep++; wizShow(UI.wizStep);
 }
 function renderWizClasses() {
   const el = document.getElementById('wizClassList');
@@ -4823,7 +4823,7 @@ function wizRemoveLogo() {
 }
 
 // ---------- Live sync across tabs + init ----------
-window.addEventListener('storage', e => { if (e.key === KEY) { S = load(); renderHeader(); render(curPage); if (tvOn) tvRender(); } });
+window.addEventListener('storage', e => { if (e.key === KEY) { S = load(); renderHeader(); render(curPage); if (TV.on) tvRender(); } });
 handleUrlParams();
 renderHeader();
 renderFooter();
