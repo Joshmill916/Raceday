@@ -3162,8 +3162,17 @@ function renderEntryList() {
   }).filter(r => !q || r.name.toLowerCase().includes(q) || String(r.num).toLowerCase().includes(q) || r.cls.toLowerCase().includes(q))
     .sort((a, b) => a.cls.localeCompare(b.cls) || a.pill - b.pill);
   if (!rows.length) { el.innerHTML = '<p class="empty">No entries match “' + esc(q) + '”.</p>'; return; }
-  el.innerHTML = '<p class="sub" style="font-size:12px;color:var(--muted);margin:0 0 8px"><b>Kart #</b> changes the driver\'s number (everywhere they race today). <b>Class</b> moves them to another class (they keep their pill if it\'s free). <b>Grid spot</b> is where they start: tap ▲ ▼ to nudge one spot; changing it re-orders the whole class lineup.</p>'
-    + '<table><thead><tr><th>Driver</th><th>Kart #</th><th>Class</th><th>Grid spot</th><th></th></tr></thead><tbody>'
+  el.innerHTML = '<div style="background:#fffbeb;border:1px solid #f59e0b;border-radius:6px;padding:9px 13px;margin:0 0 12px;font-size:13px;line-height:1.6">'
+    + '<b>To edit an entry:</b> '
+    + 'Change <b>Kart #</b> to fix a wrong number (updates all heats today). '
+    + 'Change <b>Class</b> to move the driver to a different class. '
+    + 'Use <b>▲ ▼</b> on <b>Grid spot</b> to adjust their starting position.</div>'
+    + '<table><thead><tr>'
+    + '<th>Driver</th>'
+    + '<th>Kart #<br><span style="font-size:10px;font-weight:400;color:var(--muted)">fix number</span></th>'
+    + '<th>Class<br><span style="font-size:10px;font-weight:400;color:var(--muted)">move driver</span></th>'
+    + '<th>Grid spot<br><span style="font-size:10px;font-weight:400;color:var(--muted)">use ▲ ▼</span></th>'
+    + '<th></th></tr></thead><tbody>'
     + rows.map(r => '<tr><td style="font-weight:600">' + esc(r.name) + '</td>'
       + '<td><input type="text" maxlength="5" value="' + esc(r.num) + '" title="Kart number" style="width:52px;text-align:center;padding:5px 4px;font-size:14px;font-weight:700" onchange="setEntryNum(' + r.i + ',this.value)"></td>'
       + '<td><select title="Move this driver to another class" style="max-width:150px;padding:5px 6px;font-size:13px" onchange="moveEntryClass(' + r.i + ',this.value)">'
