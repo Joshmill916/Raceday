@@ -2000,6 +2000,7 @@ function renderViewerLineups() {
 }
 
 function showViewerCard(id) {
+  if (deviceRole() !== 'viewer') return;
   const d = driverById(id); if (!d) return;
   const entries = S.raceDay.entries.filter(e => e.driverId === id);
   const clsLines = entries.map(e => {
@@ -2017,6 +2018,7 @@ function showViewerCard(id) {
 }
 function hideViewerCard() { hideModal('viewerDriverCard'); }
 function showClassCard(id) {
+  if (deviceRole() !== 'viewer') return;
   const c = classById(id); if (!c) return;
   const entered = S.raceDay.entries.filter(e => e.classId === id).length;
   const desc = (c.description || '').trim();
