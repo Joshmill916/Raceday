@@ -3771,11 +3771,19 @@ function printQRPoster() {
 }
 
 // Apply ?role= and ?sync= from a shared station link, then clean the URL.
+// One-shot per unique link: iOS home-screen icons relaunch from the exact URL they
+// were saved at, so a saved ?sync=/?role= link would otherwise re-apply on EVERY open
+// and keep undoing the user's later changes (turn off sync, switch role). We remember
+// the last link we consumed and skip an identical one on relaunch.
 function handleUrlParams() {
   try {
     const q = new URLSearchParams(location.search);
     const role = q.get('role'), sk = q.get('sync');
     if (!role && !sk) return;
+    let applied = null;
+    try { applied = localStorage.getItem('rd_url_applied'); } catch (e) {}
+    if (location.search === applied) { history.replaceState({}, '', location.pathname); return; }
+    try { localStorage.setItem('rd_url_applied', location.search); } catch (e) {}
     if (sk) {
       const incoming = normKey(sk);
       const hasLocal = S.raceDay.entries && S.raceDay.entries.length > 0;
