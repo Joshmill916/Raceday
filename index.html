@@ -305,6 +305,11 @@
   /* Setup wizard & pill-choice modal */
   .wiz-overlay { position:fixed;inset:0;background:rgba(0,0,0,.65);z-index:9999;display:flex;align-items:center;justify-content:center;padding:16px; }
   .wiz-box { background:#fff;border-radius:14px;padding:1.75rem 1.5rem;max-width:480px;width:100%;max-height:90vh;overflow-y:auto;box-shadow:0 8px 32px rgba(0,0,0,.18); }
+  .vdc-overlay { position:fixed;inset:0;z-index:9998;display:flex;align-items:flex-end;background:rgba(0,0,0,.52); }
+  .vdc-box { background:#fff;border-radius:20px 20px 0 0;width:100%;max-width:480px;margin:0 auto;padding:20px 24px 36px;text-align:center; }
+  .vdc-name { font-family:var(--display);font-size:26px;font-weight:800;margin:10px 0 4px; }
+  .vdc-cls { font-size:14px;color:var(--muted);line-height:1.7;margin-bottom:4px; }
+  .vdc-close { margin-top:18px;display:block;background:var(--line);border-radius:10px;padding:10px 0;font-size:14px;font-weight:600;cursor:pointer; }
   .wiz-title { font-family:var(--display);font-size:22px;font-weight:800;text-transform:uppercase;letter-spacing:.04em;color:var(--ink);margin-bottom:.35rem; }
   .wiz-progress { font-size:12px;color:var(--muted);margin-bottom:1.25rem; }
   .wiz-nav { display:flex;justify-content:space-between;align-items:center;margin-top:1.5rem;gap:8px; }
@@ -974,6 +979,13 @@
       <button id="pillChoiceDraw" class="btn btn-primary" type="button" onclick="_pillChoiceDo('draw')">Draw new pill</button>
       <button class="btn" type="button" onclick="_pillChoiceDo('cancel')">Cancel</button>
     </div>
+  </div>
+</div>
+
+<div id="viewerDriverCard" class="vdc-overlay" style="display:none" onclick="if(event.target===this)hideViewerCard()">
+  <div class="vdc-box">
+    <div id="vdcContent"></div>
+    <span class="vdc-close" onclick="hideViewerCard()">✕ Close</span>
   </div>
 </div>
 
@@ -1833,13 +1845,14 @@ function discNum(num) {
   const f = sz ? ' style="font-size:' + sz + 'px"' : '';
   return '<div class="disc sm"' + f + '>' + esc(s) + '</div>';
 }
-function gridMarkup(racers, single) {
+function gridMarkup(racers, single, tappable) {
   const sub = r => r.tag || ('Pill #' + r.pill);
+  const tap = r => tappable && r.id ? ' onclick="showViewerCard(' + r.id + ')" style="cursor:pointer"' : '';
   if (single) {
     let h = '<div class="hb">';
     racers.forEach((r, i) => {
       h += '<div class="hr"><div class="pnum">P' + (i + 1) + '</div>' + discNum(r.num)
-        + '<div class="nm"><b>' + esc(r.name) + '</b> <span>' + esc(sub(r)) + '</span></div>'
+        + '<div class="nm"' + tap(r) + '><b>' + esc(r.name) + '</b> <span>' + esc(sub(r)) + '</span></div>'
         + (i === 0 ? '<span class="poletag" style="position:static"></span>' : '') + '</div>';
     });
     return h + '</div>';
@@ -1851,7 +1864,7 @@ function gridMarkup(racers, single) {
       + (pos % 2 ? '<span class="rowlbl">Row ' + pt.row + '</span>' : '')
       + (pos === 1 ? '<span class="poletag"></span>' : '')
       + '<div class="posn">P' + pos + '</div>' + discNum(r.num)
-      + '<div class="who"><b>' + esc(r.name) + '</b><span>' + esc(sub(r)) + '</span></div></div>';
+      + '<div class="who"' + tap(r) + '><b>' + esc(r.name) + '</b><span>' + esc(sub(r)) + '</span></div></div>';
   });
   return h + '</div>';
 }
@@ -1926,7 +1939,7 @@ function renderViewerLineups() {
   const cls = classById(UI.viewClsId);
   const racers = classRacers(cls.id);
   const single = S.settings.gridStyle === 'single';   // match how the track grids (double / single file)
-  const toRow = s => ({ name: s.name, num: s.num, tag: 'Heat total ' + s.pts });
+  const toRow = s => ({ id: s.id, name: s.name, num: s.num, tag: 'Heat total ' + s.pts });
 
   let h = '<div class="vw-pick"><label>Class</label><select onchange="setViewClass(this.value)">'
     + S.classes.map(c => '<option value="' + c.id + '"' + (c.id === UI.viewClsId ? ' selected' : '') + '>' + esc(c.name) + '</option>').join('')
@@ -1939,21 +1952,21 @@ function renderViewerLineups() {
   if (!racers.length) {
     h += '<p class="empty">No drivers in this class yet.</p>';
   } else if (UI.viewStage === 'qual') {
-    h += '<div class="slbl">Qualifying order</div>' + gridMarkup(invertField(racers, cls), single);
+    h += '<div class="slbl">Qualifying order</div>' + gridMarkup(invertField(racers, cls), single, true);
   } else if (UI.viewStage === 'heats') {
     const heats = classHeats(cls);
     const set1 = invertWithinHeats(heatArrays(racers, cls), cls);
     h += '<div class="slbl">' + (heats === 1 ? 'Heat lineups' : 'Set 1 heats') + '</div>';
-    set1.forEach((heat, hi) => { h += '<div class="heat-cap"><span>Heat ' + (hi + 1) + '</span><small>' + heat.length + ' karts</small></div>' + gridMarkup(heat, single); });
+    set1.forEach((heat, hi) => { h += '<div class="heat-cap"><span>Heat ' + (hi + 1) + '</span><small>' + heat.length + ' karts</small></div>' + gridMarkup(heat, single, true); });
     if (heats === 2) {
       h += '<div class="slbl">Set 2 — inverted</div>';
-      set1.map(ht => [...ht].reverse()).forEach((heat, hi) => { h += '<div class="heat-cap inv"><span>Heat ' + (hi + 1) + '</span></div>' + gridMarkup(heat, single); });
+      set1.map(ht => [...ht].reverse()).forEach((heat, hi) => { h += '<div class="heat-cap inv"><span>Heat ' + (hi + 1) + '</span></div>' + gridMarkup(heat, single, true); });
     }
   } else if (UI.viewStage === 'bmain') {
     if (!classComplete(cls.id)) h += '<p class="empty">B-main lineups post once the heats are scored.</p>';
     else {
       const fd = featureData(cls.id);
-      if (fd.mains.length) fd.mains.forEach(mn => { h += '<div class="slbl">' + esc(mn.label) + '</div>' + gridMarkup(mn.drivers.map(toRow), single); });
+      if (fd.mains.length) fd.mains.forEach(mn => { h += '<div class="slbl">' + esc(mn.label) + '</div>' + gridMarkup(mn.drivers.map(toRow), single, true); });
       else h += '<p class="empty">This class runs straight to the feature — no B-mains.</p>';
     }
   } else {   // feat
@@ -1963,13 +1976,31 @@ function renderViewerLineups() {
       const feat = fd.mains.length
         ? ((fd.toFeatureSpots > 0 && fd.transferred.length >= fd.toFeatureSpots) ? [...fd.locked, ...fd.transferred] : null)
         : fd.locked;
-      if (feat) h += '<div class="slbl">🏁 Feature lineup</div>' + gridMarkup(feat.map(toRow), single);
+      if (feat) h += '<div class="slbl">🏁 Feature lineup</div>' + gridMarkup(feat.map(toRow), single, true);
       else h += '<p class="empty">The feature lineup posts once the B-main finishes are entered.</p>';
     }
   }
   h += '</div>';
   el.innerHTML = h;
 }
+
+function showViewerCard(id) {
+  const d = driverById(id); if (!d) return;
+  const entries = S.raceDay.entries.filter(e => e.driverId === id);
+  const clsLines = entries.map(e => {
+    const c = classById(e.classId) || { name: '?' };
+    return '<div>' + esc(c.name) + ' &mdash; Grid P' + e.pill + '</div>';
+  }).join('');
+  const s = String(d.num);
+  const sz = s.length === 3 ? 22 : s.length === 4 ? 18 : s.length >= 5 ? 14 : 0;
+  const discStyle = sz ? ' style="font-size:' + sz + 'px"' : '';
+  document.getElementById('vdcContent').innerHTML =
+    '<div class="disc big" style="margin:0 auto 12px"' + discStyle + '>' + esc(s) + '</div>'
+    + '<div class="vdc-name">' + esc(d.name) + '</div>'
+    + (clsLines ? '<div class="vdc-cls">' + clsLines + '</div>' : '');
+  showModal('viewerDriverCard', 'flex');
+}
+function hideViewerCard() { hideModal('viewerDriverCard'); }
 
 function printHeats() {
   let html = '<!DOCTYPE html><html><head><title>Heat Assignments</title><style>'
