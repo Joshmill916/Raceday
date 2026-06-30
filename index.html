@@ -219,6 +219,15 @@
   /* In-app timing import overlay */
   #impOverlay { display:none; position:fixed; inset:0; z-index:120; background:rgba(20,20,24,.55); overflow:auto; padding:20px 12px; }
   #roleEscape { position:fixed; left:12px; bottom:12px; z-index:90; padding:7px 12px; border-radius:99px; border:1.5px solid #d4d4cf; background:rgba(255,255,255,.93); color:#555; font-family:inherit; font-size:12.5px; font-weight:600; cursor:pointer; box-shadow:0 2px 8px rgba(0,0,0,.18); }
+  /* Operator mode bottom bar */
+  #opBar { position:fixed; left:0; right:0; bottom:0; z-index:95; display:flex; align-items:center; justify-content:space-between; gap:10px; padding:8px 14px; font-size:13px; font-weight:600; box-shadow:0 -2px 10px rgba(0,0,0,.2); }
+  #opBar.op-watch-bar { background:#0c1b3a; color:#cfe0ff; }
+  #opBar.op-ctrl-bar { background:#7a1020; color:#fff; }
+  #opBar .btn { padding:5px 10px; }
+  body.has-opbar #app { padding-bottom:64px; }
+  /* While watching, lock the consequential mutators so a stray tap can't change even the
+     local view — the track itself is already protected at the sync layer. */
+  body.op-watch .fin-sel, body.op-watch .btn-primary, body.op-watch .btn-danger { pointer-events:none !important; opacity:.5; }
   #impOverlay.on { display:block; }
   .imp-panel { max-width:680px; margin:0 auto; background:var(--card); border-radius:16px; overflow:hidden; box-shadow:0 20px 60px rgba(0,0,0,.4); }
   .imp-hd { display:flex; align-items:center; justify-content:space-between; gap:10px; padding:14px 18px; background:var(--asphalt); color:#fff; font-family:var(--display); font-weight:700; }
@@ -899,6 +908,9 @@
 <!-- Always-visible, PIN-gated role switch for locked stations (hidden for the admin role) -->
 <button id="roleEscape" onclick="changeDeviceRole()" style="display:none">⚙ Role</button>
 
+<!-- Operator mode bar: watch (read-only) / control (live), with its own PIN -->
+<div id="opBar" style="display:none"></div>
+
 <!-- First-run setup wizard -->
 <div id="setupWizard" class="wiz-overlay" style="display:none">
   <div class="wiz-box" style="position:relative">
@@ -1001,7 +1013,8 @@ const ROLE_PAGES = {
   register: ['signup', 'help'],
   scoring:  ['grid', 'results', 'points', 'help'],
   tv:       ['grid', 'help'],
-  viewer:   ['grid', 'help']        // spectator: read-only Lineups only (QR link)
+  viewer:   ['grid', 'help'],       // spectator: read-only Lineups only (QR link)
+  operator: ['signup', 'grid', 'results', 'points', 'admin', 'help']   // owner: sees everything, read-only until "Take control"
 };
 function syncOn() { return !!(S.sync && S.sync.enabled && FIREBASE_CONFIG.apiKey); }
 
@@ -1029,6 +1042,7 @@ function defaults() {
     track: { name: '', logo: '' },                // track identity: logo is a data URL
     provider: { legalName: '', operator: '', jurisdiction: '' }, // legalName = software owner; operator = track/customer legal entity (for docs)
     adminPin: '',                                 // empty = Admin tab is open to everyone
+    operatorPin: '',                              // owner's private PIN to "take control" in operator mode (local only, never synced)
     consents: [],                                 // Terms/Privacy acceptance audit: {ts,date,time,driver,num,role,version,legalVersion,ip,accepted}
     audit: [],                                    // admin action log: {ts,date,time,user,action,target,oldValue,newValue}
     history: [],                                  // archived race days (newest first)
@@ -1056,6 +1070,7 @@ function migrate(s) {
   if (!s.track) s.track = { name: '', logo: '' };
   if (!s.history) s.history = [];
   if (s.adminPin == null) s.adminPin = '';
+  if (s.operatorPin == null) s.operatorPin = '';
   if (!s.classLib) s.classLib = s.classes.map(c => ({ name: c.name, maxPill: c.maxPill || 200 }));
   if (s.license === undefined) s.license = null;
   if (!s.trialDays) s.trialDays = [];
@@ -3503,7 +3518,13 @@ window.addEventListener('unhandledrejection', e => { sendUsage('crash', { msg: S
 // Dormant unless FIREBASE_CONFIG is filled in AND a track has activated sync.
 // Only the SYNC_FIELDS subtrees are mirrored; admin PIN / license / history stay local.
 let _syncDb = null, _syncTimer = null, _syncApplying = false, _syncActivating = false, _syncConnected = false;
+let _operatorControl = false;   // operator mode: false = watching (read-only), true = controlling (writes live)
 const _syncLast = {};   // field -> last JSON string seen, so we only push real changes
+
+// Operator is connected to a track but in read-only "watch" mode. While watching, NO
+// write ever reaches the cloud room — the track is untouchable until the owner taps
+// "Take control" (separate operator PIN). This is the core safeguard of operator mode.
+function operatorWatching() { return deviceRole() === 'operator' && !_operatorControl; }
 
 function syncKey() { return (S.sync && S.sync.key) || ''; }
 function normKey(k) { return String(k || '').toUpperCase().replace(/[^A-Z0-9]/g, ''); }
@@ -3540,23 +3561,29 @@ function initSync() {
       _syncDb.on('value', snap => {
         const v = snap.val();
         if (!v || _syncActivating) { _syncActivating = false; syncPushFull(); return; }  // empty room or admin re-activating: push local state, don't pull stale Firebase data
-        _syncApplying = true;
-        SYNC_FIELDS.forEach(f => {
-          const raw = syncGetIn(v, f);
-          if (raw == null) return;
-          try { const parsed = JSON.parse(raw); syncSet(f, parsed); _syncLast[f] = raw; } catch (e) {}
-        });
-        _syncApplying = false;
-        try { localStorage.setItem(KEY, JSON.stringify(S)); } catch (e) {}
-        renderHeader(); render(curPage); if (tvOn) tvRender();
+        syncApplySnapshot(v);
       });
     } catch (e) {}
   }).catch(() => {});
 }
+// Pull a cloud snapshot into local state (used by the live listener and by operator
+// take-control / back-to-watching, which re-pull fresh to discard any local scratch).
+function syncApplySnapshot(v) {
+  if (!v) return;
+  _syncApplying = true;
+  SYNC_FIELDS.forEach(f => {
+    const raw = syncGetIn(v, f);
+    if (raw == null) return;
+    try { const parsed = JSON.parse(raw); syncSet(f, parsed); _syncLast[f] = raw; } catch (e) {}
+  });
+  _syncApplying = false;
+  try { localStorage.setItem(KEY, JSON.stringify(S)); } catch (e) {}
+  renderHeader(); render(curPage); if (tvOn) tvRender();
+}
 
 // Debounced incremental push: only fields whose JSON actually changed.
 function syncPush() {
-  if (deviceRole() === 'viewer') return;   // spectators never write to the shared room
+  if (deviceRole() === 'viewer' || operatorWatching()) return;   // spectators + watching operators never write to the shared room
   if (!syncOn() || !_syncDb || _syncApplying) return;
   clearTimeout(_syncTimer);
   _syncTimer = setTimeout(() => {
@@ -3569,7 +3596,7 @@ function syncPush() {
   }, 400);
 }
 function syncPushFull() {
-  if (deviceRole() === 'viewer' || !_syncDb) return;   // spectators never seed/write the room
+  if (deviceRole() === 'viewer' || operatorWatching() || !_syncDb) return;   // spectators + watching operators never seed/write the room
   const upd = {};
   SYNC_FIELDS.forEach(f => { const j = JSON.stringify(syncGet(f) === undefined ? null : syncGet(f)); upd[f] = j; _syncLast[f] = j; });
   _syncDb.update(upd).catch(() => {});
@@ -3624,13 +3651,78 @@ function syncDisable() {
   renderSyncCard();
 }
 function setRolePrompt() {
-  const r = prompt('Set this device\'s job — type one of:  admin  ·  register  ·  scoring  ·  tv', deviceRole());
+  const r = prompt('Set this device\'s job — type one of:  admin  ·  register  ·  scoring  ·  tv  ·  operator', deviceRole());
   if (!r) return;
   const rr = r.trim().toLowerCase();
-  if (!ROLE_PAGES[rr]) { alert('Unknown role. Use admin, register, scoring, or tv.'); return; }
+  if (!ROLE_PAGES[rr]) { alert('Unknown role. Use admin, register, scoring, tv, or operator.'); return; }
+  if (rr === 'operator') _operatorControl = false;   // always start in safe read-only watch mode
   setDeviceRole(rr);
   applyRole();
   renderSyncCard();
+}
+
+// ---------- Operator mode (owner monitors / can control test tracks) ----------
+// Gate take-control / stop with a PRIVATE operator PIN, separate from each track's
+// admin PIN. First use creates it on this device; the tracks never see it.
+function opPinOk(action) {
+  if (!S.operatorPin) {
+    const p1 = prompt('Create a private Operator PIN (4–8 digits). Only you know this — the tracks never see it:');
+    if (p1 === null) return false;
+    if (!/^\d{4,8}$/.test(p1)) { alert('The PIN must be 4–8 digits.'); return false; }
+    S.operatorPin = p1; try { localStorage.setItem(KEY, JSON.stringify(S)); } catch (e) {}
+    return true;
+  }
+  const t = prompt('Enter your Operator PIN to ' + action + ':');
+  if (t === null) return false;
+  if (t === S.operatorPin) return true;
+  alert('Wrong Operator PIN.'); return false;
+}
+function opTakeControl() {
+  if (deviceRole() !== 'operator') return;
+  if (!opPinOk('take control')) return;
+  // Re-pull fresh from the cloud first so we never push stale local scratch up.
+  const go = () => { _operatorControl = true; applyRole(); flashMsg('🔴 You control ' + syncKey() + ' — changes are LIVE'); };
+  if (_syncDb) { try { _syncDb.once('value', s => { syncApplySnapshot(s.val()); go(); }); return; } catch (e) {} }
+  go();
+}
+function opBackToWatch() {
+  _operatorControl = false;
+  // Discard anything edited while controlling by re-pulling the live truth.
+  if (_syncDb) { try { _syncDb.once('value', s => syncApplySnapshot(s.val())); } catch (e) {} }
+  applyRole();
+  flashMsg('👁 Back to watching — read-only');
+}
+function opStop() {
+  if (!opPinOk('stop monitoring')) return;
+  _operatorControl = false;
+  if (_syncDb) { try { _syncDb.off(); } catch (e) {} _syncDb = null; }
+  _syncConnected = false;
+  S.sync.enabled = false;
+  setDeviceRole('admin');
+  try { localStorage.setItem(KEY, JSON.stringify(S)); } catch (e) {}
+  applyRole();
+  flashMsg('Stopped monitoring — back to your own device');
+}
+function renderOpBar() {
+  const bar = document.getElementById('opBar');
+  if (!bar) return;
+  const isOp = deviceRole() === 'operator';
+  document.body.classList.toggle('has-opbar', isOp);
+  document.body.classList.toggle('op-watch', isOp && !_operatorControl);
+  if (!isOp) { bar.style.display = 'none'; return; }
+  bar.style.display = '';
+  const code = esc(syncKey() || '—');
+  if (!_operatorControl) {
+    bar.className = 'op-watch-bar';
+    bar.innerHTML = '<span>👁 Watching <b>' + code + '</b> · read-only</span>'
+      + '<span style="display:flex;gap:6px"><button class="btn btn-sm" onclick="opTakeControl()">🔧 Take control</button>'
+      + '<button class="btn btn-sm" onclick="opStop()">✕ Stop</button></span>';
+  } else {
+    bar.className = 'op-ctrl-bar';
+    bar.innerHTML = '<span>🔴 CONTROLLING <b>' + code + '</b> · changes are LIVE</span>'
+      + '<span style="display:flex;gap:6px"><button class="btn btn-sm" onclick="opBackToWatch()">👁 Back to watching</button>'
+      + '<button class="btn btn-sm" onclick="opStop()">✕ Stop</button></span>';
+  }
 }
 function toggleKiosk(on) { S.settings.kioskReg = !!on; save(); applyRole(); }
 // Escape hatch for a device locked to register/scoring/tv (Admin tab hidden): PIN-gate, then pick a role.
@@ -3658,8 +3750,9 @@ function applyRole() {
   const kiosk = role === 'register' && S.settings && S.settings.kioskReg;
   document.getElementById('mainNav').style.display = kiosk ? 'none' : '';
   const esc = document.getElementById('roleEscape');
-  // All non-admin roles get the escape button (PIN-gated so spectators can't misuse it).
-  if (esc) esc.style.display = role === 'admin' ? 'none' : '';
+  // Admin needs no escape; operator uses its own bottom bar (its own PIN), not the
+  // track-admin-PIN escape — so hide the generic escape for both.
+  if (esc) esc.style.display = (role === 'admin' || role === 'operator') ? 'none' : '';
   // Hide the Lineups operator controls (TV / print / import / file toggle) for the read-only viewer.
   const ops = document.getElementById('gridOps'); if (ops) ops.style.display = role === 'viewer' ? 'none' : '';
   const vt = document.getElementById('viewToggle'); if (vt) vt.style.display = role === 'viewer' ? 'none' : '';
@@ -3670,6 +3763,7 @@ function applyRole() {
   const vg = document.getElementById('viewerGuide'); if (vg) vg.style.display = isV ? '' : 'none';
   const ht = document.getElementById('helpTitle'); if (ht) ht.textContent = isV ? 'How to read the lineups' : 'How to use RaceDay';
   const hsub = document.getElementById('helpSub'); if (hsub) hsub.style.display = isV ? 'none' : '';
+  renderOpBar();    // operator watch/control bar (hidden for other roles)
   renderHeader();   // refresh the sync/role badge
   if (!allowed.includes(curPage)) nav(allowed[0]);
   if (role === 'tv' && !tvOn && typeof openTV === 'function') openTV();
@@ -3708,6 +3802,12 @@ function renderSyncCard() {
       + '<button class="btn btn-sm" onclick="copyText(\'' + link('register') + '\',\'Registration link\')">📋 Registration link</button>'
       + '<button class="btn btn-sm" onclick="copyText(\'' + link('scoring') + '\',\'Scoring link\')">📋 Scoring tower link</button>'
       + '<button class="btn btn-sm" onclick="copyText(\'' + link('tv') + '\',\'TV link\')">📋 TV display link</button>'
+      + '</div>';
+    // Operator link (private) — owner monitors this track and can take control.
+    h += '<div style="margin-top:14px;border-top:1px solid var(--line,#d4d4cf);padding-top:12px">'
+      + '<div class="slbl" style="margin:0 0 6px">🛡 Operator link (private)</div>'
+      + '<p style="font-size:12.5px;color:var(--muted);margin:0 0 8px">For YOUR own device only — keep it private. Opens this track in <b>watch</b> mode (read-only); tap <b>Take control</b> (your Operator PIN) to make live changes. Don\'t share it with the track.</p>'
+      + '<button class="btn btn-sm" onclick="copyText(\'' + link('operator') + '\',\'Operator link\')">📋 Copy operator link</button>'
       + '</div>';
     // Spectator QR — fans scan to a read-only lineups page.
     h += '<div style="margin-top:14px;border-top:1px solid var(--line,#d4d4cf);padding-top:12px">'
