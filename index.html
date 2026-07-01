@@ -310,6 +310,8 @@
   .vdc-name { font-family:var(--display);font-size:26px;font-weight:800;margin:10px 0 4px; }
   .vdc-cls { font-size:14px;color:var(--muted);line-height:1.7;margin-bottom:4px; }
   .vdc-close { margin-top:18px;display:block;background:var(--line);border-radius:10px;padding:10px 0;font-size:14px;font-weight:600;cursor:pointer; }
+  .vw-toast { position:fixed;top:16px;left:50%;transform:translateX(-50%);z-index:9999;background:#111;color:#fff;border-radius:12px;padding:12px 18px;font-size:14px;font-weight:600;display:flex;align-items:center;gap:12px;box-shadow:0 4px 20px rgba(0,0,0,.35);white-space:nowrap; }
+  .vw-toast button { background:#fff;color:#111;border:none;border-radius:8px;padding:5px 12px;font-size:13px;font-weight:700;cursor:pointer; }
   .wiz-title { font-family:var(--display);font-size:22px;font-weight:800;text-transform:uppercase;letter-spacing:.04em;color:var(--ink);margin-bottom:.35rem; }
   .wiz-progress { font-size:12px;color:var(--muted);margin-bottom:1.25rem; }
   .wiz-nav { display:flex;justify-content:space-between;align-items:center;margin-top:1.5rem;gap:8px; }
@@ -994,6 +996,11 @@
     <div id="cicContent"></div>
     <span class="vdc-close" onclick="hideClassCard()">✕ Close</span>
   </div>
+</div>
+
+<div id="viewerToast" class="vw-toast" style="display:none">
+  🏁 Results updated
+  <button onclick="setViewStage('results');hideViewerToast()">View →</button>
 </div>
 
 <script>
@@ -1959,7 +1966,7 @@ function renderViewerLineups() {
   let h = '<div class="vw-pick"><label>Class</label><select onchange="setViewClass(this.value)">'
     + S.classes.map(c => '<option value="' + c.id + '"' + (c.id === UI.viewClsId ? ' selected' : '') + '>' + esc(c.name) + '</option>').join('')
     + '</select><button class="btn btn-sm" style="flex-shrink:0;padding:5px 12px" onclick="showClassCard(' + UI.viewClsId + ')" title="About this class">ℹ About</button></div>';
-  const stages = [['qual', 'Qualifying'], ['heats', 'Heats'], ['bmain', 'B-Mains'], ['feat', 'Feature']];
+  const stages = [['qual', 'Qualifying'], ['heats', 'Heats'], ['bmain', 'B-Mains'], ['feat', 'Feature'], ['results', 'Results']];
   h += '<div class="vw-tabs">' + stages.map(([k, lbl]) =>
     '<button class="' + (UI.viewStage === k ? 'on' : '') + '" onclick="setViewStage(\'' + k + '\')">' + lbl + '</button>').join('') + '</div>';
   h += '<div class="vw-body">';
@@ -1984,7 +1991,7 @@ function renderViewerLineups() {
       if (fd.mains.length) fd.mains.forEach(mn => { h += '<div class="slbl">' + esc(mn.label) + '</div>' + gridMarkup(mn.drivers.map(toRow), single, true); });
       else h += '<p class="empty">This class runs straight to the feature — no B-mains.</p>';
     }
-  } else {   // feat
+  } else if (UI.viewStage === 'feat') {
     if (!classComplete(cls.id)) h += '<p class="empty">The feature lineup posts once the heats are scored.</p>';
     else {
       const fd = featureData(cls.id);
@@ -1993,6 +2000,18 @@ function renderViewerLineups() {
         : fd.locked;
       if (feat) h += '<div class="slbl">🏁 Feature lineup</div>' + gridMarkup(feat.map(toRow), single, true);
       else h += '<p class="empty">The feature lineup posts once the B-main finishes are entered.</p>';
+    }
+  } else {   // results
+    const ff = featureFinish(cls.id);
+    if (!ff.length) {
+      h += '<p class="empty">Results will appear here once the feature is scored.</p>';
+    } else {
+      h += '<div class="slbl">🏆 ' + esc(cls.name) + ' results</div><div class="hb">';
+      ff.forEach((r, i) => {
+        h += '<div class="hr"><div class="pnum">P' + (i + 1) + '</div>' + discNum(r.num)
+          + '<div class="nm" onclick="showViewerCard(' + r.id + ')" style="cursor:pointer"><b>' + esc(r.name) + '</b></div></div>';
+      });
+      h += '</div>';
     }
   }
   h += '</div>';
@@ -2034,6 +2053,19 @@ function showClassCard(id) {
   showModal('classInfoCard', 'flex');
 }
 function hideClassCard() { hideModal('classInfoCard'); }
+
+let _viewerToastTimer = null;
+function showViewerToast() {
+  const el = document.getElementById('viewerToast');
+  if (!el) return;
+  el.style.display = 'flex';
+  clearTimeout(_viewerToastTimer);
+  _viewerToastTimer = setTimeout(hideViewerToast, 5000);
+}
+function hideViewerToast() {
+  const el = document.getElementById('viewerToast');
+  if (el) el.style.display = 'none';
+}
 
 function printHeats() {
   let html = '<!DOCTYPE html><html><head><title>Heat Assignments</title><style>'
@@ -3659,6 +3691,8 @@ function initSync() {
 // take-control / back-to-watching, which re-pull fresh to discard any local scratch).
 function syncApplySnapshot(v) {
   if (!v) return;
+  const wasViewer = deviceRole() === 'viewer';
+  const prevFin = wasViewer ? JSON.stringify(S.classes.map(c => featureFinish(c.id))) : null;
   Sync.applying = true;
   SYNC_FIELDS.forEach(f => {
     const raw = syncGetIn(v, f);
@@ -3668,6 +3702,9 @@ function syncApplySnapshot(v) {
   Sync.applying = false;
   try { localStorage.setItem(KEY, JSON.stringify(S)); } catch (e) {}  // intentional: bypasses save() to prevent sync echo loop
   renderHeader(); render(curPage); if (TV.on) tvRender();
+  if (wasViewer && prevFin !== null && JSON.stringify(S.classes.map(c => featureFinish(c.id))) !== prevFin) {
+    showViewerToast();
+  }
 }
 
 // Debounced incremental push: only fields whose JSON actually changed.
