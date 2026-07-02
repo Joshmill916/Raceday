@@ -305,6 +305,21 @@
   /* Setup wizard & pill-choice modal */
   .wiz-overlay { position:fixed;inset:0;background:rgba(0,0,0,.65);z-index:9999;display:flex;align-items:center;justify-content:center;padding:16px; }
   .wiz-box { background:#fff;border-radius:14px;padding:1.75rem 1.5rem;max-width:480px;width:100%;max-height:90vh;overflow-y:auto;box-shadow:0 8px 32px rgba(0,0,0,.18); }
+  .vdc-overlay { position:fixed;inset:0;z-index:9998;display:flex;align-items:flex-end;background:rgba(0,0,0,.52); }
+  .vdc-box { background:#fff;border-radius:20px 20px 0 0;width:100%;max-width:480px;margin:0 auto;padding:20px 24px 36px;text-align:center; }
+  .vdc-name { font-family:var(--display);font-size:26px;font-weight:800;margin:10px 0 4px; }
+  .vdc-cls { font-size:14px;color:var(--muted);line-height:1.7;margin-bottom:4px; }
+  .vdc-close { margin-top:18px;display:block;background:var(--line);border-radius:10px;padding:10px 0;font-size:14px;font-weight:600;cursor:pointer; }
+  .vw-toast { position:fixed;top:16px;left:50%;transform:translateX(-50%);z-index:9999;background:#111;color:#fff;border-radius:12px;padding:12px 18px;font-size:14px;font-weight:600;display:flex;align-items:center;gap:12px;box-shadow:0 4px 20px rgba(0,0,0,.35);white-space:nowrap; }
+  .vw-toast button { background:#fff;color:#111;border:none;border-radius:8px;padding:5px 12px;font-size:13px;font-weight:700;cursor:pointer; }
+  .qt-box { background:#fff;border-radius:20px 20px 0 0;width:100%;max-width:480px;margin:0 auto;max-height:88vh;overflow-y:auto;padding:18px 20px 26px; }
+  .qt-row { display:flex;align-items:center;gap:10px;padding:7px 0;border-bottom:1px solid var(--line); }
+  .qt-rank { width:34px;text-align:center;font-family:var(--display);font-weight:800;font-size:15px;color:var(--muted); }
+  .qt-nm { flex:1;font-size:14px;line-height:1.3; }
+  .qt-nm span { color:var(--muted);font-size:12px; }
+  .qt-row input { width:96px;padding:8px;border:1px solid var(--line);border-radius:8px;font-size:15px;text-align:center;font-variant-numeric:tabular-nums; }
+  .qt-actions { display:flex;gap:8px;margin-top:16px; }
+  .qt-actions .btn { flex:1; }
   .wiz-title { font-family:var(--display);font-size:22px;font-weight:800;text-transform:uppercase;letter-spacing:.04em;color:var(--ink);margin-bottom:.35rem; }
   .wiz-progress { font-size:12px;color:var(--muted);margin-bottom:1.25rem; }
   .wiz-nav { display:flex;justify-content:space-between;align-items:center;margin-top:1.5rem;gap:8px; }
@@ -977,6 +992,41 @@
   </div>
 </div>
 
+<div id="viewerDriverCard" class="vdc-overlay" style="display:none" onclick="if(event.target===this)hideViewerCard()">
+  <div class="vdc-box">
+    <div id="vdcContent"></div>
+    <span class="vdc-close" onclick="hideViewerCard()">✕ Close</span>
+  </div>
+</div>
+
+<div id="classInfoCard" class="vdc-overlay" style="display:none" onclick="if(event.target===this)hideClassCard()">
+  <div class="vdc-box">
+    <div id="cicContent"></div>
+    <span class="vdc-close" onclick="hideClassCard()">✕ Close</span>
+  </div>
+</div>
+
+<div id="viewerToast" class="vw-toast" style="display:none">
+  🏁 Results updated
+  <button onclick="nav('grid');setViewStage('results');hideViewerToast()">View →</button>
+</div>
+
+<div id="qualTimesModal" class="vdc-overlay" style="display:none" onclick="if(event.target===this)closeQualTimes()">
+  <div class="qt-box">
+    <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:4px">
+      <div id="qtTitle" style="font-family:var(--display);font-size:20px;font-weight:800"></div>
+      <span onclick="closeQualTimes()" style="cursor:pointer;font-size:22px;line-height:1;color:var(--muted)">✕</span>
+    </div>
+    <p class="sub" style="font-size:12px;margin:0 0 12px">Enter each driver's best qualifying time — e.g. <b>18.34</b> or <b>1:02.5</b>. The number badge shows where they'd start.</p>
+    <div id="qtBody"></div>
+    <div class="qt-actions">
+      <button class="btn" onclick="saveQualTimes()">Save times</button>
+      <button class="btn btn-primary" onclick="applyQualGrid()">Set grid from times →</button>
+    </div>
+    <p id="qtHint" class="sub" style="font-size:11px;margin-top:10px"></p>
+  </div>
+</div>
+
 <script>
 // ---------- State ----------
 const KEY = 'raceday_v1';
@@ -1064,7 +1114,7 @@ function defaults() {
     settings: { maxHeat: 8, maxBMain: 12, maxFeature: 20, transfers: 2, gridStyle: 'double', heatFill: 'alternate', bmainMode: 'single', bmainCount: 2, points: { mode: 'fixed', table: [10, 8, 6, 5, 4, 3, 2, 1], beyond: 0 }, requireConsent: true, captureConsentIP: true },
     raceDay: { date: today(), entries: [], heatResults: {}, pointsRace: {}, resultGov: {}, resultVersions: {} },  // entries: {driverId, classId, pill}; resultGov: per-class {status,locked}; resultVersions: per-class snapshots
     nextId: 100,
-    schemaVersion: 1,
+    schemaVersion: 2,
     sync: { enabled: false, key: '' }             // live multi-device sync (off until activated)
   };
 }
@@ -1106,8 +1156,16 @@ function migrate(s) {
     };
     if (s.raceDay && s.raceDay.heatResults) Object.values(s.raceDay.heatResults).forEach(fixHeatKeys);
     if (s.raceDay && s.raceDay.resultVersions) Object.values(s.raceDay.resultVersions).forEach(vers => { if (Array.isArray(vers)) vers.forEach(v => v && fixHeatKeys(v.data)); });
+    s.schemaVersion = 1;
   }
-  s.schemaVersion = 1;
+  if (s.schemaVersion < 2) {
+    if (s.classes) s.classes.forEach(c => {
+      if (!c.description) c.description = '';
+      if (!c.ageGroup) c.ageGroup = '';
+      if (!c.specs) c.specs = '';
+    });
+    s.schemaVersion = 2;
+  }
   return s;
 }
 function load() {
@@ -1228,7 +1286,7 @@ function driverById(id) { return S.roster.find(d => d.id === id); }
 function classById(id) { return S.classes.find(c => c.id === id); }
 function classRacers(clsId) {
   return S.raceDay.entries.filter(e => e.classId === clsId)
-    .map(e => { const d = driverById(e.driverId) || { name: '?', num: '?' }; return { id: e.driverId, name: d.name, num: d.num, pill: e.pill, heat: e.heat }; })
+    .map(e => { const d = driverById(e.driverId) || { name: '?', num: '?' }; return { id: e.driverId, name: d.name, num: d.num, pill: e.pill, heat: e.heat, qualTime: e.qualTime }; })
     .sort((a, b) => a.pill - b.pill);
 }
 // Heat groups for a class. If entries carry explicit heat assignments (the divisions
@@ -1833,13 +1891,14 @@ function discNum(num) {
   const f = sz ? ' style="font-size:' + sz + 'px"' : '';
   return '<div class="disc sm"' + f + '>' + esc(s) + '</div>';
 }
-function gridMarkup(racers, single) {
-  const sub = r => r.tag || ('Pill #' + r.pill);
+function gridMarkup(racers, single, tappable) {
+  const sub = r => r.tag || (r.qualTime ? '⏱ ' + r.qualTime : 'Pill #' + r.pill);
+  const tap = r => tappable && r.id ? ' onclick="showViewerCard(' + r.id + ')" style="cursor:pointer"' : '';
   if (single) {
     let h = '<div class="hb">';
     racers.forEach((r, i) => {
       h += '<div class="hr"><div class="pnum">P' + (i + 1) + '</div>' + discNum(r.num)
-        + '<div class="nm"><b>' + esc(r.name) + '</b> <span>' + esc(sub(r)) + '</span></div>'
+        + '<div class="nm"' + tap(r) + '><b>' + esc(r.name) + '</b> <span>' + esc(sub(r)) + '</span></div>'
         + (i === 0 ? '<span class="poletag" style="position:static"></span>' : '') + '</div>';
     });
     return h + '</div>';
@@ -1851,7 +1910,7 @@ function gridMarkup(racers, single) {
       + (pos % 2 ? '<span class="rowlbl">Row ' + pt.row + '</span>' : '')
       + (pos === 1 ? '<span class="poletag"></span>' : '')
       + '<div class="posn">P' + pos + '</div>' + discNum(r.num)
-      + '<div class="who"><b>' + esc(r.name) + '</b><span>' + esc(sub(r)) + '</span></div></div>';
+      + '<div class="who"' + tap(r) + '><b>' + esc(r.name) + '</b><span>' + esc(sub(r)) + '</span></div></div>';
   });
   return h + '</div>';
 }
@@ -1866,7 +1925,10 @@ function renderGrid() {
   let h = '';
   S.classes.forEach(cls => {
     const racers = classRacers(cls.id);
-    h += '<section class="gsec"><h3>' + esc(cls.name) + ' <span class="count">· ' + racers.length + ' entered</span></h3>';
+    h += '<section class="gsec"><div style="display:flex;align-items:center;justify-content:space-between;gap:8px;flex-wrap:wrap">'
+      + '<h3 style="margin:0">' + esc(cls.name) + ' <span class="count">· ' + racers.length + ' entered</span></h3>'
+      + (racers.length ? '<button class="btn btn-sm" onclick="openQualTimes(' + cls.id + ')">⏱ Qualifying times</button>' : '')
+      + '</div>';
     if (!racers.length) { h += '<p class="empty">No drivers yet — first to sign up takes the pole.</p></section>'; return; }
     const invN = classInvertN(cls);
     const scope = cls.invertScope || 'field';
@@ -1926,12 +1988,12 @@ function renderViewerLineups() {
   const cls = classById(UI.viewClsId);
   const racers = classRacers(cls.id);
   const single = S.settings.gridStyle === 'single';   // match how the track grids (double / single file)
-  const toRow = s => ({ name: s.name, num: s.num, tag: 'Heat total ' + s.pts });
+  const toRow = s => ({ id: s.id, name: s.name, num: s.num, tag: 'Heat total ' + s.pts });
 
   let h = '<div class="vw-pick"><label>Class</label><select onchange="setViewClass(this.value)">'
     + S.classes.map(c => '<option value="' + c.id + '"' + (c.id === UI.viewClsId ? ' selected' : '') + '>' + esc(c.name) + '</option>').join('')
-    + '</select></div>';
-  const stages = [['qual', 'Qualifying'], ['heats', 'Heats'], ['bmain', 'B-Mains'], ['feat', 'Feature']];
+    + '</select><button class="btn btn-sm" style="flex-shrink:0;padding:5px 12px" onclick="showClassCard(' + UI.viewClsId + ')" title="About this class">ℹ About</button></div>';
+  const stages = [['qual', 'Qualifying'], ['heats', 'Heats'], ['bmain', 'B-Mains'], ['feat', 'Feature'], ['results', 'Results']];
   h += '<div class="vw-tabs">' + stages.map(([k, lbl]) =>
     '<button class="' + (UI.viewStage === k ? 'on' : '') + '" onclick="setViewStage(\'' + k + '\')">' + lbl + '</button>').join('') + '</div>';
   h += '<div class="vw-body">';
@@ -1939,37 +2001,187 @@ function renderViewerLineups() {
   if (!racers.length) {
     h += '<p class="empty">No drivers in this class yet.</p>';
   } else if (UI.viewStage === 'qual') {
-    h += '<div class="slbl">Qualifying order</div>' + gridMarkup(invertField(racers, cls), single);
+    h += '<div class="slbl">Qualifying order</div>' + gridMarkup(invertField(racers, cls), single, true);
   } else if (UI.viewStage === 'heats') {
     const heats = classHeats(cls);
     const set1 = invertWithinHeats(heatArrays(racers, cls), cls);
     h += '<div class="slbl">' + (heats === 1 ? 'Heat lineups' : 'Set 1 heats') + '</div>';
-    set1.forEach((heat, hi) => { h += '<div class="heat-cap"><span>Heat ' + (hi + 1) + '</span><small>' + heat.length + ' karts</small></div>' + gridMarkup(heat, single); });
+    set1.forEach((heat, hi) => { h += '<div class="heat-cap"><span>Heat ' + (hi + 1) + '</span><small>' + heat.length + ' karts</small></div>' + gridMarkup(heat, single, true); });
     if (heats === 2) {
       h += '<div class="slbl">Set 2 — inverted</div>';
-      set1.map(ht => [...ht].reverse()).forEach((heat, hi) => { h += '<div class="heat-cap inv"><span>Heat ' + (hi + 1) + '</span></div>' + gridMarkup(heat, single); });
+      set1.map(ht => [...ht].reverse()).forEach((heat, hi) => { h += '<div class="heat-cap inv"><span>Heat ' + (hi + 1) + '</span></div>' + gridMarkup(heat, single, true); });
     }
   } else if (UI.viewStage === 'bmain') {
     if (!classComplete(cls.id)) h += '<p class="empty">B-main lineups post once the heats are scored.</p>';
     else {
       const fd = featureData(cls.id);
-      if (fd.mains.length) fd.mains.forEach(mn => { h += '<div class="slbl">' + esc(mn.label) + '</div>' + gridMarkup(mn.drivers.map(toRow), single); });
+      if (fd.mains.length) fd.mains.forEach(mn => { h += '<div class="slbl">' + esc(mn.label) + '</div>' + gridMarkup(mn.drivers.map(toRow), single, true); });
       else h += '<p class="empty">This class runs straight to the feature — no B-mains.</p>';
     }
-  } else {   // feat
+  } else if (UI.viewStage === 'feat') {
     if (!classComplete(cls.id)) h += '<p class="empty">The feature lineup posts once the heats are scored.</p>';
     else {
       const fd = featureData(cls.id);
       const feat = fd.mains.length
         ? ((fd.toFeatureSpots > 0 && fd.transferred.length >= fd.toFeatureSpots) ? [...fd.locked, ...fd.transferred] : null)
         : fd.locked;
-      if (feat) h += '<div class="slbl">🏁 Feature lineup</div>' + gridMarkup(feat.map(toRow), single);
+      if (feat) h += '<div class="slbl">🏁 Feature lineup</div>' + gridMarkup(feat.map(toRow), single, true);
       else h += '<p class="empty">The feature lineup posts once the B-main finishes are entered.</p>';
+    }
+  } else {   // results
+    const ff = featureFinish(cls.id);
+    if (!ff.length) {
+      h += '<p class="empty">Results will appear here once the feature is scored.</p>';
+    } else {
+      h += '<div class="slbl">🏆 ' + esc(cls.name) + ' results</div><div class="hb">';
+      ff.forEach((r, i) => {
+        h += '<div class="hr"><div class="pnum">P' + (i + 1) + '</div>' + discNum(r.num)
+          + '<div class="nm" onclick="showViewerCard(' + r.id + ')" style="cursor:pointer"><b>' + esc(r.name) + '</b></div></div>';
+      });
+      h += '</div>';
     }
   }
   h += '</div>';
   el.innerHTML = h;
 }
+
+function showViewerCard(id) {
+  if (deviceRole() !== 'viewer') return;
+  const d = driverById(id); if (!d) return;
+  const entries = S.raceDay.entries.filter(e => e.driverId === id);
+  const clsLines = entries.map(e => {
+    const c = classById(e.classId) || { name: '?' };
+    return '<div>' + esc(c.name) + ' &mdash; Grid P' + e.pill + '</div>';
+  }).join('');
+  const s = String(d.num);
+  const sz = s.length === 3 ? 22 : s.length === 4 ? 18 : s.length >= 5 ? 14 : 0;
+  const discStyle = sz ? ' style="font-size:' + sz + 'px"' : '';
+  document.getElementById('vdcContent').innerHTML =
+    '<div class="disc big" style="margin:0 auto 12px"' + discStyle + '>' + esc(s) + '</div>'
+    + '<div class="vdc-name">' + esc(d.name) + '</div>'
+    + (clsLines ? '<div class="vdc-cls">' + clsLines + '</div>' : '');
+  showModal('viewerDriverCard', 'flex');
+}
+function hideViewerCard() { hideModal('viewerDriverCard'); }
+function showClassCard(id) {
+  if (deviceRole() !== 'viewer') return;
+  const c = classById(id); if (!c) return;
+  const entered = S.raceDay.entries.filter(e => e.classId === id).length;
+  const desc = (c.description || '').trim();
+  const age = (c.ageGroup || '').trim();
+  const specs = (c.specs || '').trim();
+  document.getElementById('cicContent').innerHTML =
+    '<div style="font-family:var(--display);font-size:22px;font-weight:800;margin-bottom:6px">' + esc(c.name) + '</div>'
+    + (age ? '<div style="font-size:13px;color:var(--muted);margin-bottom:4px">👤 ' + esc(age) + '</div>' : '')
+    + (specs ? '<div style="font-size:13px;color:var(--muted);margin-bottom:4px">⚙️ ' + esc(specs) + '</div>' : '')
+    + (entered ? '<div style="font-size:13px;color:var(--muted);margin-bottom:10px">🏁 ' + entered + ' driver' + (entered === 1 ? '' : 's') + ' entered today</div>' : '')
+    + (desc ? '<div style="font-size:14px;line-height:1.6;color:var(--ink);border-top:1px solid var(--line);padding-top:12px;margin-top:4px">' + esc(desc).replace(/\n/g, '<br>') + '</div>'
+            : '<div style="font-size:13px;color:var(--muted);font-style:italic">No class description added yet.</div>');
+  showModal('classInfoCard', 'flex');
+}
+function hideClassCard() { hideModal('classInfoCard'); }
+
+let _viewerToastTimer = null;
+function showViewerToast() {
+  const el = document.getElementById('viewerToast');
+  if (!el) return;
+  el.style.display = 'flex';
+  clearTimeout(_viewerToastTimer);
+  _viewerToastTimer = setTimeout(hideViewerToast, 5000);
+}
+function hideViewerToast() {
+  const el = document.getElementById('viewerToast');
+  if (el) el.style.display = 'none';
+}
+
+// ---------- Qualifying times (manual entry → optional grid order) ----------
+let _qtClsId = null;
+function qtEntry(clsId, driverId) { return S.raceDay.entries.find(e => e.classId === clsId && e.driverId === driverId); }
+function openQualTimes(clsId) {
+  if (!adminOk()) return;
+  const cls = classById(clsId); if (!cls) return;
+  _qtClsId = clsId;
+  document.getElementById('qtTitle').textContent = cls.name + ' — qualifying';
+  renderQtBody();
+  showModal('qualTimesModal', 'flex');
+}
+function renderQtBody() {
+  const el = document.getElementById('qtBody');
+  const racers = classRacers(_qtClsId);   // current grid order
+  if (!racers.length) { el.innerHTML = '<p class="empty">No drivers in this class yet.</p>'; return; }
+  el.innerHTML = racers.map(r =>
+    '<div class="qt-row"><div class="qt-rank">P' + r.pill + '</div>'
+    + '<div class="qt-nm"><b>' + esc(r.name) + '</b> <span>#' + esc(r.num) + '</span></div>'
+    + '<input inputmode="decimal" placeholder="—" value="' + esc(r.qualTime || '') + '" data-id="' + r.id + '" oninput="qtPreview()"></div>'
+  ).join('');
+  qtPreview();
+}
+// Read the current input values → [{id, raw, t}]. t = seconds (Infinity if blank/DNF/unparseable).
+function qtCollect() {
+  const rows = [];
+  document.querySelectorAll('#qtBody input[data-id]').forEach(inp => {
+    const raw = inp.value.trim();
+    rows.push({ id: parseInt(inp.getAttribute('data-id'), 10), raw, t: raw ? impParseLapTime(raw) : Infinity });
+  });
+  return rows;
+}
+// Provisional grid: valid times fastest-first, then untimed keeping current pill order.
+function qtOrder() {
+  const rows = qtCollect();
+  const pillOf = {}; classRacers(_qtClsId).forEach(r => pillOf[r.id] = r.pill);
+  const timed = rows.filter(r => r.t !== Infinity).sort((a, b) => a.t - b.t);
+  const untimed = rows.filter(r => r.t === Infinity).sort((a, b) => pillOf[a.id] - pillOf[b.id]);
+  return [...timed, ...untimed];
+}
+function qtPreview() {
+  const order = qtOrder();
+  const rankOf = {}; order.forEach((r, i) => rankOf[r.id] = i + 1);
+  document.querySelectorAll('#qtBody .qt-row').forEach(row => {
+    const inp = row.querySelector('input[data-id]');
+    const id = parseInt(inp.getAttribute('data-id'), 10);
+    const badge = row.querySelector('.qt-rank');
+    if (badge) badge.textContent = 'P' + rankOf[id];
+    const raw = inp.value.trim();
+    inp.style.borderColor = (raw && impTimeUnparsed(raw)) ? 'var(--flag-red,#e0524a)' : '';
+  });
+  const timed = order.filter(r => r.t !== Infinity).length;
+  const hint = document.getElementById('qtHint');
+  if (hint) hint.textContent = timed
+    ? timed + ' driver' + (timed === 1 ? '' : 's') + ' timed. "Set grid" puts the fastest on pole; untimed drivers start at the back.'
+    : 'Enter times, then "Set grid" reorders the starting lineup. Or just save to record them.';
+}
+// Persist times onto entries without touching the grid order.
+function saveQualTimes() {
+  if (!adminOk()) return;
+  qtCollect().forEach(r => {
+    const e = qtEntry(_qtClsId, r.id); if (!e) return;
+    if (r.raw && r.t !== Infinity) e.qualTime = r.raw; else delete e.qualTime;
+  });
+  save();
+  renderGrid();
+  if (typeof flashMsg === 'function') flashMsg('Qualifying times saved.');
+  renderQtBody();
+}
+// Sort by time and renumber pill = grid rank (mirrors the timing-CSV qual import).
+function applyQualGrid() {
+  if (!adminOk()) return;
+  const order = qtOrder();
+  const timed = order.filter(r => r.t !== Infinity).length;
+  if (!timed) { alert('Enter at least one qualifying time first.'); return; }
+  if (!confirm('Set the ' + classById(_qtClsId).name + ' starting grid from these times?\n\nFastest goes to pole — this replaces the current order.')) return;
+  order.forEach((r, i) => {
+    const e = qtEntry(_qtClsId, r.id); if (!e) return;
+    e.pill = i + 1;
+    delete e.heat;   // grid purely from qualifying order, like the timing import
+    if (r.raw && r.t !== Infinity) e.qualTime = r.raw; else delete e.qualTime;
+  });
+  logAudit('Grid set from qualifying times', '', timed + ' timed', classById(_qtClsId).name);
+  save();
+  renderGrid();
+  if (typeof flashMsg === 'function') flashMsg('Grid set from qualifying times ✓');
+  closeQualTimes();
+}
+function closeQualTimes() { hideModal('qualTimesModal'); _qtClsId = null; }
 
 function printHeats() {
   let html = '<!DOCTYPE html><html><head><title>Heat Assignments</title><style>'
@@ -2983,8 +3195,21 @@ function renderClsList() {
       +   '<label style="margin:0;display:flex;align-items:center;gap:4px">B-main'
       +     '<input class="inline-num" type="number" min="2" max="30" value="' + (c.maxBMain || '') + '" placeholder="' + S.settings.maxBMain + '" onchange="setClassSize(' + c.id + ',\'maxBMain\',this.value)"></label>'
       + '</span>'
-      + '<button class="btn btn-sm btn-danger" onclick="delClass(' + c.id + ')">Remove</button></div>';
+      + '<button class="btn btn-sm btn-danger" onclick="delClass(' + c.id + ')">Remove</button></div>'
+      + '<div style="padding:0 0 8px 44px">'
+        + '<span style="font-size:11px;color:var(--muted);cursor:pointer;text-decoration:underline" onclick="var p=this.parentElement.nextElementSibling;p.style.display=p.style.display===\'none\'?\'block\':\'none\'">'
+          + ((c.description || c.ageGroup || c.specs) ? 'Edit spectator info' : '+ Add spectator info') + '</span></div>'
+      + '<div style="display:none;padding:0 0 10px 44px"><div style="display:grid;gap:8px;max-width:480px">'
+        + '<label style="font-size:12px">Age group / eligibility<input type="text" value="' + esc(c.ageGroup || '') + '" placeholder="e.g. Ages 8–14" style="display:block;width:100%;margin-top:3px" onchange="saveClassInfo(' + c.id + ',\'ageGroup\',this.value)"></label>'
+        + '<label style="font-size:12px">Kart / engine specs<input type="text" value="' + esc(c.specs || '') + '" placeholder="e.g. Yamaha KT100, 55 lb min weight" style="display:block;width:100%;margin-top:3px" onchange="saveClassInfo(' + c.id + ',\'specs\',this.value)"></label>'
+        + '<label style="font-size:12px">Description for spectators<textarea rows="3" style="display:block;width:100%;margin-top:3px;resize:vertical" placeholder="Explain what makes this class unique — who races it, what the racing is like, anything fans should know." onchange="saveClassInfo(' + c.id + ',\'description\',this.value)">' + esc(c.description || '') + '</textarea></label>'
+      + '</div></div>';
   }).join('');
+}
+function saveClassInfo(id, field, val) {
+  const c = classById(id); if (!c) return;
+  c[field] = val.trim();
+  save();
 }
 // Per-class heat-start format. Standard = fastest qualifier on pole (no invert).
 // 'field'/'heat' = invert the top N qualifiers (whole field, or within each heat).
@@ -3040,7 +3265,7 @@ function addClass() {
   const name = nameEl.value.trim();
   if (!name) return;
   const maxPill = Math.max(2, parseInt(maxEl.value) || 200);
-  S.classes.push({ id: Date.now(), name, maxPill });
+  S.classes.push({ id: Date.now(), name, maxPill, description: '', ageGroup: '', specs: '' });
   rememberClass(name, maxPill);
   nameEl.value = ''; maxEl.value = '200';
   save(); renderClsList(); renderClsLib();
@@ -3582,6 +3807,8 @@ function initSync() {
 // take-control / back-to-watching, which re-pull fresh to discard any local scratch).
 function syncApplySnapshot(v) {
   if (!v) return;
+  const wasViewer = deviceRole() === 'viewer';
+  const prevFin = wasViewer ? JSON.stringify(S.classes.map(c => featureFinish(c.id))) : null;
   Sync.applying = true;
   SYNC_FIELDS.forEach(f => {
     const raw = syncGetIn(v, f);
@@ -3591,6 +3818,9 @@ function syncApplySnapshot(v) {
   Sync.applying = false;
   try { localStorage.setItem(KEY, JSON.stringify(S)); } catch (e) {}  // intentional: bypasses save() to prevent sync echo loop
   renderHeader(); render(curPage); if (TV.on) tvRender();
+  if (wasViewer && prevFin !== null && JSON.stringify(S.classes.map(c => featureFinish(c.id))) !== prevFin) {
+    showViewerToast();
+  }
 }
 
 // Debounced incremental push: only fields whose JSON actually changed.
