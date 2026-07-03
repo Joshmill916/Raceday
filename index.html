@@ -743,7 +743,7 @@
         <p>The <b>Admin</b> tab is the control room (you can lock it with a PIN):</p>
         <ul class="guide-list">
           <li><b>Track identity</b> — your name and logo on the lineups, printout, and TV. First time here? Hit <b>Setup wizard</b> to walk through name, classes, and PIN in one go.</li>
-          <li><b>Classes</b> — add or remove classes, drag the running order, set each class's pill count.</li>
+          <li><b>Classes</b> — add or remove classes, drag the running order, set each class's pill count. <b>Main invert</b> flips the top N starting spots of the feature or the B-mains once the heats are scored — heat totals still decide who makes each main, invert only changes where they start.</li>
           <li><b>Race settings</b> — heat size, feature size, max in a B-main, transfers, and the B-main format (single / parallel / cascade — tap the <span style="font-weight:700">i</span> buttons to learn each).</li>
           <li><b>Today's entries</b> — all drivers signed up today. Edit kart numbers and grid spots inline. <b>Class column</b>: move a driver to another class — you'll choose whether they keep their pill or draw a fresh one. <b>Pts button</b>: mark a driver non-points for today without changing their roster flag.</li>
           <li><b>Driver book</b> — the persistent driver roster. <b>Points / No points</b> toggle marks someone as a non-points member permanently — they race every night but never appear in standings.</li>
@@ -1352,6 +1352,12 @@ function invertWithinHeats(heats, cls) {
   if (!n || (cls.invertScope || 'field') !== 'heat') return heats;
   return heats.map(heat => [...heat.slice(0, n).reverse(), ...heat.slice(n)]);
 }
+// Main-event invert: flip the top N STARTING spots of the feature / each B-main once
+// the heats are scored. Heat totals still decide who's in which main and transfers
+// still go by finish — invert only changes where drivers line up.
+function invertTop(list, n) { n = parseInt(n) || 0; return (n >= 2 && list.length >= 2) ? [...list.slice(0, n).reverse(), ...list.slice(n)] : list; }
+function clsFeatInvert(cls)  { const c = (cls && typeof cls === 'object') ? cls : (classById(cls) || {}); const n = parseInt(c.invertFeature) || 0; return n >= 2 ? n : 0; }
+function clsBMainInvert(cls) { const c = (cls && typeof cls === 'object') ? cls : (classById(cls) || {}); const n = parseInt(c.invertBMain) || 0; return n >= 2 ? n : 0; }
 // Per-class size overrides. Each class may carry its own maxHeat / maxFeature / maxBMain;
 // when unset (or 0), the class falls back to the global default in S.settings. Accepts a
 // class object or a class id. (B-main transfers stay global.)
@@ -1963,18 +1969,20 @@ function renderGrid() {
     if (classComplete(cls.id)) {
       const fd = featureData(cls.id);
       const toRow = s => ({ name: s.name, num: s.num, tag: 'Heat total ' + s.pts });
+      const bmInvNote = clsBMainInvert(cls) ? ' · top ' + clsBMainInvert(cls) + ' start inverted' : '';
+      const ftInvNote = clsFeatInvert(cls) ? ' · top ' + clsFeatInvert(cls) + ' start inverted' : '';
       if (fd.mains.length) {
         fd.mains.forEach(m => {
           const feedTxt = m.feeds === 'the feature' ? 'the feature' : m.feeds;
-          h += '<div class="slbl">' + esc(m.label) + ' — top ' + fd.transfers + ' to ' + esc(feedTxt) + '</div>' + gridMarkup(m.drivers.map(toRow), single);
+          h += '<div class="slbl">' + esc(m.label) + ' — top ' + fd.transfers + ' to ' + esc(feedTxt) + bmInvNote + '</div>' + gridMarkup(m.drivers.map(toRow), single);
         });
         if (fd.toFeatureSpots > 0 && fd.transferred.length >= fd.toFeatureSpots) {
-          h += '<div class="slbl">🏁 Feature lineup</div>' + gridMarkup([...fd.locked, ...fd.transferred].map(toRow), single);
+          h += '<div class="slbl">🏁 Feature lineup' + ftInvNote + '</div>' + gridMarkup(featureGridOrder(fd, cls.id).map(toRow), single);
         } else {
           h += '<p class="empty">The feature grid posts here once the main finishes are entered on the Results tab.</p>';
         }
       } else {
-        h += '<div class="slbl">🏁 Feature lineup — by heat total (low wins)</div>' + gridMarkup(fd.locked.map(toRow), single);
+        h += '<div class="slbl">🏁 Feature lineup — by heat total (low wins)' + ftInvNote + '</div>' + gridMarkup(featureGridOrder(fd, cls.id).map(toRow), single);
       }
     }
     h += '</section>';
@@ -2027,10 +2035,11 @@ function renderViewerLineups() {
     if (!classComplete(cls.id)) h += '<p class="empty">The feature lineup posts once the heats are scored.</p>';
     else {
       const fd = featureData(cls.id);
-      const feat = fd.mains.length
-        ? ((fd.toFeatureSpots > 0 && fd.transferred.length >= fd.toFeatureSpots) ? [...fd.locked, ...fd.transferred] : null)
-        : fd.locked;
-      if (feat) h += '<div class="slbl">🏁 Feature lineup</div>' + gridMarkup(feat.map(toRow), single, true);
+      const complete = !fd.mains.length || (fd.toFeatureSpots > 0 && fd.transferred.length >= fd.toFeatureSpots);
+      if (complete) {
+        const ftInvNote = clsFeatInvert(cls) ? ' · top ' + clsFeatInvert(cls) + ' start inverted' : '';
+        h += '<div class="slbl">🏁 Feature lineup' + ftInvNote + '</div>' + gridMarkup(featureGridOrder(fd, cls.id).map(toRow), single, true);
+      }
       else h += '<p class="empty">The feature lineup posts once the B-main finishes are entered.</p>';
     }
   } else {   // results
@@ -2304,7 +2313,17 @@ function mainTopIds(clsId, mi, drivers, n) {
 }
 // Returns { mode, locked, mains:[{label,drivers,key,feeds,made}], transferred, transfers, toFeatureSpots }.
 // mains are in running order (cascade lists the lowest main first). transferred = who reaches the feature.
+// B-main lineups come back with the class's main-event invert already applied (starting order only —
+// `made`/`transferred` are computed from finishes first, so who advances is never affected).
 function featureData(clsId) {
+  const fd = featureDataRaw(clsId);
+  const nB = clsBMainInvert(clsId);
+  if (nB) fd.mains.forEach(m => { m.drivers = invertTop(m.drivers, nB); });
+  return fd;
+}
+// Final feature STARTING order: locked + transferred with the feature invert applied.
+function featureGridOrder(fd, clsId) { return invertTop([...fd.locked, ...fd.transferred], clsFeatInvert(clsId)); }
+function featureDataRaw(clsId) {
   const standings = calcStandings(clsId);
   const maxFeature = clsFeature(clsId), maxBMain = clsBMain(clsId);
   const { transfers } = S.settings;
@@ -2588,9 +2607,10 @@ function renderClassResults(clsId) {
   });
   h += '</div>';
 
+  const _bmInv = clsBMainInvert(clsId);
   fd.mains.forEach(m => {
     const feedTxt = m.feeds === 'the feature' ? 'Feature' : m.feeds;
-    h += '<div class="slbl">' + esc(m.label) + '</div><div class="hb"><div class="hh bmain"><span>' + esc(m.label) + ' lineup</span><small>top ' + fd.transfers + ' → ' + esc(feedTxt) + '</small>'
+    h += '<div class="slbl">' + esc(m.label) + '</div><div class="hb"><div class="hh bmain"><span>' + esc(m.label) + ' lineup</span><small>top ' + fd.transfers + ' → ' + esc(feedTxt) + (_bmInv ? ' · top ' + _bmInv + ' start inverted' : '') + '</small>'
       + dupFinishWarn(res, m.drivers.map(r => r.id), id => bmKey(m.key, id)) + '</div>';
     m.drivers.forEach((r, i) => {
       const made = m.made.some(t => t.id === r.id);
@@ -2612,25 +2632,28 @@ function renderClassResults(clsId) {
       + (dp && fin != null ? '<span class="transfer-tag">+' + (typeof fin === 'number' ? dp[s.id] : S.settings.points.beyond) + ' pts</span>' : '')
       + finSelect(clsId, 'ft_' + s.id, ftField, fin) + '</div>';
   };
+  const _ftInv = clsFeatInvert(clsId);
   h += '<div class="slbl">Feature lineup &amp; finish</div><div class="hb"><div class="hh feat"><span>🏁 Feature</span><small>'
     + (fd.mains.length ? fd.locked.length + ' on heat totals + ' + fd.toFeatureSpots + ' transferring up' : 'lined up by heat totals')
+    + (_ftInv ? ' · top ' + _ftInv + ' start inverted' : '')
     + (isPointsRace(clsId) ? ' · finishes award series points' : '') + '</small>'
     + dupFinishWarn(res, [...fd.locked, ...fd.transferred].map(r => r.id), id => 'ft_' + id) + '</div>';
-  let pos = 0;
-  fd.locked.forEach(s => {
-    pos++;
-    h += ftRow(s, pos, '<span class="pts-badge">' + s.pts + '</span>');
-  });
+  // Build the row list first (locked + transfer spots), then apply the feature invert to
+  // the STARTING order — but only once every transfer spot is known, so placeholder
+  // rows never shuffle mid-night.
+  let ftRows = fd.locked.map(s => ({ r: s, tag: '<span class="pts-badge">' + s.pts + '</span>' }));
   if (fd.mains.length) {
     for (let t = 0; t < fd.toFeatureSpots; t++) {
-      pos++; const r = fd.transferred[t];
-      if (r) {
-        h += ftRow(r, pos, '<span class="transfer-tag">' + esc(transferOrigin(fd, clsId, r.id)) + '</span>');
-      } else {
-        h += '<div class="hr"><div class="pnum">P' + pos + '</div><div class="nm tbd">Transfer spot — pick the main finishes to fill this</div></div>';
-      }
+      const r = fd.transferred[t];
+      ftRows.push(r ? { r, tag: '<span class="transfer-tag">' + esc(transferOrigin(fd, clsId, r.id)) + '</span>' } : { tbd: true });
     }
   }
+  if (_ftInv && !ftRows.some(x => x.tbd)) ftRows = invertTop(ftRows, _ftInv);
+  ftRows.forEach((x, i) => {
+    h += x.tbd
+      ? '<div class="hr"><div class="pnum">P' + (i + 1) + '</div><div class="nm tbd">Transfer spot — pick the main finishes to fill this</div></div>'
+      : ftRow(x.r, i + 1, x.tag);
+  });
   h += '</div>';
   h += '</div>';   // close locked-state wrapper
   el.innerHTML = h;
@@ -2683,7 +2706,7 @@ function buildSnapshot() {
     snap.classes.push({
       name: cls.name,
       standings: standings.map((s, i) => ({ pos: i + 1, name: s.name, num: s.num, pill: s.pill, f1: s.f1 != null ? s.f1 : '', f2: s.f2 != null ? s.f2 : '', pts: s.scored ? s.pts : '' })),
-      feature: [...fd.locked, ...fd.transferred].map(s => ({ name: s.name, num: s.num })),
+      feature: featureGridOrder(fd, cls.id).map(s => ({ name: s.name, num: s.num })),
       featureFinish: featureFinish(cls.id).map(f => ({ driverId: f.id, name: f.name, num: f.num, fin: f.fin })),
       pointsRace: isPointsRace(cls.id),
       // dayPoints drops noPoints drivers from dp, so filtering on dp[r.id] != null keeps
@@ -3200,6 +3223,12 @@ function renderClsList() {
       +   '<label style="margin:0;display:flex;align-items:center;gap:4px">B-main'
       +     '<input class="inline-num" type="number" min="2" max="30" value="' + (c.maxBMain || '') + '" placeholder="' + S.settings.maxBMain + '" onchange="setClassSize(' + c.id + ',\'maxBMain\',this.value)"></label>'
       + '</span>'
+      + '<span style="display:flex;align-items:center;gap:8px;font-size:12px;flex-wrap:wrap;color:var(--muted)" title="After the heats are scored: flip that many starting spots at the front of the main. Who qualifies is unchanged — only where they start. Blank = straight up.">Main invert'
+      +   '<label style="margin:0;display:flex;align-items:center;gap:4px">feature'
+      +     '<input class="inline-num" type="number" min="2" max="40" value="' + (clsFeatInvert(c) || '') + '" placeholder="—" onchange="setClassMainInvert(' + c.id + ',\'invertFeature\',this.value)"></label>'
+      +   '<label style="margin:0;display:flex;align-items:center;gap:4px">B-mains'
+      +     '<input class="inline-num" type="number" min="2" max="30" value="' + (clsBMainInvert(c) || '') + '" placeholder="—" onchange="setClassMainInvert(' + c.id + ',\'invertBMain\',this.value)"></label>'
+      + '</span>'
       + '<button class="btn btn-sm btn-danger" onclick="delClass(' + c.id + ')">Remove</button></div>'
       + '<div style="padding:0 0 8px 44px">'
         + '<span style="font-size:11px;color:var(--muted);cursor:pointer;text-decoration:underline" onclick="var p=this.parentElement.nextElementSibling;p.style.display=p.style.display===\'none\'?\'block\':\'none\'">'
@@ -3227,6 +3256,13 @@ function setClassFormat(id, val) {
 function setClassInvert(id, val) {
   const c = classById(id); if (!c) return;
   c.invert = Math.max(2, parseInt(val) || 2);
+  save(); renderClsList(); renderGrid();
+}
+// Main-event invert (feature / B-mains). Blank or sub-2 clears it — mains line up straight.
+function setClassMainInvert(id, field, val) {
+  const c = classById(id); if (!c) return;
+  const n = parseInt(val) || 0;
+  c[field] = n >= 2 ? n : 0;
   save(); renderClsList(); renderGrid();
 }
 // Per-class size override (maxHeat / maxFeature / maxBMain). A blank or sub-2 value
@@ -3595,9 +3631,9 @@ function tvSlides() {
           const feedTxt = m.feeds === 'the feature' ? 'feature' : m.feeds;
           slides.push({ title: cls.name, sub: m.label + ' — top ' + fd.transfers + ' to ' + feedTxt, racers: m.drivers.map(toRow) });
         });
-        if (fd.toFeatureSpots > 0 && fd.transferred.length >= fd.toFeatureSpots) slides.push({ title: cls.name, sub: '🏁 Feature lineup', racers: [...fd.locked, ...fd.transferred].map(toRow) });
+        if (fd.toFeatureSpots > 0 && fd.transferred.length >= fd.toFeatureSpots) slides.push({ title: cls.name, sub: '🏁 Feature lineup', racers: featureGridOrder(fd, cls.id).map(toRow) });
       } else {
-        slides.push({ title: cls.name, sub: '🏁 Feature lineup', racers: fd.locked.map(toRow) });
+        slides.push({ title: cls.name, sub: '🏁 Feature lineup', racers: featureGridOrder(fd, cls.id).map(toRow) });
       }
     }
   });
