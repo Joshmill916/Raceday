@@ -56,10 +56,13 @@ Or just use `/syntax`.
 | `timing-import.html` | Companion CSV timing import tool — separate file, don't modify during main app work |
 | `raceday-codegen.html` | **GITIGNORED SECRET — never commit, never stage** |
 | `test-data/` | CSV + JSON fixtures for manual testing |
+| `tests/` | Playwright suites — see `tests/README.md` |
 
 ## Dev workflow
 - Active dev branch: `claude/track-admin-improvements-d46hxg`
 - Syntax check: `/syntax`
+- After ANY index.html change: run all Playwright suites — `for t in tests/test-*.js; do node "$t" | tail -1; done`
 - Commit + push current branch: `/push <message>`
 - See branch state: `/check`
 - Merge to main: only with explicit user approval — always ask first
+- After merging to main: VERIFY the GitHub Pages build succeeds (a deploy can fail transiently) before telling the user it's live; bump `sw.js` CACHE on cache-breaking changes
