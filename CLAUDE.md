@@ -51,12 +51,30 @@ Or just use `/syntax`.
 |---|---|
 | `index.html` | **The entire app** — all features go here |
 | `sw.js` | Service worker — bump `CACHE` const when deploying cache-breaking changes |
+| `profiles/` | **Profiles companion app** (separate PWA) — driver-owned cross-track racing identity. `profiles/index.html` is fully standalone (own manifest/sw/state, `localStorage` key `profiles_v1`). MVP has no backend: results move via manual JSON import (`ingestExport()`), not yet wired to RaceDay's admin side. See "Profiles app" below. |
 | `BACKLOG.md` | Parked items (operator hardening, deferred audit findings) |
 | `ARCHITECTURE.md` | Full technical reference (data model, sync, roles, points system) |
 | `timing-import.html` | Companion CSV timing import tool — separate file, don't modify during main app work |
 | `raceday-codegen.html` | **GITIGNORED SECRET — never commit, never stage** |
 | `test-data/` | CSV + JSON fixtures for manual testing |
 | `tests/` | Playwright suites — see `tests/README.md` |
+
+## Profiles app (`profiles/index.html`)
+A separate, self-contained PWA — not part of `index.html`, has its own manifest/service
+worker/localStorage key (`profiles_v1`). Lets a driver create one profile that follows them
+across every RaceDay track they race at.
+- State var is `P` (not `S`), object shape: `{ profileId, driver, linkedTracks, raceResults, sponsors, tier }`
+- Link mechanism: driver's `profileId` is shown as a QR code (`RDPROFILE:<id>` payload) on the
+  Link page — scanned at RaceDay sign-up (**not yet built on the RaceDay side** — planned for
+  after the repo goes private)
+- Results enter via `ingestExport(data)` — accepts `{trackId, trackName, date, results:[...]}`
+  (or an array of those), dedupes by `trackId+date+class`, auto-populates `linkedTracks`
+- No backend for MVP — sync is manual paste/upload of a JSON export; RaceDay doesn't produce
+  that export yet (planned: an admin "Share with Profiles" button after archiving a race day)
+- Career stats computed live from `raceResults` via `computeStats()` — no stored cache
+- Same design language as `index.html` (CSS vars, `.card`/`.btn`/`.hr` patterns) and the same
+  embedded QR generator, copied verbatim — kept intentionally separate rather than shared, to
+  preserve the single-file-per-app model
 
 ## Dev workflow
 - Active dev branch: `claude/track-admin-improvements-d46hxg`
