@@ -9,3 +9,4 @@ videos/
 
 # Claude Code worktrees (ephemeral, not part of the app)
 .claude/worktrees/
+narration-clips/
