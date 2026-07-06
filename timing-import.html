@@ -109,7 +109,7 @@
         <div class="upzone" id="csvZone" onclick="document.getElementById('csvFile').click()">
           <div class="ico">📋</div>
           <div id="csvLabel"><b>Click to load timing CSV</b></div>
-          <p>Export from MotoSponder, MYLAPS, Westhold, RaceHero, or any timing system</p>
+          <p>Export from MotoSponder, MYLAPS Orbits, Westhold, or any timing system CSV</p>
         </div>
         <input id="csvFile" type="file" accept=".csv,text/csv" style="display:none" onchange="loadCsv(this)">
         <div id="csvInfo" style="display:none;margin-top:10px"></div>
@@ -209,6 +209,7 @@ let App = {
   useClsCol: false,
   heatSet: 'h1',
   vendor: null,       // { name } if a known timing system was auto-detected
+  skippedPreamble: 0, // title/group rows found above the real header and skipped
 };
 let preview = [];     // computed preview rows
 
@@ -218,7 +219,11 @@ function esc(s) {
     c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
 }
 function normTrans(v) {
-  return String(v || '').trim().toUpperCase().replace(/[\s\-]/g, '');
+  let t = String(v || '').trim().toUpperCase().replace(/[\s\-]/g, '');
+  // Numeric transponders: ignore leading zeros so Westhold-style "0030001"
+  // matches "30001" (MyRacePass matches the same way).
+  if (/^\d+$/.test(t)) t = t.replace(/^0+(?=\d)/, '');
+  return t;
 }
 function parseLapTime(s) {
   s = String(s || '').trim();
@@ -389,6 +394,13 @@ function loadBackup(input) {
   fr.readAsText(f);
 }
 
+// How many known column names a candidate header row matches — used to spot exports
+// that prepend title/group rows (some Orbits files) above the real header.
+function headerScore(row) {
+  const g = guessColumns(row);
+  return Object.values(g).filter(i => i >= 0).length;
+}
+
 function loadCsv(input) {
   const f = input.files[0]; input.value = '';
   if (!f) return;
@@ -396,8 +408,21 @@ function loadCsv(input) {
   fr.onload = () => {
     const all = parseCSV(fr.result);
     if (all.length < 2) { alert('CSV needs at least a header row and one data row.'); return; }
-    App.header = all[0];
-    App.rows = all.slice(1);
+    // Find the real header: some exports prepend title/group rows. Only shift to a
+    // later row when it clearly beats row 0 (≥3 known columns AND a higher score) —
+    // stray synonym hits in a title line ("...Kart Park...") shouldn't win.
+    let hdrIdx = 0;
+    const s0 = headerScore(all[0]);
+    if (s0 < 3) {
+      let best = s0;
+      for (let i = 1; i < Math.min(all.length - 1, 10); i++) {
+        const s = headerScore(all[i]);
+        if (s >= 3 && s > best) { hdrIdx = i; best = s; }
+      }
+    }
+    App.skippedPreamble = hdrIdx;
+    App.header = all[hdrIdx];
+    App.rows = all.slice(hdrIdx + 1);
     App.cols = guessColumns(App.header);
     App.vendor = detectVendor(App.header);
     document.getElementById('csvZone').classList.add('filled');
@@ -407,8 +432,11 @@ function loadCsv(input) {
       ? '<span class="chip chip-ok" style="margin-left:6px">' + esc(App.vendor.name) + ' format detected</span>' +
         ' <button class="btn btn-sm" style="margin-left:6px;padding:2px 8px" onclick="clearVendor()">Use generic mapping</button>'
       : '';
+    const preambleNote = App.skippedPreamble
+      ? ' · skipped ' + App.skippedPreamble + ' title row' + (App.skippedPreamble === 1 ? '' : 's') + ' above the header'
+      : '';
     document.getElementById('csvInfo').innerHTML =
-      '<div class="info"><b>' + App.rows.length + ' data rows</b>, ' + App.header.length + ' columns' + vendorChip + '<br>' +
+      '<div class="info"><b>' + App.rows.length + ' data rows</b>, ' + App.header.length + ' columns' + preambleNote + vendorChip + '<br>' +
       Object.entries(App.cols).filter(([,v])=>v>=0).map(([k,v])=>k+' → ' + esc(App.header[v])).join(' · ') + '</div>';
     document.getElementById('secCfg').classList.add('on');
     renderConfig();
@@ -751,7 +779,7 @@ function downloadBackup() {
 
 function resetCsv() {
   App.rows = []; App.header = []; App.cols = { trans:-1, num:-1, name:-1, name2:-1, cls:-1, pos:-1, time:-1 };
-  App.vendor = null;
+  App.vendor = null; App.skippedPreamble = 0;
   preview = [];
   document.getElementById('csvZone').classList.remove('filled');
   document.getElementById('csvLabel').innerHTML = '<b>Click to load timing CSV</b>';
