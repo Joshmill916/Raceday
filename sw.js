@@ -1,7 +1,7 @@
 /* RaceDay service worker — installability + offline app shell.
    Network-first for the page so updates always flow when online;
    cache-first for icons/manifest. Firebase / CDN / Apps Script always hit the network. */
-const CACHE = 'raceday-v7';
+const CACHE = 'raceday-v8';
 const SHELL = ['./', './index.html', './manifest.webmanifest', './icon-rd.png'];
 
 self.addEventListener('install', e => {
