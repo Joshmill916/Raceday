@@ -1,8 +1,8 @@
-/* RaceDay service worker — installability + offline app shell.
+/* RaceDay Profiles service worker — installability + offline app shell.
    Network-first for the page so updates always flow when online;
-   cache-first for icons/manifest. Firebase / CDN / Apps Script always hit the network. */
-const CACHE = 'raceday-v8';
-const SHELL = ['./', './index.html', './manifest.webmanifest', './icon-rd.png'];
+   cache-first for icons/manifest. Mirrors /sw.js at repo root. */
+const CACHE = 'raceday-profiles-v1';
+const SHELL = ['./', './index.html', './manifest.webmanifest', '../icon-rd.png'];
 
 self.addEventListener('install', e => {
   self.skipWaiting();
@@ -17,7 +17,7 @@ self.addEventListener('fetch', e => {
   const req = e.request;
   if (req.method !== 'GET') return;
   let url; try { url = new URL(req.url); } catch (_) { return; }
-  if (url.origin !== self.location.origin) return;   // sync/CDN/telemetry → straight to network
+  if (url.origin !== self.location.origin) return;
 
   const isDoc = req.mode === 'navigate' || url.pathname.endsWith('/') || url.pathname.endsWith('index.html');
   if (isDoc) {

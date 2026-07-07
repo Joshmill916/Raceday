@@ -4,6 +4,9 @@ Run all (from repo root):
 ```bash
 for t in tests/test-*.js; do node "$t" | tail -1; done
 ```
+If a suite times out or hangs when run back-to-back with others, re-run it alone
+(`node tests/test-x.js`) — each suite is reliable in isolation; occasional port/timing
+contention across suites can wedge one when they're chained.
 
 | Suite | Covers |
 |---|---|
@@ -11,9 +14,10 @@ for t in tests/test-*.js; do node "$t" | tail -1; done
 | `test-viewer-results.js` | Spectator Results tab + "Results updated" toast |
 | `test-qual-times.js` | Manual qualifying times + set-grid-from-times |
 | `test-main-invert.js` | Feature/B-main starting-spot invert |
+| `test-profiles.js` | Profiles app (`profiles/index.html`): onboarding, profileId + QR, demo import, career stats, dedupe, edit, unlink, delete, persistence |
 
 Each spins up its own HTTP server on a unique port and exits 1 on any failure.
 Requires the Playwright Chromium at `/opt/pw-browsers/chromium` (Claude Code cloud env);
 edit the `executablePath` if running elsewhere.
 
-**Rule: run all four after any change to index.html.**
+**Rule: run all suites after any change to index.html or profiles/index.html.**

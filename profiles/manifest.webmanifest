@@ -1,0 +1,14 @@
+{
+  "name": "RaceDay Profiles — Your Racing Record",
+  "short_name": "Profiles",
+  "description": "A driver-owned racing profile that follows you across RaceDay tracks: career stats, results, and your story.",
+  "start_url": "./",
+  "scope": "./",
+  "display": "standalone",
+  "orientation": "any",
+  "background_color": "#17181c",
+  "theme_color": "#17181c",
+  "icons": [
+    { "src": "../icon-rd.png", "sizes": "512x512", "type": "image/png", "purpose": "any" }
+  ]
+}
