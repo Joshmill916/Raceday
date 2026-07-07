@@ -274,7 +274,7 @@
   .tv-num { color:#9a9da6; flex-shrink:0; }
   .tv-empty { display:flex; align-items:center; justify-content:center; height:100%; font-family:var(--display); font-weight:700; font-size:5vh; color:#9a9da6; text-transform:uppercase; text-align:center; }
   #tvFoot { display:flex; align-items:center; gap:1.5vw; padding:1.2vh 4vw 2vh; color:#9a9da6; font-size:2.4vh; }
-  #tvFoot img { height:5vh; max-width:14vw; object-fit:contain; display:none; }
+  #tvFoot img { height:4vh; max-width:14vw; object-fit:contain; display:none; background:#f4f4f1; border-radius:1vh; padding:.6vh 1vw; }
   #tvTrack { font-family:var(--display); font-weight:700; text-transform:uppercase; letter-spacing:.05em; color:#fff; }
   #tvCtl { position:fixed; bottom:4vh; left:50%; transform:translateX(-50%); display:flex; gap:10px; opacity:0; pointer-events:none; transition:opacity .25s; }
   #tvCtl.show { opacity:1; pointer-events:auto; }
@@ -333,7 +333,7 @@
 <div class="container">
   <div class="header">
     <div style="display:flex;align-items:center;gap:14px">
-      <img id="hdrLogo" alt="Track logo" style="display:none;height:46px;max-width:130px;object-fit:contain">
+      <img id="hdrLogo" alt="Track logo" style="display:none;height:36px;max-width:130px;object-fit:contain;background:var(--paper);border-radius:8px;padding:5px 8px">
       <div>
         <div class="brand" id="hdrBrand">Race<em>Day</em></div>
         <div class="tag" id="hdrTag">Driver registration &amp; live starting lineups</div>
@@ -949,7 +949,7 @@
       <input id="wizTrackName" type="text" placeholder="e.g. Riverside Kart Speedway" maxlength="60" style="margin-bottom:.75rem" oninput="document.getElementById('wizNextBtn').disabled=!this.value.trim()" />
       <p style="margin-bottom:8px;font-weight:600">Logo (optional)</p>
       <div style="display:flex;align-items:center;gap:10px;flex-wrap:wrap">
-        <img id="wizLogoPrev" alt="" style="display:none;height:44px;max-width:110px;object-fit:contain;border:1px solid var(--line);border-radius:6px;padding:3px">
+        <img id="wizLogoPrev" alt="" style="display:none;height:44px;max-width:110px;object-fit:contain;border:1px solid var(--line);border-radius:6px;padding:3px;background:#fff">
         <button class="btn btn-sm" type="button" onclick="document.getElementById('wizLogoFile').click()">Upload logo</button>
         <button id="wizLogoRemove" class="btn btn-sm btn-danger" type="button" style="display:none" onclick="wizRemoveLogo()">Remove</button>
         <input id="wizLogoFile" type="file" accept="image/*" style="display:none" onchange="wizUploadLogo(this)">
@@ -2205,7 +2205,7 @@ function printHeats() {
     + 'table{width:100%;border-collapse:collapse;margin-bottom:12px}'
     + 'th,td{border:1px solid #bbb;padding:6px 8px;text-align:left}th{background:#eee;font-weight:700}'
     + '.inv td{background:#fffbe8}.inv th{background:#f3e6bd}'
-    + '.phead{display:flex;align-items:center;gap:14px;margin-bottom:4px}.phead img{height:54px;max-width:140px;object-fit:contain}'
+    + '.phead{display:flex;align-items:center;gap:14px;margin-bottom:4px}.phead img{height:54px;max-width:140px;object-fit:contain;border:1px solid #ccc;border-radius:6px;padding:4px;background:#fff}'
     + '</style></head><body><div class="phead">'
     + (S.track.logo ? '<img src="' + S.track.logo + '" alt="">' : '')
     + '<h1>' + (S.track.name ? esc(S.track.name) + ' — ' : '') + 'Heat Assignments</h1></div>'
@@ -3682,7 +3682,7 @@ function tvRender() {
   if (!TV.on) return;
   document.getElementById('tvTrack').textContent = S.track.name || 'RaceDay';
   const logo = document.getElementById('tvLogo');
-  if (S.track.logo) { logo.src = S.track.logo; logo.style.display = ''; } else { logo.style.display = 'none'; }
+  if (S.track.logo) { logo.src = S.track.logo; logo.style.display = 'block'; } else { logo.style.display = 'none'; }
   document.getElementById('tvClock').textContent = new Date().toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' });
   document.getElementById('tvLockTag').style.display = TV.locked ? '' : 'none';
   const sl = document.getElementById('tvSlide');
