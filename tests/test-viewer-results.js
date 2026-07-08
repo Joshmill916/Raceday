@@ -86,11 +86,12 @@ const check = (name, ok, extra) => {
   console.log('\n— Driver card opens from a results row —');
   await page.click('.vw-body .hr:first-child .nm');
   await page.waitForTimeout(200);
-  let cardVisible = await page.evaluate(() => document.getElementById('viewerDriverCard').style.display !== 'none');
-  let cardText = await page.textContent('#vdcContent');
+  let cardVisible = await page.evaluate(() => document.getElementById('driverCard').classList.contains('on'));
+  let cardText = await page.textContent('#dcBody');
   check('card opens', cardVisible);
   check('card shows winner', cardText.includes('Donna Lee'), cardText.trim().slice(0, 60));
-  await page.evaluate(() => hideViewerCard());
+  check('card shows career stats strip', cardText.includes('Wins') && cardText.includes('Starts'));
+  await page.evaluate(() => closeDriverCard());
 
   console.log('\n— Toast: fires when a sync snapshot changes feature finishes —');
   // Simulate an incoming Firebase snapshot where Sam moves from P4 to DNF-style change:

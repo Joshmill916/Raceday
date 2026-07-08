@@ -310,6 +310,39 @@
   .vdc-name { font-family:var(--display);font-size:26px;font-weight:800;margin:10px 0 4px; }
   .vdc-cls { font-size:14px;color:var(--muted);line-height:1.7;margin-bottom:4px; }
   .vdc-close { margin-top:18px;display:block;background:var(--line);border-radius:10px;padding:10px 0;font-size:14px;font-weight:600;cursor:pointer; }
+  /* Driver card (tap a name in any lineup) */
+  .dc-overlay { position:fixed; inset:0; background:rgba(0,0,0,.55); display:none; align-items:center; justify-content:center; z-index:9998; padding:16px; }
+  .dc-overlay.on { display:flex; }
+  .dc-panel { background:var(--card); border-radius:18px; max-width:440px; width:100%; max-height:90vh; overflow:auto; position:relative; box-shadow:0 24px 70px rgba(0,0,0,.45); }
+  .dc-close { position:absolute; top:8px; right:10px; background:rgba(255,255,255,.15); border:none; width:30px; height:30px; border-radius:50%; font-size:16px; color:#fff; cursor:pointer; z-index:2; }
+  .dc-hd { background:var(--asphalt); color:#fff; padding:22px 20px; border-radius:18px 18px 0 0; display:flex; align-items:center; gap:14px; position:relative; overflow:hidden; }
+  .dc-hd .nm { font-family:var(--display); font-weight:800; font-size:25px; text-transform:uppercase; line-height:1.05; }
+  .dc-hd .cls { color:var(--plate); font-size:12.5px; font-weight:700; text-transform:uppercase; letter-spacing:.04em; margin-top:5px; }
+  .dc-stats { display:grid; grid-template-columns:repeat(3,1fr); gap:1px; background:var(--line); }
+  .dc-stat { background:#fff; padding:14px 6px; text-align:center; }
+  .dc-stat .n { font-family:var(--display); font-weight:800; font-size:26px; line-height:1; }
+  .dc-stat .l { font-size:10.5px; text-transform:uppercase; letter-spacing:.05em; color:var(--muted); margin-top:4px; }
+  .dc-body { padding:16px 20px; }
+  .dc-row { display:flex; gap:10px; font-size:14px; padding:7px 0; border-bottom:1px solid #f4f4ef; }
+  .dc-row b { min-width:86px; color:var(--muted); font-weight:600; }
+  .dc-body label { display:block; font-size:12px; font-weight:600; color:var(--muted); margin:8px 0 3px; }
+  .dc-body input { width:100%; box-sizing:border-box; padding:8px 10px; border:1.5px solid #d4d4cf; border-radius:8px; font-family:inherit; font-size:14px; }
+  /* Premium broadcast look — team color rides the --dc-team var set inline on the panel */
+  .dc-panel.prem { background:var(--asphalt-2); color:#f2f1ec; }
+  .dc-panel.prem .dc-hd { background:linear-gradient(130deg, var(--asphalt) 60%, var(--dc-team, var(--plate)) 230%); border-bottom:3px solid var(--dc-team, var(--plate)); }
+  .dc-panel.prem .dc-hd::after { content:''; position:absolute; top:0; bottom:0; left:-60%; width:45%; background:linear-gradient(105deg, transparent, rgba(255,255,255,.16), transparent); transform:skewX(-18deg); animation:dcshine 1.6s ease .3s 1 both; }
+  @keyframes dcshine { from { left:-60%; } to { left:135%; } }
+  .dc-heads { animation:dcin .45s ease both; min-width:0; }
+  @keyframes dcin { from { opacity:0; transform:translateX(-14px); } to { opacity:1; transform:none; } }
+  .dc-photo { width:64px; height:64px; border-radius:50%; object-fit:cover; border:3px solid var(--dc-team, var(--plate)); flex:none; background:#000; }
+  .dc-checker { height:8px; background:repeating-conic-gradient(#101114 0% 25%, #f4f4f1 0% 50%) 0 0/16px 16px; }
+  .dc-panel.prem .dc-stats { background:rgba(255,255,255,.14); }
+  .dc-panel.prem .dc-stat { background:var(--asphalt); }
+  .dc-panel.prem .dc-stat .n { color:var(--dc-team, var(--plate)); }
+  .dc-panel.prem .dc-stat .l { color:#9a9da6; }
+  .dc-panel.prem .dc-row { border-bottom-color:rgba(255,255,255,.09); }
+  .dc-panel.prem .dc-row b { color:#9a9da6; }
+  .dc-panel.prem .dc-body input { background:var(--asphalt); border-color:rgba(255,255,255,.2); color:#f2f1ec; }
   .vw-toast { position:fixed;top:16px;left:50%;transform:translateX(-50%);z-index:9999;background:#111;color:#fff;border-radius:12px;padding:12px 18px;font-size:14px;font-weight:600;display:flex;align-items:center;gap:12px;box-shadow:0 4px 20px rgba(0,0,0,.35);white-space:nowrap; }
   .vw-toast button { background:#fff;color:#111;border:none;border-radius:8px;padding:5px 12px;font-size:13px;font-weight:700;cursor:pointer; }
   .qt-box { background:#fff;border-radius:20px 20px 0 0;width:100%;max-width:480px;margin:0 auto;max-height:88vh;overflow-y:auto;padding:18px 20px 26px; }
@@ -997,10 +1030,11 @@
   </div>
 </div>
 
-<div id="viewerDriverCard" class="vdc-overlay" style="display:none" onclick="if(event.target===this)hideViewerCard()">
-  <div class="vdc-box">
-    <div id="vdcContent"></div>
-    <span class="vdc-close" onclick="hideViewerCard()">✕ Close</span>
+<!-- Driver card (spectator profile) — tap a name in any lineup -->
+<div id="driverCard" class="dc-overlay" onclick="if(event.target===this)closeDriverCard()">
+  <div class="dc-panel" id="dcPanel">
+    <button class="dc-close" onclick="closeDriverCard()" aria-label="Close">✕</button>
+    <div id="dcBody"></div>
   </div>
 </div>
 
@@ -1902,9 +1936,11 @@ function discNum(num) {
   const f = sz ? ' style="font-size:' + sz + 'px"' : '';
   return '<div class="disc sm"' + f + '>' + esc(s) + '</div>';
 }
-function gridMarkup(racers, single, tappable) {
+function gridMarkup(racers, single) {
   const sub = r => r.tag || (r.qualTime ? '⏱ ' + r.qualTime : 'Pill #' + r.pill);
-  const tap = r => tappable && r.id ? ' onclick="showViewerCard(' + r.id + ')" style="cursor:pointer"' : '';
+  // Any row that knows its driver opens the driver card — every role, every lineup.
+  // (TV display builds its own markup and stays non-clickable.)
+  const tap = r => r.id ? ' onclick="openDriverCard(' + r.id + ')" style="cursor:pointer"' : '';
   if (single) {
     let h = '<div class="hb">';
     racers.forEach((r, i) => {
@@ -1968,7 +2004,7 @@ function renderGrid() {
     // once every heat finish is entered, the main-event grids post here too
     if (classComplete(cls.id)) {
       const fd = featureData(cls.id);
-      const toRow = s => ({ name: s.name, num: s.num, tag: 'Heat total ' + s.pts });
+      const toRow = s => ({ id: s.id, name: s.name, num: s.num, tag: 'Heat total ' + s.pts });
       const bmInvNote = clsBMainInvert(cls) ? ' · top ' + clsBMainInvert(cls) + ' start inverted' : '';
       const ftInvNote = clsFeatInvert(cls) ? ' · top ' + clsFeatInvert(cls) + ' start inverted' : '';
       if (fd.mains.length) {
@@ -2059,24 +2095,136 @@ function renderViewerLineups() {
   el.innerHTML = h;
 }
 
-function showViewerCard(id) {
-  if (deviceRole() !== 'viewer') return;
-  const d = driverById(id); if (!d) return;
-  const entries = S.raceDay.entries.filter(e => e.driverId === id);
-  const clsLines = entries.map(e => {
-    const c = classById(e.classId) || { name: '?' };
-    return '<div>' + esc(c.name) + ' &mdash; Grid P' + e.pill + '</div>';
-  }).join('');
-  const s = String(d.num);
-  const sz = s.length === 3 ? 22 : s.length === 4 ? 18 : s.length >= 5 ? 14 : 0;
-  const discStyle = sz ? ' style="font-size:' + sz + 'px"' : '';
-  document.getElementById('vdcContent').innerHTML =
-    '<div class="disc big" style="margin:0 auto 12px"' + discStyle + '>' + esc(s) + '</div>'
-    + '<div class="vdc-name">' + esc(d.name) + '</div>'
-    + (clsLines ? '<div class="vdc-cls">' + clsLines + '</div>' : '');
-  showModal('viewerDriverCard', 'flex');
+// Legacy entry point (older onclick wiring) — the rich driver card replaced the minimal viewer card.
+function showViewerCard(id) { openDriverCard(id); }
+
+// ---------- Driver cards (spectator profiles) ----------
+let driverCardId = null;
+function ordinal(n) { const s = ['th', 'st', 'nd', 'rd'], v = n % 100; return n + (s[(v - 20) % 10] || s[v] || s[0]); }
+// Career tally from saved race-day history + today's live features (this track's numbers).
+function driverStats(driverId) {
+  let starts = 0, wins = 0, podiums = 0, top5 = 0, best = null, points = 0; const days = {};
+  function take(fin, dateKey) {
+    if (typeof fin !== 'number') return;
+    starts++; if (fin === 1) wins++; if (fin <= 3) podiums++; if (fin <= 5) top5++;
+    if (best === null || fin < best) best = fin; if (dateKey) days[dateKey] = 1;
+  }
+  (S.history || []).forEach(day => (day.classes || []).forEach(cls => {
+    (cls.featureFinish || []).forEach(f => { if (f.driverId === driverId) take(f.fin, day.date); });
+    (cls.points || []).forEach(p => { if (p.driverId === driverId) points += (p.pts || 0); });
+  }));
+  (S.classes || []).forEach(cls => {
+    featureFinish(cls.id).forEach(f => { if (f.id === driverId) take(f.fin, S.raceDay.date); });
+    if (isPointsRace(cls.id)) { const dp = dayPoints(cls.id); if (dp && dp[driverId] != null) points += dp[driverId]; }
+  });
+  return { starts, wins, podiums, top5, best, points, days: Object.keys(days).length };
 }
-function hideViewerCard() { hideModal('viewerDriverCard'); }
+function openDriverCard(driverId) {
+  if (!driverById(driverId)) return;
+  driverCardId = driverId;
+  renderDriverCard();
+  document.getElementById('driverCard').classList.add('on');
+}
+function closeDriverCard() { document.getElementById('driverCard').classList.remove('on'); driverCardId = null; }
+function dcStat(n, l) { return '<div class="dc-stat"><div class="n">' + esc(String(n)) + '</div><div class="l">' + esc(l) + '</div></div>'; }
+function renderDriverCard() {
+  const d = driverById(driverCardId); if (!d) return;
+  const st = driverStats(driverCardId);
+  const classes = (S.raceDay.entries || []).filter(e => e.driverId === driverCardId).map(e => (classById(e.classId) || {}).name).filter(Boolean);
+  const p = d.profile || {};
+  const prem = !!p.premium;
+  const panel = document.getElementById('dcPanel');
+  panel.classList.toggle('prem', prem);
+  panel.style.setProperty('--dc-team', prem && /^#[0-9a-fA-F]{6}$/.test(p.teamColor || '') ? p.teamColor : 'var(--plate)');
+  let h = '<div class="dc-hd">'
+    + (prem && p.photo ? '<img class="dc-photo" src="' + p.photo + '" alt="">' : discNum(d.num))
+    + '<div class="dc-heads"><div class="nm">' + esc(d.name) + '</div>'
+    + (prem && p.photo ? '<div class="cls">#' + esc(String(d.num)) + (classes.length ? ' · ' + classes.map(esc).join(' · ') : '') + '</div>'
+      : (classes.length ? '<div class="cls">' + classes.map(esc).join(' · ') + '</div>' : ''))
+    + '</div></div>';
+  if (prem) h += '<div class="dc-checker"></div>';
+  h += '<div class="dc-stats">'
+    + dcStat(st.wins, 'Wins') + dcStat(st.podiums, 'Podiums') + dcStat(st.top5, 'Top 5')
+    + dcStat(st.starts, 'Starts') + dcStat(st.best != null ? ordinal(st.best) : '—', 'Best') + dcStat(st.points || 0, 'Points')
+    + '</div>';
+  h += '<div class="dc-body">';
+  const rows = [];
+  if (p.age) rows.push(['Age', p.age]);
+  if (p.hometown) rows.push(['Hometown', p.hometown]);
+  if (p.sponsors) rows.push(['Sponsors', p.sponsors]);
+  h += rows.length ? rows.map(r => '<div class="dc-row"><b>' + esc(r[0]) + '</b><span>' + esc(String(r[1])) + '</span></div>').join('')
+    : '<p style="color:var(--muted);font-size:13px;margin:0">No profile details yet' + (deviceRole() === 'admin' ? ' — add them below.' : '.') + '</p>';
+  if (st.starts === 0) h += '<p style="color:var(--muted);font-size:12px;margin:10px 0 0">Race stats fill in as race days are saved to history.</p>';
+  if (deviceRole() === 'admin') h += '<div style="margin-top:14px"><button class="btn btn-sm" onclick="editDriverCard()">✎ Edit profile</button></div>';
+  h += '</div>';
+  document.getElementById('dcBody').innerHTML = h;
+}
+function editDriverCard() {
+  const d = driverById(driverCardId); if (!d) return;
+  const p = d.profile || {};
+  let h = '<div class="dc-hd">' + discNum(d.num) + '<div class="dc-heads"><div class="nm">' + esc(d.name) + '</div></div></div>';
+  h += '<div class="dc-body">'
+    + '<label>Age</label><input id="dcAge" type="text" value="' + esc(p.age || '') + '">'
+    + '<label>Hometown</label><input id="dcHome" type="text" value="' + esc(p.hometown || '') + '">'
+    + '<label>Sponsors</label><input id="dcSpon" type="text" placeholder="e.g. Smith Tire, NAPA" value="' + esc(p.sponsors || '') + '">'
+    + '<label style="display:flex;align-items:center;gap:8px;margin-top:14px;cursor:pointer"><input id="dcPrem" type="checkbox" style="width:auto"' + (p.premium ? ' checked' : '') + '> Premium broadcast card</label>'
+    + '<label>Team color</label><input id="dcColor" type="color" value="' + esc(/^#[0-9a-fA-F]{6}$/.test(p.teamColor || '') ? p.teamColor : '#ffd449') + '" style="height:40px;padding:3px">'
+    + '<label>Driver photo</label>'
+    + '<div style="display:flex;gap:8px;align-items:center">'
+    + (p.photo ? '<img src="' + p.photo + '" style="width:44px;height:44px;border-radius:50%;object-fit:cover">' : '')
+    + '<button class="btn btn-sm" type="button" onclick="document.getElementById(\'dcPhotoFile\').click()">📷 ' + (p.photo ? 'Replace' : 'Upload') + '</button>'
+    + (p.photo ? '<button class="btn btn-sm" type="button" onclick="dcRemovePhoto()">Remove</button>' : '')
+    + '<input id="dcPhotoFile" type="file" accept="image/*" style="display:none" onchange="dcUploadPhoto(this)">'
+    + '</div>'
+    + '<div style="margin-top:16px;display:flex;gap:8px"><button class="btn btn-primary" onclick="saveDriverProfile()">Save</button><button class="btn" onclick="renderDriverCard()">Cancel</button></div>'
+    + '</div>';
+  document.getElementById('dcBody').innerHTML = h;
+}
+function saveDriverProfile() {
+  const d = driverById(driverCardId); if (!d) return;
+  const prev = d.profile || {};
+  d.profile = {
+    age: document.getElementById('dcAge').value.trim(),
+    hometown: document.getElementById('dcHome').value.trim(),
+    sponsors: document.getElementById('dcSpon').value.trim(),
+    premium: document.getElementById('dcPrem').checked,
+    teamColor: document.getElementById('dcColor').value,
+    photo: prev.photo || ''
+  };
+  save();
+  renderDriverCard();
+}
+// Photo upload: downscale to 128px like the track logo so roster sync payloads stay small.
+function dcUploadPhoto(input) {
+  const d = driverById(driverCardId);
+  const f = input.files && input.files[0];
+  input.value = '';
+  if (!f || !d) return;
+  const img = new Image();
+  const url = URL.createObjectURL(f);
+  img.onload = () => {
+    URL.revokeObjectURL(url);
+    const side = Math.min(img.width, img.height);      // center-crop square, then downscale
+    const scale = Math.min(1, 128 / side);
+    const c = document.createElement('canvas');
+    c.width = c.height = Math.max(1, Math.round(side * scale));
+    c.getContext('2d').drawImage(img, (img.width - side) / 2, (img.height - side) / 2, side, side, 0, 0, c.width, c.height);
+    const data = c.toDataURL('image/jpeg', 0.82);
+    if (data.length > 60000) { alert('That photo is too heavy to store — try a smaller or simpler image.'); return; }
+    d.profile = d.profile || {};
+    d.profile.photo = data;
+    save();
+    editDriverCard();   // stay in the edit form with the new photo showing
+  };
+  img.onerror = () => { URL.revokeObjectURL(url); alert("Couldn't read that file as an image."); };
+  img.src = url;
+}
+function dcRemovePhoto() {
+  const d = driverById(driverCardId); if (!d || !d.profile) return;
+  d.profile.photo = '';
+  save();
+  editDriverCard();
+}
 function showClassCard(id) {
   if (deviceRole() !== 'viewer') return;
   const c = classById(id); if (!c) return;
