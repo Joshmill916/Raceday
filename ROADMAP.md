@@ -52,3 +52,60 @@ sign-up via the link code. Real checkout (Stripe/Square) remains a future option
 Original options considered: offline + admin
 toggle, premium codes (like the license codegen), or real checkout (Stripe/Square — the
 first thing that would need a backend).
+
+---
+
+## Profiles app — product roadmap (added 2026-07-08)
+
+**Vision:** one racing identity that follows a driver to every RaceDay track — and the
+engine that spreads RaceDay itself. Drivers carry their card, record, and rankings
+between tracks; tracks adopt RaceDay partly because traveling Profiles drivers ask for
+it. Profiles is the demand side of RaceDay's adoption flywheel.
+
+**End state (once ~20+ tracks run RaceDay):** cross-track leaderboards per class/region
+· rivalry records ("you vs. #10: 8–6") · race-night discovery ("3 tracks near you run
+your class; Route 9 races Friday") · an opt-in inter-track series (points computed
+automatically from published results, zero admin overhead) · every driver's shareable
+broadcast card as grassroots marketing.
+
+**Design principles the vision imposes today:**
+1. **Results are published by the TRACK, never self-reported by the driver.** A
+   leaderboard drivers can fake is worthless. RaceDay (keyed by track identity) is the
+   only writer that counts for rankings; driver-side JSON import remains for personal
+   history only.
+2. **Class normalization from day one.** "Jr 80" and "Junior 80cc" must be joinable —
+   a category/alias layer rides along with every published result.
+3. **A paid identity must be recoverable.** No selling premium codes while the whole
+   profile lives in one phone's localStorage.
+
+### Phases
+
+**P0 — Profile backup & recovery.** *(do before selling premium codes)*
+Export/import profile file + restore-from-published-card (the published card + results
+already live in Firebase; a driver with their profileId or link code can rebuild).
+Small, boring, protects paying customers.
+
+**P1 — Close the results loop.** RaceDay-side "Share with Profiles" after archiving a
+race day: publish each linked driver's results (`featureFinish` + points + class +
+category) to Firebase under the track's identity. Profiles ingests automatically —
+profiles grow every race night with zero effort. This is the data substrate for
+everything after; build it track-published + category-tagged per the principles above.
+
+**P2 — The share machine.** Card → image export (Instagram/story sizes), race-recap
+cards ("P1 tonight at Route 9 🏁"), milestone badges (first win, 50th start, season
+champ). Drivers promoting themselves = free acquisition for tracks and RaceDay.
+
+**P3 — Discovery.** Opt-in public track registry (name, location, classes, next race
+night — published from RaceDay admin). Profiles shows "tracks near you that run your
+class" and each track's next event. Puts traveling drivers in member tracks' pits.
+
+**P4 — Leaderboards & rivalries.** Cross-track class/region rankings computed from
+track-published results; head-to-head records between drivers who've met. First real
+scale pressure on Firebase (may need aggregation — first backend code if so).
+
+**P5 — The RaceDay Cup.** Opt-in inter-track series: shared class categories + a
+points scheme, standings computed automatically. The moat: a traveling grassroots
+series that exists because the software makes it free to run.
+
+**Premium tier grows alongside:** sponsor logos, card themes, printable hero card,
+stat deep-dives — sequenced opportunistically, funded by code sales.
