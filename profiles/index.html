@@ -123,6 +123,26 @@
   .wiz-overlay { position:fixed;inset:0;background:rgba(0,0,0,.65);z-index:9999;display:flex;align-items:center;justify-content:center;padding:16px; }
   .wiz-box { background:#fff;border-radius:14px;padding:1.75rem 1.5rem;max-width:440px;width:100%;max-height:90vh;overflow-y:auto;box-shadow:0 8px 32px rgba(0,0,0,.18); }
 
+  /* Premium broadcast card preview (mirrors RaceDay's .dc-panel.prem) */
+  .pcard { border-radius: 18px; overflow: hidden; box-shadow: 0 14px 40px rgba(0,0,0,.25); margin-bottom: 14px; background: var(--asphalt-2); color: #f2f1ec; }
+  .pcard-hd { background: linear-gradient(130deg, var(--asphalt) 60%, var(--pc-team, var(--plate)) 230%); border-bottom: 3px solid var(--pc-team, var(--plate)); color: #fff; padding: 22px 20px; display: flex; align-items: center; gap: 14px; position: relative; overflow: hidden; }
+  .pcard-hd::after { content:''; position:absolute; top:0; bottom:0; left:-60%; width:45%; background:linear-gradient(105deg, transparent, rgba(255,255,255,.16), transparent); transform:skewX(-18deg); animation:pcshine 1.6s ease .3s 1 both; }
+  @keyframes pcshine { from { left:-60%; } to { left:135%; } }
+  .pcard-hd .nm { font-family: var(--display); font-weight: 800; font-size: 25px; text-transform: uppercase; line-height: 1.05; }
+  .pcard-hd .meta { color: var(--pc-team, var(--plate)); font-size: 12.5px; font-weight: 700; text-transform: uppercase; letter-spacing: .04em; margin-top: 5px; }
+  .pcard-photo { width: 64px; height: 64px; border-radius: 50%; object-fit: cover; border: 3px solid var(--pc-team, var(--plate)); flex: none; background: #000; }
+  .pcard-checker { height: 8px; background: repeating-conic-gradient(#101114 0% 25%, #f4f4f1 0% 50%) 0 0/16px 16px; }
+  .pcard-stats { display: grid; grid-template-columns: repeat(3,1fr); gap: 1px; background: rgba(255,255,255,.14); }
+  .pcard-stat { background: var(--asphalt); padding: 14px 6px; text-align: center; }
+  .pcard-stat b { display: block; font-family: var(--display); font-weight: 800; font-size: 24px; line-height: 1; color: var(--pc-team, var(--plate)); }
+  .pcard-stat span { font-size: 10.5px; text-transform: uppercase; letter-spacing: .05em; color: #9a9da6; }
+  .pcard-body { padding: 14px 20px 18px; font-size: 14px; }
+  .pcard-body .sponsor-chip { border-color: rgba(255,255,255,.25); color: #f2f1ec; }
+  .prem-badge { display: inline-block; padding: 3px 10px; border-radius: 99px; font-size: 11px; font-weight: 800; text-transform: uppercase; letter-spacing: .06em; background: var(--plate); color: var(--plate-ink); }
+  .pub-status { font-size: 12.5px; color: var(--muted); margin-top: 8px; }
+  .link-code { font-family: var(--display); font-weight: 800; font-size: 30px; letter-spacing: .12em; text-align: center; margin: 6px 0 2px; }
+  @media (prefers-reduced-motion: reduce) { * { animation: none !important; transition: none !important; } }
+
   @media (max-width: 480px) {
     .nav button { padding: 11px 6px; font-size: 12px; }
     .stat-item b { font-size: 22px; }
@@ -195,22 +215,140 @@ function esc(s) { return String(s).replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&
 function $id(id) { return document.getElementById(id); }
 
 function load() {
-  try { var raw = localStorage.getItem('profiles_v1'); return raw ? JSON.parse(raw) : null; } catch (e) { return null; }
+  try { var raw = localStorage.getItem('profiles_v1'); return raw ? migrate(JSON.parse(raw)) : null; } catch (e) { return null; }
 }
-function save() { localStorage.setItem('profiles_v1', JSON.stringify(P)); }
+function save() {
+  localStorage.setItem('profiles_v1', JSON.stringify(P));
+  if (P && P.publishedAt) publishCard(true);   // keep the published card current once published
+}
 
 function genId() { return 'prof_' + Math.random().toString(36).slice(2, 10) + Math.random().toString(36).slice(2, 6); }
+
+// Fields added after the MVP shipped — fill them in on older stored profiles.
+function migrate(p) {
+  if (!p) return p;
+  p.driver = p.driver || {};
+  if (p.driver.number == null) p.driver.number = '';
+  if (p.driver.teamColor == null) p.driver.teamColor = '';
+  if (p.premiumCode == null) p.premiumCode = '';
+  if (p.shortCode == null) p.shortCode = '';
+  if (p.publishedAt == null) p.publishedAt = 0;
+  return p;
+}
 
 function newProfile(name, email, hometown, age) {
   return {
     profileId: genId(),
-    driver: { name: name, email: email || '', photo: null, bio: '', hometown: hometown || '', age: age || null, joinedDate: Date.now() },
+    driver: { name: name, email: email || '', photo: null, bio: '', hometown: hometown || '', age: age || null, joinedDate: Date.now(), number: '', teamColor: '' },
     linkedTracks: [],
     raceResults: [],
     sponsors: [],
-    tier: 'basic'
+    tier: 'basic',
+    premiumCode: '',
+    shortCode: '',      // published track-link code (derived from profileId at publish time)
+    publishedAt: 0
   };
 }
+
+/* ---------- Premium unlock (offline code check — mirrors RaceDay's license scheme) ---------- */
+// Codes come from the app owner, bound to THIS profileId: PREM-<LINKCODE>-<HASH8>.
+var PREM_SALT = 'rd-prem-7t4mq2xz-2026';   // must match RaceDay index.html + the owner's code generator EXACTLY
+function pHash(str) {
+  function fnv(s, seed) {
+    var h = seed >>> 0;
+    for (var i = 0; i < s.length; i++) { h ^= s.charCodeAt(i); h = Math.imul(h, 16777619) >>> 0; }
+    return ('0000000' + h.toString(36).toUpperCase()).slice(-7);
+  }
+  return fnv(str, 2166136261) + fnv(str + '#2', 2166136261);
+}
+function premShort(profileId) { return profileId.slice(5, 13).toUpperCase(); }
+function premCheck(profileId, code) {
+  var parts = String(code || '').trim().toUpperCase().split('-');
+  if (parts.length !== 3 || parts[0] !== 'PREM') return false;
+  if (parts[1] !== premShort(profileId)) return false;
+  return parts[2] === pHash(profileId + '|PREM|' + PREM_SALT).slice(0, 8);
+}
+function activatePremium() {
+  var code = ($id('premCode').value || '').trim();
+  if (!code) return;
+  if (!premCheck(P.profileId, code)) { alert("That code isn't valid for this profile — check it character by character."); return; }
+  P.tier = 'premium';
+  P.premiumCode = code.toUpperCase();
+  save();
+  alert('✅ Premium unlocked — your card just got the broadcast look.');
+  nav('card');
+}
+
+/* ---------- Firebase publish layer ---------- */
+// Same shared project as RaceDay — this config must match ../index.html EXACTLY.
+var FIREBASE_CONFIG = {
+  apiKey: "AIzaSyAGSBqjW9dNxwPWop3Culi4KmjMhVHDUW4",
+  databaseURL: "https://raceday-d32dd-default-rtdb.firebaseio.com",
+  projectId: "raceday-d32dd"
+};
+var fbLoading = null;
+function loadFirebase() {
+  if (window.firebase && firebase.database) return Promise.resolve();
+  if (fbLoading) return fbLoading;
+  fbLoading = new Promise(function (resolve, reject) {
+    var urls = ['https://www.gstatic.com/firebasejs/10.12.0/firebase-app-compat.js',
+                'https://www.gstatic.com/firebasejs/10.12.0/firebase-database-compat.js'];
+    (function next(i) {
+      if (i >= urls.length) { resolve(); return; }
+      var s = document.createElement('script');
+      s.src = urls[i];
+      s.onload = function () { next(i + 1); };
+      s.onerror = function () { fbLoading = null; reject(new Error('load failed')); };
+      document.head.appendChild(s);
+    })(0);
+  });
+  return fbLoading;
+}
+function ensureFirebase() {
+  return loadFirebase().then(function () {
+    if (!firebase.apps.length) firebase.initializeApp(FIREBASE_CONFIG);
+  });
+}
+// What tracks receive. Deliberately lean: no email, no bio, no results.
+function cardPayload() {
+  var d = P.driver;
+  return {
+    name: d.name || '',
+    num: d.number || '',
+    age: d.age != null ? String(d.age) : '',
+    hometown: d.hometown || '',
+    sponsors: P.sponsors.map(function (s) { return s.name; }).join(' · '),
+    teamColor: /^#[0-9a-fA-F]{6}$/.test(d.teamColor || '') ? d.teamColor : '',
+    photo: d.photo || '',
+    premiumCode: P.tier === 'premium' ? (P.premiumCode || '') : '',
+    updatedAt: firebase.database.ServerValue.TIMESTAMP
+  };
+}
+function publishCard(silent) {
+  return ensureFirebase().then(function () {
+    var db = firebase.database();
+    // Claim a short link code once: derived from the id; extend on the rare collision.
+    var claim = P.shortCode ? Promise.resolve(P.shortCode) : (function tryCode(len) {
+      var code = P.profileId.slice(5, 5 + len).toUpperCase();
+      return db.ref('profiles_short/' + code).once('value').then(function (snap) {
+        var v = snap.val();
+        if (v && v !== P.profileId) return tryCode(len + 2);
+        return db.ref('profiles_short/' + code).set(P.profileId).then(function () { return code; });
+      });
+    })(8);
+    return claim.then(function (code) {
+      P.shortCode = code;
+      return db.ref('profiles/' + P.profileId + '/card').set(cardPayload());
+    }).then(function () {
+      P.publishedAt = Date.now();
+      localStorage.setItem('profiles_v1', JSON.stringify(P));   // direct write: avoid save()'s republish loop
+      if (!silent) { alert('✅ Card published — give the track your link code: ' + P.shortCode); nav('card'); }
+    });
+  }).catch(function (e) {
+    if (!silent) alert("Couldn't publish — check your internet connection and try again.");
+  });
+}
+function publishNow() { publishCard(false); }
 
 /* ---------- Onboarding ---------- */
 function openOnboarding() { $id('onboardModal').style.display = 'flex'; }
@@ -293,19 +431,60 @@ function feedRow(r) {
 }
 
 /* ---------- Card ---------- */
+function photoOK(src) { return typeof src === 'string' && /^data:image\/(png|jpe?g);base64,[A-Za-z0-9+/=]+$/.test(src); }
 function renderCard() {
   var d = P.driver;
   var initials = d.name.split(/\s+/).map(function (w) { return w[0] || ''; }).slice(0, 2).join('').toUpperCase();
-  var h = '<h2>Your Card</h2><p class="sub">This is what tracks and fans see.</p>';
-  h += '<div class="card">'
-    + '<div class="prof-photo">' + esc(initials) + '</div>'
-    + '<div class="prof-name">' + esc(d.name) + '</div>'
-    + '<div class="prof-meta">' + [d.age ? 'Age ' + d.age : '', d.hometown ? esc(d.hometown) : ''].filter(Boolean).join(' · ') + '</div>'
-    + (d.bio ? '<div class="prof-bio">' + esc(d.bio) + '</div>' : '<div class="prof-bio placeholder">No bio yet — add one in Settings.</div>')
-    + '<div class="slbl">Sponsors</div>'
-    + (P.sponsors.length ? P.sponsors.map(function (s) { return '<span class="sponsor-chip">' + esc(s.name) + '</span>'; }).join('') : '<p class="empty">No sponsors added yet.</p>')
-    + '<button class="btn btn-block" onclick="nav(\'settings\')" style="margin-top:16px">Edit profile</button>'
+  var prem = P.tier === 'premium';
+  var stats = computeStats();
+  var h = '<h2>Your Card</h2><p class="sub">This is what tracks and fans see' + (prem ? ' — <span class="prem-badge">Premium</span>' : '') + '.</p>';
+
+  if (prem) {
+    var team = /^#[0-9a-fA-F]{6}$/.test(d.teamColor || '') ? d.teamColor : '#ffd449';
+    h += '<div class="pcard" style="--pc-team:' + team + '">'
+      + '<div class="pcard-hd">'
+      + (photoOK(d.photo) ? '<img class="pcard-photo" src="' + d.photo + '" alt="">'
+                          : '<div class="disc">' + esc(d.number || '?') + '</div>')
+      + '<div><div class="nm">' + esc(d.name) + '</div>'
+      + '<div class="meta">' + [d.number ? '#' + esc(d.number) : '', d.hometown ? esc(d.hometown) : ''].filter(Boolean).join(' · ') + '</div></div>'
+      + '</div><div class="pcard-checker"></div>'
+      + '<div class="pcard-stats">'
+      + '<div class="pcard-stat"><b>' + stats.total.races + '</b><span>Races</span></div>'
+      + '<div class="pcard-stat"><b>' + stats.total.wins + '</b><span>Wins</span></div>'
+      + '<div class="pcard-stat"><b>' + stats.total.podiums + '</b><span>Podiums</span></div>'
+      + '</div>'
+      + '<div class="pcard-body">'
+      + (d.bio ? '<div style="line-height:1.6;margin-bottom:8px">' + esc(d.bio) + '</div>' : '')
+      + (P.sponsors.length ? P.sponsors.map(function (s) { return '<span class="sponsor-chip">' + esc(s.name) + '</span>'; }).join('') : '')
+      + '</div></div>';
+  } else {
+    h += '<div class="card">'
+      + (photoOK(d.photo) ? '<img src="' + d.photo + '" style="width:96px;height:96px;border-radius:50%;object-fit:cover;display:block;margin:0 auto 14px">'
+                          : '<div class="prof-photo">' + esc(initials) + '</div>')
+      + '<div class="prof-name">' + esc(d.name) + (d.number ? ' <span style="color:var(--muted)">#' + esc(d.number) + '</span>' : '') + '</div>'
+      + '<div class="prof-meta">' + [d.age ? 'Age ' + d.age : '', d.hometown ? esc(d.hometown) : ''].filter(Boolean).join(' · ') + '</div>'
+      + (d.bio ? '<div class="prof-bio">' + esc(d.bio) + '</div>' : '<div class="prof-bio placeholder">No bio yet — add one in Settings.</div>')
+      + '<div class="slbl">Sponsors</div>'
+      + (P.sponsors.length ? P.sponsors.map(function (s) { return '<span class="sponsor-chip">' + esc(s.name) + '</span>'; }).join('') : '<p class="empty">No sponsors added yet.</p>')
+      + '<button class="btn btn-block" onclick="nav(\'settings\')" style="margin-top:16px">Edit profile</button>'
+      + '</div>';
+  }
+
+  // Publish to tracks
+  h += '<div class="card"><div class="slbl">Share with tracks</div>'
+    + '<p class="sub" style="margin-bottom:10px">Publishing puts your card online so any RaceDay track can pull it in when you give them your link code at sign-up.</p>'
+    + '<button class="btn btn-primary btn-block" onclick="publishNow()">' + (P.publishedAt ? '↻ Update published card' : '📡 Publish my card') + '</button>'
+    + (P.publishedAt ? '<div class="pub-status">Published · link code <b>' + esc(P.shortCode) + '</b> · updated ' + new Date(P.publishedAt).toLocaleString() + '</div>' : '')
     + '</div>';
+
+  // Premium upsell / status
+  if (!prem) {
+    h += '<div class="card"><div class="slbl">Go premium</div>'
+      + '<p class="sub" style="margin-bottom:10px">Premium turns this into a broadcast-style card — your photo, team color, and sponsors, TV-graphics look — at every RaceDay track. Get a code from the app owner.</p>'
+      + '<label>Premium code</label><input type="text" id="premCode" placeholder="PREM-XXXXXXXX-XXXXXXXX" autocapitalize="characters">'
+      + '<button class="btn btn-go btn-block" onclick="activatePremium()" style="margin-top:12px">Unlock premium</button>'
+      + '</div>';
+  }
   $id('page-card').innerHTML = h;
 }
 
@@ -330,8 +509,12 @@ function renderStats() {
 
 /* ---------- Link page ---------- */
 function renderLink() {
-  var h = '<h2>Link a Track</h2><p class="sub">Show this QR code at RaceDay sign-up to connect your results to this profile.</p>';
-  h += '<div class="card"><div class="qr-wrap"><canvas id="linkQR" width="220" height="220"></canvas></div>'
+  var h = '<h2>Link a Track</h2><p class="sub">Give the sign-up table your link code (or show this QR) to connect your card and results to this profile.</p>';
+  h += '<div class="card">'
+    + (P.shortCode
+        ? '<div class="slbl" style="text-align:center">Your track link code</div><div class="link-code">' + esc(P.shortCode) + '</div>'
+        : '<p class="empty" style="text-align:center">Publish your card (Card page) to get a short link code.</p>')
+    + '<div class="qr-wrap"><canvas id="linkQR" width="220" height="220"></canvas></div>'
     + '<div class="prof-id">' + esc(P.profileId) + '</div></div>';
   h += '<div class="slbl">Linked tracks</div>';
   if (!P.linkedTracks.length) {
@@ -363,6 +546,15 @@ function renderSettings() {
     + '<div class="slbl">Profile</div>'
     + '<label>Name</label><input type="text" id="stName" value="' + esc(d.name) + '" maxlength="60">'
     + '<label>Email</label><input type="email" id="stEmail" value="' + esc(d.email) + '" maxlength="80">'
+    + '<label>Kart / vehicle number</label><input type="text" id="stNumber" value="' + esc(d.number || '') + '" maxlength="5" placeholder="e.g. 47 or 12A" autocapitalize="characters">'
+    + '<label>Team color</label><input type="color" id="stTeamColor" value="' + esc(/^#[0-9a-fA-F]{6}$/.test(d.teamColor || '') ? d.teamColor : '#ffd449') + '" style="height:44px;padding:4px">'
+    + '<label>Driver photo</label>'
+    + '<div style="display:flex;gap:10px;align-items:center">'
+    + (photoOK(d.photo) ? '<img src="' + d.photo + '" style="width:44px;height:44px;border-radius:50%;object-fit:cover">' : '')
+    + '<button class="btn btn-sm" type="button" onclick="$id(\'stPhotoFile\').click()">📷 ' + (photoOK(d.photo) ? 'Replace' : 'Upload') + '</button>'
+    + (photoOK(d.photo) ? '<button class="btn btn-sm" type="button" onclick="removePhoto()">Remove</button>' : '')
+    + '<input id="stPhotoFile" type="file" accept="image/*" style="display:none" onchange="uploadPhoto(this)">'
+    + '</div>'
     + '<label>Hometown</label><input type="text" id="stHometown" value="' + esc(d.hometown) + '" maxlength="60">'
     + '<label>Age</label><input type="number" id="stAge" value="' + (d.age || '') + '" min="1" max="120">'
     + '<label>Bio (max 280 characters)</label><textarea id="stBio" maxlength="280">' + esc(d.bio) + '</textarea>'
@@ -389,6 +581,9 @@ function renderSettings() {
 function saveProfileFields() {
   P.driver.name = ($id('stName').value || '').trim() || P.driver.name;
   P.driver.email = ($id('stEmail').value || '').trim();
+  P.driver.number = ($id('stNumber').value || '').trim().toUpperCase().slice(0, 5);
+  var col = $id('stTeamColor').value;
+  P.driver.teamColor = /^#[0-9a-fA-F]{6}$/.test(col) ? col : '';
   P.driver.hometown = ($id('stHometown').value || '').trim();
   var ageVal = $id('stAge').value;
   P.driver.age = ageVal ? parseInt(ageVal, 10) : null;
@@ -396,8 +591,33 @@ function saveProfileFields() {
   var sponsorsRaw = ($id('stSponsors').value || '').trim();
   P.sponsors = sponsorsRaw ? sponsorsRaw.split(',').map(function (s) { return { name: s.trim() }; }).filter(function (s) { return s.name; }) : [];
   save();
-  alert('Saved.');
+  alert('Saved.' + (P.publishedAt ? ' Your published card updates automatically.' : ''));
 }
+
+// Photo: center-crop square, downscale to 128px JPEG (~≤60KB) so published cards stay light.
+function uploadPhoto(input) {
+  var f = input.files && input.files[0];
+  input.value = '';
+  if (!f) return;
+  var img = new Image();
+  var url = URL.createObjectURL(f);
+  img.onload = function () {
+    URL.revokeObjectURL(url);
+    var side = Math.min(img.width, img.height);
+    var scale = Math.min(1, 128 / side);
+    var c = document.createElement('canvas');
+    c.width = c.height = Math.max(1, Math.round(side * scale));
+    c.getContext('2d').drawImage(img, (img.width - side) / 2, (img.height - side) / 2, side, side, 0, 0, c.width, c.height);
+    var data = c.toDataURL('image/jpeg', 0.82);
+    if (data.length > 60000) { alert('That photo is too heavy — try a smaller or simpler image.'); return; }
+    P.driver.photo = data;
+    save();
+    renderSettings();
+  };
+  img.onerror = function () { URL.revokeObjectURL(url); alert("Couldn't read that file as an image."); };
+  img.src = url;
+}
+function removePhoto() { P.driver.photo = null; save(); renderSettings(); }
 
 /* ---------- Import / ingest ---------- */
 // Accepts a single export object or an array of them:
@@ -454,8 +674,16 @@ function loadDemoResults() {
 function deleteProfile() {
   if (!confirm('Delete your profile? This cannot be undone.')) return;
   if (!confirm('Really delete everything — profile, results, and stats?')) return;
-  localStorage.removeItem('profiles_v1');
-  location.reload();
+  // Best-effort: remove the published card + link-code mapping, then wipe locally either way.
+  var wipe = function () { localStorage.removeItem('profiles_v1'); location.reload(); };
+  if (P.publishedAt) {
+    ensureFirebase().then(function () {
+      var db = firebase.database();
+      var ops = [db.ref('profiles/' + P.profileId).remove()];
+      if (P.shortCode) ops.push(db.ref('profiles_short/' + P.shortCode).remove());
+      return Promise.all(ops);
+    }).then(wipe, wipe);
+  } else wipe();
 }
 
 /* ---------- Boot ---------- */

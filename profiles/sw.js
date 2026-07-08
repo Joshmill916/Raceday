@@ -1,7 +1,7 @@
 /* RaceDay Profiles service worker — installability + offline app shell.
    Network-first for the page so updates always flow when online;
    cache-first for icons/manifest. Mirrors /sw.js at repo root. */
-const CACHE = 'raceday-profiles-v1';
+const CACHE = 'raceday-profiles-v2';
 const SHELL = ['./', './index.html', './manifest.webmanifest', '../icon-rd.png'];
 
 self.addEventListener('install', e => {

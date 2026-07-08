@@ -35,6 +35,18 @@ we want tracks genuinely locked out of control mode.
 
 ---
 
+## Profiles card pipeline — Firebase rules hardening (parked 2026-07-08)
+
+The Profiles→RaceDay card pipeline writes to unauthenticated RTDB paths
+(`profiles/<id>/card`, `profiles_short/<code>`). RaceDay sanitizes everything on read
+(type/length caps, anchored photo regex, premium-hash recompute), so injected data can't
+XSS or fake premium — but anyone who learns a profileId could overwrite that driver's
+card, and unbounded writes are a storage/abuse risk. When ready: add RTDB `.validate`
+rules in the Firebase console capping `profiles/*` node size and shape (and eventually
+auth). Console access required — can't be done from the repo.
+
+---
+
 ## Deferred audit findings (from the 2026-06-30 full-app audit)
 
 The High items + a few Mediums were fixed and are on the dev branch. These remain open:

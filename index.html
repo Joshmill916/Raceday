@@ -407,6 +407,8 @@
         </div>
         <label>Vehicle number</label>
         <input id="dNum" type="text" placeholder="e.g. 47 or 12A" maxlength="5" autocomplete="off" autocapitalize="characters" />
+        <label>Profiles link code <span style="font-weight:400;color:var(--muted)">(optional — from your RaceDay Profiles app)</span></label>
+        <input id="dProfCode" type="text" placeholder="e.g. K7Q2M4XN" maxlength="24" autocomplete="off" autocapitalize="characters" />
         <div id="e1" class="err" style="display:none"></div>
         <button class="btn btn-go btn-block" onclick="step2()">Next — pick your classes →</button>
       </div>
@@ -1623,6 +1625,26 @@ function licHash(str) {
   return (h >>> 0).toString(36).toUpperCase();
 }
 function licCheck(name, exp) { return licHash(name + '|' + exp + '|' + LIC_SALT).slice(0, 6); }
+
+// ---------- RaceDay Profiles premium codes ----------
+// A driver's premium card carries the unlock code they were sold; we recompute the hash
+// here and only honor premium if it checks out. Must match profiles/index.html EXACTLY.
+const PREM_SALT = 'rd-prem-7t4mq2xz-2026';
+function pHash(str) {
+  function fnv(s, seed) {
+    let h = seed >>> 0;
+    for (let i = 0; i < s.length; i++) { h ^= s.charCodeAt(i); h = Math.imul(h, 16777619) >>> 0; }
+    return ('0000000' + h.toString(36).toUpperCase()).slice(-7);
+  }
+  return fnv(str, 2166136261) + fnv(str + '#2', 2166136261);
+}
+function premShort(profileId) { return profileId.slice(5, 13).toUpperCase(); }
+function premCheck(profileId, code) {
+  const parts = String(code || '').trim().toUpperCase().split('-');
+  if (parts.length !== 3 || parts[0] !== 'PREM') return false;
+  if (parts[1] !== premShort(profileId)) return false;
+  return parts[2] === pHash(profileId + '|PREM|' + PREM_SALT).slice(0, 8);
+}
 // Plan tokens in license.exp: '0' = forever, 'YYYYMM' = month expiry (legacy),
 // 'SYYYY' = season pass through Dec 31 of that year, 'R<n>' = packet of n race days.
 function licStatus() {
@@ -1879,6 +1901,11 @@ function register() {
   if (driver) { driver.num = cur.num; driver.name = cur.name; }
   else { driver = { id: S.nextId++, name: cur.name, num: cur.num, noPoints: false }; S.roster.push(driver); }
 
+  // Profiles link (optional): pull the driver's published card in the background.
+  const profCodeEl = document.getElementById('dProfCode');
+  const profCode = profCodeEl ? profCodeEl.value.trim() : '';
+  if (profCode && !driver.profileId) linkProfile(driver.id, profCode).then(() => render(curPage)).catch(() => {});
+
   // record the Terms/Privacy acceptance (timestamp, role, version; IP filled best-effort)
   if (S.settings && S.settings.requireConsent) recordConsent(driver.name, driver.num);
 
@@ -1919,6 +1946,7 @@ function resetReg() {
   cur = null;
   document.getElementById('dName').value = '';
   document.getElementById('dNum').value = '';
+  const pc = document.getElementById('dProfCode'); if (pc) pc.value = '';
   document.getElementById('suggBox').innerHTML = '';
   document.getElementById('e1').style.display = 'none';
   document.getElementById('e2').style.display = 'none';
@@ -2133,13 +2161,16 @@ function renderDriverCard() {
   const classes = (S.raceDay.entries || []).filter(e => e.driverId === driverCardId).map(e => (classById(e.classId) || {}).name).filter(Boolean);
   const p = d.profile || {};
   const prem = !!p.premium;
+  // Re-validate the photo at render time — profiles can arrive via sync/Firebase, not just local upload.
+  const photo = profPhotoOK(p.photo) ? p.photo : '';
+  const linked = !!(d.profileId || p.source === 'profiles');
   const panel = document.getElementById('dcPanel');
   panel.classList.toggle('prem', prem);
   panel.style.setProperty('--dc-team', prem && /^#[0-9a-fA-F]{6}$/.test(p.teamColor || '') ? p.teamColor : 'var(--plate)');
   let h = '<div class="dc-hd">'
-    + (prem && p.photo ? '<img class="dc-photo" src="' + p.photo + '" alt="">' : discNum(d.num))
+    + (prem && photo ? '<img class="dc-photo" src="' + photo + '" alt="">' : discNum(d.num))
     + '<div class="dc-heads"><div class="nm">' + esc(d.name) + '</div>'
-    + (prem && p.photo ? '<div class="cls">#' + esc(String(d.num)) + (classes.length ? ' · ' + classes.map(esc).join(' · ') : '') + '</div>'
+    + (prem && photo ? '<div class="cls">#' + esc(String(d.num)) + (classes.length ? ' · ' + classes.map(esc).join(' · ') : '') + '</div>'
       : (classes.length ? '<div class="cls">' + classes.map(esc).join(' · ') + '</div>' : ''))
     + '</div></div>';
   if (prem) h += '<div class="dc-checker"></div>';
@@ -2155,9 +2186,47 @@ function renderDriverCard() {
   h += rows.length ? rows.map(r => '<div class="dc-row"><b>' + esc(r[0]) + '</b><span>' + esc(String(r[1])) + '</span></div>').join('')
     : '<p style="color:var(--muted);font-size:13px;margin:0">No profile details yet' + (deviceRole() === 'admin' ? ' — add them below.' : '.') + '</p>';
   if (st.starts === 0) h += '<p style="color:var(--muted);font-size:12px;margin:10px 0 0">Race stats fill in as race days are saved to history.</p>';
-  if (deviceRole() === 'admin') h += '<div style="margin-top:14px"><button class="btn btn-sm" onclick="editDriverCard()">✎ Edit profile</button></div>';
+  if (linked && p.pendingFetch) h += '<p style="color:var(--muted);font-size:12px;margin:10px 0 0">🔗 Profiles card linked — it loads the next time this device is online.</p>';
+  if (deviceRole() === 'admin') {
+    h += linked
+      ? '<div style="margin-top:14px;display:flex;gap:8px;flex-wrap:wrap;align-items:center">'
+        + '<span style="font-size:12px;color:var(--muted)">🔗 Managed in RaceDay Profiles</span>'
+        + '<button class="btn btn-sm" onclick="refreshProfile()">↻ Refresh</button>'
+        + '<button class="btn btn-sm" onclick="unlinkProfile()">Unlink</button></div>'
+      : '<div style="margin-top:14px;display:flex;gap:8px;flex-wrap:wrap">'
+        + '<button class="btn btn-sm" onclick="editDriverCard()">✎ Edit profile</button>'
+        + '<button class="btn btn-sm" onclick="linkProfilePrompt()">🔗 Link Profiles</button></div>';
+  }
   h += '</div>';
   document.getElementById('dcBody').innerHTML = h;
+}
+// Admin: link/refresh/unlink a driver's published Profiles card from the card overlay.
+function linkProfilePrompt() {
+  const d = driverById(driverCardId); if (!d || deviceRole() !== 'admin') return;
+  const code = prompt("Driver's Profiles link code (from their RaceDay Profiles app):");
+  if (!code || !code.trim()) return;
+  linkProfile(d.id, code.trim())
+    .then(renderDriverCard)
+    .catch(err => {
+      renderDriverCard();
+      alert(err && err.pending
+        ? 'Linked — the card loads when this device is online.'
+        : "That code didn't match a published card — check it and try again.");
+    });
+}
+function refreshProfile() {
+  const d = driverById(driverCardId); if (!d || !(d.profileId || d.profileCode)) return;
+  linkProfile(d.id, d.profileId || d.profileCode)
+    .then(renderDriverCard)
+    .catch(() => { renderDriverCard(); alert("Couldn't refresh — check the connection."); });
+}
+function unlinkProfile() {
+  const d = driverById(driverCardId); if (!d) return;
+  if (!confirm("Unlink this driver's RaceDay Profiles card? The profile returns to local control.")) return;
+  delete d.profileId; delete d.profileCode;
+  if (d.profile) { delete d.profile.pendingFetch; delete d.profile.source; }
+  save();
+  renderDriverCard();
 }
 function editDriverCard() {
   const d = driverById(driverCardId); if (!d) return;
@@ -2171,7 +2240,7 @@ function editDriverCard() {
     + '<label>Team color</label><input id="dcColor" type="color" value="' + esc(/^#[0-9a-fA-F]{6}$/.test(p.teamColor || '') ? p.teamColor : '#ffd449') + '" style="height:40px;padding:3px">'
     + '<label>Driver photo</label>'
     + '<div style="display:flex;gap:8px;align-items:center">'
-    + (p.photo ? '<img src="' + p.photo + '" style="width:44px;height:44px;border-radius:50%;object-fit:cover">' : '')
+    + (profPhotoOK(p.photo) ? '<img src="' + p.photo + '" style="width:44px;height:44px;border-radius:50%;object-fit:cover">' : '')
     + '<button class="btn btn-sm" type="button" onclick="document.getElementById(\'dcPhotoFile\').click()">📷 ' + (p.photo ? 'Replace' : 'Upload') + '</button>'
     + (p.photo ? '<button class="btn btn-sm" type="button" onclick="dcRemovePhoto()">Remove</button>' : '')
     + '<input id="dcPhotoFile" type="file" accept="image/*" style="display:none" onchange="dcUploadPhoto(this)">'
@@ -2182,6 +2251,7 @@ function editDriverCard() {
 }
 function saveDriverProfile() {
   const d = driverById(driverCardId); if (!d) return;
+  if (d.profileId || (d.profile && d.profile.source === 'profiles')) { renderDriverCard(); return; }   // linked cards are managed in Profiles
   const prev = d.profile || {};
   d.profile = {
     age: document.getElementById('dcAge').value.trim(),
@@ -3975,6 +4045,78 @@ function loadFirebase() {
   });
 }
 
+// One-shot Firebase access without touching sync state — used for Profiles card reads.
+function ensureFirebase() {
+  if (!FIREBASE_CONFIG.apiKey) return Promise.reject(new Error('no firebase config'));
+  return loadFirebase().then(() => { if (!firebase.apps.length) firebase.initializeApp(FIREBASE_CONFIG); });
+}
+
+// ---------- RaceDay Profiles: pull a driver's published card ----------
+// Card data comes from an unauthenticated store, so treat every field as untrusted:
+// type-check, length-cap, anchor-match the photo, and recompute the premium hash.
+function profStr(v, cap) { return typeof v === 'string' ? v.slice(0, cap) : ''; }
+function profPhotoOK(src) { return typeof src === 'string' && src.length <= 80000 && /^data:image\/(png|jpe?g);base64,[A-Za-z0-9+/=]+$/.test(src); }
+function sanitizeProfileCard(profileId, card) {
+  if (!card || typeof card !== 'object') return null;
+  return {
+    age: profStr(card.age, 8),
+    hometown: profStr(card.hometown, 60),
+    sponsors: profStr(card.sponsors, 160),
+    teamColor: /^#[0-9a-fA-F]{6}$/.test(card.teamColor || '') ? card.teamColor : '',
+    photo: profPhotoOK(card.photo) ? card.photo : '',
+    premium: premCheck(profileId, card.premiumCode),
+    source: 'profiles'
+  };
+}
+function resolveProfileId(codeOrId) {
+  const raw = String(codeOrId || '').trim();
+  if (/^prof_[a-z0-9]{6,20}$/i.test(raw)) return Promise.resolve(raw.toLowerCase());
+  const short = raw.toUpperCase().replace(/[^A-Z0-9]/g, '');
+  if (short.length < 6 || short.length > 14) { const e = new Error('bad code'); e.known = true; return Promise.reject(e); }
+  return firebase.database().ref('profiles_short/' + short).once('value').then(s => {
+    const id = s.val();
+    if (typeof id !== 'string' || !/^prof_[a-z0-9]{6,20}$/i.test(id)) { const e = new Error('unknown code'); e.known = true; throw e; }
+    return id;
+  });
+}
+// Link (or refresh) a roster driver to their published Profiles card. On a network
+// failure the link is remembered as pending and retried when connectivity returns —
+// the sign-up laptop at the gate is often offline.
+function linkProfile(driverId, codeOrId) {
+  const d = driverById(driverId);
+  if (!d) return Promise.reject(new Error('no driver'));
+  const raw = String(codeOrId || '').trim();
+  return ensureFirebase().then(() => resolveProfileId(raw)).then(id =>
+    firebase.database().ref('profiles/' + id + '/card').once('value').then(snap => {
+      const clean = sanitizeProfileCard(id, snap.val());
+      if (!clean) { const e = new Error('no published card'); e.known = true; throw e; }
+      d.profileId = id;
+      d.profileCode = raw.toUpperCase();
+      d.profile = clean;
+      save();
+      return d;
+    })
+  ).catch(err => {
+    if (err && err.known) throw err;                    // bad/unknown code: don't pend
+    d.profileCode = raw.toUpperCase();                  // network/SDK failure: retry later
+    if (/^prof_[a-z0-9]{6,20}$/i.test(raw)) d.profileId = raw.toLowerCase();
+    d.profile = Object.assign({ age: '', hometown: '', sponsors: '', teamColor: '', photo: '', premium: false },
+                              d.profile, { source: 'profiles', pendingFetch: true });
+    save();
+    const e2 = new Error('pending'); e2.pending = true; throw e2;
+  });
+}
+function retryPendingProfiles() {
+  (S.roster || []).forEach(d => {
+    if (d.profile && d.profile.pendingFetch && (d.profileId || d.profileCode)) {
+      linkProfile(d.id, d.profileId || d.profileCode)
+        .then(() => { if (driverCardId === d.id) renderDriverCard(); })
+        .catch(() => {});
+    }
+  });
+}
+window.addEventListener('online', retryPendingProfiles);
+
 function initSync() {
   if (!syncOn() || !syncKey()) return;
   loadFirebase().then(() => {
@@ -5261,6 +5403,8 @@ checkDayBanner();
 renderLicBanner();
 renderGrid();
 initSync();
+// Pick up any Profiles cards that were linked while offline (no-op when none are pending).
+if (navigator.onLine && (S.roster || []).some(d => d.profile && d.profile.pendingFetch)) retryPendingProfiles();
 if (!S.track.name) openSetupWizard();
 </script>
 </body>

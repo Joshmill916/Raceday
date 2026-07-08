@@ -45,6 +45,10 @@ to upgrade their card to a broadcast-style, NASCAR/Indy-looking animated graphic
 colors, sponsor logos, sweep-in / shine animation. Pure CSS/SVG, no backend. Gated by a
 simple `premium` flag on the driver.
 
-**Phase 3 — Payment.** *Open.* Decide and wire how a driver unlocks premium: offline + admin
+**Phase 3 — Payment.** ✅ *Shipped (2026-07-08) as premium codes via the Profiles app.*
+Drivers buy a code from the app owner (bound to their profileId, offline-validated with
+`PREM_SALT`), unlock premium in Profiles, publish their card, and RaceDay pulls it at
+sign-up via the link code. Real checkout (Stripe/Square) remains a future option.
+Original options considered: offline + admin
 toggle, premium codes (like the license codegen), or real checkout (Stripe/Square — the
 first thing that would need a backend).
