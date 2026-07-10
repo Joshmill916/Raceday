@@ -151,6 +151,20 @@
   .bcard-name { font-family: var(--display); font-weight: 800; font-size: 25px; line-height: 0.98; text-transform: uppercase; }
   .bcard-meta { margin-top: 5px; font-family: var(--display); font-weight: 700; font-size: 12.5px; text-transform: uppercase; letter-spacing: 0.07em; color: var(--muted); }
   .bcard-body { padding: 16px 20px 18px; font-size: 14px; }
+
+  /* Upgrade (mid) card — light with team color accent + photo */
+  .mcard { background: var(--surface); border-radius: 16px; box-shadow: 0 1px 3px rgba(15,18,26,.07), 0 1px 2px rgba(15,18,26,.05); overflow: hidden; margin-bottom: 14px; border-top: 4px solid var(--mc-team, var(--brand)); }
+  .mcard-hd { display: flex; align-items: center; gap: 15px; padding: 20px; border-bottom: 1px solid var(--line); background: linear-gradient(to right, color-mix(in srgb, var(--mc-team, var(--brand)) 6%, transparent), transparent); }
+  .mcard-photo { width: 72px; height: 72px; border-radius: 9px; object-fit: cover; flex: none; background: #e7e9ee; border: 1.5px solid var(--mc-team, var(--brand)); }
+  .mcard-disc { width: 72px; height: 72px; border-radius: 9px; background: color-mix(in srgb, var(--mc-team, var(--brand)) 12%, #eef0f3); color: var(--ink); display: flex; align-items: center; justify-content: center; font-family: var(--display); font-weight: 800; font-size: 28px; flex: none; border: 1.5px solid var(--mc-team, var(--brand)); }
+  .mcard-name { font-family: var(--display); font-weight: 800; font-size: 26px; line-height: 0.97; text-transform: uppercase; }
+  .mcard-meta { margin-top: 6px; font-family: var(--display); font-weight: 700; font-size: 12.5px; text-transform: uppercase; letter-spacing: 0.07em; color: color-mix(in srgb, var(--mc-team, var(--brand)) 70%, var(--muted)); }
+  .mcard-body { padding: 16px 20px 18px; font-size: 14px; }
+  .mcard-stats { display: grid; grid-template-columns: repeat(3, 1fr); gap: 0; margin: 0 -20px -18px; padding: 12px 0 0; border-top: 1px solid var(--line); }
+  .mcard-stat { padding: 10px 0; text-align: center; border-left: 1px solid var(--line); font-size: 12px; }
+  .mcard-stat:first-child { border-left: none; }
+  .mcard-stat b { font-family: var(--display); font-weight: 800; font-size: 19px; line-height: 1; color: var(--mc-team, var(--brand)); }
+  .mcard-stat span { font-size: 9px; text-transform: uppercase; letter-spacing: 0.1em; color: var(--muted); display: block; margin-top: 3px; }
   .prof-bio { font-size: 14px; line-height: 1.6; }
   .prof-bio.placeholder { color: var(--muted); font-style: italic; }
   .sponsor-chip { display: inline-block; padding: 5px 12px; border-radius: 99px; border: 1.5px solid var(--line); font-size: 13px; font-weight: 600; margin: 4px 6px 0 0; }
@@ -518,11 +532,12 @@ function photoOK(src) { return typeof src === 'string' && /^data:image\/(png|jpe
 function renderCard() {
   var d = P.driver;
   var initials = d.name.split(/\s+/).map(function (w) { return w[0] || ''; }).slice(0, 2).join('').toUpperCase();
-  var prem = P.tier === 'premium';
+  var tier = P.tier || 'basic';
   var stats = computeStats();
-  var h = '<h2>Your Card</h2><p class="sub">This is what tracks and fans see' + (prem ? ' — <span class="prem-badge">Premium</span>' : '') + '.</p>';
+  var tierBadge = { basic: '', upgrade: ' — <span style="color:var(--brand);font-weight:700">Upgrade</span>', premium: ' — <span class="prem-badge">Premium</span>' };
+  var h = '<h2>Your Card</h2><p class="sub">This is what tracks and fans see' + (tierBadge[tier] || '') + '.</p>';
 
-  if (prem) {
+  if (tier === 'premium') {
     var team = /^#[0-9a-fA-F]{6}$/.test(d.teamColor || '') ? d.teamColor : '#1f6fd6';
     h += '<div class="pcard" style="--pc-team:' + team + '">'
       + '<div class="pcard-hd">'
@@ -540,6 +555,25 @@ function renderCard() {
       + '<div class="pcard-body">'
       + (d.bio ? '<div style="line-height:1.6;margin-bottom:8px">' + esc(d.bio) + '</div>' : '')
       + (P.sponsors.length ? P.sponsors.map(function (s) { return '<span class="sponsor-chip">' + esc(s.name) + '</span>'; }).join('') : '')
+      + '</div></div>';
+  } else if (tier === 'upgrade') {
+    var team = /^#[0-9a-fA-F]{6}$/.test(d.teamColor || '') ? d.teamColor : '#1f6fd6';
+    h += '<div class="mcard" style="--mc-team:' + team + '">'
+      + '<div class="mcard-hd">'
+      + (photoOK(d.photo) ? '<img class="mcard-photo" src="' + d.photo + '" alt="">'
+                          : '<div class="mcard-disc">' + esc(d.number || initials) + '</div>')
+      + '<div><div class="mcard-name">' + esc(d.name) + '</div>'
+      + '<div class="mcard-meta">' + [d.number ? '#' + esc(d.number) : '', d.hometown ? esc(d.hometown) : ''].filter(Boolean).join(' &nbsp;·&nbsp; ') + '</div></div>'
+      + '</div>'
+      + '<div class="mcard-body">'
+      + (d.bio ? '<div class="prof-bio">' + esc(d.bio) + '</div>' : '<div class="prof-bio placeholder">No bio yet — add one in Settings.</div>')
+      + '<div class="slbl">Sponsors</div>'
+      + (P.sponsors.length ? P.sponsors.map(function (s) { return '<span class="sponsor-chip">' + esc(s.name) + '</span>'; }).join('') : '<p class="empty" style="padding:4px 0 0">No sponsors added yet.</p>')
+      + '<div class="mcard-stats">'
+      + '<div class="mcard-stat"><b>' + stats.total.races + '</b><span>Races</span></div>'
+      + '<div class="mcard-stat"><b>' + stats.total.wins + '</b><span>Wins</span></div>'
+      + '<div class="mcard-stat"><b>' + stats.total.podiums + '</b><span>Podiums</span></div>'
+      + '</div>'
       + '</div></div>';
   } else {
     h += '<div class="bcard">'
@@ -564,15 +598,40 @@ function renderCard() {
     + (P.publishedAt ? '<div class="pub-status">Published · link code <b>' + esc(P.shortCode) + '</b> · updated ' + new Date(P.publishedAt).toLocaleString() + '</div>' : '')
     + '</div>';
 
-  // Premium upsell / status
-  if (!prem) {
-    h += '<div class="card"><div class="slbl">Go premium</div>'
-      + '<p class="sub" style="margin-bottom:10px">Premium turns this into a broadcast-style card — your photo, team color, and sponsors, TV-graphics look — at every RaceDay track. Get a code from the app owner.</p>'
-      + '<label>Premium code</label><input type="text" id="premCode" placeholder="PREM-XXXXXXXX-XXXXXXXX" autocapitalize="characters">'
-      + '<button class="btn btn-go btn-block" onclick="activatePremium()" style="margin-top:12px">Unlock premium</button>'
+  // Tier upsell / status
+  if (tier === 'basic') {
+    h += '<div class="card"><div class="slbl">Available upgrades</div>'
+      + '<p class="sub" style="margin-bottom:14px">Choose how your card looks at every RaceDay track.</p>'
+      + '<div style="display:flex;gap:10px;flex-direction:column">'
+      + '<div style="padding:14px;border:1.5px solid #d5d8de;border-radius:10px;background:#f4f5f7">'
+      + '<div style="font-weight:700;font-size:14px;margin-bottom:4px">Upgrade — Photo + team color</div>'
+      + '<div style="font-size:13px;color:var(--muted);line-height:1.5">Add your photo and team color accent. Appears on every track with a clean, modern look.</div>'
+      + '<button class="btn btn-block" style="margin-top:8px" onclick="selectTier(\'upgrade\')">Upgrade</button>'
+      + '</div>'
+      + '<div style="padding:14px;border:1.5px solid var(--brand);border-radius:10px;background:color-mix(in srgb, var(--brand) 6%, transparent)">'
+      + '<div style="font-weight:700;font-size:14px;margin-bottom:4px;color:var(--brand)">Premium — Broadcast style</div>'
+      + '<div style="font-size:13px;color:var(--muted);line-height:1.5">Full broadcast look with photo, ghost number, team color accent, and animated effects. Gets noticed.</div>'
+      + '<label style="margin-top:8px;margin-bottom:4px">Premium code</label><input type="text" id="premCode" placeholder="PREM-XXXXXXXX-XXXXXXXX" autocapitalize="characters" style="margin-bottom:8px">'
+      + '<button class="btn btn-go btn-block" onclick="activatePremium()">Unlock premium</button>'
+      + '</div>'
+      + '</div>'
+      + '</div>';
+  } else if (tier === 'upgrade') {
+    h += '<div class="card"><div class="slbl">Your tier</div>'
+      + '<p class="sub" style="margin-bottom:10px">Upgrade active — your card displays your photo and team color at every track.</p>'
+      + '<div style="display:flex;gap:8px">'
+      + '<button class="btn btn-sm" onclick="selectTier(\'basic\')">Downgrade</button>'
+      + '<label style="flex:1;margin:0"><input type="text" id="premCode" placeholder="PREM-XXXXXXXX-XXXXXXXX" autocapitalize="characters"> <button class="btn btn-sm" style="margin-top:8px" onclick="activatePremium()">Go premium</button></label>'
+      + '</div>'
       + '</div>';
   }
   $id('page-card').innerHTML = h;
+}
+
+function selectTier(t) {
+  P.tier = t;
+  save();
+  renderCard();
 }
 
 /* ---------- Stats page ---------- */
