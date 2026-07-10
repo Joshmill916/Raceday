@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>RaceDay Profiles — Your Racing Record</title>
+<title>Driven — Your Racing Record</title>
 <link href="https://fonts.googleapis.com/css2?family=Saira+Condensed:wght@600;700;800&display=swap" rel="stylesheet">
 <!-- Installable app (PWA): home-screen icon, full-screen, offline app shell -->
 <link rel="manifest" href="manifest.webmanifest">
@@ -11,7 +11,7 @@
 <meta name="mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
-<meta name="apple-mobile-web-app-title" content="Profiles">
+<meta name="apple-mobile-web-app-title" content="Driven">
 <link rel="apple-touch-icon" href="../icon-rd.png">
 <link rel="icon" type="image/png" sizes="512x512" href="../icon-rd.png">
 <script>if('serviceWorker' in navigator){addEventListener('load',function(){navigator.serviceWorker.register('sw.js').catch(function(){})})}</script>
@@ -26,6 +26,7 @@
     --line: #e3e3de;
     --plate: #ffd449;
     --plate-ink: #161408;
+    --brand: #1f6fd6;        /* Driven Blue — the app's own accent (number plates stay yellow) */
     --flag-green: #0e8a4d;
     --flag-green-bg: #e7f6ee;
     --pit-red: #c8372d;
@@ -40,14 +41,14 @@
   .container { max-width: 640px; margin: 0 auto; padding: 0 0 60px; }
 
   .header { background: var(--asphalt); color: #fff; padding: 18px 22px 14px; }
-  .header .brand { font-family: var(--display); font-weight: 800; font-size: 26px; letter-spacing: 0.04em; text-transform: uppercase; }
-  .header .brand em { font-style: normal; color: var(--plate); }
+  .header .brand { font-family: var(--display); font-weight: 800; font-size: 28px; letter-spacing: 0.12em; text-transform: uppercase; display: inline-block; border-bottom: 3px solid var(--brand); padding-bottom: 2px; }
+  .header .brand em { font-style: normal; color: var(--brand); }
   .header .tag { font-size: 12px; color: #9a9da6; margin-top: 1px; }
   .checker { height: 10px; background: repeating-conic-gradient(#101114 0% 25%, #f4f4f1 0% 50%) 0 0 / 20px 20px; }
 
   .nav { background: var(--card); border-bottom: 1px solid var(--line); display: flex; overflow-x: auto; position: sticky; top: 0; z-index: 20; }
   .nav button { flex: 1; padding: 13px 10px; border: none; background: transparent; color: var(--muted); font-size: 13.5px; font-family: var(--display); font-weight: 700; text-transform: uppercase; letter-spacing: 0.05em; cursor: pointer; border-bottom: 3px solid transparent; white-space: nowrap; }
-  .nav button.active { color: var(--ink); border-bottom-color: var(--plate); }
+  .nav button.active { color: var(--ink); border-bottom-color: var(--brand); }
   .nav button:hover:not(.active) { background: #fafaf8; }
 
   .page { display: none; padding: 22px 20px; }
@@ -152,7 +153,7 @@
 <body>
 
 <div class="header">
-  <div class="brand">RACE<em>DAY</em> PROFILES</div>
+  <div class="brand">DRIVEN</div>
   <div class="tag">Your racing record, wherever you race.</div>
 </div>
 <div class="checker"></div>
@@ -176,7 +177,7 @@
 <!-- Onboarding: first-open profile creation -->
 <div id="onboardModal" class="wiz-overlay" style="display:none">
   <div class="wiz-box">
-    <h2>Welcome to Profiles</h2>
+    <h2>Welcome to Driven</h2>
     <p class="sub">One racing profile that follows you across every RaceDay track. Create it once — results, stats, and your story all live here.</p>
     <label>Your name *</label>
     <input type="text" id="obName" maxlength="60" placeholder="Alex Smith">
@@ -440,7 +441,7 @@ function renderCard() {
   var h = '<h2>Your Card</h2><p class="sub">This is what tracks and fans see' + (prem ? ' — <span class="prem-badge">Premium</span>' : '') + '.</p>';
 
   if (prem) {
-    var team = /^#[0-9a-fA-F]{6}$/.test(d.teamColor || '') ? d.teamColor : '#ffd449';
+    var team = /^#[0-9a-fA-F]{6}$/.test(d.teamColor || '') ? d.teamColor : '#1f6fd6';
     h += '<div class="pcard" style="--pc-team:' + team + '">'
       + '<div class="pcard-hd">'
       + (photoOK(d.photo) ? '<img class="pcard-photo" src="' + d.photo + '" alt="">'
@@ -547,7 +548,7 @@ function renderSettings() {
     + '<label>Name</label><input type="text" id="stName" value="' + esc(d.name) + '" maxlength="60">'
     + '<label>Email</label><input type="email" id="stEmail" value="' + esc(d.email) + '" maxlength="80">'
     + '<label>Kart / vehicle number</label><input type="text" id="stNumber" value="' + esc(d.number || '') + '" maxlength="5" placeholder="e.g. 47 or 12A" autocapitalize="characters">'
-    + '<label>Team color</label><input type="color" id="stTeamColor" value="' + esc(/^#[0-9a-fA-F]{6}$/.test(d.teamColor || '') ? d.teamColor : '#ffd449') + '" style="height:44px;padding:4px">'
+    + '<label>Team color</label><input type="color" id="stTeamColor" value="' + esc(/^#[0-9a-fA-F]{6}$/.test(d.teamColor || '') ? d.teamColor : '#1f6fd6') + '" style="height:44px;padding:4px">'
     + '<label>Driver photo</label>'
     + '<div style="display:flex;gap:10px;align-items:center">'
     + (photoOK(d.photo) ? '<img src="' + d.photo + '" style="width:44px;height:44px;border-radius:50%;object-fit:cover">' : '')

@@ -407,7 +407,7 @@
         </div>
         <label>Vehicle number</label>
         <input id="dNum" type="text" placeholder="e.g. 47 or 12A" maxlength="5" autocomplete="off" autocapitalize="characters" />
-        <label>Profiles link code <span style="font-weight:400;color:var(--muted)">(optional — from your RaceDay Profiles app)</span></label>
+        <label>Driven link code <span style="font-weight:400;color:var(--muted)">(optional — from your Driven app)</span></label>
         <input id="dProfCode" type="text" placeholder="e.g. K7Q2M4XN" maxlength="24" autocomplete="off" autocapitalize="characters" />
         <div id="e1" class="err" style="display:none"></div>
         <button class="btn btn-go btn-block" onclick="step2()">Next — pick your classes →</button>
@@ -2186,16 +2186,16 @@ function renderDriverCard() {
   h += rows.length ? rows.map(r => '<div class="dc-row"><b>' + esc(r[0]) + '</b><span>' + esc(String(r[1])) + '</span></div>').join('')
     : '<p style="color:var(--muted);font-size:13px;margin:0">No profile details yet' + (deviceRole() === 'admin' ? ' — add them below.' : '.') + '</p>';
   if (st.starts === 0) h += '<p style="color:var(--muted);font-size:12px;margin:10px 0 0">Race stats fill in as race days are saved to history.</p>';
-  if (linked && p.pendingFetch) h += '<p style="color:var(--muted);font-size:12px;margin:10px 0 0">🔗 Profiles card linked — it loads the next time this device is online.</p>';
+  if (linked && p.pendingFetch) h += '<p style="color:var(--muted);font-size:12px;margin:10px 0 0">🔗 Driven card linked — it loads the next time this device is online.</p>';
   if (deviceRole() === 'admin') {
     h += linked
       ? '<div style="margin-top:14px;display:flex;gap:8px;flex-wrap:wrap;align-items:center">'
-        + '<span style="font-size:12px;color:var(--muted)">🔗 Managed in RaceDay Profiles</span>'
+        + '<span style="font-size:12px;color:var(--muted)">🔗 Managed in Driven</span>'
         + '<button class="btn btn-sm" onclick="refreshProfile()">↻ Refresh</button>'
         + '<button class="btn btn-sm" onclick="unlinkProfile()">Unlink</button></div>'
       : '<div style="margin-top:14px;display:flex;gap:8px;flex-wrap:wrap">'
         + '<button class="btn btn-sm" onclick="editDriverCard()">✎ Edit profile</button>'
-        + '<button class="btn btn-sm" onclick="linkProfilePrompt()">🔗 Link Profiles</button></div>';
+        + '<button class="btn btn-sm" onclick="linkProfilePrompt()">🔗 Link Driven</button></div>';
   }
   h += '</div>';
   document.getElementById('dcBody').innerHTML = h;
@@ -2203,7 +2203,7 @@ function renderDriverCard() {
 // Admin: link/refresh/unlink a driver's published Profiles card from the card overlay.
 function linkProfilePrompt() {
   const d = driverById(driverCardId); if (!d || deviceRole() !== 'admin') return;
-  const code = prompt("Driver's Profiles link code (from their RaceDay Profiles app):");
+  const code = prompt("Driver's Driven link code (from their Driven app):");
   if (!code || !code.trim()) return;
   linkProfile(d.id, code.trim())
     .then(renderDriverCard)
@@ -2222,7 +2222,7 @@ function refreshProfile() {
 }
 function unlinkProfile() {
   const d = driverById(driverCardId); if (!d) return;
-  if (!confirm("Unlink this driver's RaceDay Profiles card? The profile returns to local control.")) return;
+  if (!confirm("Unlink this driver's Driven card? The profile returns to local control.")) return;
   delete d.profileId; delete d.profileCode;
   if (d.profile) { delete d.profile.pendingFetch; delete d.profile.source; }
   save();
