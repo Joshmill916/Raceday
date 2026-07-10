@@ -4009,7 +4009,18 @@ function renderOpBar() {
 }
 function toggleKiosk(on) { S.settings.kioskReg = !!on; save(); applyRole(); }
 // Escape hatch for a device locked to register/scoring/tv (Admin tab hidden): PIN-gate, then pick a role.
-function changeDeviceRole() { if (!adminOk()) return; setRolePrompt(); }
+// adminOk() auto-passes when no PIN is set (fine for an admin's own device — they already
+// have physical possession) but that would turn this into an unauthenticated backdoor on
+// locked/public devices (e.g. a staff station), so require a PIN first. The viewer/spectator
+// role is public (reached via the QR link — anyone's own phone/browser, not a staff-controlled
+// station) and must never expose a path to any other role, PIN or no PIN, cached session or
+// not — so it's blocked outright here as well as hidden in applyRole().
+function changeDeviceRole() {
+  if (deviceRole() === 'viewer') return;
+  if (!S.adminPin) { alert('Set an admin PIN first (Admin → PIN) before you can reassign this device\'s role.'); return; }
+  if (!adminOk()) return;
+  setRolePrompt();
+}
 
 function copyText(t, label) {
   const done = () => flashMsg((label || 'Copied') + ' ✓');
@@ -4034,8 +4045,10 @@ function applyRole() {
   document.getElementById('mainNav').style.display = kiosk ? 'none' : '';
   const esc = document.getElementById('roleEscape');
   // Admin needs no escape; operator uses its own bottom bar (its own PIN), not the
-  // track-admin-PIN escape — so hide the generic escape for both.
-  if (esc) esc.style.display = (role === 'admin' || role === 'operator') ? 'none' : '';
+  // track-admin-PIN escape — so hide the generic escape for both. Viewer is the public
+  // spectator role reached via the QR link (anyone's phone, not a staff-controlled
+  // station) — it must have NO escape hatch at all, PIN or no PIN.
+  if (esc) esc.style.display = (role === 'admin' || role === 'operator' || role === 'viewer') ? 'none' : '';
   // Hide the Lineups operator controls (TV / print / import / file toggle) for the read-only viewer.
   const ops = document.getElementById('gridOps'); if (ops) ops.style.display = role === 'viewer' ? 'none' : '';
   const vt = document.getElementById('viewToggle'); if (vt) vt.style.display = role === 'viewer' ? 'none' : '';
