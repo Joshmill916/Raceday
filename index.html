@@ -1579,13 +1579,15 @@ function newRaceDay() {
   resetReg();
   render(curPage);
 }
-function resetAll() {
-  if (!adminOk()) return;   // total wipe — gate it like the other danger-zone actions
-  if (!confirm('Erase EVERYTHING — driver book, classes, settings, history, and all results? This cannot be undone.')) return;
-  if (!confirm('Last check: this wipes the saved driver book and race day history too. Erase it all?')) return;
+// Core of "erase everything" — no auth guard here, callers gate it themselves. Keeps the
+// license/trial/packet usage (a device's paid status isn't data to lose), clears
+// everything else: driver book, classes, settings, history, and the admin PIN. Used both
+// by resetAll() (the guarded Danger Zone button) and forgotPin()'s last-resort fallback,
+// which by definition can't gate on adminOk() — that's the very thing being recovered from.
+function doFullReset() {
   localStorage.removeItem(KEY);
   sessionStorage.removeItem('rd_admin_ok');
-  const keep = { license: S.license, trialDays: S.trialDays, licUse: S.licUse };   // erasing data doesn't erase the license, trial, or packet count
+  const keep = { license: S.license, trialDays: S.trialDays, licUse: S.licUse };
   S = defaults();
   S.license = keep.license;
   S.trialDays = keep.trialDays;
@@ -1594,6 +1596,12 @@ function resetAll() {
   renderHeader();
   resetReg();
   render(curPage);
+}
+function resetAll() {
+  if (!adminOk()) return;   // total wipe — gate it like the other danger-zone actions
+  if (!confirm('Erase EVERYTHING — driver book, classes, settings, history, and all results? This cannot be undone.')) return;
+  if (!confirm('Last check: this wipes the saved driver book and race day history too. Erase it all?')) return;
+  doFullReset();
 }
 // Inverse of resetAll: keep the race data, clear the device's identity (license + trial +
 // packet usage). For handing this device — or a restored backup — to a different track so
@@ -1764,7 +1772,35 @@ function adminOk() {
   const t = prompt('Enter the admin PIN');
   if (t === null) return false;
   if (t === S.adminPin) { sessionStorage.setItem('rd_admin_ok', '1'); return true; }
-  alert('Wrong PIN.');
+  if (confirm('Wrong PIN.\n\nForgot it? Tap OK to try recovering this device.')) return forgotPin();
+  return false;
+}
+// Recovers a device locked out by a forgotten admin PIN — without which the admin page
+// (the only place the PIN can be changed or removed) is unreachable. Proof of ownership
+// is THIS device's own access code: it's self-validating offline, the admin already has
+// it from activating the app, and it's never printed on the public spectator QR posters,
+// so a fan who scans that can't use it. Only clears the PIN — no race data touched. If
+// this device has no code (still on the free trial) or the code doesn't match, the only
+// honest fallback is a full reset (offered here explicitly, instead of leaving the admin
+// page permanently unreachable and forcing a manual browser-data wipe).
+function forgotPin() {
+  if (S.license && S.license.code) {
+    const v = prompt("Enter this device's access code to reset the PIN (this does not touch any race data):");
+    if (v === null) return false;
+    if (v.trim() && v.trim().toUpperCase() === S.license.code) {
+      S.adminPin = '';
+      sessionStorage.setItem('rd_admin_ok', '1');
+      save();
+      alert('✅ PIN cleared — set a new one now from Admin → PIN.');
+      return true;
+    }
+    if (v.trim()) alert("That doesn't match this device's access code.");
+  }
+  if (confirm((S.license && S.license.code ? "Code didn't match. " : 'This device has no access code on file. ')
+    + "The only other way to recover a forgotten PIN is to erase this device's race data (driver book, classes, history — your license and trial status are kept). Erase and start over?")) {
+    doFullReset();
+    return true;
+  }
   return false;
 }
 function lockAdmin() {
@@ -3379,7 +3415,7 @@ function renderPinCard() {
       + '<span style="margin-left:auto;display:flex;gap:6px">'
       + '<button class="btn btn-sm" onclick="setPin()">Change PIN</button>'
       + '<button class="btn btn-sm btn-danger" onclick="delPin()">Remove PIN</button></span></div>'
-      + '<p style="font-size:12px;color:var(--muted);margin-top:8px">If the PIN is forgotten, clearing this site\'s browser data resets it — along with everything else, so keep a backup.</p>';
+      + '<p style="font-size:12px;color:var(--muted);margin-top:8px">If the PIN is forgotten, entering the wrong one on the Admin tab offers a recovery using this device\'s access code — no data lost.</p>';
   } else {
     el.innerHTML = '<div style="display:flex;gap:10px;flex-wrap:wrap;align-items:center">'
       + '<span style="font-size:13.5px">No PIN set — anyone using this device can open Admin.</span>'
