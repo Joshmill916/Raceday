@@ -5505,7 +5505,15 @@ renderGrid();
 initSync();
 // Pick up any Profiles cards that were linked while offline (no-op when none are pending).
 if (navigator.onLine && (S.roster || []).some(d => d.profile && d.profile.pendingFetch)) retryPendingProfiles();
-if (!S.track.name) openSetupWizard();
+// First-run setup ONLY for a genuinely new, standalone admin device — never for a device
+// that is JOINING an already-existing track (any non-admin role, or sync already enabled
+// from a ?sync= link). initSync() above is async, so on ANY fresh device S.track.name is
+// still empty right here regardless of role, while the real cloud data is still in
+// flight — without this guard, a spectator's phone that just scanned the QR code (role
+// becomes viewer, sync becomes enabled) would get the full setup wizard: track name,
+// classes, and a NEW ADMIN PIN, all fully editable and all synced live to the shared
+// room. The admin can always re-run setup manually from Admin → Setup wizard.
+if (!S.track.name && deviceRole() === 'admin' && !(S.sync && S.sync.enabled)) openSetupWizard();
 </script>
 </body>
 </html>
