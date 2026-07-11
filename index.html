@@ -1580,6 +1580,7 @@ function newRaceDay() {
   render(curPage);
 }
 function resetAll() {
+  if (!adminOk()) return;   // total wipe — gate it like the other danger-zone actions
   if (!confirm('Erase EVERYTHING — driver book, classes, settings, history, and all results? This cannot be undone.')) return;
   if (!confirm('Last check: this wipes the saved driver book and race day history too. Erase it all?')) return;
   localStorage.removeItem(KEY);
@@ -4356,14 +4357,15 @@ function applyRole() {
   btns.forEach((b, i) => { b.style.display = allowed.includes(order[i]) ? '' : 'none'; });
   const kiosk = role === 'register' && S.settings && S.settings.kioskReg;
   document.getElementById('mainNav').style.display = kiosk ? 'none' : '';
-  const esc = document.getElementById('roleEscape');
+  // NB: local var named escBtn, NOT esc — must not shadow the global esc() HTML-escaper.
+  const escBtn = document.getElementById('roleEscape');
   // Admin needs no escape; operator uses its own bottom bar (its own PIN), not the
   // track-admin-PIN escape — so hide the generic escape for both. Viewer is the public
   // spectator role reached via the QR link (anyone's own phone, not a staff-controlled
   // station) — it must show NO role-switch control at all. A stuck viewer device is
   // recovered by opening a Registration/Scoring/TV/Operator link directly on it
   // instead (see changeDeviceRole()'s comment), not from an on-screen escape hatch.
-  if (esc) esc.style.display = (role === 'admin' || role === 'operator' || role === 'viewer') ? 'none' : '';
+  if (escBtn) escBtn.style.display = (role === 'admin' || role === 'operator' || role === 'viewer') ? 'none' : '';
   // Hide the Lineups operator controls (TV / print / import / file toggle) for the read-only viewer.
   const ops = document.getElementById('gridOps'); if (ops) ops.style.display = role === 'viewer' ? 'none' : '';
   const vt = document.getElementById('viewToggle'); if (vt) vt.style.display = role === 'viewer' ? 'none' : '';
@@ -4493,14 +4495,35 @@ function handleUrlParams() {
     let applied = null;
     try { applied = localStorage.getItem('rd_url_applied'); } catch (e) {}
     if (location.search === applied) { history.replaceState({}, '', location.pathname); return; }
-    try { localStorage.setItem('rd_url_applied', location.search); } catch (e) {}
+    // A privileged role (anything but the public viewer) requested BY URL on a device
+    // that is currently the public spectator (viewer) must be authenticated first — the
+    // spectator link is public (printed on the QR poster) and differs from a staff link
+    // only by the role= value, so without this a fan could edit their own link to
+    // role=scoring/admin and become a WRITING member of the live race. Staff devices
+    // are provisioned from a fresh/default ('admin') local role, so they never hit this
+    // challenge — only a device that already scanned the spectator QR does. If the
+    // challenge fails, we do NOT mark the link consumed, so a legit admin can retry.
+    if (role && role !== 'viewer' && deviceRole() === 'viewer') {
+      if (S.adminPin) {
+        const t = prompt('This link makes this device a "' + role + '" station (it can change the live race). Enter the admin PIN to allow it:');
+        if (t !== S.adminPin) { if (t !== null) alert('Wrong PIN — this device stays a spectator view.'); history.replaceState({}, '', location.pathname); return; }
+      } else if (!confirm('This link makes this device a "' + role + '" station that can change the live race. The track hasn\'t set an admin PIN, so anyone with this link can do this. Continue?')) {
+        history.replaceState({}, '', location.pathname); return;
+      }
+    }
     if (sk) {
       const incoming = normKey(sk);
-      const hasLocal = S.raceDay.entries && S.raceDay.entries.length > 0;
+      // "Real local setup" = anything the track configured on THIS device that a blind
+      // cloud pull would wipe: entries, the driver book, or a named track. Checking only
+      // entries missed the case where classes/roster/track were set up but sign-up hadn't
+      // started yet — that state was being silently overwritten with no warning.
+      const hasLocal = (S.raceDay.entries && S.raceDay.entries.length > 0)
+        || (S.roster && S.roster.length > 0)
+        || !!(S.track && S.track.name);
       const diff = incoming !== normKey(S.sync.key || '');
       // A QR / share link silently REPLACES this device's race with the cloud copy.
       // Warn before clobbering real local data (the demo-test / stale-pull footgun).
-      if (hasLocal && diff && !confirm('This link connects this device to the shared race for code "' + incoming + '".\n\nThis device\'s current entries and results will be REPLACED by the cloud copy. Continue?')) {
+      if (hasLocal && diff && !confirm('This link connects this device to the shared race for code "' + incoming + '".\n\nThis device\'s current entries, driver book, classes and results will be REPLACED by the cloud copy. Continue?')) {
         history.replaceState({}, '', location.pathname);
         return;
       }
@@ -4508,6 +4531,10 @@ function handleUrlParams() {
     }
     if (role && ROLE_PAGES[role]) setDeviceRole(role);
     save();
+    // Mark this exact link consumed only AFTER it fully applied, so an iOS home-screen
+    // relaunch from the saved URL won't re-apply it — but a link the user cancelled at
+    // any prompt above is NOT recorded, leaving it retryable.
+    try { localStorage.setItem('rd_url_applied', location.search); } catch (e) {}
     history.replaceState({}, '', location.pathname);
   } catch (e) {}
 }
