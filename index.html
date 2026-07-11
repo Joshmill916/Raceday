@@ -4008,24 +4008,42 @@ function renderOpBar() {
   }
 }
 function toggleKiosk(on) { S.settings.kioskReg = !!on; save(); applyRole(); }
-// Escape hatch for a device locked to register/scoring/tv (Admin tab hidden): PIN-gate, then pick a role.
-// adminOk() auto-passes when no PIN is set (fine for an admin's own device — they already
-// have physical possession) but that would turn this into an unauthenticated backdoor on
-// locked/public devices (e.g. a staff station), so require a PIN first. The viewer/spectator
-// role is public (reached via the QR link — anyone's own phone/browser, not a staff-controlled
-// station) and must never expose a path to any other role, PIN or no PIN, cached session or
-// not — so it's blocked outright here as well as hidden in applyRole().
+// Escape hatch for a device locked to register/scoring/tv/viewer (Admin tab hidden):
+// PIN-gate, then pick a role. Every role (including viewer/spectator, reached via the
+// QR link) must always be recoverable from here — a device can never get permanently
+// stuck. This ALWAYS asks for the PIN fresh, rather than using adminOk()'s cached
+// sessionStorage flag: that cache can leak into a spectator tab opened from an
+// already-authenticated admin tab (sessionStorage is inherited by tabs opened via a
+// link from the same tab), which is what silently let a viewer device escalate before.
 function changeDeviceRole() {
-  if (deviceRole() === 'viewer') return;
-  if (!S.adminPin) { alert('Set an admin PIN first (Admin → PIN) before you can reassign this device\'s role.'); return; }
-  if (!adminOk()) return;
+  if (!S.adminPin) {
+    if (!confirm("This track hasn't set an admin PIN, so anyone can change this device's role right now. Continue? (Set a PIN from Admin → PIN to lock this down.)")) return;
+    setRolePrompt();
+    return;
+  }
+  const t = prompt('Enter the admin PIN to change this device\'s role');
+  if (t === null) return;
+  if (t !== S.adminPin) { alert('Wrong PIN.'); return; }
   setRolePrompt();
 }
 
 function copyText(t, label) {
   const done = () => flashMsg((label || 'Copied') + ' ✓');
-  if (navigator.clipboard && navigator.clipboard.writeText) navigator.clipboard.writeText(t).then(done, () => prompt('Copy this:', t));
-  else prompt('Copy this:', t);
+  try {
+    if (navigator.clipboard && navigator.clipboard.writeText) { navigator.clipboard.writeText(t).then(done, () => prompt('Copy this:', t)); return; }
+  } catch (e) {}
+  prompt('Copy this:', t);
+}
+// A visible, selectable link field (readonly input) + Copy button — so the link can be
+// read/typed/sent manually, not just blind-copied (clipboard access isn't reliable in
+// every browser context, and sometimes you just need to see what the link says).
+function linkRow(label, url) {
+  return '<div style="margin-bottom:8px">'
+    + '<div style="font-size:11.5px;color:var(--muted);margin-bottom:3px">' + esc(label) + '</div>'
+    + '<div style="display:flex;gap:6px">'
+    + '<input readonly value="' + esc(url) + '" onclick="this.select()" onfocus="this.select()" style="flex:1;min-width:0;font-size:12px;padding:8px 10px;font-family:ui-monospace,Menlo,monospace">'
+    + '<button class="btn btn-sm" style="flex:none" onclick="copyText(\'' + url + '\',\'' + label.replace(/'/g, "\\'") + '\')">Copy</button>'
+    + '</div></div>';
 }
 function flashMsg(m) {
   let el = document.getElementById('rdFlash');
@@ -4045,10 +4063,11 @@ function applyRole() {
   document.getElementById('mainNav').style.display = kiosk ? 'none' : '';
   const esc = document.getElementById('roleEscape');
   // Admin needs no escape; operator uses its own bottom bar (its own PIN), not the
-  // track-admin-PIN escape — so hide the generic escape for both. Viewer is the public
-  // spectator role reached via the QR link (anyone's phone, not a staff-controlled
-  // station) — it must have NO escape hatch at all, PIN or no PIN.
-  if (esc) esc.style.display = (role === 'admin' || role === 'operator' || role === 'viewer') ? 'none' : '';
+  // track-admin-PIN escape — so hide the generic escape for both. Every other role,
+  // including viewer/spectator (reached via the QR link), keeps this PIN-gated escape
+  // so a device can always be reclaimed — changeDeviceRole() itself is what enforces
+  // the PIN check (always fresh, never a cached session) so this stays safe.
+  if (esc) esc.style.display = (role === 'admin' || role === 'operator') ? 'none' : '';
   // Hide the Lineups operator controls (TV / print / import / file toggle) for the read-only viewer.
   const ops = document.getElementById('gridOps'); if (ops) ops.style.display = role === 'viewer' ? 'none' : '';
   const vt = document.getElementById('viewToggle'); if (vt) vt.style.display = role === 'viewer' ? 'none' : '';
@@ -4094,26 +4113,25 @@ function renderSyncCard() {
     h += '<p style="font-size:13.5px;margin-top:10px">This device\'s job: <b>' + esc(roleName) + '</b> '
       + '<button class="btn btn-sm" onclick="setRolePrompt()">Change</button></p>';
     h += '<p style="font-size:12.5px;color:var(--muted);margin-top:12px">Set up another device — send it one of these links, then open it on that device:</p>';
-    h += '<div style="display:flex;gap:8px;flex-wrap:wrap;margin-top:6px">'
-      + '<button class="btn btn-sm" onclick="copyText(\'' + link('register') + '\',\'Registration link\')">📋 Registration link</button>'
-      + '<button class="btn btn-sm" onclick="copyText(\'' + link('scoring') + '\',\'Scoring link\')">📋 Scoring tower link</button>'
-      + '<button class="btn btn-sm" onclick="copyText(\'' + link('tv') + '\',\'TV link\')">📋 TV display link</button>'
+    h += '<div style="margin-top:6px">'
+      + linkRow('Registration link', link('register'))
+      + linkRow('Scoring tower link', link('scoring'))
+      + linkRow('TV display link', link('tv'))
       + '</div>';
     // Operator link (private) — owner monitors this track and can take control.
     h += '<div style="margin-top:14px;border-top:1px solid var(--line,#d4d4cf);padding-top:12px">'
       + '<div class="slbl" style="margin:0 0 6px">🛡 Operator link (private)</div>'
       + '<p style="font-size:12.5px;color:var(--muted);margin:0 0 8px">For YOUR own device only — keep it private. Opens this track in <b>watch</b> mode (read-only); tap <b>Take control</b> (your Operator PIN) to make live changes. Don\'t share it with the track.</p>'
-      + '<button class="btn btn-sm" onclick="copyText(\'' + link('operator') + '\',\'Operator link\')">📋 Copy operator link</button>'
+      + linkRow('Operator link', link('operator'))
       + '</div>';
     // Spectator QR — fans scan to a read-only lineups page.
     h += '<div style="margin-top:14px;border-top:1px solid var(--line,#d4d4cf);padding-top:12px">'
       + '<div class="slbl" style="margin:0 0 6px">📱 Spectator QR</div>'
       + '<p style="font-size:12.5px;color:var(--muted);margin:0 0 8px">Fans scan this to see live lineups (qualifying, heats, B-mains, feature) on their own phones — read-only, they can\'t change anything. Print it and hang it at the track.</p>'
       + '<canvas id="specQR" width="220" height="220" style="background:#fff;border:1px solid var(--line,#d4d4cf);border-radius:8px"></canvas>'
-      + '<div style="display:flex;gap:8px;flex-wrap:wrap;margin-top:8px">'
+      + '<div style="margin-top:8px">' + linkRow('Spectator link', link('viewer')) + '</div>'
       + '<button class="btn btn-sm btn-primary" onclick="printQRPoster()">🖨 Print QR poster</button>'
-      + '<button class="btn btn-sm" onclick="copyText(\'' + link('viewer') + '\',\'Spectator link\')">📋 Copy spectator link</button>'
-      + '</div></div>';
+      + '</div>';
     h += '<div style="margin-top:14px;border-top:1px solid var(--line,#d4d4cf);padding-top:12px">'
       + '<label style="font-size:13px;display:flex;align-items:center;gap:8px"><input type="checkbox" ' + (S.settings.kioskReg ? 'checked' : '') + ' onchange="toggleKiosk(this.checked)"> Self-serve kiosk mode on registration devices (hides the menu — racers only see sign-up)</label>'
       + '</div>';
