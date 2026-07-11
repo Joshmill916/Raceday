@@ -1324,6 +1324,18 @@ let resTab = null;       // selected class on results page
 // ---------- Helpers ----------
 function esc(s) { return String(s).replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c])); }
 function driverById(id) { return S.roster.find(d => d.id === id); }
+// Driver ids MUST be unique across devices with no coordination. Sign-ups happen on
+// several synced devices at once and the roster syncs as a whole (last-writer-wins), so
+// the old per-device counter (S.nextId++) handed the SAME id to different drivers on
+// different devices. Entries key on driverId and driverById() returns the FIRST match, so
+// a collision made an entry resolve to the WRONG driver — a name/number that appeared to
+// "change" mid-race. A wide random id makes a cross-device clash astronomically unlikely
+// (~1e15 space); the re-roll only guards the vanishing chance one is already used locally.
+function genDriverId() {
+  let id;
+  do { id = Math.floor(Math.random() * 1e15) + 1000; } while (driverById(id));
+  return id;
+}
 function classById(id) { return S.classes.find(c => c.id === id); }
 function classRacers(clsId) {
   return S.raceDay.entries.filter(e => e.classId === clsId)
@@ -1936,7 +1948,7 @@ function register() {
   // save / update the driver book
   let driver = match;
   if (driver) { driver.num = cur.num; driver.name = cur.name; }
-  else { driver = { id: S.nextId++, name: cur.name, num: cur.num, noPoints: false }; S.roster.push(driver); }
+  else { driver = { id: genDriverId(), name: cur.name, num: cur.num, noPoints: false }; S.roster.push(driver); }
 
   // Profiles link (optional): pull the driver's published card in the background.
   const profCodeEl = document.getElementById('dProfCode');
@@ -3027,7 +3039,7 @@ function addImpRow() {
   // Create a new roster entry
   const num = prompt('Kart number for ' + q + '?', ''); if (num == null) return;
   if (!/^[A-Za-z0-9]{1,5}$/.test(num.trim())) { alert('Kart number must be 1–5 letters or digits.'); return; }
-  const d = { id: S.nextId++, name: q.trim(), num: num.trim(), noPoints: false };
+  const d = { id: genDriverId(), name: q.trim(), num: num.trim(), noPoints: false };
   S.roster.push(d); save();
   _impRows.push({ driverId: d.id, name: d.name, num: d.num, pts: 0 });
   document.getElementById('impDriverSearch').value = '';
@@ -3999,7 +4011,7 @@ function seedDemo() {
   S.raceDay = { date: today(), entries: [], heatResults: {}, pointsRace: {}, resultGov: {}, resultVersions: {} };
   demoNames.forEach((name, i) => {
     let d = findRosterMatch(name);
-    if (!d) { d = { id: S.nextId++, name, num: String(i + 1) }; S.roster.push(d); }
+    if (!d) { d = { id: genDriverId(), name, num: String(i + 1) }; S.roster.push(d); }
     const classIds = i < 25 ? [S.classes[i % S.classes.length].id] : [];
     if (i % 4 === 0 && S.classes.length > 1) classIds.push(S.classes[(i + 1) % S.classes.length].id); // some run two classes
     classIds.forEach(cid => {
@@ -5188,7 +5200,7 @@ function impApply(opts) {
     if (!driver) {
       const nameVal = r.name || (r.num ? 'Car #' + r.num : 'Trans ' + r.trans);
       const numVal  = (r.num && /^[A-Za-z0-9]{1,5}$/.test(r.num)) ? r.num : '';
-      driver = { id: S.nextId++, name: nameVal, num: numVal, trans: impNormTrans(r.trans) };
+      driver = { id: genDriverId(), name: nameVal, num: numVal, trans: impNormTrans(r.trans) };
       S.roster.push(driver);
     } else {
       if (r.trans && !driver.trans) driver.trans = impNormTrans(r.trans);                       // learn

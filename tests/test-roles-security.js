@@ -307,6 +307,36 @@ const check = (name, ok, extra) => {
   check('roster-but-no-entries device warns before a clobber', warned);
   check('cancelling the clobber keeps the original sync code', await page.evaluate(() => normKey(S.sync.key) === 'OLDCODE'), await page.evaluate(() => S.sync.key));
 
+  // ============================================================================
+  console.log('\n=== 9. Driver ids are collision-free across devices (multi-device sign-up) ===');
+  // (The live bug: S.nextId was a PER-DEVICE counter, not synced, while roster IS synced —
+  //  so two devices signing up at once minted the SAME id for different drivers, and
+  //  driverById()'s first-match made entries resolve to the WRONG person, i.e. a name that
+  //  "changed" mid-race. genDriverId() must draw from a wide random space, not a counter.)
+  resetDlg();
+  await page.evaluate(() => { localStorage.clear(); S = load(); save(); });
+  check('genDriverId() exists', await page.evaluate(() => typeof genDriverId === 'function'));
+  const idStats = await page.evaluate(() => {
+    const ids = [];
+    for (let i = 0; i < 2000; i++) ids.push(genDriverId());
+    const uniq = new Set(ids).size;
+    const min = Math.min(...ids), max = Math.max(...ids);
+    return { count: ids.length, uniq, min, max, allSafe: ids.every(n => Number.isSafeInteger(n)) };
+  });
+  check('2000 generated ids are all unique', idStats.uniq === 2000, 'uniq=' + idStats.uniq);
+  check('ids are all safe integers (usable in onclick handlers)', idStats.allSafe);
+  // A sequential counter would produce a span of ~2000; a wide random space spans decades
+  // of orders of magnitude. This is what stops two independent devices from colliding.
+  check('ids span a wide random space, NOT a sequential counter', (idStats.max - idStats.min) > 1e12, 'span=' + (idStats.max - idStats.min));
+  // genDriverId never returns an id already on THIS device's roster.
+  check('genDriverId() avoids ids already in the roster', await page.evaluate(() => {
+    S.roster = [];
+    const first = genDriverId();
+    S.roster.push({ id: first, name: 'A', num: '1', noPoints: false });
+    for (let i = 0; i < 500; i++) { const n = genDriverId(); if (n === first) return false; }
+    return true;
+  }));
+
   await browser.close();
   server.close();
   console.log(`\n==== ${pass} passed, ${fail} failed ====`);
