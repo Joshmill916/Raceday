@@ -25,8 +25,27 @@ Operator PIN). The current protection is **layered/soft**, not server-enforced.
 
 **Still open:**
 3. For truly server-enforced access (the only bulletproof option): Firebase security rules
-   gating writes to `tracks/<CODE>` behind an auth token / secret. Bigger architectural
-   piece, needs a backend (Cloud Functions or similar) — scoped separately, deferred.
+   gating writes to `tracks/<CODE>` so only a *licensed* track can write. Bigger
+   architectural piece — see the sync write-gating item below.
+
+---
+
+## Sync write-gating — deferred (explored & reverted 2026-07-12)
+
+`tracks/*` is writable by anyone who knows a track's sync code (path-as-password). Closing
+this so only a licensed track can write was explored via **Firebase Anonymous Auth + a
+manual per-track grant** (`trackGrants/<code>` set in the Console). The code + rules were
+written, then **reverted**: the manual grant is a separate step in a different place from
+the code-generation workflow, and a forgotten grant silently breaks a track's race night —
+not operationally acceptable.
+
+**Paths to revisit (in `FIREBASE-SYNC.md → Sync write-gating — deferred`):**
+- **Fold the grant into `raceday-codegen.html`** — issuing a license also writes the
+  grant, so activation can't be forgotten. Zero new infra, but needs a design pass
+  (codegen becomes an authenticated owner-writer; grants key off the license, not the
+  freely-chosen sync code).
+- **A small backend** (Cloud Function on Blaze, or external) — verifies the license and
+  grants access automatically on sync activation. Fully hands-off; the "real" fix.
 
 ---
 
@@ -39,10 +58,11 @@ XSS or fake premium — but anyone who learns a profileId could overwrite that d
 card, and unbounded writes are a storage/abuse risk.
 
 **Status:** `.validate` rules capping `profiles/*` node size and shape are written and
-documented in `FIREBASE-SYNC.md → Rules hardening → Step B1` — ready to paste into the
-Firebase Console's Rules tab any time (no app code changes needed, safe to publish
-independently). **Not yet published** — publishing live rules requires Console access,
-which is outside what this repo/session can do; the owner needs to do that step manually.
+documented in `FIREBASE-SYNC.md → Rules hardening (Profiles .validate caps)` — ready to
+paste into the Firebase Console's Rules tab any time (no app code changes needed, safe to
+publish independently). **Not yet published** — publishing live rules requires Console
+access, which is outside what this repo/session can do; the owner needs to do that step
+manually.
 
 ---
 

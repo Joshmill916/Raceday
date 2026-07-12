@@ -68,13 +68,6 @@ Honest limit: this is a deterrent, not bank-vault security — someone technical
 who digs through the page source could work around it. For real-world track
 operators it does the job.
 
-**If a track also uses multi-device sync:** an access code alone doesn't turn on
-their sync room's write access — that's a separate, manual step in the Firebase
-Console (grant their sync code in `trackGrants`) done once per track, after you've
-checked their license. See `FIREBASE-SYNC.md → Rules hardening → Granting a track
-access` for the exact steps. Read-only viewing (the spectator QR) works without this;
-only registering drivers / entering results across synced devices needs the grant.
-
 ## 4. Putting lineups on a TV
 
 In the app: **Lineups → 📺 TV display**. The screen goes full-screen dark with
