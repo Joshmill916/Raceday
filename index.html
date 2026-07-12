@@ -1207,6 +1207,12 @@ function migrate(s) {
     });
     s.schemaVersion = 2;
   }
+  if (s.schemaVersion < 3) {
+    // Hash existing plaintext PINs: adminPin and operatorPin
+    if (s.adminPin) s.adminPin = pinHash(s.adminPin);
+    if (s.operatorPin) s.operatorPin = pinHash(s.operatorPin);
+    s.schemaVersion = 3;
+  }
   return s;
 }
 function load() {
@@ -1317,6 +1323,9 @@ function recalcPoints(clsId) {
 
 const UI = { viewClsId: null, viewStage: 'qual', ptsTab: null, ptsNames: [], histOpen: null, admOpen: null, pillChoiceCb: null, wizStep: 1 };
 let S = load();
+// Clear admin session flag on page load to prevent sessionStorage inheritance
+// when tabs are opened from authenticated sessions (blocks viewer→admin escalation).
+sessionStorage.removeItem('rd_admin_ok');
 let cur = null;          // driver mid-signup: {name, num}
 let curPage = 'signup';
 let resTab = null;       // selected class on results page
@@ -1647,6 +1656,15 @@ function licHash(str) {
 }
 function licCheck(name, exp) { return licHash(name + '|' + exp + '|' + LIC_SALT).slice(0, 6); }
 
+// PIN hash: deterministic, synchronous, uses dual-pass hashing for strength
+function pinHash(pin) {
+  let h1 = 2166136261; // FNV offset basis
+  for (let i = 0; i < pin.length; i++) { h1 ^= pin.charCodeAt(i); h1 = Math.imul(h1, 16777619); }
+  let h2 = 5381; // djb2 seed
+  for (let i = 0; i < pin.length; i++) { h2 = ((h2 << 5) + h2) ^ pin.charCodeAt(i); }
+  return ((h1 >>> 0) ^ (h2 >>> 0)).toString(16).padStart(8, '0');
+}
+
 // ---------- RaceDay Profiles premium codes ----------
 // A driver's premium card carries the unlock code they were sold; we recompute the hash
 // here and only honor premium if it checks out. Must match profiles/index.html EXACTLY.
@@ -1783,7 +1801,7 @@ function adminOk() {
   if (!S.adminPin || sessionStorage.getItem('rd_admin_ok') === '1') return true;
   const t = prompt('Enter the admin PIN');
   if (t === null) return false;
-  if (t === S.adminPin) { sessionStorage.setItem('rd_admin_ok', '1'); return true; }
+  if (pinHash(t) === S.adminPin) { sessionStorage.setItem('rd_admin_ok', '1'); return true; }
   if (confirm('Wrong PIN.\n\nForgot it? Tap OK to try recovering this device.')) return forgotPin();
   return false;
 }
@@ -1825,13 +1843,15 @@ function setPin() {
   if (!/^\d{4,8}$/.test(p1)) { alert('The PIN must be 4–8 digits.'); return; }
   const p2 = prompt('Type it again to confirm');
   if (p2 !== p1) { if (p2 !== null) alert("The PINs didn't match — nothing was changed."); return; }
-  S.adminPin = p1;
+  S.adminPin = pinHash(p1);
   sessionStorage.setItem('rd_admin_ok', '1');
   save();
   renderAdmin();
 }
 function delPin() {
-  if (prompt('Enter the current PIN to remove it') !== S.adminPin) { alert('Wrong PIN.'); return; }
+  const entered = prompt('Enter the current PIN to remove it');
+  if (entered === null) return;
+  if (pinHash(entered) !== S.adminPin) { alert('Wrong PIN.'); return; }
   S.adminPin = '';
   sessionStorage.removeItem('rd_admin_ok');
   save();
@@ -4291,12 +4311,12 @@ function opPinOk(action) {
     const p1 = prompt('Create a private Operator PIN (4–8 digits). Only you know this — the tracks never see it:');
     if (p1 === null) return false;
     if (!/^\d{4,8}$/.test(p1)) { alert('The PIN must be 4–8 digits.'); return false; }
-    S.operatorPin = p1; try { localStorage.setItem(KEY, JSON.stringify(S)); } catch (e) {}  // intentional: operatorPin is local-only, must not go through syncPush
+    S.operatorPin = pinHash(p1); try { localStorage.setItem(KEY, JSON.stringify(S)); } catch (e) {}  // intentional: operatorPin is local-only, must not go through syncPush
     return true;
   }
   const t = prompt('Enter your Operator PIN to ' + action + ':');
   if (t === null) return false;
-  if (t === S.operatorPin) return true;
+  if (pinHash(t) === S.operatorPin) return true;
   alert('Wrong Operator PIN.'); return false;
 }
 function opTakeControl() {
@@ -4359,15 +4379,15 @@ function toggleKiosk(on) { S.settings.kioskReg = !!on; save(); applyRole(); }
 // (Admin → Device Access) directly in that device's own browser; those links carry
 // their own role in the URL and apply it on load with no on-screen control needed.
 function changeDeviceRole() {
-  if (deviceRole() === 'viewer') return;
-  if (!S.adminPin) {
+  const currentRole = deviceRole();
+  if (currentRole === 'viewer') return;
+  // Viewer role cannot escalate to admin/operator without PIN, even if no PIN is set.
+  // This prevents silent unprotected escalation from the escape hatch.
+  if (S.adminPin || (currentRole === 'viewer')) {
+    if (!adminOk()) return;
+  } else {
     if (!confirm("This track hasn't set an admin PIN, so anyone can change this device's role right now. Continue? (Set a PIN from Admin → PIN to lock this down.)")) return;
-    setRolePrompt();
-    return;
   }
-  const t = prompt('Enter the admin PIN to change this device\'s role');
-  if (t === null) return;
-  if (t !== S.adminPin) { alert('Wrong PIN.'); return; }
   setRolePrompt();
 }
 
