@@ -1648,6 +1648,10 @@ function resetForNewTrack() {
 // never in this app. This app only checks codes — it can't create them.
 const TRIAL_DAYS = 3;
 const LIC_SALT = 'rd-grid-9f3k27xq-2026';   // must match raceday-codegen.html EXACTLY
+// Build-time gate on entering operator role via URL — same deterrent model as LIC_SALT:
+// visible to anyone who reads this file's source, so it can't stop a determined reader,
+// but it does mean a leaked/guessed `?role=operator` link alone is inert without it too.
+const OPERATOR_KEY = 'rd-op-4h8vqz1n-2026';
 
 function licHash(str) {
   let h = 2166136261;
@@ -4099,14 +4103,20 @@ function syncSet(p, val) { const ks = p.split('/'); let o = S; for (let i = 0; i
 
 function loadFirebase() {
   return new Promise((resolve, reject) => {
-    if (window.firebase && window.firebase.database) return resolve();
+    if (window.firebase && window.firebase.database && window.firebase.auth) return resolve();
     const base = 'https://www.gstatic.com/firebasejs/10.12.0/';
     const a = document.createElement('script');
     a.src = base + 'firebase-app-compat.js';
     a.onload = () => {
       const b = document.createElement('script');
       b.src = base + 'firebase-database-compat.js';
-      b.onload = resolve; b.onerror = reject;
+      b.onload = () => {
+        const c = document.createElement('script');
+        c.src = base + 'firebase-auth-compat.js';
+        c.onload = resolve; c.onerror = reject;
+        document.head.appendChild(c);
+      };
+      b.onerror = reject;
       document.head.appendChild(b);
     };
     a.onerror = reject;
@@ -4189,18 +4199,25 @@ window.addEventListener('online', retryPendingProfiles);
 function initSync() {
   if (!syncOn() || !syncKey()) return;
   loadFirebase().then(() => {
-    try {
-      if (!firebase.apps.length) firebase.initializeApp(FIREBASE_CONFIG);
-      if (Sync.db) { try { Sync.db.off(); } catch (e) {} }
-      Sync.db = firebase.database().ref('tracks/' + syncKey());
-      firebase.database().ref('.info/connected').on('value', snap => { Sync.connected = !!snap.val(); renderHeader(); }, () => {});
-      SYNC_FIELDS.forEach(f => { _syncLast[f] = JSON.stringify(syncGet(f) === undefined ? null : syncGet(f)); });
-      Sync.db.on('value', snap => {
-        const v = snap.val();
-        if (!v || Sync.activating) { Sync.activating = false; syncPushFull(); return; }  // empty room or admin re-activating: push local state, don't pull stale Firebase data
-        syncApplySnapshot(v);
-      });
-    } catch (e) { console.warn('RaceDay sync init:', e && e.message || e); }
+    if (!firebase.apps.length) firebase.initializeApp(FIREBASE_CONFIG);
+    // Anonymous sign-in: invisible to the user (no login screen), required so RTDB
+    // rules can gate on `auth != null`. Firebase persists the anon session across
+    // reloads (IndexedDB), so this only does real network work the first time a
+    // given device ever syncs — every later load resolves from `currentUser` instantly.
+    const authReady = firebase.auth().currentUser ? Promise.resolve() : firebase.auth().signInAnonymously();
+    return authReady.then(() => {
+      try {
+        if (Sync.db) { try { Sync.db.off(); } catch (e) {} }
+        Sync.db = firebase.database().ref('tracks/' + syncKey());
+        firebase.database().ref('.info/connected').on('value', snap => { Sync.connected = !!snap.val(); renderHeader(); }, () => {});
+        SYNC_FIELDS.forEach(f => { _syncLast[f] = JSON.stringify(syncGet(f) === undefined ? null : syncGet(f)); });
+        Sync.db.on('value', snap => {
+          const v = snap.val();
+          if (!v || Sync.activating) { Sync.activating = false; syncPushFull(); return; }  // empty room or admin re-activating: push local state, don't pull stale Firebase data
+          syncApplySnapshot(v);
+        });
+      } catch (e) { console.warn('RaceDay sync init:', e && e.message || e); }
+    });
   }).catch(e => console.warn('RaceDay sync:', e && e.message || e));
 }
 // Pull a cloud snapshot into local state (used by the live listener and by operator
@@ -4305,19 +4322,32 @@ function setRolePrompt() {
 
 // ---------- Operator mode (owner monitors / can control test tracks) ----------
 // Gate take-control / stop with a PRIVATE operator PIN, separate from each track's
-// admin PIN. First use creates it on this device; the tracks never see it.
+// admin PIN. Must be set deliberately (setOperatorPin, from this device's own Admin
+// tab) — it does NOT auto-create on first use, so a fresh/reset device can't silently
+// mint itself a working operator PIN; it fails closed until the owner sets one.
 function opPinOk(action) {
-  if (!S.operatorPin) {
-    const p1 = prompt('Create a private Operator PIN (4–8 digits). Only you know this — the tracks never see it:');
-    if (p1 === null) return false;
-    if (!/^\d{4,8}$/.test(p1)) { alert('The PIN must be 4–8 digits.'); return false; }
-    S.operatorPin = pinHash(p1); try { localStorage.setItem(KEY, JSON.stringify(S)); } catch (e) {}  // intentional: operatorPin is local-only, must not go through syncPush
-    return true;
-  }
+  if (!S.operatorPin) { alert('No Operator PIN is set on this device yet. Set one from Admin → Operator link first.'); return false; }
   const t = prompt('Enter your Operator PIN to ' + action + ':');
   if (t === null) return false;
   if (pinHash(t) === S.operatorPin) return true;
   alert('Wrong Operator PIN.'); return false;
+}
+function setOperatorPin() {
+  const p1 = prompt(S.operatorPin ? 'Choose a new Operator PIN (4–8 digits)' : 'Create a private Operator PIN (4–8 digits). Only you know this — the tracks never see it:');
+  if (p1 === null) return;
+  if (!/^\d{4,8}$/.test(p1)) { alert('The PIN must be 4–8 digits.'); return; }
+  const p2 = prompt('Type it again to confirm');
+  if (p2 !== p1) { if (p2 !== null) alert("The PINs didn't match — nothing was changed."); return; }
+  S.operatorPin = pinHash(p1); try { localStorage.setItem(KEY, JSON.stringify(S)); } catch (e) {}  // intentional: operatorPin is local-only, must not go through syncPush
+  renderSyncCard();
+  alert('Operator PIN set.');
+}
+function delOperatorPin() {
+  const entered = prompt('Enter the current Operator PIN to remove it');
+  if (entered === null) return;
+  if (pinHash(entered) !== S.operatorPin) { alert('Wrong Operator PIN.'); return; }
+  S.operatorPin = ''; try { localStorage.setItem(KEY, JSON.stringify(S)); } catch (e) {}  // intentional: operatorPin is local-only, must not go through syncPush
+  renderSyncCard();
 }
 function opTakeControl() {
   if (deviceRole() !== 'operator') return;
@@ -4473,7 +4503,7 @@ function renderSyncCard() {
   if (syncOn()) {
     const base = location.origin + location.pathname;
     const k = syncKey();
-    const link = r => base + '?sync=' + encodeURIComponent(k) + '&role=' + r;
+    const link = r => base + '?sync=' + encodeURIComponent(k) + '&role=' + r + (r === 'operator' ? '&opk=' + encodeURIComponent(OPERATOR_KEY) : '');
     h += '<p style="font-size:13.5px">✅ Live sync is <b>ON</b> for this track. Sync code: <b>' + esc(k) + '</b> '
       + '<button class="btn btn-sm" onclick="copyText(\'' + esc(k) + '\',\'Code\')">Copy code</button></p>';
     h += '<p style="font-size:13.5px;margin-top:10px">This device\'s job: <b>' + esc(roleName) + '</b> '
@@ -4489,6 +4519,9 @@ function renderSyncCard() {
       + '<div class="slbl" style="margin:0 0 6px">🛡 Operator link (private)</div>'
       + '<p style="font-size:12.5px;color:var(--muted);margin:0 0 8px">For YOUR own device only — keep it private. Opens this track in <b>watch</b> mode (read-only); tap <b>Take control</b> (your Operator PIN) to make live changes. Don\'t share it with the track.</p>'
       + linkRow('Operator link', link('operator'))
+      + '<p style="font-size:12.5px;color:var(--muted);margin:8px 0 4px">' + (S.operatorPin ? 'Operator PIN is set on this device.' : '⚠️ No Operator PIN set yet — Take control is unavailable until you set one.') + ' '
+      + '<button class="btn btn-sm" onclick="setOperatorPin()">' + (S.operatorPin ? 'Change' : 'Set') + ' Operator PIN</button>'
+      + (S.operatorPin ? ' <button class="btn btn-sm btn-danger" onclick="delOperatorPin()">Remove</button>' : '') + '</p>'
       + '</div>';
     // Spectator QR — fans scan to a read-only lineups page.
     h += '<div style="margin-top:14px;border-top:1px solid var(--line,#d4d4cf);padding-top:12px">'
@@ -4558,8 +4591,14 @@ function printQRPoster() {
 function handleUrlParams() {
   try {
     const q = new URLSearchParams(location.search);
-    const role = q.get('role'), sk = q.get('sync');
+    let role = q.get('role');
+    const sk = q.get('sync');
     if (!role && !sk) return;
+    // Operator role requires the build-time OPERATOR_KEY as a URL param (?opk=...) — a
+    // guessed/leaked ?role=operator link with no matching key is inert, same deterrent
+    // model as the license salt. Falling through with role=null lets sync (if present)
+    // still apply below without granting the operator role itself.
+    if (role === 'operator' && q.get('opk') !== OPERATOR_KEY) role = null;
     let applied = null;
     try { applied = localStorage.getItem('rd_url_applied'); } catch (e) {}
     if (location.search === applied) { history.replaceState({}, '', location.pathname); return; }

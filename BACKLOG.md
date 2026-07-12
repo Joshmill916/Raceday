@@ -4,11 +4,10 @@ Parked items. Nothing here is built yet — these are agreed "come back to it" n
 
 ---
 
-## Operator mode — security hardening (parked 2026-06-30)
+## Operator mode — security hardening (parked 2026-06-30; options 1 & 2 shipped 2026-07-12)
 
 Operator mode shipped to the dev branch (watch read-only → take control with a private
-Operator PIN). The current protection is **layered/soft**, not server-enforced. Revisit if
-we want tracks genuinely locked out of control mode.
+Operator PIN). The current protection is **layered/soft**, not server-enforced.
 
 **Current protections (as built):**
 - Real boundary = the per-track **sync code** (secret per track). A track can only reach
@@ -16,34 +15,34 @@ we want tracks genuinely locked out of control mode.
 - On their *own* track, operator mode gives a track nothing beyond the admin access they
   already have — no privilege escalation.
 - Operator PIN guards the owner's monitoring device against casual/accidental control.
+- **Shipped:** `?role=operator` now requires a build-time `OPERATOR_KEY` passed as
+  `?opk=...` — same deterrent model as `LIC_SALT`. A bare/guessed `?role=operator` link
+  with no matching key is inert. The owner's own generated "Operator link" embeds it
+  automatically.
+- **Shipped:** `opPinOk()` no longer auto-creates the Operator PIN on first use — it
+  fails closed with an alert until the owner deliberately sets one via the new
+  `setOperatorPin()` (Admin → Multi-device sync → Operator link card).
 
-**Known soft spots:**
-- `?role=operator` is just a URL parameter (guessable pattern). It only works on a track
-  whose code the person already has, but the role itself isn't a secret.
-- `opPinOk()` **auto-creates** the Operator PIN on first use, so a fresh device isn't
-  proving it knows the owner's PIN — it just makes one. The PIN deters casual use; it is
-  not a hard "only the owner" lock.
-
-**Hardening options to revisit:**
-1. Gate *entering* operator role behind a secret baked into the build (same model as the
-   license salt, `LIC_SALT`) — then `?role=operator` alone does nothing; you must know the
-   operator passphrase. Tracks can't enter operator mode at all.
-2. Stop auto-creating the Operator PIN — require the real one.
+**Still open:**
 3. For truly server-enforced access (the only bulletproof option): Firebase security rules
    gating writes to `tracks/<CODE>` behind an auth token / secret. Bigger architectural
-   piece — scope separately.
+   piece, needs a backend (Cloud Functions or similar) — scoped separately, deferred.
 
 ---
 
-## Profiles card pipeline — Firebase rules hardening (parked 2026-07-08)
+## Profiles card pipeline — Firebase rules hardening (parked 2026-07-08; rules authored 2026-07-12)
 
 The Profiles→RaceDay card pipeline writes to unauthenticated RTDB paths
 (`profiles/<id>/card`, `profiles_short/<code>`). RaceDay sanitizes everything on read
 (type/length caps, anchored photo regex, premium-hash recompute), so injected data can't
 XSS or fake premium — but anyone who learns a profileId could overwrite that driver's
-card, and unbounded writes are a storage/abuse risk. When ready: add RTDB `.validate`
-rules in the Firebase console capping `profiles/*` node size and shape (and eventually
-auth). Console access required — can't be done from the repo.
+card, and unbounded writes are a storage/abuse risk.
+
+**Status:** `.validate` rules capping `profiles/*` node size and shape are written and
+documented in `FIREBASE-SYNC.md → Rules hardening → Step B1` — ready to paste into the
+Firebase Console's Rules tab any time (no app code changes needed, safe to publish
+independently). **Not yet published** — publishing live rules requires Console access,
+which is outside what this repo/session can do; the owner needs to do that step manually.
 
 ---
 

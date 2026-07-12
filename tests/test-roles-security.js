@@ -337,6 +337,61 @@ const check = (name, ok, extra) => {
     return true;
   }));
 
+  // ============================================================================
+  console.log('\n=== 10. Operator PIN fails closed; ?role=operator requires OPERATOR_KEY ===');
+  // (Phase 2 hardening: the Operator PIN used to auto-create itself on first use, so a
+  //  fresh device wasn't proving it knew the owner's PIN — it just minted one. And
+  //  ?role=operator was a bare, guessable URL param with no gate at all.)
+
+  // 10a. No operator PIN set → opPinOk() denies and does NOT auto-create one.
+  resetDlg();
+  await page.evaluate(() => { localStorage.clear(); S = load(); S.operatorPin = ''; save(); setDeviceRole('operator'); });
+  const opCheck1 = await page.evaluate(() => {
+    const before = S.operatorPin;
+    const ok = opPinOk('take control');
+    return { before, after: S.operatorPin, ok };
+  });
+  check('opPinOk() with no PIN set returns false (fails closed)', opCheck1.ok === false);
+  check('opPinOk() with no PIN set does NOT auto-create a PIN', opCheck1.before === '' && opCheck1.after === '');
+
+  // 10b. setOperatorPin() sets one deliberately; opPinOk() then works with the right PIN.
+  resetDlg();
+  answer = (m) => {
+    if (/Create a private Operator PIN|Choose a new Operator PIN/i.test(m)) return '5678';
+    if (/Type it again/i.test(m)) return '5678';
+    return true;
+  };
+  await page.evaluate(() => setOperatorPin());
+  await page.waitForTimeout(100);
+  check('setOperatorPin() stores a hashed PIN (not the raw digits)', await page.evaluate(() => !!S.operatorPin && S.operatorPin !== '5678'));
+  answer = (m) => { if (/Enter your Operator PIN/i.test(m)) return '5678'; return true; };
+  check('opPinOk() succeeds with the correct PIN once one is set', await page.evaluate(() => opPinOk('take control')));
+
+  // 10c. ?role=operator with NO opk param does not grant operator role.
+  resetDlg();
+  answer = () => true;
+  await page.evaluate(() => { localStorage.clear(); S = load(); S.track.name = 'T'; S.sync = { enabled: true, key: 'LIVEROOM' }; save(); });
+  await go(base + '?sync=LIVEROOM&role=operator');
+  await page.waitForTimeout(500);
+  check('?role=operator with no opk stays off operator role', (await role()) === 'admin', 'got ' + await role());
+
+  // 10d. ?role=operator with the WRONG opk does not grant operator role either.
+  resetDlg();
+  answer = () => true;
+  await page.evaluate(() => { localStorage.clear(); S = load(); S.track.name = 'T'; S.sync = { enabled: true, key: 'LIVEROOM' }; save(); });
+  await go(base + '?sync=LIVEROOM&role=operator&opk=wrong-key');
+  await page.waitForTimeout(500);
+  check('?role=operator with WRONG opk stays off operator role', (await role()) === 'admin', 'got ' + await role());
+
+  // 10e. ?role=operator WITH the correct opk still grants operator role (regression check).
+  resetDlg();
+  answer = () => true;
+  await page.evaluate(() => { localStorage.clear(); S = load(); S.track.name = 'T'; S.sync = { enabled: true, key: 'LIVEROOM' }; save(); });
+  const correctOpk = await page.evaluate(() => OPERATOR_KEY);
+  await go(base + '?sync=LIVEROOM&role=operator&opk=' + encodeURIComponent(correctOpk));
+  await page.waitForTimeout(500);
+  check('?role=operator WITH correct opk grants operator role', (await role()) === 'operator', 'got ' + await role());
+
   await browser.close();
   server.close();
   console.log(`\n==== ${pass} passed, ${fail} failed ====`);

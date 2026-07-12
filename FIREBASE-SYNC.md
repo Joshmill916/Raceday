@@ -43,7 +43,8 @@ packet usage, and race-day history. These are not in `SYNC_FIELDS`.
 ### 1. Create the Firebase project (one-time, free)
 1. **firebase.google.com** → *Add project* → name it "RaceDay" → free **Spark** plan
 2. Left menu → **Build → Realtime Database** → *Create database* → start in **locked mode**
-3. Open the **Rules** tab and paste, then *Publish*:
+3. Open the **Rules** tab and paste, then *Publish* (Step A below — see "Rules hardening"
+   further down for the fuller Step B ruleset once sync write-gating ships):
    ```json
    {
      "rules": {
@@ -55,7 +56,7 @@ packet usage, and race-day history. These are not in `SYNC_FIELDS`.
    ```
    (Path-as-password: a track's data is reachable only if you know its sync code —
    the same deterrent-level security as the license system. Good enough for race
-   lineups; not for secrets.)
+   lineups; not for secrets. Superseded by Step B below.)
 4. Project **settings** (gear icon) → *Your apps* → **Web app** (`</>`) → register →
    copy the `firebaseConfig` object it shows you.
 
@@ -77,6 +78,153 @@ CDN only when sync is active, so the dormant build stays zero-weight.
    matching device. Opening a link like `…/?sync=RIVERSIDE&role=scoring` auto-joins
    and locks that device to its role.
 3. (Or, on another device: **Join with a sync code** and set its role manually.)
+
+## Rules hardening (interim, zero-infrastructure)
+
+The Step A rules above are wide open: anyone who knows (or guesses) a track's sync
+code has full read+write to that track's live data, and the `profiles/*` paths used
+by the Profiles companion app (driver card publishing) are open too. Real automatic
+enforcement needs a backend (Cloud Functions or an external service) — deferred, not
+part of this. Two things *are* achievable with rules + a small anonymous-auth code
+change, no new infrastructure or billing:
+
+### Step B1 — Profiles `.validate` caps (safe to publish any time)
+
+Closes an unbounded-write storage/abuse risk: `profiles/<id>/card` and
+`profiles_short/<code>` accept arbitrary shape/size today. This just adds size/shape
+caps matching what the app itself already sends (`cardPayload()` in
+`profiles/index.html`) and already trusts on read (`sanitizeProfileCard()` in
+`index.html`) — no XSS/premium-forgery risk either way (that's handled by
+sanitization on read), this is purely an abuse/storage-quota guard:
+
+**Note:** the snippet below spells out explicit `.read`/`.write: true` for
+`profiles`/`profiles_short` rather than relying on whatever broader rule currently
+makes them work (not fully captured in this doc's history) — paste this as a
+complete replacement of your rules tree, not a merge, so nothing is accidentally
+left open elsewhere.
+
+```json
+{
+  "rules": {
+    "tracks": {
+      "$key": { ".read": true, ".write": true }
+    },
+    "profiles": {
+      "$id": {
+        "card": {
+          ".read": true,
+          ".write": true,
+          ".validate": "newData.hasChildren(['name','num','updatedAt'])",
+          "name": { ".validate": "newData.isString() && newData.val().length <= 40" },
+          "num": { ".validate": "newData.isString() && newData.val().length <= 8" },
+          "age": { ".validate": "newData.isString() && newData.val().length <= 8" },
+          "hometown": { ".validate": "newData.isString() && newData.val().length <= 60" },
+          "sponsors": { ".validate": "newData.isString() && newData.val().length <= 160" },
+          "teamColor": { ".validate": "newData.isString() && newData.val().length <= 7" },
+          "photo": { ".validate": "newData.isString() && newData.val().length <= 80000" },
+          "premiumCode": { ".validate": "newData.isString() && newData.val().length <= 40" },
+          "updatedAt": { ".validate": "newData.isNumber()" },
+          "$other": { ".validate": false }
+        }
+      }
+    },
+    "profiles_short": {
+      "$code": {
+        ".read": true,
+        ".write": true,
+        ".validate": "newData.isString() && newData.val().matches(/^prof_[a-z0-9]{6,20}$/i)"
+      }
+    }
+  }
+}
+```
+
+Publish this any time — it only tightens what's already accepted; no app code
+depends on it.
+
+### Step B2 — Sync write-gating (publish AFTER the anonymous-auth code is live)
+
+Adds Firebase Anonymous Authentication (an invisible, automatic client-side sign-in
+— no login screen) and requires a track to be **manually granted** before any device
+can write to it. Read access (needed for the public spectator QR view) only requires
+being signed in, which happens automatically for every visitor — no UX change there.
+This is a complete replacement of Step B1 above (it includes the same `profiles`/
+`profiles_short` block unchanged, plus the new `tracks`/`trackGrants` rules):
+
+```json
+{
+  "rules": {
+    "tracks": {
+      "$key": {
+        ".read": "auth != null",
+        ".write": "auth != null && root.child('trackGrants').child($key).child('granted').val() === true"
+      }
+    },
+    "trackGrants": {
+      ".read": false,
+      ".write": false
+    },
+    "profiles": {
+      "$id": {
+        "card": {
+          ".read": true,
+          ".write": true,
+          ".validate": "newData.hasChildren(['name','num','updatedAt'])",
+          "name": { ".validate": "newData.isString() && newData.val().length <= 40" },
+          "num": { ".validate": "newData.isString() && newData.val().length <= 8" },
+          "age": { ".validate": "newData.isString() && newData.val().length <= 8" },
+          "hometown": { ".validate": "newData.isString() && newData.val().length <= 60" },
+          "sponsors": { ".validate": "newData.isString() && newData.val().length <= 160" },
+          "teamColor": { ".validate": "newData.isString() && newData.val().length <= 7" },
+          "photo": { ".validate": "newData.isString() && newData.val().length <= 80000" },
+          "premiumCode": { ".validate": "newData.isString() && newData.val().length <= 40" },
+          "updatedAt": { ".validate": "newData.isNumber()" },
+          "$other": { ".validate": false }
+        }
+      }
+    },
+    "profiles_short": {
+      "$code": {
+        ".read": true,
+        ".write": true,
+        ".validate": "newData.isString() && newData.val().matches(/^prof_[a-z0-9]{6,20}$/i)"
+      }
+    }
+  }
+}
+```
+
+**Before publishing, enable Anonymous sign-in** (one-time, separate from the rules
+above): Firebase Console → **Build → Authentication** → **Sign-in method** tab →
+enable **Anonymous**. Without this, `signInAnonymously()` calls fail and sync stops
+working entirely for every device — do this BEFORE publishing the Step B2 rules.
+
+**Do not publish this until the `index.html` anonymous-auth code has shipped and the
+GitHub Pages deploy is confirmed live** — publishing these rules first would lock
+every currently-active track out of writing (no device would be authenticated yet).
+
+**Granting a track access** (manual, one-time per track, done by the app owner):
+after verifying a track's license, open the Realtime Database **Data** tab in the
+Firebase Console (this bypasses the rules above — it's your own Console/IAM access,
+not a client SDK call) and add:
+```
+trackGrants
+  └─ <TRACKCODE>
+       ├─ granted: true
+       ├─ licensedTo: "Track name" (optional, for your own records)
+       └─ grantedAt: "2026-07-12" (optional)
+```
+`<TRACKCODE>` is the same sync code the track uses in **Admin → Multi-device sync**
+(case-sensitive — matches `normKey()`'s uppercased, alphanumeric-only form). Every
+device that track adds — registration, scoring, TV, admin — inherits write access
+automatically once the track's key is granted; there's no per-device step.
+
+**What this does and doesn't fix:** a brand-new or never-granted track can read
+(spectator QR still works) but can't write — closing free-storage abuse and making
+the license check a real gate on sync usage, not just a client-side nag. It does
+**not** stop someone who already knows an *active, granted* track's code from
+writing to it — that's the same "path-as-password" exposure as today, and needs the
+deferred token/backend work to close fully.
 
 ## Known limitations / things to watch
 
