@@ -1,6 +1,6 @@
 {
-  "name": "RaceDay Profiles — Your Racing Record",
-  "short_name": "Profiles",
+  "name": "Driven — Your Racing Record",
+  "short_name": "Driven",
   "description": "A driver-owned racing profile that follows you across RaceDay tracks: career stats, results, and your story.",
   "start_url": "./",
   "scope": "./",

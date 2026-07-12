@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>RaceDay Profiles — Your Racing Record</title>
+<title>Driven — Your Racing Record</title>
 <link href="https://fonts.googleapis.com/css2?family=Saira+Condensed:wght@600;700;800&display=swap" rel="stylesheet">
 <!-- Installable app (PWA): home-screen icon, full-screen, offline app shell -->
 <link rel="manifest" href="manifest.webmanifest">
@@ -11,66 +11,100 @@
 <meta name="mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
-<meta name="apple-mobile-web-app-title" content="Profiles">
+<meta name="apple-mobile-web-app-title" content="Driven">
 <link rel="apple-touch-icon" href="../icon-rd.png">
 <link rel="icon" type="image/png" sizes="512x512" href="../icon-rd.png">
 <script>if('serviceWorker' in navigator){addEventListener('load',function(){navigator.serviceWorker.register('sw.js').catch(function(){})})}</script>
 <style>
   :root {
-    --asphalt: #17181c;
-    --asphalt-2: #24262c;
-    --paper: #f4f4f1;
-    --card: #ffffff;
-    --ink: #1a1b1e;
-    --muted: #6b6e76;
-    --line: #e3e3de;
+    /* Dark stack — layered near-blacks (broadcast surfaces), never one flat gray */
+    --ink-0: #0b0c10;
+    --ink-1: #12141a;
+    --ink-2: #1a1d25;
+    --ink-3: #242834;
+    --line-d: rgba(255,255,255,.09);
+    --td: #f5f6f8;
+    --td-mute: #8f939d;
+    /* Light body */
+    --bg: #eef0f3;
+    --surface: #ffffff;
+    --ink: #14161a;
+    --muted: #666b74;
+    --line: #e3e5e9;
+    --brand: #1f6fd6;        /* Driven Blue — the app's own accent (number plates stay yellow) */
+    --gold: #d9980f;         /* P1 / wins */
     --plate: #ffd449;
     --plate-ink: #161408;
-    --flag-green: #0e8a4d;
-    --flag-green-bg: #e7f6ee;
     --pit-red: #c8372d;
     --pit-red-bg: #fdeeec;
+    --flag-green: #0e8a4d;
+    --flag-green-bg: #e7f6ee;
     --display: 'Saira Condensed', 'Arial Narrow', sans-serif;
     --body: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
-    --accent: #0a7;
+    /* Back-compat aliases (older selectors/JS) */
+    --asphalt: #12141a;
+    --asphalt-2: #1a1d25;
+    --paper: #eef0f3;
+    --card: #ffffff;
+    --accent: #1f6fd6;
   }
   * { box-sizing: border-box; margin: 0; padding: 0; }
   html { -webkit-text-size-adjust: 100%; }
-  body { font-family: var(--body); background: var(--paper); color: var(--ink); font-size: 15px; line-height: 1.45; }
-  .container { max-width: 640px; margin: 0 auto; padding: 0 0 60px; }
+  body { font-family: var(--body); background: var(--bg); color: var(--ink); font-size: 15px; line-height: 1.45; }
+  .container { max-width: 640px; margin: 0 auto; padding: 0 0 64px; }
 
-  .header { background: var(--asphalt); color: #fff; padding: 18px 22px 14px; }
-  .header .brand { font-family: var(--display); font-weight: 800; font-size: 26px; letter-spacing: 0.04em; text-transform: uppercase; }
-  .header .brand em { font-style: normal; color: var(--plate); }
-  .header .tag { font-size: 12px; color: #9a9da6; margin-top: 1px; }
-  .checker { height: 10px; background: repeating-conic-gradient(#101114 0% 25%, #f4f4f1 0% 50%) 0 0 / 20px 20px; }
+  .header { background: var(--ink-0); color: #fff; padding: 16px 20px 12px; }
+  .header .brand { font-family: var(--display); font-weight: 800; font-size: 21px; letter-spacing: 0.16em; text-transform: uppercase; display: inline-block; border-bottom: 3px solid var(--brand); padding-bottom: 3px; }
+  .header .tag { display: none; }
+  .checker { display: none; }
 
-  .nav { background: var(--card); border-bottom: 1px solid var(--line); display: flex; overflow-x: auto; position: sticky; top: 0; z-index: 20; }
-  .nav button { flex: 1; padding: 13px 10px; border: none; background: transparent; color: var(--muted); font-size: 13.5px; font-family: var(--display); font-weight: 700; text-transform: uppercase; letter-spacing: 0.05em; cursor: pointer; border-bottom: 3px solid transparent; white-space: nowrap; }
-  .nav button.active { color: var(--ink); border-bottom-color: var(--plate); }
-  .nav button:hover:not(.active) { background: #fafaf8; }
+  .nav { background: var(--ink-0); display: flex; overflow-x: auto; position: sticky; top: 0; z-index: 20; border-bottom: 1px solid var(--line-d); }
+  .nav button { flex: 1; padding: 12px 10px 10px; border: none; background: transparent; color: #79808c; font-size: 13px; font-family: var(--display); font-weight: 700; text-transform: uppercase; letter-spacing: 0.09em; cursor: pointer; border-bottom: 3px solid transparent; white-space: nowrap; }
+  .nav button.active { color: #fff; border-bottom-color: var(--brand); }
 
-  .page { display: none; padding: 22px 20px; }
+  .page { display: none; padding: 20px; }
   .page.active { display: block; }
+  .bleed { margin: -20px -20px 20px; }
   h2 { font-family: var(--display); font-weight: 800; font-size: 26px; text-transform: uppercase; letter-spacing: 0.02em; margin-bottom: 2px; }
   h3 { font-family: var(--display); font-weight: 700; font-size: 18px; text-transform: uppercase; letter-spacing: 0.03em; margin-bottom: 8px; }
   .sub { font-size: 14px; color: var(--muted); margin-bottom: 18px; }
-  .card { background: var(--card); border: 1px solid var(--line); border-radius: 14px; padding: 18px 20px; margin-bottom: 14px; }
-  .slbl { font-family: var(--display); font-size: 12px; font-weight: 700; color: #8a8d94; text-transform: uppercase; letter-spacing: 0.09em; margin: 20px 0 8px; }
+  .card { background: var(--surface); border: none; border-radius: 14px; padding: 18px 20px; margin-bottom: 14px; box-shadow: 0 1px 3px rgba(15,18,26,.07), 0 1px 2px rgba(15,18,26,.05); }
+  .slbl { display: flex; align-items: center; gap: 8px; font-family: var(--display); font-size: 12.5px; font-weight: 700; color: #5b606a; text-transform: uppercase; letter-spacing: 0.12em; margin: 22px 0 10px; }
+  .slbl::before { content: ''; width: 4px; height: 14px; border-radius: 2px; background: var(--brand); flex: none; }
   .slbl:first-child { margin-top: 0; }
+
+  /* ---- Driver hero (dark broadcast band, Home) ---- */
+  .hero { position: relative; overflow: hidden; color: var(--td); padding: 26px 20px 0;
+    background: linear-gradient(165deg, var(--ink-2), var(--ink-0) 70%);
+    background: radial-gradient(130% 100% at 100% 0%, color-mix(in srgb, var(--tc, var(--brand)) 26%, transparent), transparent 55%), linear-gradient(165deg, var(--ink-2), var(--ink-0) 70%); }
+  .hero-num { position: absolute; top: -20px; right: -6px; font-family: var(--display); font-weight: 800; font-style: italic; font-size: 150px; line-height: 1; letter-spacing: -0.02em; pointer-events: none; user-select: none;
+    color: rgba(110,168,240,.13); -webkit-text-stroke: 1.5px rgba(110,168,240,.4);
+    color: color-mix(in srgb, var(--tc, var(--brand)) 13%, transparent); -webkit-text-stroke: 1.5px color-mix(in srgb, var(--tc, var(--brand)) 42%, transparent); }
+  .hero-main { position: relative; display: flex; align-items: center; gap: 16px; padding-bottom: 22px; }
+  .hero-photo { width: 76px; height: 76px; border-radius: 50%; object-fit: cover; border: 2.5px solid var(--tc, var(--brand)); background: #000; flex: none; }
+  .hero-disc { width: 76px; height: 76px; border-radius: 50%; background: var(--ink-3); border: 2.5px solid var(--tc, var(--brand)); color: #fff; display: flex; align-items: center; justify-content: center; font-family: var(--display); font-weight: 800; font-size: 30px; flex: none; }
+  .hero-name { font-family: var(--display); font-weight: 800; font-size: 33px; line-height: 0.95; text-transform: uppercase; letter-spacing: 0.01em; }
+  .hero-meta { margin-top: 7px; font-family: var(--display); font-weight: 700; font-size: 13.5px; text-transform: uppercase; letter-spacing: 0.08em;
+    color: #6ea8f0; color: color-mix(in srgb, var(--tc, var(--brand)) 60%, #fff); }
+  .hero-stats { position: relative; display: grid; grid-template-columns: repeat(3, 1fr); border-top: 1px solid var(--line-d); }
+  .hero-stats > div { padding: 14px 8px 17px; text-align: center; border-left: 1px solid var(--line-d); }
+  .hero-stats > div:first-child { border-left: none; }
+  .hero-stats b { display: block; font-family: var(--display); font-weight: 800; font-size: 31px; line-height: 1; font-variant-numeric: tabular-nums; }
+  .hero-stats span { font-size: 10.5px; text-transform: uppercase; letter-spacing: 0.12em; color: var(--td-mute); font-weight: 600; }
 
   label { font-size: 12.5px; color: #555; display: block; margin: 16px 0 5px; font-weight: 600; }
   label:first-child { margin-top: 0; }
-  input[type="text"], input[type="number"], input[type="email"], textarea, select { width: 100%; padding: 12px 14px; border-radius: 10px; border: 1.5px solid #d4d4cf; background: #fff; color: var(--ink); font-size: 16px; font-family: inherit; outline: none; transition: border-color .15s; }
+  input[type="text"], input[type="number"], input[type="email"], textarea, select { width: 100%; padding: 12px 14px; border-radius: 10px; border: 1.5px solid #d5d8de; background: #fff; color: var(--ink); font-size: 16px; font-family: inherit; outline: none; transition: border-color .15s; }
   textarea { resize: vertical; min-height: 80px; }
-  input:focus, textarea:focus, select:focus { border-color: var(--ink); }
-  .btn { display: inline-flex; align-items: center; justify-content: center; gap: 7px; padding: 12px 20px; border-radius: 10px; border: 1.5px solid #d4d4cf; background: #fff; color: var(--ink); font-size: 15px; font-weight: 600; cursor: pointer; font-family: inherit; transition: background .15s; }
-  .btn:hover { background: #f6f6f3; }
+  input:focus, textarea:focus, select:focus { border-color: var(--brand); }
+  .btn { display: inline-flex; align-items: center; justify-content: center; gap: 7px; padding: 12px 20px; border-radius: 10px; border: 1.5px solid #d5d8de; background: #fff; color: var(--ink); font-size: 15px; font-weight: 600; cursor: pointer; font-family: inherit; transition: background .15s; }
+  .btn:hover { background: #f4f5f7; }
   .btn:disabled { opacity: .4; cursor: default; }
-  .btn-primary { background: var(--asphalt); color: #fff; border-color: var(--asphalt); }
-  .btn-primary:hover { background: var(--asphalt-2); }
-  .btn-go { background: var(--plate); color: var(--plate-ink); border-color: var(--plate); font-family: var(--display); font-weight: 800; font-size: 17px; text-transform: uppercase; letter-spacing: 0.04em; }
-  .btn-go:hover { background: #ffdd6e; }
+  .btn svg { width: 15px; height: 15px; flex: none; }
+  .btn-primary { background: var(--ink-1); color: #fff; border-color: var(--ink-1); }
+  .btn-primary:hover { background: var(--ink-3); }
+  .btn-go { background: var(--brand); color: #fff; border-color: var(--brand); font-family: var(--display); font-weight: 800; font-size: 17px; text-transform: uppercase; letter-spacing: 0.05em; }
+  .btn-go:hover { background: #1a5fb8; }
   .btn-sm { padding: 6px 12px; font-size: 13px; border-radius: 8px; }
   .btn-danger { border-color: #f0c4c0; color: var(--pit-red); background: var(--pit-red-bg); }
   .btn-danger:hover { background: #fadfdb; }
@@ -78,61 +112,123 @@
 
   .disc { width: 64px; height: 64px; border-radius: 50%; background: var(--plate); color: var(--plate-ink); display: inline-flex; align-items: center; justify-content: center; font-family: var(--display); font-weight: 800; font-size: 26px; flex-shrink: 0; box-shadow: inset 0 0 0 2.5px rgba(20,16,2,.9), inset 0 0 0 5.5px var(--plate), 0 1px 3px rgba(0,0,0,.18); }
 
-  /* Stat bar */
-  .stat-bar { display: grid; grid-template-columns: repeat(3, 1fr); gap: 10px; margin-bottom: 16px; }
-  .stat-item { background: var(--card); border: 1px solid var(--line); border-radius: 12px; padding: 14px 8px; text-align: center; }
-  .stat-item b { display: block; font-family: var(--display); font-weight: 800; font-size: 26px; line-height: 1; }
-  .stat-item span { font-size: 11px; color: var(--muted); text-transform: uppercase; letter-spacing: .06em; font-weight: 600; }
-
-  /* Feed rows */
-  .hb { border: 1.5px solid var(--line); border-radius: 12px; margin-bottom: 12px; overflow: hidden; background: var(--card); }
-  .hr { display: flex; align-items: center; padding: 11px 14px; border-top: 1px solid #f0f0eb; gap: 10px; font-size: 14px; }
+  /* Feed rows (results) */
+  .hb { border: none; border-radius: 14px; margin-bottom: 12px; overflow: hidden; background: var(--surface); box-shadow: 0 1px 3px rgba(15,18,26,.07), 0 1px 2px rgba(15,18,26,.05); }
+  .hr { display: flex; align-items: center; padding: 12px 14px; border-top: 1px solid var(--line); gap: 12px; font-size: 14px; }
   .hr:first-child { border-top: none; }
-  .hr .pnum { font-family: var(--display); font-weight: 800; font-size: 16px; width: 34px; flex-shrink: 0; text-align: center; }
-  .hr .pnum.p1 { color: #b8860b; }
+  .posb { width: 40px; height: 40px; border-radius: 9px; display: flex; align-items: center; justify-content: center; font-family: var(--display); font-weight: 800; font-size: 16px; flex: none; background: #eceef2; color: var(--ink); }
+  .posb.pod { background: var(--ink-1); color: #fff; }
+  .posb.p1 { background: linear-gradient(160deg, #f0b429, #d9980f); color: #231a02; }
   .hr .nm { flex: 1; min-width: 0; overflow: hidden; }
   .hr .nm b { font-size: 14.5px; display: block; }
   .hr .nm span { color: var(--muted); font-size: 12.5px; }
-  .pts-badge { padding: 3px 10px; border-radius: 99px; font-size: 12px; font-weight: 700; background: #fff4dc; color: #7a4f00; white-space: nowrap; flex-shrink: 0; }
+  .hr .pts { margin-left: auto; text-align: right; flex: none; font-family: var(--display); font-weight: 800; font-size: 17px; font-variant-numeric: tabular-nums; line-height: 1.1; }
+  .hr .pts span { display: block; font-size: 9.5px; letter-spacing: 0.14em; color: var(--muted); font-weight: 600; }
   .empty { font-size: 13.5px; color: var(--muted); padding: 14px 0; line-height: 1.6; }
+
+  /* Stats page — scoreboard blocks, not tables */
+  .cls-row { padding: 15px 0 13px; border-top: 1px solid var(--line); }
+  .cls-row:first-child { border-top: none; padding-top: 2px; }
+  .cls-name { font-family: var(--display); font-weight: 800; font-size: 17px; text-transform: uppercase; letter-spacing: 0.03em; margin-bottom: 9px; }
+  .trio { display: grid; grid-template-columns: repeat(3, 1fr); }
+  .trio > div { border-left: 1px solid var(--line); padding-left: 14px; }
+  .trio > div:first-child { border-left: none; padding-left: 0; }
+  .trio b { display: block; font-family: var(--display); font-weight: 800; font-size: 26px; line-height: 1; font-variant-numeric: tabular-nums; }
+  .trio b.w { color: var(--brand); }
+  .trio span { font-size: 10.5px; text-transform: uppercase; letter-spacing: 0.1em; color: var(--muted); font-weight: 600; }
 
   table { width: 100%; border-collapse: collapse; font-size: 14px; }
   th { text-align: left; padding: 8px 10px; font-weight: 700; color: #777; border-bottom: 1px solid var(--line); font-size: 11.5px; text-transform: uppercase; letter-spacing: .04em; }
-  td { padding: 9px 10px; border-bottom: 1px solid #f0f0eb; vertical-align: middle; }
+  td { padding: 9px 10px; border-bottom: 1px solid #eef0f3; vertical-align: middle; }
   tr.totals td { border-top: 2px solid var(--line); border-bottom: none; font-weight: 700; }
-  .divider { border: none; border-top: 1px solid #ebebe6; margin: 18px 0; }
+  .divider { border: none; border-top: 1px solid var(--line); margin: 18px 0; }
 
-  /* Profile card page */
-  .prof-photo { width: 96px; height: 96px; border-radius: 50%; background: #e3e3de; display: flex; align-items: center; justify-content: center; margin: 0 auto 14px; font-family: var(--display); font-weight: 800; font-size: 36px; color: #9a9da6; }
-  .prof-name { font-family: var(--display); font-weight: 800; font-size: 24px; text-align: center; }
-  .prof-meta { font-size: 13.5px; color: var(--muted); text-align: center; margin-top: 3px; }
-  .prof-bio { font-size: 14px; margin-top: 14px; line-height: 1.6; }
+  /* Basic (free) card — light, editorial */
+  .bcard { background: var(--surface); border-radius: 16px; box-shadow: 0 1px 3px rgba(15,18,26,.07), 0 1px 2px rgba(15,18,26,.05); overflow: hidden; margin-bottom: 14px; }
+  .bcard-hd { display: flex; align-items: center; gap: 15px; padding: 20px; border-bottom: 1px solid var(--line); }
+  .bcard-photo { width: 64px; height: 64px; border-radius: 50%; object-fit: cover; flex: none; background: #e7e9ee; }
+  .bcard-disc { width: 64px; height: 64px; border-radius: 50%; background: var(--ink-1); color: #fff; display: flex; align-items: center; justify-content: center; font-family: var(--display); font-weight: 800; font-size: 25px; flex: none; }
+  .bcard-name { font-family: var(--display); font-weight: 800; font-size: 25px; line-height: 0.98; text-transform: uppercase; }
+  .bcard-meta { margin-top: 5px; font-family: var(--display); font-weight: 700; font-size: 12.5px; text-transform: uppercase; letter-spacing: 0.07em; color: var(--muted); }
+  .bcard-body { padding: 16px 20px 18px; font-size: 14px; }
+
+  /* Upgrade (mid) card — light with team color accent + photo */
+  .mcard { background: var(--surface); border-radius: 16px; box-shadow: 0 1px 3px rgba(15,18,26,.07), 0 1px 2px rgba(15,18,26,.05); overflow: hidden; margin-bottom: 14px; border-top: 4px solid var(--mc-team, var(--brand)); }
+  .mcard-hd { display: flex; align-items: center; gap: 15px; padding: 20px; border-bottom: 1px solid var(--line); background: linear-gradient(to right, color-mix(in srgb, var(--mc-team, var(--brand)) 6%, transparent), transparent); }
+  .mcard-photo { width: 72px; height: 72px; border-radius: 9px; object-fit: cover; flex: none; background: #e7e9ee; border: 1.5px solid var(--mc-team, var(--brand)); }
+  .mcard-disc { width: 72px; height: 72px; border-radius: 9px; background: color-mix(in srgb, var(--mc-team, var(--brand)) 12%, #eef0f3); color: var(--ink); display: flex; align-items: center; justify-content: center; font-family: var(--display); font-weight: 800; font-size: 28px; flex: none; border: 1.5px solid var(--mc-team, var(--brand)); }
+  .mcard-name { font-family: var(--display); font-weight: 800; font-size: 26px; line-height: 0.97; text-transform: uppercase; }
+  .mcard-meta { margin-top: 6px; font-family: var(--display); font-weight: 700; font-size: 12.5px; text-transform: uppercase; letter-spacing: 0.07em; color: color-mix(in srgb, var(--mc-team, var(--brand)) 70%, var(--muted)); }
+  .mcard-body { padding: 16px 20px 18px; font-size: 14px; }
+  .mcard-stats { display: grid; grid-template-columns: repeat(3, 1fr); gap: 0; margin: 0 -20px -18px; padding: 12px 0 0; border-top: 1px solid var(--line); }
+  .mcard-stat { padding: 10px 0; text-align: center; border-left: 1px solid var(--line); font-size: 12px; }
+  .mcard-stat:first-child { border-left: none; }
+  .mcard-stat b { font-family: var(--display); font-weight: 800; font-size: 19px; line-height: 1; color: var(--mc-team, var(--brand)); }
+  .mcard-stat span { font-size: 9px; text-transform: uppercase; letter-spacing: 0.1em; color: var(--muted); display: block; margin-top: 3px; }
+  .prof-bio { font-size: 14px; line-height: 1.6; }
   .prof-bio.placeholder { color: var(--muted); font-style: italic; }
   .sponsor-chip { display: inline-block; padding: 5px 12px; border-radius: 99px; border: 1.5px solid var(--line); font-size: 13px; font-weight: 600; margin: 4px 6px 0 0; }
-  .track-row { display: flex; align-items: center; justify-content: space-between; gap: 10px; padding: 10px 0; border-top: 1px solid #f0f0eb; }
+  .track-row { display: flex; align-items: center; justify-content: space-between; gap: 10px; padding: 10px 0; border-top: 1px solid var(--line); }
   .track-row:first-child { border-top: none; }
   .track-row .tn { font-size: 14px; }
   .track-row .tn b { display: block; }
   .track-row .tn span { color: var(--muted); font-size: 12px; }
 
+  /* Link page — dark code panel */
+  .link-panel { position: relative; overflow: hidden; border-radius: 16px; color: var(--td); text-align: center; padding: 22px 20px 24px; margin-bottom: 14px; box-shadow: 0 10px 30px rgba(8,10,16,.25);
+    background: linear-gradient(165deg, var(--ink-2), var(--ink-0) 70%);
+    background: radial-gradient(120% 110% at 100% 0%, color-mix(in srgb, var(--brand) 22%, transparent), transparent 55%), linear-gradient(165deg, var(--ink-2), var(--ink-0) 70%); }
+  .link-panel .slbl { justify-content: center; color: var(--td-mute); }
+  .link-panel .slbl::before { display: none; }
+  .link-code { font-family: var(--display); font-weight: 800; font-size: 40px; letter-spacing: 0.16em; text-align: center; margin: 2px 0 6px; color: #fff; text-indent: 0.16em; }
   .qr-wrap { display: flex; justify-content: center; padding: 8px 0 4px; }
-  .qr-wrap canvas { background: #fff; border: 1px solid var(--line); border-radius: 10px; padding: 10px; }
-  .prof-id { text-align: center; font-size: 12px; color: var(--muted); word-break: break-all; margin-top: 8px; }
+  .qr-wrap canvas { background: #fff; border: none; border-radius: 12px; padding: 10px; }
+  .prof-id { text-align: center; font-size: 11px; color: var(--td-mute); word-break: break-all; margin-top: 10px; font-family: ui-monospace, Menlo, monospace; }
 
   /* Onboarding overlay (mirrors RaceDay's .wiz-overlay) */
   .wiz-overlay { position:fixed;inset:0;background:rgba(0,0,0,.65);z-index:9999;display:flex;align-items:center;justify-content:center;padding:16px; }
   .wiz-box { background:#fff;border-radius:14px;padding:1.75rem 1.5rem;max-width:440px;width:100%;max-height:90vh;overflow-y:auto;box-shadow:0 8px 32px rgba(0,0,0,.18); }
 
+  /* Premium broadcast card — dark hero panel, ghost number, team-color accents */
+  .pcard { border-radius: 18px; overflow: hidden; box-shadow: 0 18px 44px rgba(8,10,16,.35); margin-bottom: 14px; background: var(--ink-1); color: var(--td); }
+  .pcard-hd { position: relative; overflow: hidden; border-bottom: 3px solid var(--pc-team, var(--brand)); color: #fff; padding: 24px 20px 22px; display: flex; align-items: center; gap: 15px;
+    background: linear-gradient(160deg, var(--ink-2), var(--ink-0));
+    background: radial-gradient(120% 130% at 100% 0%, color-mix(in srgb, var(--pc-team, var(--brand)) 30%, transparent), transparent 60%), linear-gradient(160deg, var(--ink-2), var(--ink-0)); }
+  .pcard-hd::after { content:''; position:absolute; top:0; bottom:0; left:-60%; width:45%; background:linear-gradient(105deg, transparent, rgba(255,255,255,.14), transparent); transform:skewX(-18deg); animation:pcshine 1.6s ease .3s 1 both; }
+  @keyframes pcshine { from { left:-60%; } to { left:135%; } }
+  .pcard-num { position: absolute; top: -12px; right: -4px; font-family: var(--display); font-weight: 800; font-style: italic; font-size: 108px; line-height: 1; letter-spacing: -0.02em; pointer-events: none;
+    color: rgba(110,168,240,.12); -webkit-text-stroke: 1.5px rgba(110,168,240,.4);
+    color: color-mix(in srgb, var(--pc-team, var(--brand)) 12%, transparent); -webkit-text-stroke: 1.5px color-mix(in srgb, var(--pc-team, var(--brand)) 40%, transparent); }
+  .pcard-hd .nm { position: relative; font-family: var(--display); font-weight: 800; font-size: 28px; text-transform: uppercase; line-height: 0.97; }
+  .pcard-hd .meta { position: relative; font-family: var(--display); font-weight: 700; font-size: 13px; text-transform: uppercase; letter-spacing: .07em; margin-top: 6px;
+    color: #6ea8f0; color: color-mix(in srgb, var(--pc-team, var(--brand)) 60%, #fff); }
+  .pcard-photo { position: relative; width: 72px; height: 72px; border-radius: 50%; object-fit: cover; border: 2.5px solid var(--pc-team, var(--brand)); flex: none; background: #000; }
+  .pcard-disc { position: relative; width: 72px; height: 72px; border-radius: 50%; background: var(--ink-3); border: 2.5px solid var(--pc-team, var(--brand)); color: #fff; display: flex; align-items: center; justify-content: center; font-family: var(--display); font-weight: 800; font-size: 28px; flex: none; }
+  .pcard-checker { height: 7px; background: repeating-conic-gradient(#0b0c10 0% 25%, #e9eaee 0% 50%) 0 0/14px 14px; }
+  .pcard-stats { display: grid; grid-template-columns: repeat(3,1fr); background: var(--ink-1); border-bottom: 1px solid var(--line-d); }
+  .pcard-stat { padding: 15px 6px 16px; text-align: center; border-left: 1px solid var(--line-d); }
+  .pcard-stat:first-child { border-left: none; }
+  .pcard-stat b { display: block; font-family: var(--display); font-weight: 800; font-size: 26px; line-height: 1; font-variant-numeric: tabular-nums;
+    color: #9cc2f2; color: color-mix(in srgb, var(--pc-team, var(--brand)) 68%, #fff); }
+  .pcard-stat span { font-size: 10px; text-transform: uppercase; letter-spacing: .12em; color: var(--td-mute); font-weight: 600; }
+  .pcard-body { padding: 15px 20px 18px; font-size: 14px; }
+  .pcard-body .sponsor-chip { border-color: rgba(255,255,255,.22); color: var(--td); }
+  .prem-badge { display: inline-block; padding: 3px 10px; border-radius: 99px; font-size: 11px; font-weight: 800; text-transform: uppercase; letter-spacing: .06em; background: var(--gold); color: #231a02; }
+  .pub-status { font-size: 12.5px; color: var(--muted); margin-top: 8px; }
+  @media (prefers-reduced-motion: reduce) { * { animation: none !important; transition: none !important; } }
+
   @media (max-width: 480px) {
     .nav button { padding: 11px 6px; font-size: 12px; }
-    .stat-item b { font-size: 22px; }
+    .hero-name { font-size: 29px; }
+    .hero-num { font-size: 130px; }
+    .hero-stats b { font-size: 27px; }
   }
 </style>
 </head>
 <body>
 
 <div class="header">
-  <div class="brand">RACE<em>DAY</em> PROFILES</div>
+  <div class="brand">DRIVEN</div>
   <div class="tag">Your racing record, wherever you race.</div>
 </div>
 <div class="checker"></div>
@@ -156,7 +252,7 @@
 <!-- Onboarding: first-open profile creation -->
 <div id="onboardModal" class="wiz-overlay" style="display:none">
   <div class="wiz-box">
-    <h2>Welcome to Profiles</h2>
+    <h2>Welcome to Driven</h2>
     <p class="sub">One racing profile that follows you across every RaceDay track. Create it once — results, stats, and your story all live here.</p>
     <label>Your name *</label>
     <input type="text" id="obName" maxlength="60" placeholder="Alex Smith">
@@ -194,23 +290,152 @@ var P = null;
 function esc(s) { return String(s).replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c])); }
 function $id(id) { return document.getElementById(id); }
 
-function load() {
-  try { var raw = localStorage.getItem('profiles_v1'); return raw ? JSON.parse(raw) : null; } catch (e) { return null; }
+// Inline SVG icons — one stroke family, sized by .btn svg (no emoji: they render differently per platform).
+function icon(name) {
+  var paths = {
+    broadcast: '<circle cx="10" cy="11" r="1.8"/><path d="M6.9 7.9a4.4 4.4 0 0 0 0 6.2M13.1 7.9a4.4 4.4 0 0 1 0 6.2M4.6 5.6a7.6 7.6 0 0 0 0 10.8M15.4 5.6a7.6 7.6 0 0 1 0 10.8"/>',
+    refresh: '<path d="M16.3 10a6.3 6.3 0 1 1-1.8-4.4"/><path d="M16.5 2.6v3.6h-3.6"/>',
+    camera: '<path d="M2.5 7.2A1.2 1.2 0 0 1 3.7 6h2.1l1.5-2h5.4l1.5 2h2.1a1.2 1.2 0 0 1 1.2 1.2v8.1a1.2 1.2 0 0 1-1.2 1.2H3.7a1.2 1.2 0 0 1-1.2-1.2z"/><circle cx="10" cy="11" r="3"/>',
+    link: '<path d="M8 12l4-4"/><path d="M9.3 14.7l-1.6 1.6a3.4 3.4 0 0 1-4.8-4.8l1.6-1.6"/><path d="M10.7 5.3l1.6-1.6a3.4 3.4 0 0 1 4.8 4.8l-1.6 1.6"/>'
+  };
+  return '<svg viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">' + (paths[name] || '') + '</svg>';
 }
-function save() { localStorage.setItem('profiles_v1', JSON.stringify(P)); }
+
+function load() {
+  try { var raw = localStorage.getItem('profiles_v1'); return raw ? migrate(JSON.parse(raw)) : null; } catch (e) { return null; }
+}
+function save() {
+  localStorage.setItem('profiles_v1', JSON.stringify(P));
+  if (P && P.publishedAt) publishCard(true);   // keep the published card current once published
+}
 
 function genId() { return 'prof_' + Math.random().toString(36).slice(2, 10) + Math.random().toString(36).slice(2, 6); }
+
+// Fields added after the MVP shipped — fill them in on older stored profiles.
+function migrate(p) {
+  if (!p) return p;
+  p.driver = p.driver || {};
+  if (p.driver.number == null) p.driver.number = '';
+  if (p.driver.teamColor == null) p.driver.teamColor = '';
+  if (p.premiumCode == null) p.premiumCode = '';
+  if (p.shortCode == null) p.shortCode = '';
+  if (p.publishedAt == null) p.publishedAt = 0;
+  return p;
+}
 
 function newProfile(name, email, hometown, age) {
   return {
     profileId: genId(),
-    driver: { name: name, email: email || '', photo: null, bio: '', hometown: hometown || '', age: age || null, joinedDate: Date.now() },
+    driver: { name: name, email: email || '', photo: null, bio: '', hometown: hometown || '', age: age || null, joinedDate: Date.now(), number: '', teamColor: '' },
     linkedTracks: [],
     raceResults: [],
     sponsors: [],
-    tier: 'basic'
+    tier: 'basic',
+    premiumCode: '',
+    shortCode: '',      // published track-link code (derived from profileId at publish time)
+    publishedAt: 0
   };
 }
+
+/* ---------- Premium unlock (offline code check — mirrors RaceDay's license scheme) ---------- */
+// Codes come from the app owner, bound to THIS profileId: PREM-<LINKCODE>-<HASH8>.
+var PREM_SALT = 'rd-prem-7t4mq2xz-2026';   // must match RaceDay index.html + the owner's code generator EXACTLY
+function pHash(str) {
+  function fnv(s, seed) {
+    var h = seed >>> 0;
+    for (var i = 0; i < s.length; i++) { h ^= s.charCodeAt(i); h = Math.imul(h, 16777619) >>> 0; }
+    return ('0000000' + h.toString(36).toUpperCase()).slice(-7);
+  }
+  return fnv(str, 2166136261) + fnv(str + '#2', 2166136261);
+}
+function premShort(profileId) { return profileId.slice(5, 13).toUpperCase(); }
+function premCheck(profileId, code) {
+  var parts = String(code || '').trim().toUpperCase().split('-');
+  if (parts.length !== 3 || parts[0] !== 'PREM') return false;
+  if (parts[1] !== premShort(profileId)) return false;
+  return parts[2] === pHash(profileId + '|PREM|' + PREM_SALT).slice(0, 8);
+}
+function activatePremium() {
+  var code = ($id('premCode').value || '').trim();
+  if (!code) return;
+  if (!premCheck(P.profileId, code)) { alert("That code isn't valid for this profile — check it character by character."); return; }
+  P.tier = 'premium';
+  P.premiumCode = code.toUpperCase();
+  save();
+  alert('✅ Premium unlocked — your card just got the broadcast look.');
+  nav('card');
+}
+
+/* ---------- Firebase publish layer ---------- */
+// Same shared project as RaceDay — this config must match ../index.html EXACTLY.
+var FIREBASE_CONFIG = {
+  apiKey: "AIzaSyAGSBqjW9dNxwPWop3Culi4KmjMhVHDUW4",
+  databaseURL: "https://raceday-d32dd-default-rtdb.firebaseio.com",
+  projectId: "raceday-d32dd"
+};
+var fbLoading = null;
+function loadFirebase() {
+  if (window.firebase && firebase.database) return Promise.resolve();
+  if (fbLoading) return fbLoading;
+  fbLoading = new Promise(function (resolve, reject) {
+    var urls = ['https://www.gstatic.com/firebasejs/10.12.0/firebase-app-compat.js',
+                'https://www.gstatic.com/firebasejs/10.12.0/firebase-database-compat.js'];
+    (function next(i) {
+      if (i >= urls.length) { resolve(); return; }
+      var s = document.createElement('script');
+      s.src = urls[i];
+      s.onload = function () { next(i + 1); };
+      s.onerror = function () { fbLoading = null; reject(new Error('load failed')); };
+      document.head.appendChild(s);
+    })(0);
+  });
+  return fbLoading;
+}
+function ensureFirebase() {
+  return loadFirebase().then(function () {
+    if (!firebase.apps.length) firebase.initializeApp(FIREBASE_CONFIG);
+  });
+}
+// What tracks receive. Deliberately lean: no email, no bio, no results.
+function cardPayload() {
+  var d = P.driver;
+  return {
+    name: d.name || '',
+    num: d.number || '',
+    age: d.age != null ? String(d.age) : '',
+    hometown: d.hometown || '',
+    sponsors: P.sponsors.map(function (s) { return s.name; }).join(' · '),
+    teamColor: /^#[0-9a-fA-F]{6}$/.test(d.teamColor || '') ? d.teamColor : '',
+    photo: d.photo || '',
+    premiumCode: P.tier === 'premium' ? (P.premiumCode || '') : '',
+    updatedAt: firebase.database.ServerValue.TIMESTAMP
+  };
+}
+function publishCard(silent) {
+  return ensureFirebase().then(function () {
+    var db = firebase.database();
+    // Claim a short link code once: derived from the id; extend on the rare collision.
+    var claim = P.shortCode ? Promise.resolve(P.shortCode) : (function tryCode(len) {
+      var code = P.profileId.slice(5, 5 + len).toUpperCase();
+      return db.ref('profiles_short/' + code).once('value').then(function (snap) {
+        var v = snap.val();
+        if (v && v !== P.profileId) return tryCode(len + 2);
+        return db.ref('profiles_short/' + code).set(P.profileId).then(function () { return code; });
+      });
+    })(8);
+    return claim.then(function (code) {
+      P.shortCode = code;
+      return db.ref('profiles/' + P.profileId + '/card').set(cardPayload());
+    }).then(function () {
+      P.publishedAt = Date.now();
+      localStorage.setItem('profiles_v1', JSON.stringify(P));   // direct write: avoid save()'s republish loop
+      if (!silent) { alert('✅ Card published — give the track your link code: ' + P.shortCode); nav('card'); }
+    });
+  }).catch(function (e) {
+    if (!silent) alert("Couldn't publish — check your internet connection and try again.");
+  });
+}
+function publishNow() { publishCard(false); }
 
 /* ---------- Onboarding ---------- */
 function openOnboarding() { $id('onboardModal').style.display = 'flex'; }
@@ -259,17 +484,27 @@ function computeStats() {
 
 /* ---------- Home ---------- */
 function renderHome() {
+  var d = P.driver;
   var stats = computeStats();
-  var h = '<h2>Home</h2><p class="sub">Welcome back, ' + esc(P.driver.name) + '.</p>';
-  h += '<div class="stat-bar">'
-    + '<div class="stat-item"><b>' + stats.total.races + '</b><span>Races</span></div>'
-    + '<div class="stat-item"><b>' + stats.total.wins + '</b><span>Wins</span></div>'
-    + '<div class="stat-item"><b>' + stats.total.podiums + '</b><span>Podiums</span></div>'
-    + '</div>';
+  var tc = /^#[0-9a-fA-F]{6}$/.test(d.teamColor || '') ? d.teamColor : '#1f6fd6';
+  var initials = d.name.split(/\s+/).map(function (w) { return w[0] || ''; }).slice(0, 2).join('').toUpperCase();
+  var h = '<div class="hero bleed" style="--tc:' + tc + '">'
+    + (d.number ? '<div class="hero-num">' + esc(d.number) + '</div>' : '')
+    + '<div class="hero-main">'
+    + (photoOK(d.photo) ? '<img class="hero-photo" src="' + d.photo + '" alt="">'
+                        : '<div class="hero-disc">' + esc(d.number || initials) + '</div>')
+    + '<div><div class="hero-name">' + esc(d.name) + '</div>'
+    + '<div class="hero-meta">' + [d.number ? '#' + esc(d.number) : '', d.hometown ? esc(d.hometown) : ''].filter(Boolean).join(' &nbsp;·&nbsp; ') + '</div></div>'
+    + '</div>'
+    + '<div class="hero-stats">'
+    + '<div><b>' + stats.total.races + '</b><span>Races</span></div>'
+    + '<div><b>' + stats.total.wins + '</b><span>Wins</span></div>'
+    + '<div><b>' + stats.total.podiums + '</b><span>Podiums</span></div>'
+    + '</div></div>';
 
   if (!P.linkedTracks.length) {
     h += '<div class="card"><h3>Link your first track</h3><p class="empty">Scan the QR code at RaceDay sign-up (or import results below) to start tracking your record.</p>'
-      + '<button class="btn btn-primary" onclick="nav(\'link\')">Go to Link page</button></div>';
+      + '<button class="btn btn-primary" onclick="nav(\'link\')">' + icon('link') + ' Go to Link page</button></div>';
   }
 
   var sorted = P.raceResults.slice().sort(function (a, b) { return (b.date || '').localeCompare(a.date || ''); });
@@ -284,29 +519,119 @@ function renderHome() {
 
 function feedRow(r) {
   var posLabel = r.position != null ? 'P' + r.position : '—';
-  var posClass = r.position === 1 ? 'pnum p1' : 'pnum';
+  var posClass = r.position === 1 ? 'posb p1' : (r.position != null && r.position <= 3 ? 'posb pod' : 'posb');
   return '<div class="hr">'
     + '<div class="' + posClass + '">' + posLabel + '</div>'
     + '<div class="nm"><b>' + esc(r.class) + '</b><span>' + esc(r.trackName) + ' · ' + esc(r.date) + '</span></div>'
-    + (r.points != null ? '<div class="pts-badge">' + r.points + ' pts</div>' : '')
+    + (r.points != null ? '<div class="pts">+' + r.points + '<span>PTS</span></div>' : '')
     + '</div>';
 }
 
 /* ---------- Card ---------- */
+function photoOK(src) { return typeof src === 'string' && /^data:image\/(png|jpe?g);base64,[A-Za-z0-9+/=]+$/.test(src); }
 function renderCard() {
   var d = P.driver;
   var initials = d.name.split(/\s+/).map(function (w) { return w[0] || ''; }).slice(0, 2).join('').toUpperCase();
-  var h = '<h2>Your Card</h2><p class="sub">This is what tracks and fans see.</p>';
-  h += '<div class="card">'
-    + '<div class="prof-photo">' + esc(initials) + '</div>'
-    + '<div class="prof-name">' + esc(d.name) + '</div>'
-    + '<div class="prof-meta">' + [d.age ? 'Age ' + d.age : '', d.hometown ? esc(d.hometown) : ''].filter(Boolean).join(' · ') + '</div>'
-    + (d.bio ? '<div class="prof-bio">' + esc(d.bio) + '</div>' : '<div class="prof-bio placeholder">No bio yet — add one in Settings.</div>')
-    + '<div class="slbl">Sponsors</div>'
-    + (P.sponsors.length ? P.sponsors.map(function (s) { return '<span class="sponsor-chip">' + esc(s.name) + '</span>'; }).join('') : '<p class="empty">No sponsors added yet.</p>')
-    + '<button class="btn btn-block" onclick="nav(\'settings\')" style="margin-top:16px">Edit profile</button>'
+  var tier = P.tier || 'basic';
+  var stats = computeStats();
+  var tierBadge = { basic: '', upgrade: ' — <span style="color:var(--brand);font-weight:700">Upgrade</span>', premium: ' — <span class="prem-badge">Premium</span>' };
+  var h = '<h2>Your Card</h2><p class="sub">This is what tracks and fans see' + (tierBadge[tier] || '') + '.</p>';
+
+  if (tier === 'premium') {
+    var team = /^#[0-9a-fA-F]{6}$/.test(d.teamColor || '') ? d.teamColor : '#1f6fd6';
+    h += '<div class="pcard" style="--pc-team:' + team + '">'
+      + '<div class="pcard-hd">'
+      + (d.number ? '<div class="pcard-num">' + esc(d.number) + '</div>' : '')
+      + (photoOK(d.photo) ? '<img class="pcard-photo" src="' + d.photo + '" alt="">'
+                          : '<div class="pcard-disc">' + esc(d.number || '?') + '</div>')
+      + '<div><div class="nm">' + esc(d.name) + '</div>'
+      + '<div class="meta">' + [d.number ? '#' + esc(d.number) : '', d.hometown ? esc(d.hometown) : ''].filter(Boolean).join(' &nbsp;·&nbsp; ') + '</div></div>'
+      + '</div><div class="pcard-checker"></div>'
+      + '<div class="pcard-stats">'
+      + '<div class="pcard-stat"><b>' + stats.total.races + '</b><span>Races</span></div>'
+      + '<div class="pcard-stat"><b>' + stats.total.wins + '</b><span>Wins</span></div>'
+      + '<div class="pcard-stat"><b>' + stats.total.podiums + '</b><span>Podiums</span></div>'
+      + '</div>'
+      + '<div class="pcard-body">'
+      + (d.bio ? '<div style="line-height:1.6;margin-bottom:8px">' + esc(d.bio) + '</div>' : '')
+      + (P.sponsors.length ? P.sponsors.map(function (s) { return '<span class="sponsor-chip">' + esc(s.name) + '</span>'; }).join('') : '')
+      + '</div></div>';
+  } else if (tier === 'upgrade') {
+    var team = /^#[0-9a-fA-F]{6}$/.test(d.teamColor || '') ? d.teamColor : '#1f6fd6';
+    h += '<div class="mcard" style="--mc-team:' + team + '">'
+      + '<div class="mcard-hd">'
+      + (photoOK(d.photo) ? '<img class="mcard-photo" src="' + d.photo + '" alt="">'
+                          : '<div class="mcard-disc">' + esc(d.number || initials) + '</div>')
+      + '<div><div class="mcard-name">' + esc(d.name) + '</div>'
+      + '<div class="mcard-meta">' + [d.number ? '#' + esc(d.number) : '', d.hometown ? esc(d.hometown) : ''].filter(Boolean).join(' &nbsp;·&nbsp; ') + '</div></div>'
+      + '</div>'
+      + '<div class="mcard-body">'
+      + (d.bio ? '<div class="prof-bio">' + esc(d.bio) + '</div>' : '<div class="prof-bio placeholder">No bio yet — add one in Settings.</div>')
+      + '<div class="slbl">Sponsors</div>'
+      + (P.sponsors.length ? P.sponsors.map(function (s) { return '<span class="sponsor-chip">' + esc(s.name) + '</span>'; }).join('') : '<p class="empty" style="padding:4px 0 0">No sponsors added yet.</p>')
+      + '<div class="mcard-stats">'
+      + '<div class="mcard-stat"><b>' + stats.total.races + '</b><span>Races</span></div>'
+      + '<div class="mcard-stat"><b>' + stats.total.wins + '</b><span>Wins</span></div>'
+      + '<div class="mcard-stat"><b>' + stats.total.podiums + '</b><span>Podiums</span></div>'
+      + '</div>'
+      + '</div></div>';
+  } else {
+    h += '<div class="bcard">'
+      + '<div class="bcard-hd">'
+      + (photoOK(d.photo) ? '<img class="bcard-photo" src="' + d.photo + '" alt="">'
+                          : '<div class="bcard-disc">' + esc(d.number || initials) + '</div>')
+      + '<div><div class="bcard-name">' + esc(d.name) + '</div>'
+      + '<div class="bcard-meta">' + [d.number ? '#' + esc(d.number) : '', d.age ? 'Age ' + d.age : '', d.hometown ? esc(d.hometown) : ''].filter(Boolean).join(' &nbsp;·&nbsp; ') + '</div></div>'
+      + '</div>'
+      + '<div class="bcard-body">'
+      + (d.bio ? '<div class="prof-bio">' + esc(d.bio) + '</div>' : '<div class="prof-bio placeholder">No bio yet — add one in Settings.</div>')
+      + '<div class="slbl">Sponsors</div>'
+      + (P.sponsors.length ? P.sponsors.map(function (s) { return '<span class="sponsor-chip">' + esc(s.name) + '</span>'; }).join('') : '<p class="empty" style="padding:4px 0 0">No sponsors added yet.</p>')
+      + '<button class="btn btn-block" onclick="nav(\'settings\')" style="margin-top:16px">Edit profile</button>'
+      + '</div></div>';
+  }
+
+  // Publish to tracks
+  h += '<div class="card"><div class="slbl">Share with tracks</div>'
+    + '<p class="sub" style="margin-bottom:10px">Publishing puts your card online so any RaceDay track can pull it in when you give them your link code at sign-up.</p>'
+    + '<button class="btn btn-primary btn-block" onclick="publishNow()">' + (P.publishedAt ? icon('refresh') + ' Update published card' : icon('broadcast') + ' Publish my card') + '</button>'
+    + (P.publishedAt ? '<div class="pub-status">Published · link code <b>' + esc(P.shortCode) + '</b> · updated ' + new Date(P.publishedAt).toLocaleString() + '</div>' : '')
     + '</div>';
+
+  // Tier upsell / status
+  if (tier === 'basic') {
+    h += '<div class="card"><div class="slbl">Available upgrades</div>'
+      + '<p class="sub" style="margin-bottom:14px">Choose how your card looks at every RaceDay track.</p>'
+      + '<div style="display:flex;gap:10px;flex-direction:column">'
+      + '<div style="padding:14px;border:1.5px solid #d5d8de;border-radius:10px;background:#f4f5f7">'
+      + '<div style="font-weight:700;font-size:14px;margin-bottom:4px">Upgrade — Photo + team color</div>'
+      + '<div style="font-size:13px;color:var(--muted);line-height:1.5">Add your photo and team color accent. Appears on every track with a clean, modern look.</div>'
+      + '<button class="btn btn-block" style="margin-top:8px" onclick="selectTier(\'upgrade\')">Upgrade</button>'
+      + '</div>'
+      + '<div style="padding:14px;border:1.5px solid var(--brand);border-radius:10px;background:color-mix(in srgb, var(--brand) 6%, transparent)">'
+      + '<div style="font-weight:700;font-size:14px;margin-bottom:4px;color:var(--brand)">Premium — Broadcast style</div>'
+      + '<div style="font-size:13px;color:var(--muted);line-height:1.5">Full broadcast look with photo, ghost number, team color accent, and animated effects. Gets noticed.</div>'
+      + '<label style="margin-top:8px;margin-bottom:4px">Premium code</label><input type="text" id="premCode" placeholder="PREM-XXXXXXXX-XXXXXXXX" autocapitalize="characters" style="margin-bottom:8px">'
+      + '<button class="btn btn-go btn-block" onclick="activatePremium()">Unlock premium</button>'
+      + '</div>'
+      + '</div>'
+      + '</div>';
+  } else if (tier === 'upgrade') {
+    h += '<div class="card"><div class="slbl">Your tier</div>'
+      + '<p class="sub" style="margin-bottom:10px">Upgrade active — your card displays your photo and team color at every track.</p>'
+      + '<div style="display:flex;gap:8px">'
+      + '<button class="btn btn-sm" onclick="selectTier(\'basic\')">Downgrade</button>'
+      + '<label style="flex:1;margin:0"><input type="text" id="premCode" placeholder="PREM-XXXXXXXX-XXXXXXXX" autocapitalize="characters"> <button class="btn btn-sm" style="margin-top:8px" onclick="activatePremium()">Go premium</button></label>'
+      + '</div>'
+      + '</div>';
+  }
   $id('page-card').innerHTML = h;
+}
+
+function selectTier(t) {
+  P.tier = t;
+  save();
+  renderCard();
 }
 
 /* ---------- Stats page ---------- */
@@ -317,21 +642,47 @@ function renderStats() {
   if (!classes.length) {
     h += '<p class="empty">No results yet — your stats will build up as tracks share results with your profile.</p>';
   } else {
-    h += '<div class="card"><table><thead><tr><th>Class</th><th>Races</th><th>Wins</th><th>Podiums</th></tr></thead><tbody>';
+    var trio = function (b) {
+      return '<div class="trio">'
+        + '<div><b>' + b.races + '</b><span>Races</span></div>'
+        + '<div><b class="w">' + b.wins + '</b><span>Wins</span></div>'
+        + '<div><b>' + b.podiums + '</b><span>Podiums</span></div></div>';
+    };
+    h += '<div class="slbl">Career Total</div><div class="card"><div class="cls-row">' + trio(stats.total) + '</div></div>';
+    h += '<div class="slbl">By class</div><div class="card">';
     classes.forEach(function (c) {
-      var b = stats.byClass[c];
-      h += '<tr><td>' + esc(c) + '</td><td>' + b.races + '</td><td>' + b.wins + '</td><td>' + b.podiums + '</td></tr>';
+      h += '<div class="cls-row"><div class="cls-name">' + esc(c) + '</div>' + trio(stats.byClass[c]) + '</div>';
     });
-    h += '<tr class="totals"><td>Total</td><td>' + stats.total.races + '</td><td>' + stats.total.wins + '</td><td>' + stats.total.podiums + '</td></tr>';
-    h += '</tbody></table></div>';
+    h += '</div>';
+    // By track — computed from raceResults, same shape as the class rollup.
+    var byTrack = {};
+    P.raceResults.forEach(function (r) {
+      var k = r.trackName || r.trackId || 'Unknown track';
+      if (!byTrack[k]) byTrack[k] = { races: 0, wins: 0, podiums: 0 };
+      byTrack[k].races++;
+      if (r.position === 1) { byTrack[k].wins++; byTrack[k].podiums++; }
+      else if (r.position != null && r.position <= 3) byTrack[k].podiums++;
+    });
+    var tracks = Object.keys(byTrack);
+    if (tracks.length) {
+      h += '<div class="slbl">By track</div><div class="card">';
+      tracks.forEach(function (t) {
+        h += '<div class="cls-row"><div class="cls-name">' + esc(t) + '</div>' + trio(byTrack[t]) + '</div>';
+      });
+      h += '</div>';
+    }
   }
   $id('page-stats').innerHTML = h;
 }
 
 /* ---------- Link page ---------- */
 function renderLink() {
-  var h = '<h2>Link a Track</h2><p class="sub">Show this QR code at RaceDay sign-up to connect your results to this profile.</p>';
-  h += '<div class="card"><div class="qr-wrap"><canvas id="linkQR" width="220" height="220"></canvas></div>'
+  var h = '<h2>Link a Track</h2><p class="sub">Give the sign-up table your link code (or show this QR) to connect your card and results to this profile.</p>';
+  h += '<div class="link-panel">'
+    + (P.shortCode
+        ? '<div class="slbl">Your track link code</div><div class="link-code">' + esc(P.shortCode) + '</div>'
+        : '<p class="empty" style="text-align:center;color:var(--td-mute)">Publish your card (Card page) to get a short link code.</p>')
+    + '<div class="qr-wrap"><canvas id="linkQR" width="220" height="220"></canvas></div>'
     + '<div class="prof-id">' + esc(P.profileId) + '</div></div>';
   h += '<div class="slbl">Linked tracks</div>';
   if (!P.linkedTracks.length) {
@@ -363,6 +714,15 @@ function renderSettings() {
     + '<div class="slbl">Profile</div>'
     + '<label>Name</label><input type="text" id="stName" value="' + esc(d.name) + '" maxlength="60">'
     + '<label>Email</label><input type="email" id="stEmail" value="' + esc(d.email) + '" maxlength="80">'
+    + '<label>Kart / vehicle number</label><input type="text" id="stNumber" value="' + esc(d.number || '') + '" maxlength="5" placeholder="e.g. 47 or 12A" autocapitalize="characters">'
+    + '<label>Team color</label><input type="color" id="stTeamColor" value="' + esc(/^#[0-9a-fA-F]{6}$/.test(d.teamColor || '') ? d.teamColor : '#1f6fd6') + '" style="height:44px;padding:4px">'
+    + '<label>Driver photo</label>'
+    + '<div style="display:flex;gap:10px;align-items:center">'
+    + (photoOK(d.photo) ? '<img src="' + d.photo + '" style="width:44px;height:44px;border-radius:50%;object-fit:cover">' : '')
+    + '<button class="btn btn-sm" type="button" onclick="$id(\'stPhotoFile\').click()">' + icon('camera') + ' ' + (photoOK(d.photo) ? 'Replace' : 'Upload') + '</button>'
+    + (photoOK(d.photo) ? '<button class="btn btn-sm" type="button" onclick="removePhoto()">Remove</button>' : '')
+    + '<input id="stPhotoFile" type="file" accept="image/*" style="display:none" onchange="uploadPhoto(this)">'
+    + '</div>'
     + '<label>Hometown</label><input type="text" id="stHometown" value="' + esc(d.hometown) + '" maxlength="60">'
     + '<label>Age</label><input type="number" id="stAge" value="' + (d.age || '') + '" min="1" max="120">'
     + '<label>Bio (max 280 characters)</label><textarea id="stBio" maxlength="280">' + esc(d.bio) + '</textarea>'
@@ -389,6 +749,9 @@ function renderSettings() {
 function saveProfileFields() {
   P.driver.name = ($id('stName').value || '').trim() || P.driver.name;
   P.driver.email = ($id('stEmail').value || '').trim();
+  P.driver.number = ($id('stNumber').value || '').trim().toUpperCase().slice(0, 5);
+  var col = $id('stTeamColor').value;
+  P.driver.teamColor = /^#[0-9a-fA-F]{6}$/.test(col) ? col : '';
   P.driver.hometown = ($id('stHometown').value || '').trim();
   var ageVal = $id('stAge').value;
   P.driver.age = ageVal ? parseInt(ageVal, 10) : null;
@@ -396,8 +759,33 @@ function saveProfileFields() {
   var sponsorsRaw = ($id('stSponsors').value || '').trim();
   P.sponsors = sponsorsRaw ? sponsorsRaw.split(',').map(function (s) { return { name: s.trim() }; }).filter(function (s) { return s.name; }) : [];
   save();
-  alert('Saved.');
+  alert('Saved.' + (P.publishedAt ? ' Your published card updates automatically.' : ''));
 }
+
+// Photo: center-crop square, downscale to 128px JPEG (~≤60KB) so published cards stay light.
+function uploadPhoto(input) {
+  var f = input.files && input.files[0];
+  input.value = '';
+  if (!f) return;
+  var img = new Image();
+  var url = URL.createObjectURL(f);
+  img.onload = function () {
+    URL.revokeObjectURL(url);
+    var side = Math.min(img.width, img.height);
+    var scale = Math.min(1, 128 / side);
+    var c = document.createElement('canvas');
+    c.width = c.height = Math.max(1, Math.round(side * scale));
+    c.getContext('2d').drawImage(img, (img.width - side) / 2, (img.height - side) / 2, side, side, 0, 0, c.width, c.height);
+    var data = c.toDataURL('image/jpeg', 0.82);
+    if (data.length > 60000) { alert('That photo is too heavy — try a smaller or simpler image.'); return; }
+    P.driver.photo = data;
+    save();
+    renderSettings();
+  };
+  img.onerror = function () { URL.revokeObjectURL(url); alert("Couldn't read that file as an image."); };
+  img.src = url;
+}
+function removePhoto() { P.driver.photo = null; save(); renderSettings(); }
 
 /* ---------- Import / ingest ---------- */
 // Accepts a single export object or an array of them:
@@ -454,8 +842,16 @@ function loadDemoResults() {
 function deleteProfile() {
   if (!confirm('Delete your profile? This cannot be undone.')) return;
   if (!confirm('Really delete everything — profile, results, and stats?')) return;
-  localStorage.removeItem('profiles_v1');
-  location.reload();
+  // Best-effort: remove the published card + link-code mapping, then wipe locally either way.
+  var wipe = function () { localStorage.removeItem('profiles_v1'); location.reload(); };
+  if (P.publishedAt) {
+    ensureFirebase().then(function () {
+      var db = firebase.database();
+      var ops = [db.ref('profiles/' + P.profileId).remove()];
+      if (P.shortCode) ops.push(db.ref('profiles_short/' + P.shortCode).remove());
+      return Promise.all(ops);
+    }).then(wipe, wipe);
+  } else wipe();
 }
 
 /* ---------- Boot ---------- */

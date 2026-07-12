@@ -63,14 +63,24 @@ Or just use `/syntax`.
 A separate, self-contained PWA — not part of `index.html`, has its own manifest/service
 worker/localStorage key (`profiles_v1`). Lets a driver create one profile that follows them
 across every RaceDay track they race at.
-- State var is `P` (not `S`), object shape: `{ profileId, driver, linkedTracks, raceResults, sponsors, tier }`
-- Link mechanism: driver's `profileId` is shown as a QR code (`RDPROFILE:<id>` payload) on the
-  Link page — scanned at RaceDay sign-up (**not yet built on the RaceDay side** — planned for
-  after the repo goes private)
+- State var is `P` (not `S`), object shape: `{ profileId, driver, linkedTracks, raceResults,
+  sponsors, tier, premiumCode, shortCode, publishedAt }`
+- **Card pipeline (wired 2026-07-08)**: the driver "publishes" their card to the shared
+  Firebase RTDB (`profiles/<profileId>/card` + `profiles_short/<SHORTCODE>` lookup index;
+  short code = `profileId.slice(5,13)` uppercased, collision-extended). At the track the
+  driver gives their link code at sign-up (optional `#dProfCode` input) or the admin links
+  from the driver card (`linkProfilePrompt`). RaceDay pulls + sanitizes (`linkProfile` /
+  `sanitizeProfileCard` — type/length caps, anchored photo regex, premium hash recompute),
+  stores it on the roster record with `source:'profiles'` (locally read-only, Refresh /
+  Unlink). Offline links pend (`profile.pendingFetch`) and retry on reconnect. The
+  `RDPROFILE:<id>` QR payload exists for future camera scanning.
+- **Premium**: unlocked in Profiles with an offline-checked code `PREM-<SHORT>-<HASH8>`
+  (`PREM_SALT` + `pHash` — constants are duplicated in BOTH apps and must stay identical;
+  RaceDay recomputes the hash before honoring premium, never trusts a boolean)
 - Results enter via `ingestExport(data)` — accepts `{trackId, trackName, date, results:[...]}`
   (or an array of those), dedupes by `trackId+date+class`, auto-populates `linkedTracks`
-- No backend for MVP — sync is manual paste/upload of a JSON export; RaceDay doesn't produce
-  that export yet (planned: an admin "Share with Profiles" button after archiving a race day)
+- Results still move via manual JSON import — RaceDay doesn't produce that export yet
+  (planned: an admin "Share with Profiles" button after archiving a race day)
 - Career stats computed live from `raceResults` via `computeStats()` — no stored cache
 - Same design language as `index.html` (CSS vars, `.card`/`.btn`/`.hr` patterns) and the same
   embedded QR generator, copied verbatim — kept intentionally separate rather than shared, to
@@ -80,6 +90,7 @@ across every RaceDay track they race at.
 - Active dev branch: `claude/track-admin-improvements-d46hxg`
 - Syntax check: `/syntax`
 - After ANY index.html change: run all Playwright suites — `for t in tests/test-*.js; do node "$t" | tail -1; done`
+- Touching roles, permissions, the setup wizard, sync, or the boot sequence? `tests/test-roles-security.js` is the guard for those invariants — add/update a check there for the new behavior, and confirm it would catch a regression (see that file's header + `tests/README.md`). Three live security bugs came from this area with no test coverage; this suite is how it stays fixed.
 - Commit + push current branch: `/push <message>`
 - See branch state: `/check`
 - Merge to main: only with explicit user approval — always ask first

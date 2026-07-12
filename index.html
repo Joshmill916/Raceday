@@ -310,6 +310,39 @@
   .vdc-name { font-family:var(--display);font-size:26px;font-weight:800;margin:10px 0 4px; }
   .vdc-cls { font-size:14px;color:var(--muted);line-height:1.7;margin-bottom:4px; }
   .vdc-close { margin-top:18px;display:block;background:var(--line);border-radius:10px;padding:10px 0;font-size:14px;font-weight:600;cursor:pointer; }
+  /* Driver card (tap a name in any lineup) */
+  .dc-overlay { position:fixed; inset:0; background:rgba(0,0,0,.55); display:none; align-items:center; justify-content:center; z-index:9998; padding:16px; }
+  .dc-overlay.on { display:flex; }
+  .dc-panel { background:var(--card); border-radius:18px; max-width:440px; width:100%; max-height:90vh; overflow:auto; position:relative; box-shadow:0 24px 70px rgba(0,0,0,.45); }
+  .dc-close { position:absolute; top:8px; right:10px; background:rgba(255,255,255,.15); border:none; width:30px; height:30px; border-radius:50%; font-size:16px; color:#fff; cursor:pointer; z-index:2; }
+  .dc-hd { background:var(--asphalt); color:#fff; padding:22px 20px; border-radius:18px 18px 0 0; display:flex; align-items:center; gap:14px; position:relative; overflow:hidden; }
+  .dc-hd .nm { font-family:var(--display); font-weight:800; font-size:25px; text-transform:uppercase; line-height:1.05; }
+  .dc-hd .cls { color:var(--plate); font-size:12.5px; font-weight:700; text-transform:uppercase; letter-spacing:.04em; margin-top:5px; }
+  .dc-stats { display:grid; grid-template-columns:repeat(3,1fr); gap:1px; background:var(--line); }
+  .dc-stat { background:#fff; padding:14px 6px; text-align:center; }
+  .dc-stat .n { font-family:var(--display); font-weight:800; font-size:26px; line-height:1; }
+  .dc-stat .l { font-size:10.5px; text-transform:uppercase; letter-spacing:.05em; color:var(--muted); margin-top:4px; }
+  .dc-body { padding:16px 20px; }
+  .dc-row { display:flex; gap:10px; font-size:14px; padding:7px 0; border-bottom:1px solid #f4f4ef; }
+  .dc-row b { min-width:86px; color:var(--muted); font-weight:600; }
+  .dc-body label { display:block; font-size:12px; font-weight:600; color:var(--muted); margin:8px 0 3px; }
+  .dc-body input { width:100%; box-sizing:border-box; padding:8px 10px; border:1.5px solid #d4d4cf; border-radius:8px; font-family:inherit; font-size:14px; }
+  /* Premium broadcast look — team color rides the --dc-team var set inline on the panel */
+  .dc-panel.prem { background:var(--asphalt-2); color:#f2f1ec; }
+  .dc-panel.prem .dc-hd { background:linear-gradient(130deg, var(--asphalt) 60%, var(--dc-team, var(--plate)) 230%); border-bottom:3px solid var(--dc-team, var(--plate)); }
+  .dc-panel.prem .dc-hd::after { content:''; position:absolute; top:0; bottom:0; left:-60%; width:45%; background:linear-gradient(105deg, transparent, rgba(255,255,255,.16), transparent); transform:skewX(-18deg); animation:dcshine 1.6s ease .3s 1 both; }
+  @keyframes dcshine { from { left:-60%; } to { left:135%; } }
+  .dc-heads { animation:dcin .45s ease both; min-width:0; }
+  @keyframes dcin { from { opacity:0; transform:translateX(-14px); } to { opacity:1; transform:none; } }
+  .dc-photo { width:64px; height:64px; border-radius:50%; object-fit:cover; border:3px solid var(--dc-team, var(--plate)); flex:none; background:#000; }
+  .dc-checker { height:8px; background:repeating-conic-gradient(#101114 0% 25%, #f4f4f1 0% 50%) 0 0/16px 16px; }
+  .dc-panel.prem .dc-stats { background:rgba(255,255,255,.14); }
+  .dc-panel.prem .dc-stat { background:var(--asphalt); }
+  .dc-panel.prem .dc-stat .n { color:var(--dc-team, var(--plate)); }
+  .dc-panel.prem .dc-stat .l { color:#9a9da6; }
+  .dc-panel.prem .dc-row { border-bottom-color:rgba(255,255,255,.09); }
+  .dc-panel.prem .dc-row b { color:#9a9da6; }
+  .dc-panel.prem .dc-body input { background:var(--asphalt); border-color:rgba(255,255,255,.2); color:#f2f1ec; }
   .vw-toast { position:fixed;top:16px;left:50%;transform:translateX(-50%);z-index:9999;background:#111;color:#fff;border-radius:12px;padding:12px 18px;font-size:14px;font-weight:600;display:flex;align-items:center;gap:12px;box-shadow:0 4px 20px rgba(0,0,0,.35);white-space:nowrap; }
   .vw-toast button { background:#fff;color:#111;border:none;border-radius:8px;padding:5px 12px;font-size:13px;font-weight:700;cursor:pointer; }
   .qt-box { background:#fff;border-radius:20px 20px 0 0;width:100%;max-width:480px;margin:0 auto;max-height:88vh;overflow-y:auto;padding:18px 20px 26px; }
@@ -374,6 +407,8 @@
         </div>
         <label>Vehicle number</label>
         <input id="dNum" type="text" placeholder="e.g. 47 or 12A" maxlength="5" autocomplete="off" autocapitalize="characters" />
+        <label>Driven link code <span style="font-weight:400;color:var(--muted)">(optional — from your Driven app)</span></label>
+        <input id="dProfCode" type="text" placeholder="e.g. K7Q2M4XN" maxlength="24" autocomplete="off" autocapitalize="characters" />
         <div id="e1" class="err" style="display:none"></div>
         <button class="btn btn-go btn-block" onclick="step2()">Next — pick your classes →</button>
       </div>
@@ -997,10 +1032,11 @@
   </div>
 </div>
 
-<div id="viewerDriverCard" class="vdc-overlay" style="display:none" onclick="if(event.target===this)hideViewerCard()">
-  <div class="vdc-box">
-    <div id="vdcContent"></div>
-    <span class="vdc-close" onclick="hideViewerCard()">✕ Close</span>
+<!-- Driver card (spectator profile) — tap a name in any lineup -->
+<div id="driverCard" class="dc-overlay" onclick="if(event.target===this)closeDriverCard()">
+  <div class="dc-panel" id="dcPanel">
+    <button class="dc-close" onclick="closeDriverCard()" aria-label="Close">✕</button>
+    <div id="dcBody"></div>
   </div>
 </div>
 
@@ -1171,6 +1207,12 @@ function migrate(s) {
     });
     s.schemaVersion = 2;
   }
+  if (s.schemaVersion < 3) {
+    // Hash existing plaintext PINs: adminPin and operatorPin
+    if (s.adminPin) s.adminPin = pinHash(s.adminPin);
+    if (s.operatorPin) s.operatorPin = pinHash(s.operatorPin);
+    s.schemaVersion = 3;
+  }
   return s;
 }
 function load() {
@@ -1281,6 +1323,9 @@ function recalcPoints(clsId) {
 
 const UI = { viewClsId: null, viewStage: 'qual', ptsTab: null, ptsNames: [], histOpen: null, admOpen: null, pillChoiceCb: null, wizStep: 1 };
 let S = load();
+// Clear admin session flag on page load to prevent sessionStorage inheritance
+// when tabs are opened from authenticated sessions (blocks viewer→admin escalation).
+sessionStorage.removeItem('rd_admin_ok');
 let cur = null;          // driver mid-signup: {name, num}
 let curPage = 'signup';
 let resTab = null;       // selected class on results page
@@ -1555,13 +1600,15 @@ function newRaceDay() {
   resetReg();
   render(curPage);
 }
-function resetAll() {
-  if (!adminOk()) return;   // total wipe — gate it like the other danger-zone actions
-  if (!confirm('Erase EVERYTHING — driver book, classes, settings, history, and all results? This cannot be undone.')) return;
-  if (!confirm('Last check: this wipes the saved driver book and race day history too. Erase it all?')) return;
+// Core of "erase everything" — no auth guard here, callers gate it themselves. Keeps the
+// license/trial/packet usage (a device's paid status isn't data to lose), clears
+// everything else: driver book, classes, settings, history, and the admin PIN. Used both
+// by resetAll() (the guarded Danger Zone button) and forgotPin()'s last-resort fallback,
+// which by definition can't gate on adminOk() — that's the very thing being recovered from.
+function doFullReset() {
   localStorage.removeItem(KEY);
   sessionStorage.removeItem('rd_admin_ok');
-  const keep = { license: S.license, trialDays: S.trialDays, licUse: S.licUse };   // erasing data doesn't erase the license, trial, or packet count
+  const keep = { license: S.license, trialDays: S.trialDays, licUse: S.licUse };
   S = defaults();
   S.license = keep.license;
   S.trialDays = keep.trialDays;
@@ -1570,6 +1617,12 @@ function resetAll() {
   renderHeader();
   resetReg();
   render(curPage);
+}
+function resetAll() {
+  if (!adminOk()) return;   // total wipe — gate it like the other danger-zone actions
+  if (!confirm('Erase EVERYTHING — driver book, classes, settings, history, and all results? This cannot be undone.')) return;
+  if (!confirm('Last check: this wipes the saved driver book and race day history too. Erase it all?')) return;
+  doFullReset();
 }
 // Inverse of resetAll: keep the race data, clear the device's identity (license + trial +
 // packet usage). For handing this device — or a restored backup — to a different track so
@@ -1602,6 +1655,35 @@ function licHash(str) {
   return (h >>> 0).toString(36).toUpperCase();
 }
 function licCheck(name, exp) { return licHash(name + '|' + exp + '|' + LIC_SALT).slice(0, 6); }
+
+// PIN hash: deterministic, synchronous, uses dual-pass hashing for strength
+function pinHash(pin) {
+  let h1 = 2166136261; // FNV offset basis
+  for (let i = 0; i < pin.length; i++) { h1 ^= pin.charCodeAt(i); h1 = Math.imul(h1, 16777619); }
+  let h2 = 5381; // djb2 seed
+  for (let i = 0; i < pin.length; i++) { h2 = ((h2 << 5) + h2) ^ pin.charCodeAt(i); }
+  return ((h1 >>> 0) ^ (h2 >>> 0)).toString(16).padStart(8, '0');
+}
+
+// ---------- RaceDay Profiles premium codes ----------
+// A driver's premium card carries the unlock code they were sold; we recompute the hash
+// here and only honor premium if it checks out. Must match profiles/index.html EXACTLY.
+const PREM_SALT = 'rd-prem-7t4mq2xz-2026';
+function pHash(str) {
+  function fnv(s, seed) {
+    let h = seed >>> 0;
+    for (let i = 0; i < s.length; i++) { h ^= s.charCodeAt(i); h = Math.imul(h, 16777619) >>> 0; }
+    return ('0000000' + h.toString(36).toUpperCase()).slice(-7);
+  }
+  return fnv(str, 2166136261) + fnv(str + '#2', 2166136261);
+}
+function premShort(profileId) { return profileId.slice(5, 13).toUpperCase(); }
+function premCheck(profileId, code) {
+  const parts = String(code || '').trim().toUpperCase().split('-');
+  if (parts.length !== 3 || parts[0] !== 'PREM') return false;
+  if (parts[1] !== premShort(profileId)) return false;
+  return parts[2] === pHash(profileId + '|PREM|' + PREM_SALT).slice(0, 8);
+}
 // Plan tokens in license.exp: '0' = forever, 'YYYYMM' = month expiry (legacy),
 // 'SYYYY' = season pass through Dec 31 of that year, 'R<n>' = packet of n race days.
 function licStatus() {
@@ -1719,8 +1801,36 @@ function adminOk() {
   if (!S.adminPin || sessionStorage.getItem('rd_admin_ok') === '1') return true;
   const t = prompt('Enter the admin PIN');
   if (t === null) return false;
-  if (t === S.adminPin) { sessionStorage.setItem('rd_admin_ok', '1'); return true; }
-  alert('Wrong PIN.');
+  if (pinHash(t) === S.adminPin) { sessionStorage.setItem('rd_admin_ok', '1'); return true; }
+  if (confirm('Wrong PIN.\n\nForgot it? Tap OK to try recovering this device.')) return forgotPin();
+  return false;
+}
+// Recovers a device locked out by a forgotten admin PIN — without which the admin page
+// (the only place the PIN can be changed or removed) is unreachable. Proof of ownership
+// is THIS device's own access code: it's self-validating offline, the admin already has
+// it from activating the app, and it's never printed on the public spectator QR posters,
+// so a fan who scans that can't use it. Only clears the PIN — no race data touched. If
+// this device has no code (still on the free trial) or the code doesn't match, the only
+// honest fallback is a full reset (offered here explicitly, instead of leaving the admin
+// page permanently unreachable and forcing a manual browser-data wipe).
+function forgotPin() {
+  if (S.license && S.license.code) {
+    const v = prompt("Enter this device's access code to reset the PIN (this does not touch any race data):");
+    if (v === null) return false;
+    if (v.trim() && v.trim().toUpperCase() === S.license.code) {
+      S.adminPin = '';
+      sessionStorage.setItem('rd_admin_ok', '1');
+      save();
+      alert('✅ PIN cleared — set a new one now from Admin → PIN.');
+      return true;
+    }
+    if (v.trim()) alert("That doesn't match this device's access code.");
+  }
+  if (confirm((S.license && S.license.code ? "Code didn't match. " : 'This device has no access code on file. ')
+    + "The only other way to recover a forgotten PIN is to erase this device's race data (driver book, classes, history — your license and trial status are kept). Erase and start over?")) {
+    doFullReset();
+    return true;
+  }
   return false;
 }
 function lockAdmin() {
@@ -1733,13 +1843,15 @@ function setPin() {
   if (!/^\d{4,8}$/.test(p1)) { alert('The PIN must be 4–8 digits.'); return; }
   const p2 = prompt('Type it again to confirm');
   if (p2 !== p1) { if (p2 !== null) alert("The PINs didn't match — nothing was changed."); return; }
-  S.adminPin = p1;
+  S.adminPin = pinHash(p1);
   sessionStorage.setItem('rd_admin_ok', '1');
   save();
   renderAdmin();
 }
 function delPin() {
-  if (prompt('Enter the current PIN to remove it') !== S.adminPin) { alert('Wrong PIN.'); return; }
+  const entered = prompt('Enter the current PIN to remove it');
+  if (entered === null) return;
+  if (pinHash(entered) !== S.adminPin) { alert('Wrong PIN.'); return; }
   S.adminPin = '';
   sessionStorage.removeItem('rd_admin_ok');
   save();
@@ -1858,6 +1970,11 @@ function register() {
   if (driver) { driver.num = cur.num; driver.name = cur.name; }
   else { driver = { id: genDriverId(), name: cur.name, num: cur.num, noPoints: false }; S.roster.push(driver); }
 
+  // Profiles link (optional): pull the driver's published card in the background.
+  const profCodeEl = document.getElementById('dProfCode');
+  const profCode = profCodeEl ? profCodeEl.value.trim() : '';
+  if (profCode && !driver.profileId) linkProfile(driver.id, profCode).then(() => render(curPage)).catch(() => {});
+
   // record the Terms/Privacy acceptance (timestamp, role, version; IP filled best-effort)
   if (S.settings && S.settings.requireConsent) recordConsent(driver.name, driver.num);
 
@@ -1898,6 +2015,7 @@ function resetReg() {
   cur = null;
   document.getElementById('dName').value = '';
   document.getElementById('dNum').value = '';
+  const pc = document.getElementById('dProfCode'); if (pc) pc.value = '';
   document.getElementById('suggBox').innerHTML = '';
   document.getElementById('e1').style.display = 'none';
   document.getElementById('e2').style.display = 'none';
@@ -1915,9 +2033,11 @@ function discNum(num) {
   const f = sz ? ' style="font-size:' + sz + 'px"' : '';
   return '<div class="disc sm"' + f + '>' + esc(s) + '</div>';
 }
-function gridMarkup(racers, single, tappable) {
+function gridMarkup(racers, single) {
   const sub = r => r.tag || (r.qualTime ? '⏱ ' + r.qualTime : 'Pill #' + r.pill);
-  const tap = r => tappable && r.id ? ' onclick="showViewerCard(' + r.id + ')" style="cursor:pointer"' : '';
+  // Any row that knows its driver opens the driver card — every role, every lineup.
+  // (TV display builds its own markup and stays non-clickable.)
+  const tap = r => r.id ? ' onclick="openDriverCard(' + r.id + ')" style="cursor:pointer"' : '';
   if (single) {
     let h = '<div class="hb">';
     racers.forEach((r, i) => {
@@ -1981,7 +2101,7 @@ function renderGrid() {
     // once every heat finish is entered, the main-event grids post here too
     if (classComplete(cls.id)) {
       const fd = featureData(cls.id);
-      const toRow = s => ({ name: s.name, num: s.num, tag: 'Heat total ' + s.pts });
+      const toRow = s => ({ id: s.id, name: s.name, num: s.num, tag: 'Heat total ' + s.pts });
       const bmInvNote = clsBMainInvert(cls) ? ' · top ' + clsBMainInvert(cls) + ' start inverted' : '';
       const ftInvNote = clsFeatInvert(cls) ? ' · top ' + clsFeatInvert(cls) + ' start inverted' : '';
       if (fd.mains.length) {
@@ -2072,24 +2192,178 @@ function renderViewerLineups() {
   el.innerHTML = h;
 }
 
-function showViewerCard(id) {
-  if (deviceRole() !== 'viewer') return;
-  const d = driverById(id); if (!d) return;
-  const entries = S.raceDay.entries.filter(e => e.driverId === id);
-  const clsLines = entries.map(e => {
-    const c = classById(e.classId) || { name: '?' };
-    return '<div>' + esc(c.name) + ' &mdash; Grid P' + e.pill + '</div>';
-  }).join('');
-  const s = String(d.num);
-  const sz = s.length === 3 ? 22 : s.length === 4 ? 18 : s.length >= 5 ? 14 : 0;
-  const discStyle = sz ? ' style="font-size:' + sz + 'px"' : '';
-  document.getElementById('vdcContent').innerHTML =
-    '<div class="disc big" style="margin:0 auto 12px"' + discStyle + '>' + esc(s) + '</div>'
-    + '<div class="vdc-name">' + esc(d.name) + '</div>'
-    + (clsLines ? '<div class="vdc-cls">' + clsLines + '</div>' : '');
-  showModal('viewerDriverCard', 'flex');
+// Legacy entry point (older onclick wiring) — the rich driver card replaced the minimal viewer card.
+function showViewerCard(id) { openDriverCard(id); }
+
+// ---------- Driver cards (spectator profiles) ----------
+let driverCardId = null;
+function ordinal(n) { const s = ['th', 'st', 'nd', 'rd'], v = n % 100; return n + (s[(v - 20) % 10] || s[v] || s[0]); }
+// Career tally from saved race-day history + today's live features (this track's numbers).
+function driverStats(driverId) {
+  let starts = 0, wins = 0, podiums = 0, top5 = 0, best = null, points = 0; const days = {};
+  function take(fin, dateKey) {
+    if (typeof fin !== 'number') return;
+    starts++; if (fin === 1) wins++; if (fin <= 3) podiums++; if (fin <= 5) top5++;
+    if (best === null || fin < best) best = fin; if (dateKey) days[dateKey] = 1;
+  }
+  (S.history || []).forEach(day => (day.classes || []).forEach(cls => {
+    (cls.featureFinish || []).forEach(f => { if (f.driverId === driverId) take(f.fin, day.date); });
+    (cls.points || []).forEach(p => { if (p.driverId === driverId) points += (p.pts || 0); });
+  }));
+  (S.classes || []).forEach(cls => {
+    featureFinish(cls.id).forEach(f => { if (f.id === driverId) take(f.fin, S.raceDay.date); });
+    if (isPointsRace(cls.id)) { const dp = dayPoints(cls.id); if (dp && dp[driverId] != null) points += dp[driverId]; }
+  });
+  return { starts, wins, podiums, top5, best, points, days: Object.keys(days).length };
 }
-function hideViewerCard() { hideModal('viewerDriverCard'); }
+function openDriverCard(driverId) {
+  if (!driverById(driverId)) return;
+  driverCardId = driverId;
+  renderDriverCard();
+  document.getElementById('driverCard').classList.add('on');
+}
+function closeDriverCard() { document.getElementById('driverCard').classList.remove('on'); driverCardId = null; }
+function dcStat(n, l) { return '<div class="dc-stat"><div class="n">' + esc(String(n)) + '</div><div class="l">' + esc(l) + '</div></div>'; }
+function renderDriverCard() {
+  const d = driverById(driverCardId); if (!d) return;
+  const st = driverStats(driverCardId);
+  const classes = (S.raceDay.entries || []).filter(e => e.driverId === driverCardId).map(e => (classById(e.classId) || {}).name).filter(Boolean);
+  const p = d.profile || {};
+  const prem = !!p.premium;
+  // Re-validate the photo at render time — profiles can arrive via sync/Firebase, not just local upload.
+  const photo = profPhotoOK(p.photo) ? p.photo : '';
+  const linked = !!(d.profileId || p.source === 'profiles');
+  const panel = document.getElementById('dcPanel');
+  panel.classList.toggle('prem', prem);
+  panel.style.setProperty('--dc-team', prem && /^#[0-9a-fA-F]{6}$/.test(p.teamColor || '') ? p.teamColor : 'var(--plate)');
+  let h = '<div class="dc-hd">'
+    + (prem && photo ? '<img class="dc-photo" src="' + photo + '" alt="">' : discNum(d.num))
+    + '<div class="dc-heads"><div class="nm">' + esc(d.name) + '</div>'
+    + (prem && photo ? '<div class="cls">#' + esc(String(d.num)) + (classes.length ? ' · ' + classes.map(esc).join(' · ') : '') + '</div>'
+      : (classes.length ? '<div class="cls">' + classes.map(esc).join(' · ') + '</div>' : ''))
+    + '</div></div>';
+  if (prem) h += '<div class="dc-checker"></div>';
+  h += '<div class="dc-stats">'
+    + dcStat(st.wins, 'Wins') + dcStat(st.podiums, 'Podiums') + dcStat(st.top5, 'Top 5')
+    + dcStat(st.starts, 'Starts') + dcStat(st.best != null ? ordinal(st.best) : '—', 'Best') + dcStat(st.points || 0, 'Points')
+    + '</div>';
+  h += '<div class="dc-body">';
+  const rows = [];
+  if (p.age) rows.push(['Age', p.age]);
+  if (p.hometown) rows.push(['Hometown', p.hometown]);
+  if (p.sponsors) rows.push(['Sponsors', p.sponsors]);
+  h += rows.length ? rows.map(r => '<div class="dc-row"><b>' + esc(r[0]) + '</b><span>' + esc(String(r[1])) + '</span></div>').join('')
+    : '<p style="color:var(--muted);font-size:13px;margin:0">No profile details yet' + (deviceRole() === 'admin' ? ' — add them below.' : '.') + '</p>';
+  if (st.starts === 0) h += '<p style="color:var(--muted);font-size:12px;margin:10px 0 0">Race stats fill in as race days are saved to history.</p>';
+  if (linked && p.pendingFetch) h += '<p style="color:var(--muted);font-size:12px;margin:10px 0 0">🔗 Driven card linked — it loads the next time this device is online.</p>';
+  if (deviceRole() === 'admin') {
+    h += linked
+      ? '<div style="margin-top:14px;display:flex;gap:8px;flex-wrap:wrap;align-items:center">'
+        + '<span style="font-size:12px;color:var(--muted)">🔗 Managed in Driven</span>'
+        + '<button class="btn btn-sm" onclick="refreshProfile()">↻ Refresh</button>'
+        + '<button class="btn btn-sm" onclick="unlinkProfile()">Unlink</button></div>'
+      : '<div style="margin-top:14px;display:flex;gap:8px;flex-wrap:wrap">'
+        + '<button class="btn btn-sm" onclick="editDriverCard()">✎ Edit profile</button>'
+        + '<button class="btn btn-sm" onclick="linkProfilePrompt()">🔗 Link Driven</button></div>';
+  }
+  h += '</div>';
+  document.getElementById('dcBody').innerHTML = h;
+}
+// Admin: link/refresh/unlink a driver's published Profiles card from the card overlay.
+function linkProfilePrompt() {
+  const d = driverById(driverCardId); if (!d || deviceRole() !== 'admin') return;
+  const code = prompt("Driver's Driven link code (from their Driven app):");
+  if (!code || !code.trim()) return;
+  linkProfile(d.id, code.trim())
+    .then(renderDriverCard)
+    .catch(err => {
+      renderDriverCard();
+      alert(err && err.pending
+        ? 'Linked — the card loads when this device is online.'
+        : "That code didn't match a published card — check it and try again.");
+    });
+}
+function refreshProfile() {
+  const d = driverById(driverCardId); if (!d || !(d.profileId || d.profileCode)) return;
+  linkProfile(d.id, d.profileId || d.profileCode)
+    .then(renderDriverCard)
+    .catch(() => { renderDriverCard(); alert("Couldn't refresh — check the connection."); });
+}
+function unlinkProfile() {
+  const d = driverById(driverCardId); if (!d) return;
+  if (!confirm("Unlink this driver's Driven card? The profile returns to local control.")) return;
+  delete d.profileId; delete d.profileCode;
+  if (d.profile) { delete d.profile.pendingFetch; delete d.profile.source; }
+  save();
+  renderDriverCard();
+}
+function editDriverCard() {
+  const d = driverById(driverCardId); if (!d) return;
+  const p = d.profile || {};
+  let h = '<div class="dc-hd">' + discNum(d.num) + '<div class="dc-heads"><div class="nm">' + esc(d.name) + '</div></div></div>';
+  h += '<div class="dc-body">'
+    + '<label>Age</label><input id="dcAge" type="text" value="' + esc(p.age || '') + '">'
+    + '<label>Hometown</label><input id="dcHome" type="text" value="' + esc(p.hometown || '') + '">'
+    + '<label>Sponsors</label><input id="dcSpon" type="text" placeholder="e.g. Smith Tire, NAPA" value="' + esc(p.sponsors || '') + '">'
+    + '<label style="display:flex;align-items:center;gap:8px;margin-top:14px;cursor:pointer"><input id="dcPrem" type="checkbox" style="width:auto"' + (p.premium ? ' checked' : '') + '> Premium broadcast card</label>'
+    + '<label>Team color</label><input id="dcColor" type="color" value="' + esc(/^#[0-9a-fA-F]{6}$/.test(p.teamColor || '') ? p.teamColor : '#ffd449') + '" style="height:40px;padding:3px">'
+    + '<label>Driver photo</label>'
+    + '<div style="display:flex;gap:8px;align-items:center">'
+    + (profPhotoOK(p.photo) ? '<img src="' + p.photo + '" style="width:44px;height:44px;border-radius:50%;object-fit:cover">' : '')
+    + '<button class="btn btn-sm" type="button" onclick="document.getElementById(\'dcPhotoFile\').click()">📷 ' + (p.photo ? 'Replace' : 'Upload') + '</button>'
+    + (p.photo ? '<button class="btn btn-sm" type="button" onclick="dcRemovePhoto()">Remove</button>' : '')
+    + '<input id="dcPhotoFile" type="file" accept="image/*" style="display:none" onchange="dcUploadPhoto(this)">'
+    + '</div>'
+    + '<div style="margin-top:16px;display:flex;gap:8px"><button class="btn btn-primary" onclick="saveDriverProfile()">Save</button><button class="btn" onclick="renderDriverCard()">Cancel</button></div>'
+    + '</div>';
+  document.getElementById('dcBody').innerHTML = h;
+}
+function saveDriverProfile() {
+  const d = driverById(driverCardId); if (!d) return;
+  if (d.profileId || (d.profile && d.profile.source === 'profiles')) { renderDriverCard(); return; }   // linked cards are managed in Profiles
+  const prev = d.profile || {};
+  d.profile = {
+    age: document.getElementById('dcAge').value.trim(),
+    hometown: document.getElementById('dcHome').value.trim(),
+    sponsors: document.getElementById('dcSpon').value.trim(),
+    premium: document.getElementById('dcPrem').checked,
+    teamColor: document.getElementById('dcColor').value,
+    photo: prev.photo || ''
+  };
+  save();
+  renderDriverCard();
+}
+// Photo upload: downscale to 128px like the track logo so roster sync payloads stay small.
+function dcUploadPhoto(input) {
+  const d = driverById(driverCardId);
+  const f = input.files && input.files[0];
+  input.value = '';
+  if (!f || !d) return;
+  const img = new Image();
+  const url = URL.createObjectURL(f);
+  img.onload = () => {
+    URL.revokeObjectURL(url);
+    const side = Math.min(img.width, img.height);      // center-crop square, then downscale
+    const scale = Math.min(1, 128 / side);
+    const c = document.createElement('canvas');
+    c.width = c.height = Math.max(1, Math.round(side * scale));
+    c.getContext('2d').drawImage(img, (img.width - side) / 2, (img.height - side) / 2, side, side, 0, 0, c.width, c.height);
+    const data = c.toDataURL('image/jpeg', 0.82);
+    if (data.length > 60000) { alert('That photo is too heavy to store — try a smaller or simpler image.'); return; }
+    d.profile = d.profile || {};
+    d.profile.photo = data;
+    save();
+    editDriverCard();   // stay in the edit form with the new photo showing
+  };
+  img.onerror = () => { URL.revokeObjectURL(url); alert("Couldn't read that file as an image."); };
+  img.src = url;
+}
+function dcRemovePhoto() {
+  const d = driverById(driverCardId); if (!d || !d.profile) return;
+  d.profile.photo = '';
+  save();
+  editDriverCard();
+}
 function showClassCard(id) {
   if (deviceRole() !== 'viewer') return;
   const c = classById(id); if (!c) return;
@@ -3173,7 +3447,7 @@ function renderPinCard() {
       + '<span style="margin-left:auto;display:flex;gap:6px">'
       + '<button class="btn btn-sm" onclick="setPin()">Change PIN</button>'
       + '<button class="btn btn-sm btn-danger" onclick="delPin()">Remove PIN</button></span></div>'
-      + '<p style="font-size:12px;color:var(--muted);margin-top:8px">If the PIN is forgotten, clearing this site\'s browser data resets it — along with everything else, so keep a backup.</p>';
+      + '<p style="font-size:12px;color:var(--muted);margin-top:8px">If the PIN is forgotten, entering the wrong one on the Admin tab offers a recovery using this device\'s access code — no data lost.</p>';
   } else {
     el.innerHTML = '<div style="display:flex;gap:10px;flex-wrap:wrap;align-items:center">'
       + '<span style="font-size:13.5px">No PIN set — anyone using this device can open Admin.</span>'
@@ -3840,6 +4114,78 @@ function loadFirebase() {
   });
 }
 
+// One-shot Firebase access without touching sync state — used for Profiles card reads.
+function ensureFirebase() {
+  if (!FIREBASE_CONFIG.apiKey) return Promise.reject(new Error('no firebase config'));
+  return loadFirebase().then(() => { if (!firebase.apps.length) firebase.initializeApp(FIREBASE_CONFIG); });
+}
+
+// ---------- RaceDay Profiles: pull a driver's published card ----------
+// Card data comes from an unauthenticated store, so treat every field as untrusted:
+// type-check, length-cap, anchor-match the photo, and recompute the premium hash.
+function profStr(v, cap) { return typeof v === 'string' ? v.slice(0, cap) : ''; }
+function profPhotoOK(src) { return typeof src === 'string' && src.length <= 80000 && /^data:image\/(png|jpe?g);base64,[A-Za-z0-9+/=]+$/.test(src); }
+function sanitizeProfileCard(profileId, card) {
+  if (!card || typeof card !== 'object') return null;
+  return {
+    age: profStr(card.age, 8),
+    hometown: profStr(card.hometown, 60),
+    sponsors: profStr(card.sponsors, 160),
+    teamColor: /^#[0-9a-fA-F]{6}$/.test(card.teamColor || '') ? card.teamColor : '',
+    photo: profPhotoOK(card.photo) ? card.photo : '',
+    premium: premCheck(profileId, card.premiumCode),
+    source: 'profiles'
+  };
+}
+function resolveProfileId(codeOrId) {
+  const raw = String(codeOrId || '').trim();
+  if (/^prof_[a-z0-9]{6,20}$/i.test(raw)) return Promise.resolve(raw.toLowerCase());
+  const short = raw.toUpperCase().replace(/[^A-Z0-9]/g, '');
+  if (short.length < 6 || short.length > 14) { const e = new Error('bad code'); e.known = true; return Promise.reject(e); }
+  return firebase.database().ref('profiles_short/' + short).once('value').then(s => {
+    const id = s.val();
+    if (typeof id !== 'string' || !/^prof_[a-z0-9]{6,20}$/i.test(id)) { const e = new Error('unknown code'); e.known = true; throw e; }
+    return id;
+  });
+}
+// Link (or refresh) a roster driver to their published Profiles card. On a network
+// failure the link is remembered as pending and retried when connectivity returns —
+// the sign-up laptop at the gate is often offline.
+function linkProfile(driverId, codeOrId) {
+  const d = driverById(driverId);
+  if (!d) return Promise.reject(new Error('no driver'));
+  const raw = String(codeOrId || '').trim();
+  return ensureFirebase().then(() => resolveProfileId(raw)).then(id =>
+    firebase.database().ref('profiles/' + id + '/card').once('value').then(snap => {
+      const clean = sanitizeProfileCard(id, snap.val());
+      if (!clean) { const e = new Error('no published card'); e.known = true; throw e; }
+      d.profileId = id;
+      d.profileCode = raw.toUpperCase();
+      d.profile = clean;
+      save();
+      return d;
+    })
+  ).catch(err => {
+    if (err && err.known) throw err;                    // bad/unknown code: don't pend
+    d.profileCode = raw.toUpperCase();                  // network/SDK failure: retry later
+    if (/^prof_[a-z0-9]{6,20}$/i.test(raw)) d.profileId = raw.toLowerCase();
+    d.profile = Object.assign({ age: '', hometown: '', sponsors: '', teamColor: '', photo: '', premium: false },
+                              d.profile, { source: 'profiles', pendingFetch: true });
+    save();
+    const e2 = new Error('pending'); e2.pending = true; throw e2;
+  });
+}
+function retryPendingProfiles() {
+  (S.roster || []).forEach(d => {
+    if (d.profile && d.profile.pendingFetch && (d.profileId || d.profileCode)) {
+      linkProfile(d.id, d.profileId || d.profileCode)
+        .then(() => { if (driverCardId === d.id) renderDriverCard(); })
+        .catch(() => {});
+    }
+  });
+}
+window.addEventListener('online', retryPendingProfiles);
+
 function initSync() {
   if (!syncOn() || !syncKey()) return;
   loadFirebase().then(() => {
@@ -3965,12 +4311,12 @@ function opPinOk(action) {
     const p1 = prompt('Create a private Operator PIN (4–8 digits). Only you know this — the tracks never see it:');
     if (p1 === null) return false;
     if (!/^\d{4,8}$/.test(p1)) { alert('The PIN must be 4–8 digits.'); return false; }
-    S.operatorPin = p1; try { localStorage.setItem(KEY, JSON.stringify(S)); } catch (e) {}  // intentional: operatorPin is local-only, must not go through syncPush
+    S.operatorPin = pinHash(p1); try { localStorage.setItem(KEY, JSON.stringify(S)); } catch (e) {}  // intentional: operatorPin is local-only, must not go through syncPush
     return true;
   }
   const t = prompt('Enter your Operator PIN to ' + action + ':');
   if (t === null) return false;
-  if (t === S.operatorPin) return true;
+  if (pinHash(t) === S.operatorPin) return true;
   alert('Wrong Operator PIN.'); return false;
 }
 function opTakeControl() {
@@ -4033,15 +4379,15 @@ function toggleKiosk(on) { S.settings.kioskReg = !!on; save(); applyRole(); }
 // (Admin → Device Access) directly in that device's own browser; those links carry
 // their own role in the URL and apply it on load with no on-screen control needed.
 function changeDeviceRole() {
-  if (deviceRole() === 'viewer') return;
-  if (!S.adminPin) {
+  const currentRole = deviceRole();
+  if (currentRole === 'viewer') return;
+  // Viewer role cannot escalate to admin/operator without PIN, even if no PIN is set.
+  // This prevents silent unprotected escalation from the escape hatch.
+  if (S.adminPin || (currentRole === 'viewer')) {
+    if (!adminOk()) return;
+  } else {
     if (!confirm("This track hasn't set an admin PIN, so anyone can change this device's role right now. Continue? (Set a PIN from Admin → PIN to lock this down.)")) return;
-    setRolePrompt();
-    return;
   }
-  const t = prompt('Enter the admin PIN to change this device\'s role');
-  if (t === null) return;
-  if (t !== S.adminPin) { alert('Wrong PIN.'); return; }
   setRolePrompt();
 }
 
@@ -5189,6 +5535,8 @@ checkDayBanner();
 renderLicBanner();
 renderGrid();
 initSync();
+// Pick up any Profiles cards that were linked while offline (no-op when none are pending).
+if (navigator.onLine && (S.roster || []).some(d => d.profile && d.profile.pendingFetch)) retryPendingProfiles();
 // First-run setup ONLY for a genuinely new, standalone admin device — never for a device
 // that is JOINING an already-existing track (any non-admin role, or sync already enabled
 // from a ?sync= link). initSync() above is async, so on ANY fresh device S.track.name is
