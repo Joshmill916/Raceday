@@ -122,7 +122,7 @@ const check = (name, ok, extra) => {
   // ============================================================================
   console.log('\n=== 2. VIEWER (spectator) is fully locked down ===');
   resetDlg();
-  await page.evaluate(() => { localStorage.clear(); S = load(); S.track.name = 'T'; S.adminPin = '1234'; S.sync = { enabled: true, key: 'LIVEROOM' }; save(); setDeviceRole('viewer'); });
+  await page.evaluate(() => { localStorage.clear(); S = load(); S.track.name = 'T'; S.adminPin = pinHash('1234'); S.sync = { enabled: true, key: 'LIVEROOM' }; save(); setDeviceRole('viewer'); });
   await go(base);
   await page.waitForTimeout(400);
 
@@ -159,7 +159,7 @@ const check = (name, ok, extra) => {
 
   // 3a. viewer + ?role=scoring, wrong PIN → stays viewer.
   resetDlg();
-  await page.evaluate(() => { localStorage.clear(); S = load(); S.track.name = 'T'; S.adminPin = '1234'; S.sync = { enabled: true, key: 'LIVEROOM' }; save(); setDeviceRole('viewer'); });
+  await page.evaluate(() => { localStorage.clear(); S = load(); S.track.name = 'T'; S.adminPin = pinHash('1234'); S.sync = { enabled: true, key: 'LIVEROOM' }; save(); setDeviceRole('viewer'); });
   answer = (m) => { if (/admin PIN/i.test(m)) return '0000'; return true; };   // wrong PIN, accept other confirms
   await go(base + '?sync=LIVEROOM&role=scoring');
   await page.waitForTimeout(500);
@@ -218,7 +218,7 @@ const check = (name, ok, extra) => {
 
   // admin page is PIN-gated once a PIN exists.
   resetDlg();
-  await page.evaluate(() => { S.adminPin = '1234'; save(); setDeviceRole('admin'); sessionStorage.removeItem('rd_admin_ok'); nav('signup'); });
+  await page.evaluate(() => { S.adminPin = pinHash('1234'); save(); setDeviceRole('admin'); sessionStorage.removeItem('rd_admin_ok'); nav('signup'); });
   answer = () => false;   // dismiss/refuse the PIN prompt AND the "forgot it?" offer
   await page.evaluate(() => { try { nav('admin'); } catch (e) {} });
   await page.waitForTimeout(200);
@@ -241,7 +241,7 @@ const check = (name, ok, extra) => {
   // 6a. Correct access code clears the PIN, keeps data.
   resetDlg();
   await page.evaluate(() => {
-    localStorage.clear(); S = load(); S.track.name = 'T'; S.adminPin = '1234';
+    localStorage.clear(); S = load(); S.track.name = 'T'; S.adminPin = pinHash('1234');
     S.license = { code: 'TESTTRACK-0-ABCDEF', name: 'TESTTRACK', exp: '0' };
     S.roster = [{ id: 1, name: 'Keep', num: '9', noPoints: false }];
     save(); setDeviceRole('admin'); sessionStorage.removeItem('rd_admin_ok'); nav('signup');
@@ -260,7 +260,7 @@ const check = (name, ok, extra) => {
   // 6b. Wrong code → destructive fallback offered → keeps the license through the wipe.
   resetDlg();
   await page.evaluate(() => {
-    localStorage.clear(); S = load(); S.track.name = 'T'; S.adminPin = '1234';
+    localStorage.clear(); S = load(); S.track.name = 'T'; S.adminPin = pinHash('1234');
     S.license = { code: 'TESTTRACK-0-ABCDEF', name: 'TESTTRACK', exp: '0' };
     S.roster = [{ id: 1, name: 'Wipe', num: '9', noPoints: false }];
     save(); setDeviceRole('admin'); sessionStorage.removeItem('rd_admin_ok'); nav('signup');
@@ -279,7 +279,7 @@ const check = (name, ok, extra) => {
 
   // 6c. Correct PIN never triggers the recovery flow at all.
   resetDlg();
-  await page.evaluate(() => { localStorage.clear(); S = load(); S.track.name = 'T'; S.adminPin = '1234'; save(); setDeviceRole('admin'); sessionStorage.removeItem('rd_admin_ok'); nav('signup'); });
+  await page.evaluate(() => { localStorage.clear(); S = load(); S.track.name = 'T'; S.adminPin = pinHash('1234'); save(); setDeviceRole('admin'); sessionStorage.removeItem('rd_admin_ok'); nav('signup'); });
   answer = (m) => { if (/Enter the admin PIN/i.test(m)) return '1234'; return false; };
   await page.evaluate(() => { try { nav('admin'); } catch (e) {} });
   await page.waitForTimeout(200);
@@ -415,6 +415,22 @@ const check = (name, ok, extra) => {
   answer = (m) => { if (/Enter the admin PIN/i.test(m)) return '4321'; return false; };
   check('adminOk() accepts a wizard-set PIN (no lockout)', await page.evaluate(() => { sessionStorage.removeItem('rd_admin_ok'); return adminOk(); }));
   check('no recovery prompt fired for the correct wizard-set PIN', !dlgSeen.some(m => /Forgot it|recovering/i.test(m)), dlgSeen.join(' | '));
+
+  // ============================================================================
+  console.log('\n=== 12. A hashed PIN SURVIVES a reload (migration must not re-hash it) ===');
+  // (Live bug: defaults() was left at schemaVersion 2 when migration 3 — "hash plaintext
+  //  PINs" — shipped. Every FRESH install therefore re-ran migration 3 on its next load
+  //  and hashed the already-hashed PIN, locking the owner out with the CORRECT PIN.
+  //  The guard: set a PIN on a fresh-defaults device, reload, correct PIN must unlock.)
+  resetDlg();
+  await page.evaluate(() => { localStorage.clear(); S = load(); S.track.name = 'T'; S.adminPin = pinHash('1234'); save(); });
+  await go(base);   // reload → load() → migrate() runs against the freshly-defaulted state
+  await page.waitForTimeout(300);
+  check('stored PIN unchanged by the reload (no double-hash)', await page.evaluate(() => S.adminPin === pinHash('1234')), await page.evaluate(() => 'stored=' + S.adminPin + ' expected=' + pinHash('1234')));
+  resetDlg();
+  answer = (m) => { if (/Enter the admin PIN/i.test(m)) return '1234'; return false; };
+  check('correct PIN still unlocks admin after a reload', await page.evaluate(() => { sessionStorage.removeItem('rd_admin_ok'); return adminOk(); }));
+  check('defaults() schemaVersion matches the latest migration', await page.evaluate(() => { const d = defaults(); const m = migrate(JSON.parse(JSON.stringify(d))); return d.schemaVersion === m.schemaVersion; }));
 
   await browser.close();
   server.close();

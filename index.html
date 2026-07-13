@@ -1155,7 +1155,10 @@ function defaults() {
     settings: { maxHeat: 8, maxBMain: 12, maxFeature: 20, transfers: 2, gridStyle: 'double', heatFill: 'alternate', bmainMode: 'single', bmainCount: 2, points: { mode: 'fixed', table: [10, 8, 6, 5, 4, 3, 2, 1], beyond: 0 }, requireConsent: true, captureConsentIP: true },
     raceDay: { date: today(), entries: [], heatResults: {}, pointsRace: {}, resultGov: {}, resultVersions: {} },  // entries: {driverId, classId, pill}; resultGov: per-class {status,locked}; resultVersions: per-class snapshots
     nextId: 100,
-    schemaVersion: 2,
+    // MUST equal the latest migration number in migrate(). Left at 2 when migration 3
+    // (PIN hashing) shipped, every fresh install re-hashed its already-hashed PIN on the
+    // next load — locking the owner out with the CORRECT PIN.
+    schemaVersion: 3,
     sync: { enabled: false, key: '' }             // live multi-device sync (off until activated)
   };
 }
@@ -4654,7 +4657,7 @@ function handleUrlParams() {
     if (role && role !== 'viewer' && deviceRole() === 'viewer') {
       if (S.adminPin) {
         const t = prompt('This link makes this device a "' + role + '" station (it can change the live race). Enter the admin PIN to allow it:');
-        if (t !== S.adminPin) { if (t !== null) alert('Wrong PIN — this device stays a spectator view.'); history.replaceState({}, '', location.pathname); return; }
+        if (t === null || pinHash(t) !== S.adminPin) { if (t !== null) alert('Wrong PIN — this device stays a spectator view.'); history.replaceState({}, '', location.pathname); return; }
       } else if (!confirm('This link makes this device a "' + role + '" station that can change the live race. The track hasn\'t set an admin PIN, so anyone with this link can do this. Continue?')) {
         history.replaceState({}, '', location.pathname); return;
       }
