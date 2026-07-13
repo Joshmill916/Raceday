@@ -1313,14 +1313,6 @@ function restoreResVersion(clsId, idx) {
   logAudit('Restored results version', '', v.label, classById(clsId).name);
   save(); renderClassResults(clsId);
 }
-function recalcPoints(clsId) {
-  if (!adminOk()) return;
-  logAudit('Recalculated points', '', 'recomputed from current finishes', classById(clsId).name);
-  save(); renderClassResults(clsId);
-  if (typeof renderPoints === 'function') renderPoints();
-  if (typeof flashMsg === 'function') flashMsg('Points recalculated from current finishes.');
-}
-
 const UI = { viewClsId: null, viewStage: 'qual', ptsTab: null, ptsNames: [], histOpen: null, admOpen: null, pillChoiceCb: null, wizStep: 1 };
 let S = load();
 // Clear admin session flag on page load to prevent sessionStorage inheritance
@@ -1592,7 +1584,7 @@ function newRaceDay() {
       exportBackup();
     }
   }
-  archiveDay();
+  if (!archiveDay()) return;   // cancelled at the incomplete-points warning — keep the board
   logAudit('Started new race day', S.raceDay.date, today(), 'Race day');
   resOverride = {};
   S.raceDay = { date: today(), entries: [], heatResults: {}, pointsRace: {}, resultGov: {}, resultVersions: {} };
@@ -1904,11 +1896,18 @@ function step2() {
 function showStep(n) { [1,2,3].forEach(i => document.getElementById('s' + i).style.display = i === n ? '' : 'none'); }
 function showModal(id, display) { const el = document.getElementById(id); if (el) el.style.display = display || 'block'; }
 function hideModal(id) { const el = document.getElementById(id); if (el) el.style.display = 'none'; }
+// Same-name drivers (e.g. parent/child): an exact name+number match wins. A name match
+// with a DIFFERENT number is still the same person changing numbers — unless that record
+// is already racing today under the old number, which means two different people, so we
+// return undefined and the caller creates a separate roster record.
 function findRosterMatch(name, num) {
-  const match = S.roster.find(d => d.name.toLowerCase() === name.toLowerCase());
-  if (!match || !num) return match;
-  if (String(match.num).toLowerCase() === String(num).toLowerCase()) return match;
-  return S.roster.find(d => d.name.toLowerCase() === name.toLowerCase() && String(d.num).toLowerCase() === String(num).toLowerCase());
+  const byName = S.roster.filter(d => d.name.toLowerCase() === String(name).toLowerCase());
+  if (!byName.length) return undefined;
+  if (num == null || num === '') return byName[0];
+  const exact = byName.find(d => String(d.num).toLowerCase() === String(num).toLowerCase());
+  if (exact) return exact;
+  const racingToday = byName.some(d => S.raceDay.entries.some(e => e.driverId === d.id));
+  return racingToday ? undefined : byName[0];
 }
 
 function renderChips() {
@@ -1921,7 +1920,7 @@ function renderChips() {
     }
     return;
   }
-  const match = findRosterMatch(cur.name);
+  const match = findRosterMatch(cur.name, cur.num);   // must resolve the SAME record register() will use
   const enteredIds = match ? S.raceDay.entries.filter(e => e.driverId === match.id).map(e => e.classId) : [];
   el.innerHTML = S.classes.map(c => {
     const already = enteredIds.includes(c.id);
@@ -1988,7 +1987,7 @@ function register() {
   // but only once per driver per day, not once per class entered
   if (S.settings && S.settings.requireConsent) {
     const today_str = today();
-    const alreadyConsented = (S.consents || []).some(c => c.date === today_str && c.driver === driver.name && c.num === driver.num);
+    const alreadyConsented = (S.consents || []).some(c => c.date === today_str && c.driver === driver.name && String(c.num) === String(driver.num));
     if (!alreadyConsented) recordConsent(driver.name, driver.num);
   }
 
@@ -2609,12 +2608,16 @@ function bmKey(mi, id) { return (mi === 0 ? 'bm_' : 'bm' + mi + '_') + id; }
 function mainLabel(i) { return String.fromCharCode(66 + i) + '-main'; }   // 0→B-main, 1→C-main, 2→D-main
 function mainTopIds(clsId, mi, drivers, n) {
   const res = getRes(clsId);
-  const withRes = drivers.filter(r => typeof res[bmKey(mi, r.id)] === 'number')
-    .sort((a, b) => res[bmKey(mi, a.id)] - res[bmKey(mi, b.id)]);
-  const made = [];
-  for (const r of withRes) {
-    if (made.length >= n) break;
-    if (res[bmKey(mi, r.id)] > 0) made.push(r);
+  const made = drivers.filter(r => typeof res[bmKey(mi, r.id)] === 'number' && res[bmKey(mi, r.id)] > 0)
+    .sort((a, b) => res[bmKey(mi, a.id)] - res[bmKey(mi, b.id)]).slice(0, n);
+  // Fewer finishers than transfer spots (short field + breakdowns): promote DNFs in
+  // running order rather than leave the feature a car short — a car that started and
+  // broke is still eligible. DNS (never started) and DQ (disqualified) never advance.
+  if (made.length < n) {
+    for (const r of drivers) {
+      if (made.length >= n) break;
+      if (res[bmKey(mi, r.id)] === 'DNF') made.push(r);
+    }
   }
   return made;
 }
@@ -2699,7 +2702,10 @@ function featureDataRaw(clsId) {
 // For a feature transferee, which main they came through and their finish there.
 function transferOrigin(fd, clsId, id) {
   const res = getRes(clsId);
-  for (const m of fd.mains) if (m.feeds === 'the feature' && m.made.some(t => t.id === id)) return m.label + ' P' + res[bmKey(m.key, id)];
+  for (const m of fd.mains) if (m.feeds === 'the feature' && m.made.some(t => t.id === id)) {
+    const v = res[bmKey(m.key, id)];
+    return m.label + ' ' + (typeof v === 'number' ? 'P' + v : String(v || 'transfer'));   // a promoted DNF shows "B-main DNF", not "PDNF"
+  }
   return 'transfer';
 }
 
@@ -3024,17 +3030,30 @@ function buildSnapshot() {
   });
   return snap;
 }
+// Returns false ONLY when the admin cancels at the incomplete-points warning — callers
+// that clear the board afterwards (newRaceDay, seedDemo) MUST abort on false, or a
+// cancel would wipe the day without archiving it.
 function archiveDay() {
   const snap = buildSnapshot();
-  if (!snap.classes.length) return;
-  const incomplete = snap.classes.filter(c => c.pointsRace && (!c.points || !c.points.length));
-  if (incomplete.length) {
-    const msg = incomplete.map(c => c.name).join(', ');
-    if (!confirm('⚠ Points race(s) not fully entered: ' + msg + '\n\nResults won\'t count in the series. Archive anyway?')) return;
-  }
+  if (!snap.classes.length) return true;   // nothing to archive
+  // Warn when a points class's feature isn't fully entered — those points silently never
+  // count in the series. Same completeness rule as the points toggle: any stored feature
+  // value (a DNF/DNS/DQ string too) counts as entered.
+  const incomplete = [];
+  S.classes.forEach(cls => {
+    if (!isPointsRace(cls.id)) return;
+    const fd = featureData(cls.id);
+    const field = [...fd.locked, ...fd.transferred];
+    if (!field.length) return;
+    const res = getRes(cls.id);
+    const entered = field.filter(r => res['ft_' + r.id] != null).length;
+    if (entered < field.length) incomplete.push(cls.name + (entered ? ' (' + entered + ' of ' + field.length + ' finishes)' : ' (no feature finishes)'));
+  });
+  if (incomplete.length && !confirm('⚠ Feature not fully entered:\n' + incomplete.join('\n') + '\n\nPoints for those classes won\'t count in the series.\n\nOK = archive anyway · Cancel = go back and finish results')) return false;
   S.history.unshift(snap);
   if (S.history.length > 60) S.history.length = 60;
   scheduleUsageBeacon();
+  return true;
 }
 
 // ---------- Import past race ----------
@@ -3613,12 +3632,21 @@ function setClassMax(id, val) {
   rememberClass(c.name, c.maxPill);
   save(); renderClsList();
 }
+// Class ids must be unique: bare Date.now() collides when two classes are added in the
+// same millisecond, and a device-local counter (S.nextId) would collide ACROSS synced
+// devices — classes sync, the counter doesn't. Timestamp bumped past any taken id fixes
+// the same-millisecond case without changing cross-device behavior.
+function newClassId() {
+  let id = Date.now();
+  while (S.classes.some(c => c.id === id)) id++;
+  return id;
+}
 function addClass() {
   const nameEl = document.getElementById('newClass'), maxEl = document.getElementById('newClassMax');
   const name = nameEl.value.trim();
   if (!name) return;
   const maxPill = Math.max(2, parseInt(maxEl.value) || 200);
-  S.classes.push({ id: S.nextId++, name, maxPill, description: '', ageGroup: '', specs: '' });
+  S.classes.push({ id: newClassId(), name, maxPill, description: '', ageGroup: '', specs: '' });
   rememberClass(name, maxPill);
   nameEl.value = ''; maxEl.value = '200';
   save(); renderClsList(); renderClsLib();
@@ -3643,7 +3671,7 @@ function renderClsLib() {
 function readdClass(i) {
   const x = S.classLib[i]; if (!x) return;
   if (S.classes.some(c => c.name.toLowerCase() === x.name.toLowerCase())) return;
-  S.classes.push({ id: Date.now(), name: x.name, maxPill: Math.max(2, x.maxPill || 100) });
+  S.classes.push({ id: newClassId(), name: x.name, maxPill: Math.max(2, x.maxPill || 100) });
   save(); renderAdmin();
 }
 
@@ -4052,7 +4080,10 @@ function seedDemo() {
   if (!canEnter()) { alert(entryBlockedMsg() + ' — use a valid license to load a demo race day.'); return; }
   if (syncOn()) { alert('This device is on Multi-device sync — loading demo here would push demo data to every synced device and replace the real race.\n\nTurn off sync on this device first (Admin → Multi-device sync), then load the demo.'); return; }
   if (!confirm('Load a demo race day with 25 sample drivers? Current entries are archived to history first (driver book is kept).')) return;
-  archiveDay();
+  if (!archiveDay()) return;   // cancelled at the incomplete-points warning — keep the board
+  // A demo day counts against the free trial (otherwise the trial gate above never
+  // closes — demo forever). Licensed tracks demo free: never burn a paid packet day.
+  if (!licStatus().licensed) consumeTrialDay();
   resOverride = {};
   const demoNames = ['Ava Brooks','Ben Carter','Cody Diaz','Dana Evans','Eli Ford','Finn Gray','Gia Hall','Hank Irwin','Ivy James','Jax King','Kya Lane','Leo Moss','Mia Nash','Noah Otis','Opal Pratt','Quinn Reed','Rio Sands','Sky Tate','Tess Uri','Uma Vance','Vic Webb','Wes Xu','Yara York','Zane Zell','Pat Quick'];
   S.raceDay = { date: today(), entries: [], heatResults: {}, pointsRace: {}, resultGov: {}, resultVersions: {} };
@@ -5525,7 +5556,7 @@ function wizNext() {
     if (p1 || p2) {
       if (p1 !== p2) { alert('PINs do not match.'); return; }
       if (!/^\d{4,8}$/.test(p1)) { alert('PIN must be 4–8 digits.'); return; }
-      S.adminPin = p1; save();
+      S.adminPin = pinHash(p1); save();   // hashed like setPin() — plaintext here locked the owner out (adminOk compares hashes)
     }
   }
   if (UI.wizStep === 5) { hideModal('setupWizard'); return; }
@@ -5536,7 +5567,13 @@ function renderWizClasses() {
   if (!el) return;
   el.innerHTML = S.classes.map((c, i) =>
     '<div class="wiz-cls-row"><input id="wizCls' + i + '" type="text" value="' + esc(c.name) + '" maxlength="40" placeholder="Class name"><span class="pill-hint">Pills 1–' + c.maxPill + '</span></div>'
-  ).join('');
+  ).join('')
+  + '<button class="btn btn-sm" type="button" onclick="wizAddClass()" style="margin-top:8px">+ Add a class</button>';
+}
+function wizAddClass() {
+  if (!wizSaveClasses()) return;   // keep any renames typed so far — re-rendering would discard them
+  S.classes.push({ id: newClassId(), name: 'New class ' + (S.classes.length + 1), maxPill: 200, description: '', ageGroup: '', specs: '' });
+  save(); renderWizClasses();
 }
 function wizSaveClasses() {
   const warnings = [];

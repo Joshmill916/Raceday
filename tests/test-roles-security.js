@@ -392,6 +392,30 @@ const check = (name, ok, extra) => {
   await page.waitForTimeout(500);
   check('?role=operator WITH correct opk grants operator role', (await role()) === 'operator', 'got ' + await role());
 
+  // ============================================================================
+  console.log('\n=== 11. Setup wizard stores a HASHED admin PIN (wizard-set PIN must unlock admin) ===');
+  // (Live bug: Phase 1 moved adminOk() to hash comparison but the wizard's step 4 kept
+  //  writing the PLAINTEXT pin — so a PIN set through first-run setup never validated
+  //  and locked the owner out of their own admin tab immediately after setup.)
+  resetDlg();
+  answer = () => true;
+  await page.evaluate(() => { localStorage.clear(); S = load(); save(); sessionStorage.removeItem('rd_admin_ok'); });
+  const wizPin = await page.evaluate(() => {
+    S.adminPin = ''; save();
+    openSetupWizard();
+    UI.wizStep = 4; wizShow(4);
+    document.getElementById('wizPin1').value = '4321';
+    document.getElementById('wizPin2').value = '4321';
+    wizNext();
+    hideModal('setupWizard');
+    return { stored: S.adminPin, hashed: S.adminPin === pinHash('4321'), plain: S.adminPin === '4321' };
+  });
+  check('wizard-set PIN is stored hashed, not plaintext', wizPin.hashed && !wizPin.plain, 'stored=' + JSON.stringify(wizPin.stored));
+  resetDlg();
+  answer = (m) => { if (/Enter the admin PIN/i.test(m)) return '4321'; return false; };
+  check('adminOk() accepts a wizard-set PIN (no lockout)', await page.evaluate(() => { sessionStorage.removeItem('rd_admin_ok'); return adminOk(); }));
+  check('no recovery prompt fired for the correct wizard-set PIN', !dlgSeen.some(m => /Forgot it|recovering/i.test(m)), dlgSeen.join(' | '));
+
   await browser.close();
   server.close();
   console.log(`\n==== ${pass} passed, ${fail} failed ====`);
