@@ -1904,7 +1904,12 @@ function step2() {
 function showStep(n) { [1,2,3].forEach(i => document.getElementById('s' + i).style.display = i === n ? '' : 'none'); }
 function showModal(id, display) { const el = document.getElementById(id); if (el) el.style.display = display || 'block'; }
 function hideModal(id) { const el = document.getElementById(id); if (el) el.style.display = 'none'; }
-function findRosterMatch(name) { return S.roster.find(d => d.name.toLowerCase() === name.toLowerCase()); }
+function findRosterMatch(name, num) {
+  const match = S.roster.find(d => d.name.toLowerCase() === name.toLowerCase());
+  if (!match || !num) return match;
+  if (String(match.num).toLowerCase() === String(num).toLowerCase()) return match;
+  return S.roster.find(d => d.name.toLowerCase() === name.toLowerCase() && String(d.num).toLowerCase() === String(num).toLowerCase());
+}
 
 function renderChips() {
   const el = document.getElementById('chips');
@@ -1943,7 +1948,7 @@ function register() {
   if (!canEnter()) { err.style.display = ''; err.textContent = entryBlockedMsg(); return; }
 
   // vehicle number must be unique within each selected class
-  const match = findRosterMatch(cur.name);
+  const match = findRosterMatch(cur.name, cur.num);
   for (const c of sel) {
     const clash = S.raceDay.entries.find(e => {
       if (e.classId !== c.id) return false;
@@ -1980,7 +1985,12 @@ function register() {
   if (profCode && !driver.profileId) linkProfile(driver.id, profCode).then(() => render(curPage)).catch(() => {});
 
   // record the Terms/Privacy acceptance (timestamp, role, version; IP filled best-effort)
-  if (S.settings && S.settings.requireConsent) recordConsent(driver.name, driver.num);
+  // but only once per driver per day, not once per class entered
+  if (S.settings && S.settings.requireConsent) {
+    const today_str = today();
+    const alreadyConsented = (S.consents || []).some(c => c.date === today_str && c.driver === driver.name && c.num === driver.num);
+    if (!alreadyConsented) recordConsent(driver.name, driver.num);
+  }
 
   // one pill per class, no repeats within a class
   consumeTrialDay();
@@ -2599,8 +2609,14 @@ function bmKey(mi, id) { return (mi === 0 ? 'bm_' : 'bm' + mi + '_') + id; }
 function mainLabel(i) { return String.fromCharCode(66 + i) + '-main'; }   // 0→B-main, 1→C-main, 2→D-main
 function mainTopIds(clsId, mi, drivers, n) {
   const res = getRes(clsId);
-  return drivers.filter(r => typeof res[bmKey(mi, r.id)] === 'number' && res[bmKey(mi, r.id)] > 0)
-    .sort((a, b) => res[bmKey(mi, a.id)] - res[bmKey(mi, b.id)]).slice(0, n);
+  const withRes = drivers.filter(r => typeof res[bmKey(mi, r.id)] === 'number')
+    .sort((a, b) => res[bmKey(mi, a.id)] - res[bmKey(mi, b.id)]);
+  const made = [];
+  for (const r of withRes) {
+    if (made.length >= n) break;
+    if (res[bmKey(mi, r.id)] > 0) made.push(r);
+  }
+  return made;
 }
 // Returns { mode, locked, mains:[{label,drivers,key,feeds,made}], transferred, transfers, toFeatureSpots }.
 // mains are in running order (cascade lists the lowest main first). transferred = who reaches the feature.
@@ -2708,9 +2724,10 @@ function dayPoints(clsId) {
   const pts = {};
   classRacers(clsId).forEach(r => { pts[r.id] = beyond; });
   if (mode === 'linear') {
-    // Every feature finisher scores: 1st = feature size, last = 1. Sizes to this class's feature live.
-    const top = Math.max(1, clsFeature(clsId) || 1);
-    fin.forEach(f => { pts[f.id] = f.fin >= 1 ? Math.max(1, top - f.fin + 1) : beyond; });
+    // Every feature finisher scores: 1st = field size, last = 1. Uses actual drivers in feature, not configured max.
+    const fd = featureData(clsId);
+    const fieldSize = Math.max(1, fd.locked.length + fd.transferred.length);
+    fin.forEach(f => { pts[f.id] = f.fin >= 1 ? Math.max(1, fieldSize - f.fin + 1) : beyond; });
   } else {
     fin.forEach(f => { pts[f.id] = f.fin >= 1 && f.fin <= table.length ? table[f.fin - 1] : beyond; });
   }
@@ -2974,7 +2991,6 @@ function resultGovBar(clsId) {
         + '<option value="">↺ Restore version…</option>'
         + versions.map((v, i) => '<option value="' + i + '">' + esc(v.label) + '</option>').join('') + '</select>';
     }
-    h += '<button class="btn btn-sm" onclick="recalcPoints(' + clsId + ')" title="Recompute standings & points from the current finishes">🔁 Recalculate</button>';
     h += '</div>';
   }
   h += '</div>';
@@ -3011,6 +3027,11 @@ function buildSnapshot() {
 function archiveDay() {
   const snap = buildSnapshot();
   if (!snap.classes.length) return;
+  const incomplete = snap.classes.filter(c => c.pointsRace && (!c.points || !c.points.length));
+  if (incomplete.length) {
+    const msg = incomplete.map(c => c.name).join(', ');
+    if (!confirm('⚠ Points race(s) not fully entered: ' + msg + '\n\nResults won\'t count in the series. Archive anyway?')) return;
+  }
   S.history.unshift(snap);
   if (S.history.length > 60) S.history.length = 60;
   scheduleUsageBeacon();
@@ -3597,7 +3618,7 @@ function addClass() {
   const name = nameEl.value.trim();
   if (!name) return;
   const maxPill = Math.max(2, parseInt(maxEl.value) || 200);
-  S.classes.push({ id: Date.now(), name, maxPill, description: '', ageGroup: '', specs: '' });
+  S.classes.push({ id: S.nextId++, name, maxPill, description: '', ageGroup: '', specs: '' });
   rememberClass(name, maxPill);
   nameEl.value = ''; maxEl.value = '200';
   save(); renderClsList(); renderClsLib();
@@ -4026,7 +4047,9 @@ document.addEventListener('keydown', e => { if (TV.on && e.key === 'Escape') clo
 
 // ---------- Demo data (for showing the app to a track) ----------
 function seedDemo() {
+  if (!adminOk()) return;
   if (!S.classes.length) { alert('Add at least one race class before loading a demo race day.'); return; }
+  if (!canEnter()) { alert(entryBlockedMsg() + ' — use a valid license to load a demo race day.'); return; }
   if (syncOn()) { alert('This device is on Multi-device sync — loading demo here would push demo data to every synced device and replace the real race.\n\nTurn off sync on this device first (Admin → Multi-device sync), then load the demo.'); return; }
   if (!confirm('Load a demo race day with 25 sample drivers? Current entries are archived to history first (driver book is kept).')) return;
   archiveDay();
@@ -5517,15 +5540,17 @@ function renderWizClasses() {
 }
 function wizSaveClasses() {
   const warnings = [];
-  S.classes.forEach((c, i) => {
+  for (let i = 0; i < S.classes.length; i++) {
+    const c = S.classes[i];
     const el = document.getElementById('wizCls' + i);
-    if (!el) return;
+    if (!el) continue;
     const v = el.value.trim();
-    if (v && v.toLowerCase() !== c.name.toLowerCase()) {
+    if (!v) { alert('Class ' + (i + 1) + ' name is blank. Every class needs a name.'); return false; }
+    if (v.toLowerCase() !== c.name.toLowerCase()) {
       const count = S.history.filter(h => h.classes.some(hc => hc.name.toLowerCase() === c.name.toLowerCase())).length;
       if (count > 0) warnings.push('"' + c.name + '" → "' + v + '" (' + count + ' archived race' + (count === 1 ? '' : 's') + ')');
     }
-  });
+  }
   if (warnings.length && !confirm('Renaming these classes will split their points series — past results won\'t merge with the new name.\n\n' + warnings.join('\n') + '\n\nRename anyway?')) return false;
   S.classes.forEach((c, i) => {
     const el = document.getElementById('wizCls' + i);
