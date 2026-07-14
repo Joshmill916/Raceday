@@ -2248,7 +2248,7 @@ function renderDriverCard() {
   const st = driverStats(driverCardId);
   const classes = (S.raceDay.entries || []).filter(e => e.driverId === driverCardId).map(e => (classById(e.classId) || {}).name).filter(Boolean);
   const p = d.profile || {};
-  const prem = !!p.premium;
+  const prem = cardPremiumOK(d);
   // Re-validate the photo at render time — profiles can arrive via sync/Firebase, not just local upload.
   const photo = profPhotoOK(p.photo) ? p.photo : '';
   const linked = !!(d.profileId || p.source === 'profiles');
@@ -4199,8 +4199,19 @@ function sanitizeProfileCard(profileId, card) {
     teamColor: /^#[0-9a-fA-F]{6}$/.test(card.teamColor || '') ? card.teamColor : '',
     photo: profPhotoOK(card.photo) ? card.photo : '',
     premium: premCheck(profileId, card.premiumCode),
+    // Keep the code so render can RE-verify premium — a profile object can be overwritten
+    // on the (public) sync room after linking, and a forged premium:true must not survive.
+    premiumCode: profStr(card.premiumCode, 40),
     source: 'profiles'
   };
+}
+// Trust premium only when it re-checks: for a Driven-linked card, recompute from the
+// stored code + profileId (defeats a forged boolean synced onto the roster); a locally
+// managed card keeps its own operator-set flag (cosmetic, not the driver's paid tier).
+function cardPremiumOK(driver) {
+  const p = (driver && driver.profile) || {};
+  if (p.source === 'profiles') return !!premCheck(driver.profileId, p.premiumCode);
+  return !!p.premium;
 }
 function resolveProfileId(codeOrId) {
   const raw = String(codeOrId || '').trim();

@@ -1,7 +1,7 @@
 /* Driven service worker — installability + offline app shell.
    Network-first for the page so updates always flow when online;
    cache-first for icons/manifest. Mirrors /sw.js at repo root. */
-const CACHE = 'driven-v1';
+const CACHE = 'driven-v2';
 const SHELL = ['./', './index.html', './manifest.webmanifest', '../icon-rd.png'];
 
 self.addEventListener('install', e => {

@@ -255,7 +255,7 @@
     <h2>Welcome to Driven</h2>
     <p class="sub">One racing profile that follows you across every RaceDay track. Create it once — results, stats, and your story all live here.</p>
     <label>Your name *</label>
-    <input type="text" id="obName" maxlength="60" placeholder="Alex Smith">
+    <input type="text" id="obName" maxlength="40" placeholder="Alex Smith">
     <label>Email (optional — for backup)</label>
     <input type="email" id="obEmail" maxlength="80" placeholder="alex@example.com">
     <label>Hometown (optional)</label>
@@ -306,7 +306,7 @@ function load() {
 }
 function save() {
   localStorage.setItem('profiles_v1', JSON.stringify(P));
-  if (P && P.publishedAt) publishCard(true);   // keep the published card current once published
+  if (P && P.publishedAt) publishCard(true).catch(function () {});   // silent auto-republish; swallow (caller surfaces over-cap/permission issues)
 }
 
 function genId() { return 'prof_' + Math.random().toString(36).slice(2, 10) + Math.random().toString(36).slice(2, 6); }
@@ -411,7 +411,35 @@ function cardPayload() {
     updatedAt: firebase.database.ServerValue.TIMESTAMP
   };
 }
+// The published Firebase rules cap each card field; a payload over any cap is REJECTED
+// server-side (a silent no-op on the auto-republish path). Catch it here first and name
+// the offending field so the driver can fix it, instead of a doomed write + false success.
+// Caps MUST match the .validate rules in FIREBASE-SYNC.md exactly.
+// Mirrors cardPayload()'s string fields WITHOUT the firebase timestamp sentinel, so it
+// can run before the SDK loads. updatedAt is numeric (no length cap) so it's not checked.
+var CARD_CAPS = { name: 40, num: 8, age: 8, hometown: 60, sponsors: 160, photo: 80000, premiumCode: 40 };
+function cardStrings() {
+  var d = P.driver;
+  return {
+    name: d.name || '', num: d.number || '', age: d.age != null ? String(d.age) : '',
+    hometown: d.hometown || '', sponsors: P.sponsors.map(function (s) { return s.name; }).join(' · '),
+    photo: d.photo || '', premiumCode: P.tier === 'premium' ? (P.premiumCode || '') : ''
+  };
+}
+function cardTooLong() {
+  var c = cardStrings(), labels = { name: 'Name', num: 'Number', age: 'Age', hometown: 'Hometown', sponsors: 'Sponsors', photo: 'Photo', premiumCode: 'Premium code' };
+  for (var k in CARD_CAPS) {
+    if (typeof c[k] === 'string' && c[k].length > CARD_CAPS[k]) {
+      return labels[k] + ' is too long (' + c[k].length + '/' + CARD_CAPS[k] + ' characters) — shorten it so your card can publish.';
+    }
+  }
+  return null;
+}
 function publishCard(silent) {
+  // Reject over-cap payloads up front — otherwise the card write is silently refused by
+  // the rules, leaving a claimed short code pointing at a stale/missing card.
+  var tooLong = cardTooLong();
+  if (tooLong) { if (!silent) alert('⚠️ ' + tooLong); return Promise.reject(Object.assign(new Error(tooLong), { known: true })); }
   return ensureFirebase().then(function () {
     var db = firebase.database();
     // Claim a short link code once: derived from the id; extend on the rare collision.
@@ -432,10 +460,15 @@ function publishCard(silent) {
       if (!silent) { alert('✅ Card published — give the track your link code: ' + P.shortCode); nav('card'); }
     });
   }).catch(function (e) {
-    if (!silent) alert("Couldn't publish — check your internet connection and try again.");
+    if (e && e.known) throw e;   // validation message already shown; don't mask it as a network error
+    // A rules rejection (PERMISSION_DENIED) is deterministic, not transient — say so.
+    if (!silent) alert(e && e.code === 'PERMISSION_DENIED'
+      ? "Couldn't publish — your card was rejected by the server. Check that every field is a reasonable length and try again."
+      : "Couldn't publish — check your internet connection and try again.");
+    throw e;
   });
 }
-function publishNow() { publishCard(false); }
+function publishNow() { publishCard(false).catch(function () {}); }
 
 /* ---------- Onboarding ---------- */
 function openOnboarding() { $id('onboardModal').style.display = 'flex'; }
@@ -712,7 +745,7 @@ function renderSettings() {
   var h = '<h2>Settings</h2>';
   h += '<div class="card">'
     + '<div class="slbl">Profile</div>'
-    + '<label>Name</label><input type="text" id="stName" value="' + esc(d.name) + '" maxlength="60">'
+    + '<label>Name</label><input type="text" id="stName" value="' + esc(d.name) + '" maxlength="40">'
     + '<label>Email</label><input type="email" id="stEmail" value="' + esc(d.email) + '" maxlength="80">'
     + '<label>Kart / vehicle number</label><input type="text" id="stNumber" value="' + esc(d.number || '') + '" maxlength="5" placeholder="e.g. 47 or 12A" autocapitalize="characters">'
     + '<label>Team color</label><input type="color" id="stTeamColor" value="' + esc(/^#[0-9a-fA-F]{6}$/.test(d.teamColor || '') ? d.teamColor : '#1f6fd6') + '" style="height:44px;padding:4px">'
@@ -726,7 +759,7 @@ function renderSettings() {
     + '<label>Hometown</label><input type="text" id="stHometown" value="' + esc(d.hometown) + '" maxlength="60">'
     + '<label>Age</label><input type="number" id="stAge" value="' + (d.age || '') + '" min="1" max="120">'
     + '<label>Bio (max 280 characters)</label><textarea id="stBio" maxlength="280">' + esc(d.bio) + '</textarea>'
-    + '<label>Sponsors (comma-separated)</label><input type="text" id="stSponsors" value="' + esc(P.sponsors.map(function (s) { return s.name; }).join(', ')) + '" placeholder="Smith Auto, FastKarts">'
+    + '<label>Sponsors (comma-separated)</label><input type="text" id="stSponsors" maxlength="150" value="' + esc(P.sponsors.map(function (s) { return s.name; }).join(', ')) + '" placeholder="Smith Auto, FastKarts">'
     + '<button class="btn btn-primary btn-block" onclick="saveProfileFields()" style="margin-top:16px">Save changes</button>'
     + '</div>';
 
@@ -759,7 +792,11 @@ function saveProfileFields() {
   var sponsorsRaw = ($id('stSponsors').value || '').trim();
   P.sponsors = sponsorsRaw ? sponsorsRaw.split(',').map(function (s) { return { name: s.trim() }; }).filter(function (s) { return s.name; }) : [];
   save();
-  alert('Saved.' + (P.publishedAt ? ' Your published card updates automatically.' : ''));
+  // Don't promise the published card updated if the new values exceed a field cap — the
+  // auto-republish in save() would be silently rejected by the rules.
+  var tooLong = P.publishedAt ? cardTooLong() : null;
+  if (tooLong) alert('Saved on this device — but your PUBLISHED card can\'t update: ' + tooLong);
+  else alert('Saved.' + (P.publishedAt ? ' Your published card updates automatically.' : ''));
 }
 
 // Photo: center-crop square, downscale to 128px JPEG (~≤60KB) so published cards stay light.

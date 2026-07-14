@@ -57,12 +57,37 @@ The Profiles→RaceDay card pipeline writes to unauthenticated RTDB paths
 XSS or fake premium — but anyone who learns a profileId could overwrite that driver's
 card, and unbounded writes are a storage/abuse risk.
 
-**Status:** `.validate` rules capping `profiles/*` node size and shape are written and
-documented in `FIREBASE-SYNC.md → Rules hardening (Profiles .validate caps)` — ready to
-paste into the Firebase Console's Rules tab any time (no app code changes needed, safe to
-publish independently). **Not yet published** — publishing live rules requires Console
-access, which is outside what this repo/session can do; the owner needs to do that step
-manually.
+**Status:** `.validate` rules **published to the live Console 2026-07-14** (verified
+against the official DB emulator loaded with the same rules — valid app writes accepted,
+over-cap/off-schema writes rejected, `tracks/*` sync untouched). The Driven app was
+updated the same day to cap inputs to match the rules and fail honestly instead of
+silently desyncing (see below).
+
+---
+
+## Profiles/Driven — known model-inherent items (audit 2026-07-14)
+
+Adversarial pass over both apps after the rules publish + Driven go-live. The one
+**regression** (over-cap fields silently failing to publish) was fixed the same day
+(input caps, `cardTooLong()` pre-check, honest error/success messaging, render-time
+premium recompute). These remaining items are **pre-existing and inherent to the
+open-store / path-as-password model** — none are newly introduced, and closing them
+properly needs the deferred backend/auth work:
+
+- **Premium codes are forgeable in principle** — `PREM_SALT` + the whole hash algorithm
+  ship client-side (`profiles/index.html`), same accepted tradeoff as `LIC_SALT`. A real
+  fix needs a server-side entitlement check. Mitigation shipped: RaceDay now **recomputes**
+  `premCheck()` at render for Driven-sourced cards (`cardPremiumOK`), so a forged
+  `premium:true` synced onto the roster no longer grants the premium look without a code.
+- **Local "Premium broadcast card" checkbox** (`index.html` editDriverCard) sets premium
+  on a *locally-managed* card with no code. Left as-is: it's the track styling its own
+  local card (cosmetic), not a bypass of the driver's paid Driven tier.
+- **Short-code poisoning / card swap** — `resolveProfileId` format-validates but can't
+  verify ownership; a write to `profiles_short/<victimShort>` can redirect a genuine code
+  to another card. Inherent to the open index; needs auth to close.
+- **Minor/latent:** photo cap mismatch (80000 rule vs 60000 upload — storage only);
+  `retryPendingProfiles` has no backoff/in-flight guard; short-code claim is a non-atomic
+  read-then-write (TOCTOU, collision odds ~2^-62).
 
 ---
 
