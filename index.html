@@ -407,7 +407,7 @@
         </div>
         <label>Vehicle number</label>
         <input id="dNum" type="text" placeholder="e.g. 47 or 12A" maxlength="5" autocomplete="off" autocapitalize="characters" />
-        <label>Driven link code <span style="font-weight:400;color:var(--muted)">(optional — from your Driven app)</span></label>
+        <label>Driven link code <span style="font-weight:400;color:var(--muted)">(optional — from your Driven app · <a href="https://joshmill916.github.io/Raceday/profiles/" target="_blank" rel="noopener" style="color:inherit">get the app</a>)</span></label>
         <input id="dProfCode" type="text" placeholder="e.g. K7Q2M4XN" maxlength="24" autocomplete="off" autocapitalize="characters" />
         <div id="e1" class="err" style="display:none"></div>
         <button class="btn btn-go btn-block" onclick="step2()">Next — pick your classes →</button>
@@ -1647,6 +1647,9 @@ const LIC_SALT = 'rd-grid-9f3k27xq-2026';   // must match raceday-codegen.html E
 // visible to anyone who reads this file's source, so it can't stop a determined reader,
 // but it does mean a leaked/guessed `?role=operator` link alone is inert without it too.
 const OPERATOR_KEY = 'rd-op-4h8vqz1n-2026';
+// The Driven companion app (driver-owned racing profiles) — one canonical URL,
+// used by every "Get Driven" link and the printable sign-up poster.
+const DRIVEN_URL = 'https://joshmill916.github.io/Raceday/profiles/';
 
 function licHash(str) {
   let h = 2166136261;
@@ -2278,9 +2281,10 @@ function renderDriverCard() {
         + '<span style="font-size:12px;color:var(--muted)">🔗 Managed in Driven</span>'
         + '<button class="btn btn-sm" onclick="refreshProfile()">↻ Refresh</button>'
         + '<button class="btn btn-sm" onclick="unlinkProfile()">Unlink</button></div>'
-      : '<div style="margin-top:14px;display:flex;gap:8px;flex-wrap:wrap">'
+      : '<div style="margin-top:14px;display:flex;gap:8px;flex-wrap:wrap;align-items:center">'
         + '<button class="btn btn-sm" onclick="editDriverCard()">✎ Edit profile</button>'
-        + '<button class="btn btn-sm" onclick="linkProfilePrompt()">🔗 Link Driven</button></div>';
+        + '<button class="btn btn-sm" onclick="linkProfilePrompt()">🔗 Link Driven</button>'
+        + '<a href="' + DRIVEN_URL + '" target="_blank" rel="noopener" style="font-size:12px;color:var(--muted)">What\'s Driven? Get the app →</a></div>';
   }
   h += '</div>';
   document.getElementById('dcBody').innerHTML = h;
@@ -4594,6 +4598,14 @@ function renderSyncCard() {
       + '<button class="btn" onclick="syncJoin()">Join with a sync code</button></div>';
     h += '<p style="font-size:12px;color:var(--muted);margin-top:8px">Start it on your main device, then send the registration / scoring / TV links to the other devices. Turning sync on also unlocks the <b>📱 Spectator QR</b> — fans scan it to see live lineups on their phones.</p>';
   }
+  // Driven doesn't ride on sync — the poster and link work for every track.
+  h += '<div style="margin-top:14px;border-top:1px solid var(--line,#d4d4cf);padding-top:12px">'
+    + '<div class="slbl" style="margin:0 0 6px">🏁 Driven — driver profiles</div>'
+    + '<p style="font-size:12.5px;color:var(--muted);margin:0 0 8px">Drivers install the free Driven app to build one racing profile that follows them to every RaceDay track. They give their link code at sign-up and their card (photo, sponsors, team color) shows on the driver card here. Hang the poster at the sign-up table.</p>'
+    + '<div style="display:flex;gap:8px;flex-wrap:wrap;align-items:center">'
+    + '<button class="btn btn-sm btn-primary" onclick="printDrivenPoster()">🖨 Print "Get Driven" poster</button>'
+    + '<a href="' + DRIVEN_URL + '" target="_blank" rel="noopener" style="font-size:12px;color:var(--muted)">Open the Driven app →</a></div>'
+    + '</div>';
   el.innerHTML = h;
   if (syncOn()) {
     const cv = document.getElementById('specQR');
@@ -4622,6 +4634,31 @@ function printQRPoster() {
     + '<p class="big">📱 Point your phone camera here</p>'
     + '<p class="sub">See your qualifying, heat, B-main &amp; feature lineups — updates live</p>'
     + '<div class="code">' + esc(url) + '</div>'
+    + '</body></html>');
+  w.document.close();
+  setTimeout(function () { try { w.print(); } catch (e) {} }, 350);
+}
+// Printable "Get Driven" poster for the sign-up table: QR to the Driven app so a
+// driver can install it on the spot and give their link code at sign-up.
+function printDrivenPoster() {
+  const cv = document.createElement('canvas'); cv.width = 600;
+  if (typeof drawQR !== 'function' || !drawQR(cv, DRIVEN_URL)) { alert('Could not build the QR code.'); return; }
+  const img = cv.toDataURL('image/png');
+  const track = (S.track && S.track.name) || 'RaceDay';
+  const w = window.open('', '_blank');
+  if (!w) { alert('Allow pop-ups to print the poster.'); return; }
+  w.document.write('<!DOCTYPE html><html><head><title>Get Driven — ' + esc(track) + '</title><style>'
+    + 'body{font-family:Arial,Helvetica,sans-serif;text-align:center;padding:48px 24px;color:#111}'
+    + 'h1{font-size:38px;margin:0 0 6px}h2{font-size:24px;font-weight:600;color:#444;margin:0 0 28px}'
+    + 'img{width:72%;max-width:480px;height:auto;image-rendering:pixelated}'
+    + 'p.big{font-size:24px;margin-top:28px;font-weight:700}p.sub{font-size:17px;color:#555;margin-top:6px}'
+    + '.code{font-size:13px;color:#888;margin-top:18px;word-break:break-all}'
+    + '</style></head><body>'
+    + '<h1>DRIVEN</h1><h2>One racing profile — every track</h2>'
+    + '<img src="' + img + '" alt="QR code">'
+    + '<p class="big">📱 Scan to get the free app</p>'
+    + '<p class="sub">Build your driver card once — photo, number, sponsors — then give your link code at sign-up and it follows you to every RaceDay track.</p>'
+    + '<div class="code">' + esc(DRIVEN_URL) + '</div>'
     + '</body></html>');
   w.document.close();
   setTimeout(function () { try { w.print(); } catch (e) {} }, 350);
