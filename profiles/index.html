@@ -349,6 +349,15 @@ function pHash(str) {
   return fnv(str, 2166136261) + fnv(str + '#2', 2166136261);
 }
 function premShort(profileId) { return profileId.slice(5, 13).toUpperCase(); }
+// Stripe Payment Link for automatic online purchase — a webhook mints the matching
+// premium code (bound to this profile via a ?client_reference_id= passthrough) and
+// the buyer claims it at ../claim.html. Fill in the real URL once created (see
+// FIREBASE-SYNC.md); leave blank to hide the "Buy online" button.
+var PREMIUM_PAYMENT_LINK = '';
+function premiumBuyUrl() {
+  if (!PREMIUM_PAYMENT_LINK) return '';
+  return PREMIUM_PAYMENT_LINK + (PREMIUM_PAYMENT_LINK.indexOf('?') >= 0 ? '&' : '?') + 'client_reference_id=' + encodeURIComponent(P.profileId);
+}
 function premCheck(profileId, code) {
   var parts = String(code || '').trim().toUpperCase().split('-');
   if (parts.length !== 3 || parts[0] !== 'PREM') return false;
@@ -644,6 +653,7 @@ function renderCard() {
       + '<div style="padding:14px;border:1.5px solid var(--brand);border-radius:10px;background:color-mix(in srgb, var(--brand) 6%, transparent)">'
       + '<div style="font-weight:700;font-size:14px;margin-bottom:4px;color:var(--brand)">Premium — Broadcast style</div>'
       + '<div style="font-size:13px;color:var(--muted);line-height:1.5">Full broadcast look with photo, ghost number, team color accent, and animated effects. Gets noticed.</div>'
+      + (premiumBuyUrl() ? '<a class="btn btn-block" style="margin-bottom:8px" href="' + esc(premiumBuyUrl()) + '" target="_blank" rel="noopener">Buy premium online</a>' : '')
       + '<label style="margin-top:8px;margin-bottom:4px">Premium code</label><input type="text" id="premCode" placeholder="PREM-XXXXXXXX-XXXXXXXX" autocapitalize="characters" style="margin-bottom:8px">'
       + '<button class="btn btn-go btn-block" onclick="activatePremium()">Unlock premium</button>'
       + '</div>'

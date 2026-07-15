@@ -1655,6 +1655,11 @@ const OPERATOR_KEY = 'rd-op-4h8vqz1n-2026';
 // The Driven companion app (driver-owned racing profiles) — one canonical URL,
 // used by every "Get Driven" link and the printable sign-up poster.
 const DRIVEN_URL = 'https://joshmill916.github.io/Raceday/profiles/';
+// Stripe Payment Links for automatic online purchase — a webhook mints the matching
+// license code and the buyer claims it at claim.html. Fill in the real Payment Link
+// URL for whichever plans are on offer (see FIREBASE-SYNC.md); leave one blank to
+// hide that button.
+const PAYMENT_LINKS = { forever: '', season: '', packet: '' };
 
 function licHash(str) {
   let h = 2166136261;
@@ -1780,6 +1785,17 @@ function delLic() {
   save();
   renderLicCard(); renderLicBanner();
 }
+// Buy-online buttons for whichever PAYMENT_LINKS are configured — buying redirects
+// through Stripe to claim.html, which shows the automatically-minted code to paste
+// back in above. Renders nothing if no links are set.
+function licBuyLinksHtml() {
+  const labels = { forever: 'Buy — Forever', season: 'Buy — Season pass', packet: 'Buy — Race packet' };
+  const links = Object.keys(PAYMENT_LINKS).filter(k => PAYMENT_LINKS[k]);
+  if (!links.length) return '';
+  return '<div style="display:flex;gap:8px;flex-wrap:wrap;margin-top:8px">'
+    + links.map(k => '<a class="btn btn-sm" href="' + esc(PAYMENT_LINKS[k]) + '" target="_blank" rel="noopener">' + esc(labels[k]) + '</a>').join('')
+    + '</div>';
+}
 function renderLicCard() {
   const el = document.getElementById('licCard');
   const st = licStatus();
@@ -1797,7 +1813,8 @@ function renderLicCard() {
     h = '<p style="font-size:13.5px;margin-bottom:10px">Free trial — <b>' + S.trialDays.length + ' of ' + TRIAL_DAYS + '</b> race days used. Enter an access code to unlock more.</p>'
       + '<div style="display:flex;gap:8px;flex-wrap:wrap">'
       + '<input id="licCode" type="text" placeholder="Access code (e.g. RIVERSIDE-S2026-AB12CD)" style="flex:1;min-width:200px" autocomplete="off">'
-      + '<button class="btn btn-primary" onclick="activateLic()">Activate</button></div>';
+      + '<button class="btn btn-primary" onclick="activateLic()">Activate</button></div>'
+      + licBuyLinksHtml();
   }
   if (TELEMETRY_URL) h += '<p style="font-size:12px;color:var(--muted);margin-top:8px">Usage stats are sent to the RaceDay developer — registration counts only, no names or personal data.</p>';
   el.innerHTML = h;

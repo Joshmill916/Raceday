@@ -10,3 +10,8 @@ videos/
 # Claude Code worktrees (ephemeral, not part of the app)
 .claude/worktrees/
 narration-clips/
+
+# Cloud Functions dependencies — installed via `npm install` inside functions/,
+# never committed
+functions/node_modules/
+

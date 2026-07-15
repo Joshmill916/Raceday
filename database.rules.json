@@ -1,0 +1,39 @@
+{
+  "rules": {
+    "tracks": {
+      "$key": { ".read": true, ".write": true }
+    },
+    "profiles": {
+      "$id": {
+        "card": {
+          ".read": true,
+          ".write": true,
+          ".validate": "newData.hasChildren(['name','num','updatedAt'])",
+          "name": { ".validate": "newData.isString() && newData.val().length <= 40" },
+          "num": { ".validate": "newData.isString() && newData.val().length <= 8" },
+          "age": { ".validate": "newData.isString() && newData.val().length <= 8" },
+          "hometown": { ".validate": "newData.isString() && newData.val().length <= 60" },
+          "sponsors": { ".validate": "newData.isString() && newData.val().length <= 160" },
+          "teamColor": { ".validate": "newData.isString() && newData.val().length <= 7" },
+          "photo": { ".validate": "newData.isString() && newData.val().length <= 80000" },
+          "premiumCode": { ".validate": "newData.isString() && newData.val().length <= 40" },
+          "updatedAt": { ".validate": "newData.isNumber()" },
+          "$other": { ".validate": false }
+        }
+      }
+    },
+    "profiles_short": {
+      "$code": {
+        ".read": true,
+        ".write": true,
+        ".validate": "newData.isString() && newData.val().matches(/^prof_[a-z0-9]{6,20}$/i)"
+      }
+    },
+    "codeGrants": {
+      "$sessionId": {
+        ".read": true,
+        ".write": false
+      }
+    }
+  }
+}

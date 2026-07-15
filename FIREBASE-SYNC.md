@@ -169,6 +169,70 @@ can't verify a license code (no HMAC/crypto in rules), so the options are:
 
 Until one of these is built, `tracks/*` stays on the path-as-password model.
 
+## Automatic payment → code issuance (built 2026-07-15, needs owner setup to go live)
+
+A Cloud Function backend that lets a customer pay online (Stripe) and receive a
+working license or Driven premium code automatically — no human in the loop. This is
+**additive**: `raceday-codegen.html` and the client-side `licCheck`/`premCheck`
+validation in `index.html`/`profiles/index.html` are completely unchanged. The
+function is just a new, automated way to *mint* a code in the exact same formats the
+manual tool has always produced.
+
+**Pieces (all new, in this repo):**
+- `functions/index.js` — the `stripeWebhook` HTTPS Cloud Function. Verifies the
+  Stripe webhook signature, reacts only to `checkout.session.completed`, reads which
+  Price was purchased (`price.metadata.plan_kind` = `forever`/`season`/`packet`/
+  `premium`), mints the code, writes `{code, plan_kind, createdAt}` to
+  `codeGrants/<checkoutSessionId>`.
+- `functions/lib/codegen.js` — a Node port of `licHash`/`licCheck` and `pHash`/
+  `premCheck`'s minting half, proven byte-identical to the client algorithms by
+  `functions/lib/codegen.test.js` (`npm test` inside `functions/`). `LIC_SALT`/
+  `PREM_SALT` live only as Firebase Function secrets here — never in a client-visible
+  file, unlike today's client-side copies (a real confidentiality improvement, though
+  the client-side checks themselves are still only deterrent-level).
+- `claim.html` (repo root) — the Payment Link's post-payment redirect target
+  (`claim.html?session_id={CHECKOUT_SESSION_ID}`). Listens on
+  `codeGrants/<sessionId>`, shows the code with a copy button once minted, with a
+  friendly timeout/error fallback pointing back to the owner.
+- `database.rules.json` — versions the rules above plus a new `codeGrants/$sessionId`
+  block: `.read: true` (only readable by someone who already has the exact, effectively
+  unguessable Stripe session ID — same trust model as `tracks/<syncKey>`), `.write:
+  false` (only the Admin SDK, which bypasses rules, can write — i.e. only the webhook).
+- `firebase.json` / `.firebaserc` — wires the Firebase CLI to `raceday-d32dd` and this
+  rules file / functions directory, so both are deployable and versioned in git
+  instead of only living in Console paste-jobs.
+- `PAYMENT_LINKS` (`index.html`, near `LIC_SALT`) and `PREMIUM_PAYMENT_LINK`
+  (`profiles/index.html`, near `PREM_SALT`) — empty placeholders for the real Stripe
+  Payment Link URLs. "Buy online" buttons render next to the existing code-entry
+  fields (License card, Driven Premium upsell) only once a URL is filled in.
+
+**What the owner still needs to do before this is live** (none of it is a code
+change):
+1. Upgrade `raceday-d32dd` from Spark to Blaze (Cloud Functions need outbound network
+   access to call Stripe — Spark blocks that).
+2. Create a Stripe account; in **test mode** first, create 4 Prices (License Forever,
+   License Season Pass, License Race-Day Packet — pick a fixed set of packet sizes,
+   e.g. 1/3/5/10 days, not an adjustable quantity — Driven Premium), each carrying
+   `metadata.plan_kind` (and `season_year`/`packet_days` where relevant).
+3. Create a Payment Link per Price. Set each one's post-payment redirect to
+   `https://joshmill916.github.io/Raceday/claim.html?session_id={CHECKOUT_SESSION_ID}`.
+   License links need a custom field (key `track_name`) so the buyer can type their
+   track name at checkout; the Driven Premium link is opened from inside
+   `profiles/index.html` with `?client_reference_id=<profileId>` already appended
+   (`premiumBuyUrl()`), so no custom field is needed there.
+4. Create the Stripe webhook endpoint (subscribed to `checkout.session.completed`)
+   pointing at the deployed function URL; copy its signing secret.
+5. `firebase functions:secrets:set STRIPE_SECRET_KEY / STRIPE_WEBHOOK_SECRET /
+   LIC_SALT / PREM_SALT`, then `firebase deploy` (functions + database rules).
+6. Paste the real Payment Link URLs into `PAYMENT_LINKS`/`PREMIUM_PAYMENT_LINK`.
+7. Verify fully in test mode (see `functions/index.js` header + the test plan this
+   was built against), then repeat Prices/Payment Links/webhook in Stripe **live**
+   mode before advertising the flow publicly.
+
+**Explicitly out of scope**: this does not touch `tracks/*` write-gating (still the
+deferred, harder problem described above) — it's purely "accept payment online, issue
+the same code formats automatically."
+
 ## Known limitations / things to watch
 
 - **Needs internet at the track.** Firebase queues writes during a brief drop and

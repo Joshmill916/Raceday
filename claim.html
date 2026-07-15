@@ -1,0 +1,171 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Claim your code — RaceDay</title>
+<style>
+  :root {
+    --paper: #f4f4f1; --card: #ffffff; --ink: #1a1b1e; --muted: #6b6e76;
+    --line: #e3e3de; --flag-green: #0e8a4d; --flag-green-bg: #e7f6ee;
+    --pit-red: #c8372d; --pit-red-bg: #fdeeec;
+    --display: 'Saira Condensed', 'Arial Narrow', sans-serif;
+    --body: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+  }
+  * { box-sizing: border-box; }
+  body {
+    margin: 0; min-height: 100vh; display: flex; align-items: center; justify-content: center;
+    background: var(--paper); color: var(--ink); font-family: var(--body); padding: 20px;
+  }
+  .card {
+    background: var(--card); border: 1px solid var(--line); border-radius: 14px;
+    padding: 28px 24px; max-width: 420px; width: 100%; text-align: center;
+    box-shadow: 0 2px 10px rgba(0,0,0,.05);
+  }
+  h1 { font-family: var(--display); font-size: 26px; margin: 0 0 6px; }
+  p.sub { color: var(--muted); font-size: 14px; margin: 0 0 22px; }
+  .spinner {
+    width: 34px; height: 34px; border: 3px solid var(--line); border-top-color: var(--flag-green);
+    border-radius: 50%; margin: 0 auto 18px; animation: spin 0.9s linear infinite;
+  }
+  @keyframes spin { to { transform: rotate(360deg); } }
+  .code-box {
+    display: none; font-family: 'Courier New', monospace; font-size: 22px; font-weight: 700;
+    letter-spacing: 1px; background: var(--flag-green-bg); color: var(--flag-green);
+    border: 1px solid #cdeadc; border-radius: 10px; padding: 16px 10px; margin: 0 0 16px;
+    word-break: break-all;
+  }
+  .btn {
+    display: inline-block; background: var(--ink); color: #fff; border: none; border-radius: 8px;
+    padding: 11px 22px; font-size: 15px; font-weight: 600; cursor: pointer; font-family: var(--body);
+  }
+  .btn:active { opacity: .85; }
+  .hint { font-size: 13px; color: var(--muted); margin-top: 14px; line-height: 1.5; }
+  .err {
+    display: none; background: var(--pit-red-bg); color: var(--pit-red); border: 1px solid #f0c4c0;
+    border-radius: 10px; padding: 14px; font-size: 14px; line-height: 1.5; margin: 0 0 16px;
+  }
+</style>
+</head>
+<body>
+<div class="card">
+  <h1>🏁 Claiming your code…</h1>
+  <p class="sub" id="subtext">Hang tight — this usually takes just a few seconds.</p>
+
+  <div class="spinner" id="spinner"></div>
+  <div class="code-box" id="codeBox"></div>
+  <div class="err" id="errBox"></div>
+
+  <button class="btn" id="copyBtn" style="display:none" onclick="copyCode()">Copy code</button>
+  <p class="hint" id="hint"></p>
+</div>
+
+<script>
+function qs(name) {
+  return new URLSearchParams(location.search).get(name);
+}
+
+var FIREBASE_CONFIG = {
+  apiKey: "AIzaSyAGSBqjW9dNxwPWop3Culi4KmjMhVHDUW4",
+  authDomain: "raceday-d32dd.firebaseapp.com",
+  databaseURL: "https://raceday-d32dd-default-rtdb.firebaseio.com",
+  projectId: "raceday-d32dd",
+  storageBucket: "raceday-d32dd.firebasestorage.app",
+  messagingSenderId: "891072179363",
+  appId: "1:891072179363:web:36d8b91fd7da81932f2316"
+};
+
+var TIMEOUT_MS = 45000;
+var currentCode = '';
+
+function show(el) { document.getElementById(el).style.display = ''; }
+function hide(el) { document.getElementById(el).style.display = 'none'; }
+
+function copyCode() {
+  var done = function () {
+    var btn = document.getElementById('copyBtn');
+    var was = btn.textContent;
+    btn.textContent = 'Copied ✓';
+    setTimeout(function () { btn.textContent = was; }, 1500);
+  };
+  if (navigator.clipboard && navigator.clipboard.writeText) {
+    navigator.clipboard.writeText(currentCode).then(done, function () { prompt('Copy this code:', currentCode); });
+  } else {
+    prompt('Copy this code:', currentCode);
+  }
+}
+
+function showCode(code, planKind) {
+  currentCode = code;
+  hide('spinner');
+  document.getElementById('codeBox').textContent = code;
+  show('codeBox');
+  show('copyBtn');
+  document.getElementById('subtext').textContent = 'Your code is ready.';
+  var where = (planKind === 'premium')
+    ? 'Paste it into Driven → Premium.'
+    : 'Paste it into RaceDay → Admin → License.';
+  document.getElementById('hint').textContent = where + ' It only needs to be entered once per device.';
+}
+
+function showError(msg) {
+  hide('spinner');
+  var box = document.getElementById('errBox');
+  box.textContent = msg;
+  show('errBox');
+  document.getElementById('subtext').textContent = 'Something needs a hand.';
+}
+
+function loadFirebase() {
+  return new Promise(function (resolve, reject) {
+    var urls = [
+      'https://www.gstatic.com/firebasejs/10.12.0/firebase-app-compat.js',
+      'https://www.gstatic.com/firebasejs/10.12.0/firebase-database-compat.js'
+    ];
+    (function next(i) {
+      if (i >= urls.length) { resolve(); return; }
+      var s = document.createElement('script');
+      s.src = urls[i];
+      s.onload = function () { next(i + 1); };
+      s.onerror = function () { reject(new Error('load failed')); };
+      document.head.appendChild(s);
+    })(0);
+  });
+}
+
+(function init() {
+  var sessionId = qs('session_id');
+  if (!sessionId) {
+    showError("No order reference in the link. If you just paid, check your email confirmation from Stripe and contact the app owner with your receipt — they can look up your code manually.");
+    return;
+  }
+
+  var timedOut = false;
+  var timer = setTimeout(function () {
+    timedOut = true;
+    showError("This is taking longer than expected. Your payment went through — refresh this page in a minute, or contact the app owner with your Stripe receipt and they can send your code directly.");
+  }, TIMEOUT_MS);
+
+  loadFirebase().then(function () {
+    if (!firebase.apps.length) firebase.initializeApp(FIREBASE_CONFIG);
+    var ref = firebase.database().ref('codeGrants/' + sessionId);
+    ref.on('value', function (snap) {
+      if (timedOut) return;
+      var v = snap.val();
+      if (!v) return;   // webhook hasn't written yet — keep waiting
+      clearTimeout(timer);
+      ref.off();
+      if (v.error) {
+        showError("Your payment went through, but something went wrong issuing the code automatically. Contact the app owner with your Stripe receipt — they can send it to you directly.");
+        return;
+      }
+      showCode(v.code, v.plan_kind);
+    });
+  }).catch(function () {
+    clearTimeout(timer);
+    showError("Couldn't reach the code service. Refresh this page — if it keeps failing, contact the app owner with your Stripe receipt.");
+  });
+})();
+</script>
+</body>
+</html>
