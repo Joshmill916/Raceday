@@ -406,7 +406,7 @@
           <div class="sugg" id="rosterPickList" style="max-height:172px;overflow-y:auto"></div>
         </div>
         <label>Vehicle number</label>
-        <input id="dNum" type="text" placeholder="e.g. 47 or 12A" maxlength="5" autocomplete="off" autocapitalize="characters" />
+        <input id="dNum" type="text" placeholder="e.g. 47 or 12A" maxlength="5" autocomplete="off" autocapitalize="characters" oninput="pickedRosterId=null" />
         <label>Driven link code <span style="font-weight:400;color:var(--muted)">(optional — from your Driven app · <a href="https://joshmill916.github.io/Raceday/profiles/" target="_blank" rel="noopener" style="color:inherit">get the app</a>)</span></label>
         <input id="dProfCode" type="text" placeholder="e.g. K7Q2M4XN" maxlength="24" autocomplete="off" autocapitalize="characters" />
         <div id="e1" class="err" style="display:none"></div>
@@ -1321,7 +1321,11 @@ let S = load();
 // Clear admin session flag on page load to prevent sessionStorage inheritance
 // when tabs are opened from authenticated sessions (blocks viewer→admin escalation).
 sessionStorage.removeItem('rd_admin_ok');
-let cur = null;          // driver mid-signup: {name, num}
+let cur = null;          // driver mid-signup: {name, num, pickedId}
+// Roster id explicitly tapped via suggest()/renderRosterPick() this signup — the one
+// unambiguous "this is me" signal. Cleared on any subsequent edit to the name/number
+// fields, so a pick doesn't stay trusted after the typed values change underneath it.
+let pickedRosterId = null;
 let curPage = 'signup';
 let resTab = null;       // selected class on results page
 
@@ -1884,6 +1888,7 @@ function delPin() {
 
 // ---------- Sign-up ----------
 function suggest() {
+  pickedRosterId = null;   // typing again — no longer a guaranteed "this is me"
   const q = document.getElementById('dName').value.trim().toLowerCase();
   const box = document.getElementById('suggBox');
   renderRosterPick();
@@ -1908,6 +1913,7 @@ function pickRoster(id) {
   document.getElementById('dName').value = d.name;
   document.getElementById('dNum').value = d.num;
   document.getElementById('suggBox').innerHTML = '';
+  pickedRosterId = id;   // explicit "this is me" — register() may trust it outright
   step2();   // returning driver: skip straight to class picking
 }
 function step2() {
@@ -1917,7 +1923,7 @@ function step2() {
   if (!name || !num) { err.style.display = ''; err.textContent = 'Please enter both a name and a vehicle number.'; return; }
   if (!/^[A-Za-z0-9]{1,5}$/.test(num)) { err.style.display = ''; err.textContent = 'Vehicle number can be 1–5 letters or numbers (e.g. 47, 7A, or A12).'; return; }
   err.style.display = 'none';
-  cur = { name, num };
+  cur = { name, num, pickedId: pickedRosterId };
   renderChips();
   showStep(2);
 }
@@ -1949,10 +1955,11 @@ function renderChips() {
     return;
   }
   const match = findRosterMatch(cur.name, cur.num);   // must resolve the SAME record register() will use
+  const trusted = match && cur.pickedId === match.id;   // only an explicit pick is a confirmed "this is me"
   const enteredIds = match ? S.raceDay.entries.filter(e => e.driverId === match.id).map(e => e.classId) : [];
   el.innerHTML = S.classes.map(c => {
     const already = enteredIds.includes(c.id);
-    if (already) return '<span class="chip off" title="Already entered today">' + esc(c.name) + ' — entered</span>';
+    if (already) return '<span class="chip off" title="' + (trusted ? 'Already entered today' : 'A driver with this exact name and number is already entered today — you\'ll be asked to confirm at signup') + '">' + esc(c.name) + ' — entered</span>';
     return '<span class="chip" id="ch' + c.id + '" onclick="this.classList.toggle(\'on\')">' + esc(c.name) + '</span>';
   }).join('');
   // Terms / Privacy acceptance: show the checkbox (unticked each driver) when required.
@@ -1974,8 +1981,24 @@ function register() {
   }
   if (!canEnter()) { err.style.display = ''; err.textContent = entryBlockedMsg(); return; }
 
+  // Resolve the roster match, but auto-trust it ONLY if the driver explicitly tapped
+  // their name from the suggestion/roster-pick list moments ago (cur.pickedId). Any
+  // other match came from typed-from-scratch input — a coincidence risk, since two
+  // different real people can share a name+kart# (a common number reused across
+  // classes/days) — so a human must confirm before merging into someone else's
+  // permanent roster identity and history. Decline == different person == no match.
+  let match = findRosterMatch(cur.name, cur.num);
+  if (match && cur.pickedId !== match.id) {
+    const merge = confirm(
+      'A driver already on file is named ' + match.name + ' with #' + match.num + '.\n\n'
+      + 'Is this the SAME person signing up right now?\n\n'
+      + 'OK = yes — use their existing driver record and history.\n'
+      + 'Cancel = no, this is a different person — create a new, separate driver record.'
+    );
+    if (!merge) match = undefined;
+  }
+
   // vehicle number must be unique within each selected class
-  const match = findRosterMatch(cur.name, cur.num);
   for (const c of sel) {
     const clash = S.raceDay.entries.find(e => {
       if (e.classId !== c.id) return false;
@@ -2054,6 +2077,7 @@ function renderDone(driver, drawn) {
 
 function resetReg() {
   cur = null;
+  pickedRosterId = null;
   document.getElementById('dName').value = '';
   document.getElementById('dNum').value = '';
   const pc = document.getElementById('dProfCode'); if (pc) pc.value = '';

@@ -15,6 +15,8 @@ contention across suites can wedge one when they're chained.
 | `test-qual-times.js` | Manual qualifying times + set-grid-from-times |
 | `test-main-invert.js` | Feature/B-main starting-spot invert |
 | `test-profiles.js` | Profiles app (`profiles/index.html`): onboarding, profileId + QR, demo import, career stats, dedupe, edit, unlink, delete, persistence |
+| `test-qual-mains.js` | "Qualifying · straight to mains" race format — seeding, B-main transfers, points, viewer/TV/print, 2-heat regression guard |
+| `test-roster-match.js` | Sign-up identity-merge fix — typed name+number collisions require confirmation instead of silently merging into an unrelated driver; explicit suggestion picks stay frictionless |
 | `test-roles-security.js` | **Role-boundary + boot-sequence invariants** — what each role may see/do, the setup-wizard gating, `?role=` URL promotion, stuck-device recovery, forgotten-PIN recovery, sync write-blocks, and the join-clobber warning |
 
 Each spins up its own HTTP server on a unique port and exits 1 on any failure.
