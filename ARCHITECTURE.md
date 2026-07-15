@@ -152,6 +152,11 @@ Persisted as JSON under `localStorage['raceday_v1']`.
   - **parallel** — split into *k* mains, top `transfers` from each advance, nobody cut.
   - **cascade** — tiered mains, climbers move up tier by tier.
 - `classComplete()` is true when all heat finishes are in; `featureFinish()` reads `ft_*`.
+- `classHeats(cls)` — per-class format on `cls.heats`: `2` pill draw + two heats
+  (default), `1` qualifying + one heat, `0` qualifying **straight to mains** — no heats;
+  `calcStandings` collapses to qualifying (pill) order, `classComplete` is immediately
+  true, so the top seeds lock into the feature and the rest split into B-mains via the
+  same `featureData` modes.
 
 ### 6.4 Points & series (`renderPoints`)
 - `dayPoints(clsId)` awards today's feature finishers per `settings.points.table`
