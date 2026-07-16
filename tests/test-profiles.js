@@ -165,6 +165,39 @@ const check = (n, ok, x) => { if (ok) { pass++; console.log('  ✅ ' + n); } els
   check('race history is explicitly EMPTY — never recoverable from a card alone', await page.evaluate(() => P.raceResults.length === 0));
   check('shortCode recorded so the profile can re-publish under the same link', await page.evaluate(() => P.shortCode === 'RESTORE1'));
 
+  console.log('— Bug: restore must succeed for a real card with no kart number yet (onboarding never asks for one) —');
+  await page.evaluate(() => nav('settings')); await page.waitForTimeout(150);
+  await Promise.all([page.waitForNavigation(), page.click('button[onclick="deleteProfile()"]')]);
+  await page.waitForSelector('#onboardModal');
+  const noNumProfileId = 'prof_mocknonum01';
+  await page.evaluate((pid) => {
+    window.firebase = {
+      apps: [{}],
+      database: function () {
+        return {
+          ref: function (path) {
+            return {
+              once: function () {
+                if (path === 'profiles_short/NONUM001') return Promise.resolve({ val: function () { return pid; } });
+                if (path === 'profiles/' + pid + '/card') return Promise.resolve({ val: function () {
+                  // A driver who published right after onboarding, before ever setting
+                  // a kart number in Settings — num is a real, valid, empty string.
+                  return { name: 'Casey Nguyen', num: '', hometown: '', age: '', teamColor: '', photo: '', sponsors: '', premiumCode: '', updatedAt: 1752600000000 };
+                } });
+                return Promise.resolve({ val: function () { return null; } });
+              },
+            };
+          },
+        };
+      },
+    };
+  }, noNumProfileId);
+  await page.click('a[onclick="toggleRestore(event)"]'); await page.waitForTimeout(100);
+  await page.fill('#restoreInput', 'NONUM001');
+  await page.click('button[onclick="restoreProfile()"]'); await page.waitForTimeout(300);
+  check('a published card with an empty kart number is NOT wrongly rejected', await page.evaluate(() => document.getElementById('onboardModal').style.display === 'none'));
+  check('restored profile keeps the name, with an empty kart number (not a lost card)', await page.evaluate(() => P.driver.name === 'Casey Nguyen' && P.driver.number === ''));
+
   await browser.close(); server.close();
   console.log(`\n==== ${pass} passed, ${fail} failed ====`);
   process.exit(fail ? 1 : 0);

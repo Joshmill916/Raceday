@@ -552,7 +552,11 @@ function restoreFromLinkCode(code) {
   }).then(function (result) {
     if (!result) return;
     var profileId = result.profileId, card = result.card;
-    if (!card || !card.name || !card.num) { alert("That code doesn't have a published card to restore from yet."); return; }
+    // Only a name is guaranteed — onboarding never asks for a kart number, and
+    // "Publish my card" is available immediately, so a real, live card can easily have
+    // an empty num. Rejecting on a missing num would wrongly treat a genuinely
+    // published card as if it didn't exist.
+    if (!card || !card.name) { alert("That code doesn't have a published card to restore from yet."); return; }
     var restored = {
       profileId: profileId,
       driver: {
