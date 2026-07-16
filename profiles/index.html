@@ -263,6 +263,14 @@
     <label>Age (optional)</label>
     <input type="number" id="obAge" min="1" max="120" placeholder="16">
     <button class="btn btn-go btn-block" onclick="completeOnboarding()" style="margin-top:20px">Create my profile</button>
+    <p class="sub" style="margin-top:16px;text-align:center">
+      <a href="#" onclick="toggleRestore(event)" style="color:inherit;text-decoration:underline">Already have a profile? Restore it</a>
+    </p>
+    <div id="restoreBox" style="display:none;margin-top:6px">
+      <label>Your link code, or paste a backup file</label>
+      <textarea id="restoreInput" rows="3" placeholder="e.g. K7Q2M4XN — or paste your exported backup JSON"></textarea>
+      <button class="btn btn-block" onclick="restoreProfile()" style="margin-top:10px">Restore</button>
+    </div>
   </div>
 </div>
 
@@ -492,6 +500,106 @@ function completeOnboarding() {
   save();
   $id('onboardModal').style.display = 'none';
   nav('home');
+}
+
+function toggleRestore(e) {
+  if (e) e.preventDefault();
+  var box = $id('restoreBox');
+  box.style.display = box.style.display === 'none' ? '' : 'none';
+}
+
+// Restore an existing profile onto this (fresh-looking) device/browser context — the
+// gap that let a Home Screen icon or a new browser storage silo strand someone with no
+// way back into their real profile. Accepts either a pasted backup file (full fidelity,
+// see backupProfile()) or a published link code (partial — see restoreFromLinkCode()).
+function restoreProfile() {
+  var raw = ($id('restoreInput').value || '').trim();
+  if (!raw) { alert('Enter your link code, or paste a backup file.'); return; }
+  if (raw[0] === '{') { restoreFromBackupJson(raw); return; }
+  restoreFromLinkCode(raw);
+}
+
+// Full-fidelity restore from a JSON file previously made with "Back up my profile" in
+// Settings — preserves everything, including race history, since nothing here is
+// re-derived from a lossy source.
+function restoreFromBackupJson(raw) {
+  var parsed;
+  try { parsed = JSON.parse(raw); } catch (e) { alert("That doesn't look like a valid backup file — couldn't read it."); return; }
+  if (!parsed || !parsed.profileId || !parsed.driver || !parsed.driver.name) { alert("That doesn't look like a Driven backup file."); return; }
+  P = migrate(parsed);
+  save();
+  $id('onboardModal').style.display = 'none';
+  nav('home');
+  alert('✅ Profile restored — welcome back, ' + P.driver.name + '.');
+}
+
+// Partial restore from the PUBLISHED card only — works even with no prior backup file,
+// since it just re-pulls whatever this profile already published to Firebase. Recovers
+// identity, kart #, sponsors, and premium status, but NEVER race history: cardPayload()
+// only ever sends the lean card fields, so career stats/results only ever lived on the
+// original device and can't be pulled back this way.
+function restoreFromLinkCode(code) {
+  var short = code.trim().toUpperCase().replace(/[^A-Z0-9]/g, '').slice(0, 20);
+  if (!short) { alert('Enter a valid link code.'); return; }
+  ensureFirebase().then(function () {
+    return firebase.database().ref('profiles_short/' + short).once('value');
+  }).then(function (snap) {
+    var profileId = snap.val();
+    if (!profileId || typeof profileId !== 'string') { alert("That code doesn't match a published profile."); return null; }
+    return firebase.database().ref('profiles/' + profileId + '/card').once('value').then(function (cardSnap) {
+      return { profileId: profileId, card: cardSnap.val() };
+    });
+  }).then(function (result) {
+    if (!result) return;
+    var profileId = result.profileId, card = result.card;
+    if (!card || !card.name || !card.num) { alert("That code doesn't have a published card to restore from yet."); return; }
+    var restored = {
+      profileId: profileId,
+      driver: {
+        name: String(card.name).slice(0, 40),
+        email: '', bio: '', joinedDate: Date.now(),
+        hometown: typeof card.hometown === 'string' ? card.hometown.slice(0, 60) : '',
+        age: card.age ? (parseInt(card.age, 10) || null) : null,
+        number: typeof card.num === 'string' ? card.num.slice(0, 8) : '',
+        teamColor: /^#[0-9a-fA-F]{6}$/.test(card.teamColor || '') ? card.teamColor : '',
+        photo: photoOK(card.photo) ? card.photo : null
+      },
+      linkedTracks: [],
+      raceResults: [],   // NOT recoverable — never synced anywhere but the original device
+      sponsors: (typeof card.sponsors === 'string' && card.sponsors)
+        ? card.sponsors.split(' · ').map(function (n) { return { name: n.trim() }; }).filter(function (s) { return s.name; })
+        : [],
+      tier: 'basic',
+      premiumCode: '',
+      shortCode: short,
+      publishedAt: typeof card.updatedAt === 'number' ? card.updatedAt : Date.now()
+    };
+    if (card.premiumCode && premCheck(profileId, card.premiumCode)) {
+      restored.tier = 'premium';
+      restored.premiumCode = String(card.premiumCode).toUpperCase();
+    }
+    P = migrate(restored);
+    save();
+    $id('onboardModal').style.display = 'none';
+    nav('home');
+    alert('✅ Card restored for ' + P.driver.name + '.\n\nYour identity, kart #, and premium status are back — but your race history isn\'t included. It only ever lived on your original device. If you still have access to it, use "Back up my profile" there and restore that file here instead for full history.');
+  }).catch(function () {
+    alert("Couldn't reach the profile service — check your connection and try again.");
+  });
+}
+
+// Full local backup — the only path that preserves race history, since it serializes
+// the ENTIRE P object rather than re-deriving from the lean published card.
+function backupProfile() {
+  var blob = new Blob([JSON.stringify(P, null, 2)], { type: 'application/json' });
+  var url = URL.createObjectURL(blob);
+  var a = document.createElement('a');
+  a.href = url;
+  a.download = 'driven-backup-' + (P.driver.name || 'profile').replace(/[^a-z0-9]/gi, '_') + '.json';
+  document.body.appendChild(a);
+  a.click();
+  document.body.removeChild(a);
+  setTimeout(function () { URL.revokeObjectURL(url); }, 1000);
 }
 
 /* ---------- Nav ---------- */
@@ -779,6 +887,12 @@ function renderSettings() {
     + '<textarea id="importJson" placeholder="Paste RaceDay export JSON here"></textarea>'
     + '<button class="btn btn-block" onclick="importResultsFromText()" style="margin-top:10px">Import</button>'
     + '<button class="btn btn-block" onclick="loadDemoResults()" style="margin-top:8px">Load demo results (try it out)</button>'
+    + '</div>';
+
+  h += '<div class="card">'
+    + '<div class="slbl">Back up your profile</div>'
+    + '<p class="sub" style="margin-bottom:10px">Save a copy of everything — your identity, sponsors, and full race history. This is the only way to fully restore your profile on a new device or browser; a link code alone can\'t bring your race history back.</p>'
+    + '<button class="btn btn-block" onclick="backupProfile()">Download backup</button>'
     + '</div>';
 
   h += '<div class="card">'
