@@ -1959,8 +1959,14 @@ function renderChips() {
   const enteredIds = match ? S.raceDay.entries.filter(e => e.driverId === match.id).map(e => e.classId) : [];
   el.innerHTML = S.classes.map(c => {
     const already = enteredIds.includes(c.id);
-    if (already) return '<span class="chip off" title="' + (trusted ? 'Already entered today' : 'A driver with this exact name and number is already entered today — you\'ll be asked to confirm at signup') + '">' + esc(c.name) + ' — entered</span>';
-    return '<span class="chip" id="ch' + c.id + '" onclick="this.classList.toggle(\'on\')">' + esc(c.name) + '</span>';
+    // A CONFIRMED match (explicit pick) already entered here is genuinely blocked — no
+    // point re-registering into the same class. An UNCONFIRMED match might be a totally
+    // different person who just happens to share a name+number, so the chip must stay
+    // selectable — register()'s confirm() gate resolves who they are, and its own
+    // duplicate-entry guard covers the case where they turn out to be the same driver.
+    if (already && trusted) return '<span class="chip off" title="Already entered today">' + esc(c.name) + ' — entered</span>';
+    const title = (already && !trusted) ? ' title="A driver with this exact name and number is already entered today — you\'ll be asked to confirm at signup"' : '';
+    return '<span class="chip"' + title + ' id="ch' + c.id + '" onclick="this.classList.toggle(\'on\')">' + esc(c.name) + '</span>';
   }).join('');
   // Terms / Privacy acceptance: show the checkbox (unticked each driver) when required.
   const row = document.getElementById('consentRow'), chk = document.getElementById('consentChk');
@@ -1998,8 +2004,21 @@ function register() {
     if (!merge) match = undefined;
   }
 
+  // Once merged into an existing driver, drop any selected class they're ALREADY
+  // entered in — this is reachable now that a class chip stays clickable for an
+  // unconfirmed match (renderChips()), so a "yes, that's me" confirm() above can land
+  // on a class they never actually needed to re-select. Without this, we'd push a
+  // second entry for the same driver+class: a duplicate pill and a double-counted
+  // finisher in that class's standings/points.
+  let toEnter = sel;
+  if (match) {
+    const already = new Set(S.raceDay.entries.filter(e => e.driverId === match.id).map(e => e.classId));
+    toEnter = sel.filter(c => !already.has(c.id));
+    if (!toEnter.length) { err.style.display = ''; err.textContent = match.name + ' is already entered in ' + (sel.length === 1 ? 'that class' : 'every class you selected') + '.'; return; }
+  }
+
   // vehicle number must be unique within each selected class
-  for (const c of sel) {
+  for (const c of toEnter) {
     const clash = S.raceDay.entries.find(e => {
       if (e.classId !== c.id) return false;
       const d = driverById(e.driverId);
@@ -2019,7 +2038,7 @@ function register() {
     }
   }
   // make sure every selected class still has pills left
-  for (const c of sel) {
+  for (const c of toEnter) {
     if (drawPill(c.id) === null) { err.style.display = ''; err.textContent = 'All pills are taken in ' + c.name + '. The admin can raise that class\'s pill count.'; return; }
   }
   err.style.display = 'none';
@@ -2045,7 +2064,7 @@ function register() {
   // one pill per class, no repeats within a class
   consumeTrialDay();
   const drawn = [];
-  sel.forEach(c => {
+  toEnter.forEach(c => {
     const pill = drawPill(c.id);
     S.raceDay.entries.push({ driverId: driver.id, classId: c.id, pill });
     drawn.push({ cls: c, pill });

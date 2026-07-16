@@ -100,6 +100,74 @@ const check = (name, ok, extra) => {
     return !!d1 && !!d2 && d1.driverId !== d2.driverId;
   }, { c1: clsId, c2: cls2Id }));
 
+  console.log('\n— Follow-up bug (found 2026-07-16): the "already entered" chip must stay clickable for an unconfirmed match —');
+  // Customer report: a colliding name+number made a class chip permanently dead (no
+  // id/onclick at all) even for someone who turned out to be a genuinely different
+  // person — they couldn't even reach the confirm() prompt to say so. Jamie Fox #14
+  // signs up for clsId; a second, different "Jamie Fox #14" must still be able to TAP
+  // that same class chip (not just other classes) and get resolved via confirm().
+  resetDlg();
+  await signUpTyped('Jamie Fox', '14', clsId);
+  check('first Jamie Fox #14 registers with no prompt', dlgSeen.length === 0, JSON.stringify(dlgSeen));
+  const jamieId = await page.evaluate(() => S.roster.find(d => d.name === 'Jamie Fox').id);
+  const rosterLenAfterJamie = await page.evaluate(() => S.roster.length);
+
+  resetDlg();
+  await page.evaluate(() => nav('signup'));
+  await page.waitForTimeout(150);
+  await page.evaluate(() => resetReg());
+  await page.fill('#dName', 'Jamie Fox');
+  await page.fill('#dNum', '14');
+  await page.evaluate(() => step2());
+  await page.waitForTimeout(150);
+  const chipState = await page.evaluate((cid) => {
+    const el = document.getElementById('ch' + cid);
+    return { exists: !!el, hasOnclick: !!(el && el.getAttribute('onclick')) };
+  }, clsId);
+  check('the already-entered class chip still has an id (is clickable), not a dead span', chipState.exists && chipState.hasOnclick, JSON.stringify(chipState));
+
+  if (cls2Id) {
+    // Confirm "yes, same person" while selecting BOTH the already-entered class AND a
+    // fresh one — the fresh class should register; the already-entered one must be
+    // silently dropped, not duplicated.
+    answer = () => true;
+    await page.click('#ch' + clsId);
+    await page.click('#ch' + cls2Id);
+    await page.waitForTimeout(100);
+    const consent = await page.$('#consentChk');
+    if (consent && !(await consent.isChecked())) await consent.check();
+    const entriesBeforeJamie2 = await page.evaluate(() => S.raceDay.entries.length);
+    await page.click('button:has-text("Draw my pills")');
+    await page.waitForTimeout(200);
+    check('exactly one confirm prompt fired', dlgSeen.length === 1, JSON.stringify(dlgSeen));
+    check('no new roster record (merged into the same Jamie Fox)', await page.evaluate((n) => S.roster.length === n, rosterLenAfterJamie));
+    check('entries grew by exactly 1 (the new class only, no duplicate in clsId)', await page.evaluate((n) => S.raceDay.entries.length === n + 1, entriesBeforeJamie2));
+    check('Jamie Fox has exactly one entry in the already-entered class', await page.evaluate(({ jid, cid }) => S.raceDay.entries.filter(e => e.driverId === jid && e.classId === cid).length === 1, { jid: jamieId, cid: clsId }));
+    check('Jamie Fox now also has an entry in the new class', await page.evaluate(({ jid, cid }) => S.raceDay.entries.some(e => e.driverId === jid && e.classId === cid), { jid: jamieId, cid: cls2Id }));
+  }
+
+  // Confirming "yes" while selecting ONLY the already-entered class must show a clean
+  // error, not a silent no-op and not a duplicate entry.
+  resetDlg();
+  await page.evaluate(() => nav('signup'));
+  await page.waitForTimeout(150);
+  await page.evaluate(() => resetReg());
+  await page.fill('#dName', 'Jamie Fox');
+  await page.fill('#dNum', '14');
+  await page.evaluate(() => step2());
+  await page.waitForTimeout(150);
+  answer = () => true;
+  await page.click('#ch' + clsId);
+  await page.waitForTimeout(100);
+  const consent3 = await page.$('#consentChk');
+  if (consent3 && !(await consent3.isChecked())) await consent3.check();
+  const entriesBeforeDupOnly = await page.evaluate(() => S.raceDay.entries.length);
+  await page.click('button:has-text("Draw my pills")');
+  await page.waitForTimeout(200);
+  const errText = await page.evaluate(() => document.getElementById('e2').textContent);
+  check('selecting only the already-entered class shows a clear error', /already entered/i.test(errText), errText);
+  check('no duplicate entry was created', await page.evaluate((n) => S.raceDay.entries.length === n, entriesBeforeDupOnly));
+
   console.log('\n— Explicit pick still merges with zero friction —');
   resetDlg();
   await signUpTyped('Pat Rivera', '21', clsId);
