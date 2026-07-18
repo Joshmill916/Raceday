@@ -407,7 +407,7 @@
         </div>
         <label>Vehicle number</label>
         <input id="dNum" type="text" placeholder="e.g. 47 or 12A" maxlength="5" autocomplete="off" autocapitalize="characters" oninput="pickedRosterId=null" />
-        <label>Driven link code <span style="font-weight:400;color:var(--muted)">(optional — from your Driven app · <a href="https://joshmill916.github.io/Raceday/profiles/" target="_blank" rel="noopener" style="color:inherit">get the app</a>)</span></label>
+        <label>Driven link code <span style="font-weight:400;color:var(--muted)">(optional — from your Driven app · <a href="https://victoryraceday.com/profiles/" target="_blank" rel="noopener" style="color:inherit">get the app</a>)</span></label>
         <input id="dProfCode" type="text" placeholder="e.g. K7Q2M4XN" maxlength="24" autocomplete="off" autocapitalize="characters" />
         <div id="e1" class="err" style="display:none"></div>
         <button class="btn btn-go btn-block" onclick="step2()">Next — pick your classes →</button>
@@ -1658,7 +1658,7 @@ const LIC_SALT = 'rd-grid-9f3k27xq-2026';   // must match raceday-codegen.html E
 const OPERATOR_KEY = 'rd-op-4h8vqz1n-2026';
 // The Driven companion app (driver-owned racing profiles) — one canonical URL,
 // used by every "Get Driven" link and the printable sign-up poster.
-const DRIVEN_URL = 'https://joshmill916.github.io/Raceday/profiles/';
+const DRIVEN_URL = 'https://victoryraceday.com/profiles/';
 // Stripe Payment Links for automatic online purchase — a webhook mints the matching
 // license code and the buyer claims it at claim.html. Fill in the real Payment Link
 // URL for whichever plans are on offer (see FIREBASE-SYNC.md); leave one blank to
