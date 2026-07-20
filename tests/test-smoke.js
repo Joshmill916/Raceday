@@ -7,7 +7,7 @@ const check = (n, ok, x) => { if (ok) { pass++; console.log('  ✅ ' + n); } els
 
 (async () => {
   const server = http.createServer((req, res) => {
-    fs.readFile(path.join(ROOT, req.url === '/' ? 'index.html' : req.url.split('?')[0]), (e, d) => {
+    fs.readFile(path.join(ROOT, req.url === '/' ? 'raceday/index.html' : req.url.split('?')[0]), (e, d) => {
       if (e) { res.writeHead(404); res.end(); return; }
       res.writeHead(200, { 'Content-Type': 'text/html' }); res.end(d);
     });

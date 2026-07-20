@@ -75,11 +75,11 @@ open-store / path-as-password model** — none are newly introduced, and closing
 properly needs the deferred backend/auth work:
 
 - **Premium codes are forgeable in principle** — `PREM_SALT` + the whole hash algorithm
-  ship client-side (`profiles/index.html`), same accepted tradeoff as `LIC_SALT`. A real
+  ship client-side (`driven/index.html`), same accepted tradeoff as `LIC_SALT`. A real
   fix needs a server-side entitlement check. Mitigation shipped: RaceDay now **recomputes**
   `premCheck()` at render for Driven-sourced cards (`cardPremiumOK`), so a forged
   `premium:true` synced onto the roster no longer grants the premium look without a code.
-- **Local "Premium broadcast card" checkbox** (`index.html` editDriverCard) sets premium
+- **Local "Premium broadcast card" checkbox** (`raceday/index.html` editDriverCard) sets premium
   on a *locally-managed* card with no code. Left as-is: it's the track styling its own
   local card (cosmetic), not a bypass of the driver's paid Driven tier.
 - **Short-code poisoning / card swap** — `resolveProfileId` format-validates but can't

@@ -1,12 +1,12 @@
 // Confirms the Node minting port produces byte-identical output to the client-side
 // check functions it must stay compatible with (index.html licHash/licCheck,
-// profiles/index.html pHash/premCheck). Run with `npm test` inside functions/, or
+// driven/index.html pHash/premCheck). Run with `npm test` inside functions/, or
 // directly: LIC_SALT=... PREM_SALT=... node lib/codegen.test.js
 process.env.LIC_SALT = process.env.LIC_SALT || 'rd-grid-9f3k27xq-2026';
 process.env.PREM_SALT = process.env.PREM_SALT || 'rd-prem-7t4mq2xz-2026';
 const { licCheck, mintLicenseCode, pHash, premShort, mintPremiumCode } = require('./codegen');
 
-// Reference copies transcribed verbatim from index.html / profiles/index.html — kept
+// Reference copies transcribed verbatim from raceday/index.html / driven/index.html — kept
 // duplicated on purpose so a future edit to codegen.js that silently drifts from the
 // client algorithm gets caught here, not by a customer with a rejected code.
 function refLicHash(str) {

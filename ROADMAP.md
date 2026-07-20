@@ -3,8 +3,8 @@
 > **History note (2026-07-08):** this file and the Phase 1 code were originally built on
 > the never-merged `claude/driver-cards` branch (June 27) and silently fell out of the
 > main line. Both were recovered: Phase 1 was ported onto the current app and Phase 2
-> built on top of it the same day. The related **Profiles companion app**
-> (`profiles/index.html`) has since shipped as a separate PWA — it grew out of this same
+> built on top of it the same day. The related **Driven companion app**
+> (`driven/index.html`) has since shipped as a separate PWA — it grew out of this same
 > vision (driver-owned cross-track identity) and isn't wired to RaceDay yet.
 
 ## Driver cards (spectator profiles + premium tier)

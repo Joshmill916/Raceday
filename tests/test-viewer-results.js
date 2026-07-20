@@ -14,7 +14,7 @@ const check = (name, ok, extra) => {
 
 (async () => {
   const server = http.createServer((req, res) => {
-    const f = path.join(ROOT, req.url === '/' ? 'index.html' : req.url.split('?')[0]);
+    const f = path.join(ROOT, req.url === '/' ? 'raceday/index.html' : req.url.split('?')[0]);
     fs.readFile(f, (err, data) => {
       if (err) { res.writeHead(404); res.end(); return; }
       const ext = path.extname(f);

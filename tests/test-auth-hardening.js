@@ -70,7 +70,7 @@ async function runInBrowser(js) {
 // 3. Simulating test scenarios via mocked state
 
 async function parseIndexHtml() {
-  const indexPath = path.join(__dirname, '..', 'index.html');
+  const indexPath = path.join(__dirname, '..', 'raceday', 'index.html');
   return fs.readFileSync(indexPath, 'utf8');
 }
 

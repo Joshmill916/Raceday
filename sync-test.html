@@ -159,7 +159,7 @@
 
 <script>
 // ============================================================================
-// Standalone Firebase sync test. Reproduces the SAME model index.html uses:
+// Standalone Firebase sync test. Reproduces the SAME model raceday/index.html uses:
 //   path tracks/{normKey(code)} , one JSON string per field, debounced
 //   incremental push, onValue listener with echo-guard + empty-room seeding,
 //   and the admin/register/scoring/tv role table. Fields NOT in SYNC_FIELDS
@@ -181,7 +181,7 @@ function loadState(){
 }
 function defState(){ return { trackName:'', entries:[], results:{}, privateNote:'' }; }
 
-// ---- roles (mirror index.html ROLE_PAGES intent) ----
+// ---- roles (mirror raceday/index.html ROLE_PAGES intent) ----
 const ROLE_CAN = {
   admin:    { track:1, add:1, result:1, clear:1, priv:1 },
   register: { add:1, priv:1 },
@@ -235,7 +235,7 @@ function syncPushFull(){
   _db.update(upd).then(() => logEvt('seeded empty room with full state')).catch(e => logEvt('seed error: ' + e));
 }
 
-// ---- Firebase lazy load (same CDN/version as index.html) ----
+// ---- Firebase lazy load (same CDN/version as raceday/index.html) ----
 function loadFirebase(){
   return new Promise((resolve, reject) => {
     if (window.firebase && window.firebase.database) return resolve();

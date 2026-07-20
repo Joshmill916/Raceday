@@ -16,7 +16,7 @@ const check = (n, ok, x) => { if (ok) { pass++; console.log('  ✅ ' + n); } els
   const page = await browser.newPage({ viewport: { width: 420, height: 900 } });
   page.on('pageerror', e => { fail++; console.log('  ❌ PAGE ERROR: ' + e.message); });
   page.on('dialog', d => d.accept());
-  await page.goto(`http://localhost:${PORT}/profiles/index.html`); await page.waitForTimeout(300);
+  await page.goto(`http://localhost:${PORT}/driven/index.html`); await page.waitForTimeout(300);
 
   console.log('— Onboarding —');
   check('onboarding modal auto-opens on fresh install', await page.evaluate(() => document.getElementById('onboardModal').style.display === 'flex'));

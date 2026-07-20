@@ -26,7 +26,7 @@ const check = (name, ok, extra) => {
 (async () => {
   const server = http.createServer((req, res) => {
     const urlPath = req.url.split('?')[0];   // strip query BEFORE the '/'-to-index default
-    const f = path.join(ROOT, urlPath === '/' ? 'index.html' : urlPath);
+    const f = path.join(ROOT, urlPath === '/' ? 'raceday/index.html' : urlPath);
     fs.readFile(f, (err, data) => {
       if (err) { res.writeHead(404); res.end(); return; }
       const ext = path.extname(f);

@@ -2,9 +2,10 @@
 
 ## What this is
 Single-file PWA for race-night management (sign-up, lineups, results, points).
-Entire app lives in `index.html` (~4,840 lines, ~308 KB). No build step, no
-package.json, no framework. Hosted on GitHub Pages at
-https://victoryraceday.com/
+The app lives in `raceday/index.html` (~4,840 lines, ~308 KB). No build step, no
+package.json, no framework. Hosted on GitHub Pages at https://victoryraceday.com/ —
+the bare domain now serves a marketing homepage (root `index.html`), with the app
+itself at `/raceday/` and the Driven companion app at `/driven/`.
 
 ## CRITICAL CONSTRAINTS — never break these
 - `raceday-codegen.html` is gitignored and **MUST NEVER be committed** — it holds
@@ -14,13 +15,15 @@ https://victoryraceday.com/
 - The owner's license code is `VICTORY-0-4K548V` (unlimited/forever). Never regenerate.
 
 ## Architecture
-- All HTML, CSS, and JS live in one `<script>` block inside `index.html`
+- All HTML, CSS, and JS live in one `<script>` block inside `raceday/index.html`
 - State: global `S` object → `localStorage` key `raceday_v1`
 - Save pattern: `S.field = value; save();`
   - `save()` writes localStorage then calls `syncPush()` if sync is on
   - Direct `localStorage.setItem()` calls that bypass `save()` have inline comments explaining why
 - Firebase Realtime Database for optional multi-device sync (`SYNC_FIELDS` const controls what syncs)
-- Service worker: `sw.js`, cache version in `CACHE` const — bump it when deploying cache-breaking changes
+- Service worker: `raceday/sw.js`, cache version in `CACHE` const — bump it when deploying
+  cache-breaking changes. Root `sw.js` is a separate, minimal "retiring" worker for the
+  marketing page — see "Site structure" below.
 
 ## Global namespace objects (added 2026-06-30 cleanup)
 These replaced 15 scattered `let` vars — use these, not bare variable names:
@@ -36,22 +39,38 @@ These replaced 15 scattered `let` vars — use these, not bare variable names:
   `s.schemaVersion < N`, apply the change, then set `s.schemaVersion = N` before `return s`
 - **Naming**: `del*` for deletions, `toggle*` for boolean flips, `render*` for DOM builders, `show*`/`hide*` for visibility
 
-## Syntax check (run after every edit to index.html)
+## Syntax check (run after every edit to raceday/index.html)
 ```bash
 python3 -c "
-import re; html=open('index.html').read()
+import re; html=open('raceday/index.html').read()
 blocks=re.findall(r'<script[^>]*>(.*?)</script>',html,re.DOTALL)
 open('/tmp/check.js','w').write(max(blocks,key=len))
 " && node --check /tmp/check.js && echo 'SYNTAX OK'
 ```
-Or just use `/syntax`.
+Or just use `/syntax`. Editing the root marketing `index.html` or `driven/index.html`?
+Point the same script at that file instead.
+
+## Site structure
+`victoryraceday.com` serves three things from one repo:
+- **`/`** — root `index.html`: a marketing homepage (RaceDay + Driven overview). Its
+  `<head>` runs an inline redirect check *before* any content renders: a returning
+  device (has `raceday_v1` in localStorage) or an incoming station/sync link
+  (`?sync=`/`?role=` in the query string) gets `location.replace()`'d straight to
+  `/raceday/`, preserving the query string. New visitors see the marketing page. Root's
+  `sw.js` is a **retired, minimal worker** (no manifest, no caching) that exists only to
+  take over from the old root-scoped service worker on returning devices and clear its
+  cache — do not add caching logic back to it.
+- **`/raceday/`** — the actual app (this is what "the app" means everywhere else in this
+  doc). Own `manifest.webmanifest` + `sw.js` (scoped to `/raceday/` via relative paths).
+- **`/driven/`** — the Driven companion app, see below.
 
 ## Files
 | File | Purpose |
 |---|---|
-| `index.html` | **The entire app** — all features go here |
-| `sw.js` | Service worker — bump `CACHE` const when deploying cache-breaking changes |
-| `profiles/` | **Profiles companion app** (separate PWA) — driver-owned cross-track racing identity. `profiles/index.html` is fully standalone (own manifest/sw/state, `localStorage` key `profiles_v1`). MVP has no backend: results move via manual JSON import (`ingestExport()`), not yet wired to RaceDay's admin side. See "Profiles app" below. |
+| `index.html` | Root marketing homepage — **not** the app, see "Site structure" |
+| `sw.js` | Root's retired/minimal service worker — see "Site structure" |
+| `raceday/` | **The RaceDay app** — `index.html` is where all app features go, plus its own `manifest.webmanifest`/`sw.js`/icon |
+| `driven/` | **Driven companion app** (separate PWA) — driver-owned cross-track racing identity. `driven/index.html` is fully standalone (own manifest/sw/state, `localStorage` key `profiles_v1`). MVP has no backend: results move via manual JSON import (`ingestExport()`), not yet wired to RaceDay's admin side. See "Driven app" below. |
 | `BACKLOG.md` | Parked items (operator hardening, deferred audit findings) |
 | `ARCHITECTURE.md` | Full technical reference (data model, sync, roles, points system) |
 | `timing-import.html` | Companion CSV timing import tool — separate file, don't modify during main app work |
@@ -59,10 +78,11 @@ Or just use `/syntax`.
 | `test-data/` | CSV + JSON fixtures for manual testing |
 | `tests/` | Playwright suites — see `tests/README.md` |
 
-## Profiles app (`profiles/index.html`)
-A separate, self-contained PWA — not part of `index.html`, has its own manifest/service
-worker/localStorage key (`profiles_v1`). Lets a driver create one profile that follows them
-across every RaceDay track they race at.
+## Driven app (`driven/index.html`)
+A separate, self-contained PWA — not part of `raceday/index.html`, has its own manifest/
+service worker/localStorage key (`profiles_v1` — unchanged by the `profiles/`→`driven/`
+directory rename; it's app-local storage, not a URL path). Lets a driver create one
+profile that follows them across every RaceDay track they race at.
 - State var is `P` (not `S`), object shape: `{ profileId, driver, linkedTracks, raceResults,
   sponsors, tier, premiumCode, shortCode, publishedAt }`
 - **Card pipeline (wired 2026-07-08)**: the driver "publishes" their card to the shared
@@ -74,24 +94,24 @@ across every RaceDay track they race at.
   stores it on the roster record with `source:'profiles'` (locally read-only, Refresh /
   Unlink). Offline links pend (`profile.pendingFetch`) and retry on reconnect. The
   `RDPROFILE:<id>` QR payload exists for future camera scanning.
-- **Premium**: unlocked in Profiles with an offline-checked code `PREM-<SHORT>-<HASH8>`
+- **Premium**: unlocked in Driven with an offline-checked code `PREM-<SHORT>-<HASH8>`
   (`PREM_SALT` + `pHash` — constants are duplicated in BOTH apps and must stay identical;
   RaceDay recomputes the hash before honoring premium, never trusts a boolean)
 - Results enter via `ingestExport(data)` — accepts `{trackId, trackName, date, results:[...]}`
   (or an array of those), dedupes by `trackId+date+class`, auto-populates `linkedTracks`
 - Results still move via manual JSON import — RaceDay doesn't produce that export yet
-  (planned: an admin "Share with Profiles" button after archiving a race day)
+  (planned: an admin "Share with Driven" button after archiving a race day)
 - Career stats computed live from `raceResults` via `computeStats()` — no stored cache
-- Same design language as `index.html` (CSS vars, `.card`/`.btn`/`.hr` patterns) and the same
-  embedded QR generator, copied verbatim — kept intentionally separate rather than shared, to
-  preserve the single-file-per-app model
+- Same design language as `raceday/index.html` (CSS vars, `.card`/`.btn`/`.hr` patterns) and
+  the same embedded QR generator, copied verbatim — kept intentionally separate rather than
+  shared, to preserve the single-file-per-app model
 
 ## Dev workflow
 - Active dev branch: `claude/track-admin-improvements-d46hxg`
 - Syntax check: `/syntax`
-- After ANY index.html change: run all Playwright suites — `for t in tests/test-*.js; do node "$t" | tail -1; done`
+- After ANY `raceday/index.html` change: run all Playwright suites — `for t in tests/test-*.js; do node "$t" | tail -1; done`
 - Touching roles, permissions, the setup wizard, sync, or the boot sequence? `tests/test-roles-security.js` is the guard for those invariants — add/update a check there for the new behavior, and confirm it would catch a regression (see that file's header + `tests/README.md`). Three live security bugs came from this area with no test coverage; this suite is how it stays fixed.
 - Commit + push current branch: `/push <message>`
 - See branch state: `/check`
 - Merge to main: only with explicit user approval — always ask first
-- After merging to main: VERIFY the GitHub Pages build succeeds (a deploy can fail transiently) before telling the user it's live; bump `sw.js` CACHE on cache-breaking changes
+- After merging to main: VERIFY the GitHub Pages build succeeds (a deploy can fail transiently) before telling the user it's live; bump `raceday/sw.js` CACHE on cache-breaking changes

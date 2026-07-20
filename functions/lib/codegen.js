@@ -1,5 +1,5 @@
 // Node port of the code-minting half of the client-side check functions in
-// ../../index.html (licHash/licCheck) and ../../profiles/index.html (pHash/premCheck).
+// ../../raceday/index.html (licHash/licCheck) and ../../driven/index.html (pHash/premCheck).
 // Must produce byte-identical output to those — this is the server-side "issue" half
 // of a scheme the client only ever "checks". Do not change the algorithms here without
 // changing both client copies to match, and vice versa.
@@ -42,7 +42,7 @@ function pHash(str) {
 }
 function premShort(profileId) { return profileId.slice(5, 13).toUpperCase(); }
 // Assembles a full PREM-SHORT8-HASH8 code, exactly the shape activatePremium()
-// (profiles/index.html) expects to split on '-' and verify via premCheck().
+// (driven/index.html) expects to split on '-' and verify via premCheck().
 function mintPremiumCode(profileId) {
   if (!PREM_SALT) throw new Error('PREM_SALT is not set');
   const hash8 = pHash(profileId + '|PREM|' + PREM_SALT).slice(0, 8);

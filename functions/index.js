@@ -1,6 +1,6 @@
 // stripeWebhook — the sole automated minter for RaceDay license codes and Driven
 // premium codes. Everything it produces must validate against the EXISTING client
-// checks (activateLic() in ../index.html, activatePremium() in ../profiles/index.html)
+// checks (activateLic() in ../raceday/index.html, activatePremium() in ../driven/index.html)
 // unchanged — this function only adds a paid, automatic path to the same code formats
 // that raceday-codegen.html has always minted by hand. See BACKLOG.md / ROADMAP.md for
 // why this exists and what stays explicitly out of scope (tracks/* write-gating).
@@ -33,7 +33,7 @@ function mintForLineItem(session, price, codegen) {
   if (kind === 'premium') {
     // Driven premium is bound to a specific profileId — carried via the Payment
     // Link's ?client_reference_id= passthrough (set by the "Unlock Premium" link in
-    // profiles/index.html), never typed by the customer.
+    // driven/index.html), never typed by the customer.
     const profileId = session.client_reference_id;
     if (!profileId || !/^prof_[a-z0-9]{6,20}$/i.test(profileId)) {
       throw new Error('Missing or malformed profileId (client_reference_id): ' + profileId);

@@ -1,33 +1,13 @@
-/* RaceDay service worker — installability + offline app shell.
-   Network-first for the page so updates always flow when online;
-   cache-first for icons/manifest. Firebase / CDN / Apps Script always hit the network. */
-const CACHE = 'raceday-v10';
-const SHELL = ['./', './index.html', './manifest.webmanifest', './icon-rd.png'];
-
+/* Root service worker — retired. The app moved to /raceday/, which registers
+   its own service worker there. This one exists only to take over from the
+   old root-scoped worker already installed on returning devices, clear its
+   app-shell cache, and then get out of the way (no fetch handling — every
+   request goes straight to the network). Safe to leave in place indefinitely. */
 self.addEventListener('install', e => {
   self.skipWaiting();
-  e.waitUntil(caches.open(CACHE).then(c => c.addAll(SHELL)).catch(() => {}));
 });
 self.addEventListener('activate', e => {
   e.waitUntil(caches.keys()
-    .then(ks => Promise.all(ks.filter(k => k !== CACHE).map(k => caches.delete(k))))
+    .then(ks => Promise.all(ks.filter(k => k.startsWith('raceday-')).map(k => caches.delete(k))))
     .then(() => self.clients.claim()));
-});
-self.addEventListener('fetch', e => {
-  const req = e.request;
-  if (req.method !== 'GET') return;
-  let url; try { url = new URL(req.url); } catch (_) { return; }
-  if (url.origin !== self.location.origin) return;   // sync/CDN/telemetry → straight to network
-
-  const isDoc = req.mode === 'navigate' || url.pathname.endsWith('/') || url.pathname.endsWith('index.html');
-  if (isDoc) {
-    e.respondWith(
-      fetch(req).then(r => { const copy = r.clone(); caches.open(CACHE).then(c => c.put('./index.html', copy)); return r; })
-                .catch(() => caches.match('./index.html').then(m => m || caches.match('./')))
-    );
-  } else {
-    e.respondWith(
-      caches.match(req).then(m => m || fetch(req).then(r => { const copy = r.clone(); caches.open(CACHE).then(c => c.put(req, copy)); return r; }))
-    );
-  }
 });

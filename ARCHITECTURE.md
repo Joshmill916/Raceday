@@ -26,7 +26,7 @@ and shows live **lineups on a TV**. It is sold to tracks as a licensed product.
 
 | File | Status | Purpose |
 |------|--------|---------|
-| `index.html` | **Live (main)** | The entire RaceDay app — UI, logic, state, styling. ~2000 lines. |
+| `raceday/index.html` | **Live (main)** | The entire RaceDay app — UI, logic, state, styling. ~2000 lines. Root `index.html` is a separate marketing homepage, not the app. |
 | `timing-import.html` | **Live (main)** | Standalone companion: imports MYLAPS/Westhold/RaceHero/**MotoSponder** timing CSVs into RaceDay via the backup round-trip. |
 | `SETUP.md` | Live | Owner guide: hosting, plans, access codes, TV casting. |
 | `sw.js` | Staged (dormant) | PWA service worker — offline/installable. Not registered yet. |
@@ -39,7 +39,7 @@ and shows live **lineups on a TV**. It is sold to tracks as a licensed product.
 
 **Two integrations that live outside the repo:**
 - **Usage telemetry** → a Google Apps Script web app writing to a Google Sheet (the
-  `TELEMETRY_URL` in `index.html`).
+  `TELEMETRY_URL` in `raceday/index.html`).
 - **Multi-device sync** (live, off by default) → a Google Firebase Realtime Database (`FIREBASE_CONFIG`).
 
 ---
@@ -226,7 +226,7 @@ Key components: `.btn`/`.btn-primary`/`.btn-go`/`.btn-sm`/`.btn-danger`, `.card`
 
 Build in this order; each step is testable on its own.
 
-1. **Shell.** `index.html` with `<head>` (meta, fonts, `<style>`), a `.container`, the
+1. **Shell.** `raceday/index.html` with `<head>` (meta, fonts, `<style>`), a `.container`, the
    header (`#hdrLogo/#hdrBrand/#hdrTag`), `#mainNav` with 6 tabs, six `.page` divs, the
    TV overlay, and a `<script>` block.
 2. **State core.** `KEY`, `today()`, `defaults()`, `migrate()`, `load()`, `save()`,
@@ -281,7 +281,7 @@ Build in this order; each step is testable on its own.
 ## 10. Verification
 
 ### Automated (run locally)
-- **Syntax:** extract the `<script>` from `index.html` and `node --check` it.
+- **Syntax:** extract the `<script>` from `raceday/index.html` and `node --check` it.
 - **Sync logic:** `/tmp/sync_full_test.js`-style harness — 35 scenarios, all passing:
   empty-room seed, late/mid-race join, registration-vs-scoring non-clobber, board clear,
   deleted result key, 3-device convergence, echo-loop prevention, concurrent same-field

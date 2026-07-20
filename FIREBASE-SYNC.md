@@ -61,7 +61,7 @@ packet usage, and race-day history. These are not in `SYNC_FIELDS`.
    copy the `firebaseConfig` object it shows you.
 
 ### 2. Wire it into the app
-Paste that object into `index.html`:
+Paste that object into `raceday/index.html`:
 ```javascript
 const FIREBASE_CONFIG = {
   apiKey: "…", authDomain: "…", databaseURL: "…",
@@ -101,8 +101,8 @@ capping the Profiles card write paths.
 Closes an unbounded-write storage/abuse risk: `profiles/<id>/card` and
 `profiles_short/<code>` accept arbitrary shape/size today. This just adds size/shape
 caps matching what the app itself already sends (`cardPayload()` in
-`profiles/index.html`) and already trusts on read (`sanitizeProfileCard()` in
-`index.html`) — no XSS/premium-forgery risk either way (that's handled by
+`driven/index.html`) and already trusts on read (`sanitizeProfileCard()` in
+`raceday/index.html`) — no XSS/premium-forgery risk either way (that's handled by
 sanitization on read), this is purely an abuse/storage-quota guard:
 
 **Note:** the snippet below spells out explicit `.read`/`.write: true` for
@@ -174,7 +174,7 @@ Until one of these is built, `tracks/*` stays on the path-as-password model.
 A Cloud Function backend that lets a customer pay online (Stripe) and receive a
 working license or Driven premium code automatically — no human in the loop. This is
 **additive**: `raceday-codegen.html` and the client-side `licCheck`/`premCheck`
-validation in `index.html`/`profiles/index.html` are completely unchanged. The
+validation in `raceday/index.html`/`driven/index.html` are completely unchanged. The
 function is just a new, automated way to *mint* a code in the exact same formats the
 manual tool has always produced.
 
@@ -201,8 +201,8 @@ manual tool has always produced.
 - `firebase.json` / `.firebaserc` — wires the Firebase CLI to `raceday-d32dd` and this
   rules file / functions directory, so both are deployable and versioned in git
   instead of only living in Console paste-jobs.
-- `PAYMENT_LINKS` (`index.html`, near `LIC_SALT`) and `PREMIUM_PAYMENT_LINK`
-  (`profiles/index.html`, near `PREM_SALT`) — empty placeholders for the real Stripe
+- `PAYMENT_LINKS` (`raceday/index.html`, near `LIC_SALT`) and `PREMIUM_PAYMENT_LINK`
+  (`driven/index.html`, near `PREM_SALT`) — empty placeholders for the real Stripe
   Payment Link URLs. "Buy online" buttons render next to the existing code-entry
   fields (License card, Driven Premium upsell) only once a URL is filled in.
 
@@ -218,7 +218,7 @@ change):
    `https://victoryraceday.com/claim.html?session_id={CHECKOUT_SESSION_ID}`.
    License links need a custom field (key `track_name`) so the buyer can type their
    track name at checkout; the Driven Premium link is opened from inside
-   `profiles/index.html` with `?client_reference_id=<profileId>` already appended
+   `driven/index.html` with `?client_reference_id=<profileId>` already appended
    (`premiumBuyUrl()`), so no custom field is needed there.
 4. Create the Stripe webhook endpoint (subscribed to `checkout.session.completed`)
    pointing at the deployed function URL; copy its signing secret.
