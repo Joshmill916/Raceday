@@ -132,6 +132,21 @@ img{max-width:100%;display:block}
 .eyebrow .flag{width:22px;height:11px;flex:none;background:repeating-conic-gradient(var(--ink) 0% 25%, transparent 0% 50%) 0 0 / 5.5px 5.5px}
 .band.dark .eyebrow .flag,.band.mid .eyebrow .flag{background:repeating-conic-gradient(#fff 0% 25%, transparent 0% 50%) 0 0 / 5.5px 5.5px}
 
+/* ---------- Top bar ---------- */
+.topbar{background:var(--asphalt);border-bottom:1px solid var(--line-dark)}
+.topbar-row{display:flex;align-items:center;justify-content:space-between;padding:14px 0}
+.topbar-brand{
+  font-family:var(--display);font-weight:800;font-size:1rem;
+  letter-spacing:.04em;color:#fff;text-transform:uppercase;
+}
+.topbar-link{
+  font-family:var(--mono);font-size:.82rem;font-weight:700;
+  text-transform:uppercase;letter-spacing:.06em;color:#c7c8cd;
+  text-decoration:none;display:inline-flex;align-items:center;gap:6px;
+}
+.topbar-link:hover{color:#fff}
+.topbar-link:focus-visible{outline:3px solid var(--clay-bright);outline-offset:3px;border-radius:2px}
+
 /* ---------- Hero ---------- */
 .hero{
   background:var(--asphalt);color:#f2f1ec;
@@ -299,12 +314,18 @@ footer .wrap{display:flex;justify-content:space-between;gap:16px;flex-wrap:wrap}
 </style>
 </head>
 <body>
+<div class="topbar">
+  <div class="wrap topbar-row">
+    <span class="topbar-brand">RaceDay</span>
+    <a class="topbar-link" href="/raceday/">Already a track? Open RaceDay <span class="btn-arrow">→</span></a>
+  </div>
+</div>
 <header class="hero">
   <div class="wrap hero-grid">
     <div class="fade-up">
       <div class="eyebrow"><span class="flag"></span>Free to try this season</div>
       <h1>Run the whole card<br>from <em>one screen.</em></h1>
-      <p class="lede">Sign-up, heat lineups, results, and season points — no clipboard, no spreadsheet, no line at the gate. Built for tracks that race every week.</p>
+      <p class="lede">Sign-up, heat lineups, results, and season points — no clipboard, no spreadsheet, less time at the table. Built for tracks that race every week.</p>
       <div class="cta-row">
         <a class="btn" href="/raceday/">Try the live demo <span class="btn-arrow">→</span></a>
         <a class="link-quiet" href="#gate">See how it works</a>
@@ -334,8 +355,8 @@ footer .wrap{display:flex;justify-content:space-between;gap:16px;flex-wrap:wrap}
     <div class="eyebrow"><span class="flag"></span>At the gate</div>
     <div class="feature">
       <div class="feature-copy fade-up">
-        <h2>No line at the sign-up table.</h2>
-        <p class="body-copy">Drivers pull up RaceDay on their own phone, type their name — or tap it if they've raced with you before — and pick their classes. Their heat pill draws automatically.</p>
+        <h2>Less time at the sign-up table.</h2>
+        <p class="body-copy">Drivers pull up RaceDay on their own phone, type their name — or tap it if they've raced with you before — and pick their classes. Their heat pill draws automatically. You're still collecting waivers and entry fees at the table — RaceDay just skips the handwritten roster.</p>
         <p class="body-copy">Heats build themselves the moment sign-up closes: pill order, inside/outside lines, B-mains and features, all laid out and ready to post before the drivers' meeting.</p>
       </div>
       <div class="feature-shot fade-up d1" style="display:flex;gap:20px;justify-content:center;flex-wrap:wrap">
@@ -403,7 +424,7 @@ footer .wrap{display:flex;justify-content:space-between;gap:16px;flex-wrap:wrap}
 
 <section class="band mid">
   <div class="wrap">
-    <div class="eyebrow"><span class="flag"></span>Introducing Driven</div>
+    <div class="eyebrow"><span class="flag"></span>Introducing Driven<span style="display:inline-block;margin-left:12px;padding:3px 11px;border:1px solid var(--clay-bright);border-radius:20px;font-family:var(--mono);font-size:.68rem;font-weight:700;letter-spacing:.1em;text-transform:uppercase;color:var(--clay-bright)">Coming soon</span></div>
     <div class="feature rev">
       <div class="feature-copy fade-up">
         <h2>One profile.<br>Every track you race.</h2>
