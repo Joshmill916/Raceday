@@ -4,7 +4,7 @@
 Single-file PWA for race-night management (sign-up, lineups, results, points).
 Entire app lives in `index.html` (~4,840 lines, ~308 KB). No build step, no
 package.json, no framework. Hosted on GitHub Pages at
-https://joshmill916.github.io/Raceday/
+https://victoryraceday.com/
 
 ## CRITICAL CONSTRAINTS — never break these
 - `raceday-codegen.html` is gitignored and **MUST NEVER be committed** — it holds

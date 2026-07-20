@@ -1,7 +1,7 @@
 # RaceDay — MotoSponder test data
 
 Test fixtures for the timing importer at
-`https://joshmill916.github.io/Raceday/timing-import.html`.
+`https://victoryraceday.com/timing-import.html`.
 
 They simulate a **MotoSponder** export for a race day with **4 classes** and let you
 exercise every import path. One class (**Pro Stock**, 32 cars) is sized to produce

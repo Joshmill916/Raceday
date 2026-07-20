@@ -270,7 +270,7 @@ Build in this order; each step is testable on its own.
 ## 9. Deployment
 
 - Hosted on **GitHub Pages** from the public repo `Joshmill916/Raceday`, served at
-  `https://joshmill916.github.io/Raceday/`. Merging to `main` auto-deploys (~1 min).
+  `https://victoryraceday.com/`. Merging to `main` auto-deploys (~1 min).
 - Making the repo private on the free plan **disables Pages** — move hosting first
   (Cloudflare Pages / Netlify) if you ever go private. (See the chat history / SETUP.md.)
 - HTTPS is required for the PWA service worker (Pages provides it); telemetry and sync

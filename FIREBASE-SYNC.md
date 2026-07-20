@@ -215,7 +215,7 @@ change):
    e.g. 1/3/5/10 days, not an adjustable quantity — Driven Premium), each carrying
    `metadata.plan_kind` (and `season_year`/`packet_days` where relevant).
 3. Create a Payment Link per Price. Set each one's post-payment redirect to
-   `https://joshmill916.github.io/Raceday/claim.html?session_id={CHECKOUT_SESSION_ID}`.
+   `https://victoryraceday.com/claim.html?session_id={CHECKOUT_SESSION_ID}`.
    License links need a custom field (key `track_name`) so the buyer can type their
    track name at checkout; the Driven Premium link is opened from inside
    `profiles/index.html` with `?client_reference_id=<profileId>` already appended
