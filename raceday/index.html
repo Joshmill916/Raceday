@@ -1576,7 +1576,7 @@ function renderFooter() {
   if (!el) return;
   const owner = (S.provider && S.provider.legalName && S.provider.legalName.trim()) || 'RaceDay';
   const yr = new Date().getFullYear();
-  el.innerHTML = '<a onclick="openDoc(\'terms\')">Terms of Service</a> · <a onclick="openDoc(\'privacy\')">Privacy Policy</a>'
+  el.innerHTML = '<a onclick="openDoc(\'terms\')">Terms of Service</a> · <a onclick="openDoc(\'privacy\')">Privacy Policy</a> · <a href="/?home=1">Home</a>'
     + '<br>© ' + yr + ' ' + esc(owner) + '. Licensed software — all rights reserved. Provided as an administrative aid; official results are determined by race officials.';
 }
 
