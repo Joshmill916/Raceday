@@ -11,6 +11,7 @@
    location.replace so it doesn't leave a broken back-button entry. */
 (function () {
   var q = location.search;
+  if (/[?&]home=1/.test(q)) return;
   if (/[?&](sync|role)=/.test(q)) { location.replace('/raceday/' + q); return; }
   try {
     var raw = localStorage.getItem('raceday_v1');
