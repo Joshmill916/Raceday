@@ -2295,6 +2295,14 @@ function renderViewerLineups() {
     }
   }
   h += '</div>';
+  // Safe exit from the spectator view: a plain navigation link out to the marketing
+  // homepage (?home=1 bypasses root's returning-device auto-redirect). This is NOT a
+  // role-switch — it cannot change rd_role — so it's safe on every fan's phone and does
+  // not re-open the viewer→admin escalation surface the app deliberately removed. Its
+  // job is only to let a device that's stuck on the spectator view get back to a normal
+  // web page without clearing browser data.
+  h += '<div style="text-align:center;margin-top:24px;padding-top:16px;border-top:1px solid var(--line)">'
+    + '<a href="/?home=1" style="font-size:13px;color:#777;text-decoration:underline">← Leave spectator view</a></div>';
   el.innerHTML = h;
 }
 
