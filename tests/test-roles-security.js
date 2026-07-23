@@ -151,6 +151,20 @@ const check = (name, ok, extra) => {
     return !/onclick="[^"]*(save\(|del|register\(|archiveDay|setPin|resetAll|syncActivate)/.test(html);
   }));
   check('viewer lineups hide the operator controls (gridOps)', await page.evaluate(() => { const e = document.getElementById('gridOps'); return !e || getComputedStyle(e).display === 'none'; }));
+  // A stuck spectator can get OUT to the marketing site — but that exit is pure
+  // navigation, NEVER a role switch. It must not re-open the viewer→admin escalation
+  // surface the app deliberately removed, so it carries no role-changing handler and
+  // leaves rd_role untouched.
+  check('viewer lineups show a "Leave spectator view" exit link to /?home=1', await page.evaluate(() => {
+    const a = [...document.querySelectorAll('#page-grid a')].find(x => /home=1/.test(x.getAttribute('href') || ''));
+    return !!a && /leave spectator/i.test(a.textContent);
+  }));
+  check('the spectator exit link is plain navigation, not a role switch', await page.evaluate(() => {
+    const a = [...document.querySelectorAll('#page-grid a')].find(x => /home=1/.test(x.getAttribute('href') || ''));
+    if (!a) return false;
+    const oc = a.getAttribute('onclick') || '';
+    return !/setDeviceRole|changeDeviceRole|rd_role/.test(oc) && deviceRole() === 'viewer';
+  }));
 
   // ============================================================================
   console.log('\n=== 3. URL ?role= cannot silently promote a spectator ===');
