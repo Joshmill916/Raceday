@@ -1369,6 +1369,13 @@ function pillsUsed(clsId) { return new Set(S.raceDay.entries.filter(e => e.class
 function drawPill(clsId) {
   const cls = classById(clsId);
   const used = pillsUsed(clsId);
+  // Qualifying-format class (1 heat or straight-to-mains): skip the random draw —
+  // the pill is only a placeholder grid slot, replaced the moment qualifying sets the
+  // real order. Hand out the next free slot in sign-up order (never runs out, no spin).
+  if (classHeats(cls) !== 2) {
+    let p = 1; while (used.has(p)) p++;
+    return p;
+  }
   const pool = [];
   for (let p = 1; p <= (cls.maxPill || 200); p++) if (!used.has(p)) pool.push(p);
   if (!pool.length) return null;

@@ -65,6 +65,42 @@ const check = (name, ok, extra) => {
   const persisted = await page.evaluate(() => JSON.parse(localStorage.getItem('raceday_v1')).classes[0].heats);
   check('format persists to localStorage as 0', persisted === 0);
 
+  console.log('\n— drawPill: qualifying classes skip the random draw (sequential placeholder) —');
+  const pillTest = await page.evaluate(() => {
+    // Two fresh, empty classes: one qualifying (heats 0), one pill-draw (heats 2).
+    const qCls = { id: 901, name: 'Qual Test', maxPill: 200, heats: 0 };
+    const pCls = { id: 902, name: 'Pill Test', maxPill: 200, heats: 2 };
+    S.classes.push(qCls, pCls);
+    // Qualifying: four sign-ups should land in sign-up order 1,2,3,4 — no random spin.
+    const qPills = [];
+    for (let i = 0; i < 4; i++) {
+      const p = drawPill(901);
+      S.raceDay.entries.push({ driverId: 90000 + i, classId: 901, pill: p });
+      qPills.push(p);
+    }
+    // Qualifying never dead-ends: fill past maxPill, still returns the next slot (not null).
+    const qClsRef = classById(901);
+    qClsRef.maxPill = 4;                 // pretend the ceiling is already reached
+    const overflow = drawPill(901);      // 1..4 used → next free is 5, ignoring the cap
+    // Pill-draw class: with 1..(max-1) used, the only free slot must be returned.
+    const pClsRef = classById(902);
+    pClsRef.maxPill = 5;
+    for (let p = 1; p <= 4; p++) S.raceDay.entries.push({ driverId: 91000 + p, classId: 902, pill: p });
+    const pDraw = drawPill(902);         // only 5 is free
+    const pExhausted = (() => {          // fully full → null (unchanged behavior)
+      S.raceDay.entries.push({ driverId: 91099, classId: 902, pill: 5 });
+      return drawPill(902);
+    })();
+    // cleanup so later sections see the original class list only
+    S.classes = S.classes.filter(c => c.id !== 901 && c.id !== 902);
+    S.raceDay.entries = S.raceDay.entries.filter(e => e.classId !== 901 && e.classId !== 902);
+    return { qPills, overflow, pDraw, pExhausted };
+  });
+  check('qualifying class assigns sequential pills 1,2,3,4', JSON.stringify(pillTest.qPills) === JSON.stringify([1, 2, 3, 4]), 'got ' + JSON.stringify(pillTest.qPills));
+  check('qualifying class never returns null (ignores maxPill cap)', pillTest.overflow === 5, 'got ' + pillTest.overflow);
+  check('pill-draw class still returns the one free pill', pillTest.pDraw === 5, 'got ' + pillTest.pDraw);
+  check('pill-draw class still returns null when full', pillTest.pExhausted === null, 'got ' + pillTest.pExhausted);
+
   console.log('\n— Seeding & main structure (no results entered) —');
   const fd = await page.evaluate((id) => {
     const f = featureData(id);
