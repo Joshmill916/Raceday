@@ -78,7 +78,9 @@ var FIREBASE_CONFIG = {
 var TIMEOUT_MS = 45000;
 var currentCode = '';
 
-function show(el) { document.getElementById(el).style.display = ''; }
+// .code-box / .err carry display:none in the stylesheet, so clearing the inline style
+// alone leaves them hidden — set an explicit display to actually reveal them.
+function show(el) { document.getElementById(el).style.display = 'block'; }
 function hide(el) { document.getElementById(el).style.display = 'none'; }
 
 function copyCode() {
