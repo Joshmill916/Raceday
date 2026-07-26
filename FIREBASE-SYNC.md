@@ -181,9 +181,12 @@ manual tool has always produced.
 **Pieces (all new, in this repo):**
 - `functions/index.js` — the `stripeWebhook` HTTPS Cloud Function. Verifies the
   Stripe webhook signature, reacts only to `checkout.session.completed`, reads which
-  Price was purchased (`price.metadata.plan_kind` = `forever`/`season`/`packet`/
-  `premium`), mints the code, writes `{code, plan_kind, createdAt}` to
-  `codeGrants/<checkoutSessionId>`.
+  Price was purchased (`metadata.plan_kind` = `forever`/`season`/`packet`/`premium`),
+  mints the code, writes `{code, plan_kind, createdAt}` to
+  `codeGrants/<checkoutSessionId>`. The plan metadata is read off the Price *or* its
+  Product (`planMeta()`, Price wins) — the Stripe dashboard only reliably exposes a
+  metadata editor on the Product, and a Price goes read-only once it's been charged,
+  so in practice the values end up on whichever object the UI allowed at the time.
 - `functions/lib/codegen.js` — a Node port of `licHash`/`licCheck` and `pHash`/
   `premCheck`'s minting half, proven byte-identical to the client algorithms by
   `functions/lib/codegen.test.js` (`npm test` inside `functions/`). `LIC_SALT`/
@@ -213,7 +216,8 @@ change):
 2. Create a Stripe account; in **test mode** first, create 4 Prices (License Forever,
    License Season Pass, License Race-Day Packet — pick a fixed set of packet sizes,
    e.g. 1/3/5/10 days, not an adjustable quantity — Driven Premium), each carrying
-   `metadata.plan_kind` (and `season_year`/`packet_days` where relevant).
+   `metadata.plan_kind` (and `season_year`/`packet_days` where relevant). Putting that
+   metadata on the Product is fine — the function reads either object.
 3. Create a Payment Link per Price. Set each one's post-payment redirect to
    `https://victoryraceday.com/claim.html?session_id={CHECKOUT_SESSION_ID}`.
    License links need a custom field (key `track_name`) so the buyer can type their

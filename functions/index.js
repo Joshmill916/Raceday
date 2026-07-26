@@ -26,10 +26,21 @@ function customField(session, key) {
   return f && f.text && f.text.value ? f.text.value.trim() : '';
 }
 
+// The plan metadata (plan_kind/season_year/packet_days) can sit on either the Price or
+// its Product. The Stripe dashboard only reliably offers a metadata editor on the
+// Product, and a Price becomes read-only once it has been charged — so in practice the
+// values land on whichever object the UI allowed at the time. Read both: the Price wins
+// where it has a value, since one Product can carry several Prices with different plans.
+function planMeta(price) {
+  const product = price.product && typeof price.product === 'object' ? price.product : null;
+  return Object.assign({}, product && product.metadata, price.metadata);
+}
+
 // Builds the code for one purchased line item. Throws on anything it can't confidently
 // mint — callers must catch and record the failure rather than silently skip it.
 function mintForLineItem(session, price, codegen) {
-  const kind = (price.metadata && price.metadata.plan_kind) || '';
+  const meta = planMeta(price);
+  const kind = meta.plan_kind || '';
   if (kind === 'premium') {
     // Driven premium is bound to a specific profileId — carried via the Payment
     // Link's ?client_reference_id= passthrough (set by the "Unlock Premium" link in
@@ -45,12 +56,12 @@ function mintForLineItem(session, price, codegen) {
     if (!name) throw new Error('No track/customer name on the session (custom field or billing name)');
     let exp;
     if (kind === 'forever') exp = '0';
-    else if (kind === 'season') exp = 'S' + (parseInt(price.metadata.season_year, 10) || currentYear());
-    else exp = 'R' + (parseInt(price.metadata.packet_days, 10) || 0);
+    else if (kind === 'season') exp = 'S' + (parseInt(meta.season_year, 10) || currentYear());
+    else exp = 'R' + (parseInt(meta.packet_days, 10) || 0);
     if (kind === 'packet' && !/^R[1-9]\d{0,3}$/.test(exp)) throw new Error('Price is missing a valid packet_days metadata value');
     return { plan_kind: kind, code: codegen.mintLicenseCode(name, exp) };
   }
-  throw new Error('Price ' + price.id + ' has no recognized plan_kind metadata: ' + JSON.stringify(price.metadata));
+  throw new Error('Price ' + price.id + ' has no recognized plan_kind metadata: ' + JSON.stringify(meta));
 }
 
 exports.stripeWebhook = onRequest(
@@ -86,7 +97,8 @@ exports.stripeWebhook = onRequest(
       const codegen = require('./lib/codegen');
 
       const session = await stripe.checkout.sessions.retrieve(sessionId, {
-        expand: ['line_items', 'line_items.data.price'],
+        // ...price.product so planMeta() can fall back to the Product's metadata.
+        expand: ['line_items', 'line_items.data.price', 'line_items.data.price.product'],
       });
       const items = session.line_items && session.line_items.data || [];
       if (!items.length) throw new Error('Session has no line items');
