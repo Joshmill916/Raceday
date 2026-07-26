@@ -1670,7 +1670,10 @@ const DRIVEN_URL = 'https://victoryraceday.com/driven/';
 // license code and the buyer claims it at claim.html. Fill in the real Payment Link
 // URL for whichever plans are on offer (see FIREBASE-SYNC.md); leave one blank to
 // hide that button.
-const PAYMENT_LINKS = { forever: '', season: '', packet: '' };
+const PAYMENT_LINKS = {
+  season: 'https://buy.stripe.com/test_3cIfZj2Rsbd4h2X3jX6EU05',
+  packet10: 'https://buy.stripe.com/test_8x2eVf0Jkbd47snaMp6EU06'
+};
 
 function licHash(str) {
   let h = 2166136261;
@@ -1800,7 +1803,13 @@ function delLic() {
 // through Stripe to claim.html, which shows the automatically-minted code to paste
 // back in above. Renders nothing if no links are set.
 function licBuyLinksHtml() {
-  const labels = { forever: 'Buy — Forever', season: 'Buy — Season pass', packet: 'Buy — Race packet' };
+  const labels = {
+    season: 'Buy — Season pass ($350)',
+    packet1: 'Buy — 1-day packet ($25)',
+    packet3: 'Buy — 3-day packet ($70)',
+    packet5: 'Buy — 5-day packet ($115)',
+    packet10: 'Buy — 10-day packet ($200)'
+  };
   const links = Object.keys(PAYMENT_LINKS).filter(k => PAYMENT_LINKS[k]);
   if (!links.length) return '';
   return '<div style="display:flex;gap:8px;flex-wrap:wrap;margin-top:8px">'
