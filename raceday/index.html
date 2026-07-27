@@ -499,6 +499,16 @@
           </div>
         </div>
         <p style="font-size:12px;color:var(--muted);margin-top:10px">The name and logo show in the header and on printed lineups.</p>
+        <div style="margin-top:14px;display:grid;gap:10px;max-width:520px">
+          <label style="font-size:12px">Track length<input id="trackLength" type="text" placeholder="e.g. 3/8 mile" style="display:block;width:100%;margin-top:3px" onchange="saveTrack()"></label>
+          <div style="display:flex;gap:10px;flex-wrap:wrap">
+            <label style="font-size:12px;flex:1;min-width:140px">Surface<select id="trackSurface" style="display:block;width:100%;margin-top:3px" onchange="saveTrack()"><option value="">—</option><option value="Dirt">Dirt</option><option value="Pavement">Pavement</option></select></label>
+            <label style="font-size:12px;flex:1;min-width:140px">Configuration<select id="trackConfig" style="display:block;width:100%;margin-top:3px" onchange="saveTrack()"><option value="">—</option><option value="Oval">Oval</option><option value="Road course">Road course</option></select></label>
+          </div>
+          <label style="font-size:12px">Track history <span style="color:var(--muted);font-weight:400">— shown to spectators who tap "About this track," optional</span>
+            <textarea id="trackHistory" rows="3" style="display:block;width:100%;margin-top:3px;resize:vertical" placeholder="When it opened, what makes it unique, anything fans should know." onchange="saveTrack()"></textarea>
+          </label>
+        </div>
         <div style="margin-top:10px"><button class="btn btn-sm" onclick="openSetupWizard()">Setup wizard</button></div>
       </div>
     </section>
@@ -989,6 +999,15 @@
         <button id="wizLogoRemove" class="btn btn-sm btn-danger" type="button" style="display:none" onclick="wizRemoveLogo()">Remove</button>
         <input id="wizLogoFile" type="file" accept="image/*" style="display:none" onchange="wizUploadLogo(this)">
       </div>
+      <div style="margin-top:14px;display:grid;gap:8px;max-width:480px">
+        <label style="font-size:12px;font-weight:600">Track details <span style="font-weight:400;color:var(--muted)">— optional, shown to fans who tap "About this track"</span></label>
+        <input id="wizTrackLength" type="text" placeholder="Length, e.g. 3/8 mile" style="display:block;width:100%">
+        <div style="display:flex;gap:8px;flex-wrap:wrap">
+          <select id="wizTrackSurface" style="flex:1;min-width:130px"><option value="">Surface —</option><option value="Dirt">Dirt</option><option value="Pavement">Pavement</option></select>
+          <select id="wizTrackConfig" style="flex:1;min-width:130px"><option value="">Configuration —</option><option value="Oval">Oval</option><option value="Road course">Road course</option></select>
+        </div>
+        <textarea id="wizTrackHistory" rows="2" style="display:block;width:100%;resize:vertical" placeholder="A little history or what makes this track unique (optional)"></textarea>
+      </div>
     </div>
     <div id="wizS3" style="display:none">
       <p style="margin-bottom:.75rem;font-weight:600">Your race classes</p>
@@ -1044,6 +1063,13 @@
   <div class="vdc-box">
     <div id="cicContent"></div>
     <span class="vdc-close" onclick="hideClassCard()">✕ Close</span>
+  </div>
+</div>
+
+<div id="trackInfoCard" class="vdc-overlay" style="display:none" onclick="if(event.target===this)hideTrackCard()">
+  <div class="vdc-box">
+    <div id="ticContent"></div>
+    <span class="vdc-close" onclick="hideTrackCard()">✕ Close</span>
   </div>
 </div>
 
@@ -1131,7 +1157,7 @@ function setDeviceRole(r) { try { localStorage.setItem('rd_role', r); } catch (e
 function today() { const d = new Date(); return d.getFullYear()+'-'+String(d.getMonth()+1).padStart(2,'0')+'-'+String(d.getDate()).padStart(2,'0'); }
 function defaults() {
   return {
-    track: { name: '', logo: '' },                // track identity: logo is a data URL
+    track: { name: '', logo: '', length: '', surface: '', configuration: '', history: '' }, // track identity + optional spectator context
     provider: { legalName: '', operator: '', jurisdiction: '' }, // legalName = software owner; operator = track/customer legal entity (for docs)
     adminPin: '',                                 // empty = Admin tab is open to everyone
     operatorPin: '',                              // owner's private PIN to "take control" in operator mode (local only, never synced)
@@ -1141,10 +1167,10 @@ function defaults() {
     license: null,                                // {code, name, exp} once activated; exp = plan token (0/YYYYMM/SYYYY/Rn)
     trialDays: [],                                // dates that used a free-trial race day
     licUse: {},                                   // packet usage per code: { code: [dates] }
-    classLib: [                                   // every class name ever used: {name, maxPill}
-      { name: 'Junior 80cc', maxPill: 200 },
-      { name: 'Senior 100cc', maxPill: 200 },
-      { name: 'Open Shifter', maxPill: 200 }
+    classLib: [                                   // every class name ever used: {name, maxPill, description, ageGroup, specs}
+      { name: 'Junior 80cc', maxPill: 200, description: '', ageGroup: '', specs: '' },
+      { name: 'Senior 100cc', maxPill: 200, description: '', ageGroup: '', specs: '' },
+      { name: 'Open Shifter', maxPill: 200, description: '', ageGroup: '', specs: '' }
     ],
     roster: [],                                   // persistent driver book: {id, name, num}
     classes: [
@@ -1158,16 +1184,16 @@ function defaults() {
     // MUST equal the latest migration number in migrate(). Left at 2 when migration 3
     // (PIN hashing) shipped, every fresh install re-hashed its already-hashed PIN on the
     // next load — locking the owner out with the CORRECT PIN.
-    schemaVersion: 3,
+    schemaVersion: 4,
     sync: { enabled: false, key: '' }             // live multi-device sync (off until activated)
   };
 }
 function migrate(s) {
-  if (!s.track) s.track = { name: '', logo: '' };
+  if (!s.track) s.track = { name: '', logo: '', length: '', surface: '', configuration: '', history: '' };
   if (!s.history) s.history = [];
   if (s.adminPin == null) s.adminPin = '';
   if (s.operatorPin == null) s.operatorPin = '';
-  if (!s.classLib) s.classLib = s.classes.map(c => ({ name: c.name, maxPill: c.maxPill || 200 }));
+  if (!s.classLib) s.classLib = s.classes.map(c => ({ name: c.name, maxPill: c.maxPill || 200, description: c.description || '', ageGroup: c.ageGroup || '', specs: c.specs || '' }));
   if (s.license === undefined) s.license = null;
   if (!s.trialDays) s.trialDays = [];
   if (!s.licUse) s.licUse = {};
@@ -1215,6 +1241,21 @@ function migrate(s) {
     if (s.adminPin) s.adminPin = pinHash(s.adminPin);
     if (s.operatorPin) s.operatorPin = pinHash(s.operatorPin);
     s.schemaVersion = 3;
+  }
+  if (s.schemaVersion < 4) {
+    // Track-level spectator context (length/surface/configuration/history), and the
+    // same fields on classLib so a class's spectator info survives being removed and
+    // re-added in a later season instead of resetting to blank.
+    if (!s.track.length) s.track.length = '';
+    if (!s.track.surface) s.track.surface = '';
+    if (!s.track.configuration) s.track.configuration = '';
+    if (!s.track.history) s.track.history = '';
+    if (s.classLib) s.classLib.forEach(x => {
+      if (!x.description) x.description = '';
+      if (!x.ageGroup) x.ageGroup = '';
+      if (!x.specs) x.specs = '';
+    });
+    s.schemaVersion = 4;
   }
   return s;
 }
@@ -2235,7 +2276,8 @@ function setViewStage(s) { UI.viewStage = s; renderGrid(); }
 function renderViewerLineups() {
   const el = document.getElementById('gridContent');
   if (!el) return;
-  if (!S.classes.length) { el.innerHTML = '<p class="empty">Lineups will appear here once the race day starts.</p>'; return; }
+  const trackBtn = '<div style="text-align:center;margin-bottom:10px"><button class="btn btn-sm" onclick="showTrackCard()">🏟 About this track</button></div>';
+  if (!S.classes.length) { el.innerHTML = trackBtn + '<p class="empty">Lineups will appear here once the race day starts.</p>'; return; }
   if (!UI.viewClsId || !classById(UI.viewClsId)) UI.viewClsId = S.classes[0].id;
   const cls = classById(UI.viewClsId);
   const racers = classRacers(cls.id);
@@ -2245,7 +2287,7 @@ function renderViewerLineups() {
     ? s => ({ id: s.id, name: s.name, num: s.num, tag: s.qualTime ? '⏱ ' + s.qualTime : 'Seed P' + s.pill })
     : s => ({ id: s.id, name: s.name, num: s.num, tag: 'Heat total ' + s.pts });
 
-  let h = '<div class="vw-pick"><label>Class</label><select onchange="setViewClass(this.value)">'
+  let h = trackBtn + '<div class="vw-pick"><label>Class</label><select onchange="setViewClass(this.value)">'
     + S.classes.map(c => '<option value="' + c.id + '"' + (c.id === UI.viewClsId ? ' selected' : '') + '>' + esc(c.name) + '</option>').join('')
     + '</select><button class="btn btn-sm" style="flex-shrink:0;padding:5px 12px" onclick="showClassCard(' + UI.viewClsId + ')" title="About this class">ℹ About</button></div>';
   // A straight-to-mains class races no heats — drop that tab and bounce a stale selection.
@@ -2505,6 +2547,19 @@ function showClassCard(id) {
   showModal('classInfoCard', 'flex');
 }
 function hideClassCard() { hideModal('classInfoCard'); }
+function showTrackCard() {
+  if (deviceRole() !== 'viewer') return;
+  const t = S.track;
+  const meta = [t.surface, t.configuration, t.length].map(x => (x || '').trim()).filter(Boolean).join(' · ');
+  const history = (t.history || '').trim();
+  document.getElementById('ticContent').innerHTML =
+    '<div style="font-family:var(--display);font-size:22px;font-weight:800;margin-bottom:6px">' + esc(t.name || 'This track') + '</div>'
+    + (meta ? '<div style="font-size:13px;color:var(--muted);margin-bottom:10px">🏁 ' + esc(meta) + '</div>' : '')
+    + (history ? '<div style="font-size:14px;line-height:1.6;color:var(--ink);border-top:1px solid var(--line);padding-top:12px;margin-top:4px">' + esc(history).replace(/\n/g, '<br>') + '</div>'
+              : '<div style="font-size:13px;color:var(--muted);font-style:italic">No track history added yet.</div>');
+  showModal('trackInfoCard', 'flex');
+}
+function hideTrackCard() { hideModal('trackInfoCard'); }
 
 let _viewerToastTimer = null;
 function showViewerToast() {
@@ -3415,6 +3470,10 @@ function renderHeader() {
 }
 function saveTrack() {
   S.track.name = document.getElementById('trackName').value.trim();
+  S.track.length = document.getElementById('trackLength').value.trim();
+  S.track.surface = document.getElementById('trackSurface').value;
+  S.track.configuration = document.getElementById('trackConfig').value;
+  S.track.history = document.getElementById('trackHistory').value.trim();
   save();
   renderHeader();
 }
@@ -3504,6 +3563,10 @@ function renderAdmin() {
   renderClsList(); renderClsLib(); renderQuickAdd(); renderEntryList(); renderRosterList(); renderHistory(); renderImpForm(); renderPinCard(); renderLicCard(); renderSyncCard(); renderPointsInputs();
   renderLegalInputs(); renderConsentCard(); renderAuditCard();
   document.getElementById('trackName').value = S.track.name;
+  document.getElementById('trackLength').value = S.track.length || '';
+  document.getElementById('trackSurface').value = S.track.surface || '';
+  document.getElementById('trackConfig').value = S.track.configuration || '';
+  document.getElementById('trackHistory').value = S.track.history || '';
   const prev = document.getElementById('logoPrev');
   if (S.track.logo) { prev.src = S.track.logo; prev.style.display = ''; }
   else { prev.removeAttribute('src'); prev.style.display = 'none'; }
@@ -3699,6 +3762,7 @@ function renderClsList() {
 function saveClassInfo(id, field, val) {
   const c = classById(id); if (!c) return;
   c[field] = val.trim();
+  rememberClass(c.name, c.maxPill, { [field]: c[field] });   // so it survives this class being removed and re-added later
   save();
 }
 // Per-class heat-start format. Standard = fastest qualifier on pole (no invert).
@@ -3746,10 +3810,19 @@ function moveClass(id, dir) {
   save();
   renderClsList();
 }
-function rememberClass(name, maxPill) {
+// extra = optional {description?, ageGroup?, specs?} to merge in — only the keys passed
+// are touched, so a maxPill-only call (setClassMax) never blanks out saved spectator info.
+function rememberClass(name, maxPill, extra) {
+  const fields = extra || {};
   const hit = S.classLib.find(x => x.name.toLowerCase() === name.toLowerCase());
-  if (hit) { hit.name = name; hit.maxPill = maxPill; }
-  else S.classLib.push({ name, maxPill });
+  if (hit) {
+    hit.name = name; hit.maxPill = maxPill;
+    if (fields.description !== undefined) hit.description = fields.description;
+    if (fields.ageGroup !== undefined) hit.ageGroup = fields.ageGroup;
+    if (fields.specs !== undefined) hit.specs = fields.specs;
+  } else {
+    S.classLib.push({ name, maxPill, description: fields.description || '', ageGroup: fields.ageGroup || '', specs: fields.specs || '' });
+  }
 }
 function setClassMax(id, val) {
   const c = classById(id); if (!c) return;
@@ -3772,7 +3845,11 @@ function addClass() {
   const name = nameEl.value.trim();
   if (!name) return;
   const maxPill = Math.max(2, parseInt(maxEl.value) || 200);
-  S.classes.push({ id: newClassId(), name, maxPill, description: '', ageGroup: '', specs: '' });
+  // A name matching one in the library pulls its spectator info forward instead of
+  // starting blank — the whole point of the library is not re-typing this every season.
+  const libHit = S.classLib.find(x => x.name.toLowerCase() === name.toLowerCase());
+  S.classes.push({ id: newClassId(), name, maxPill,
+    description: (libHit && libHit.description) || '', ageGroup: (libHit && libHit.ageGroup) || '', specs: (libHit && libHit.specs) || '' });
   rememberClass(name, maxPill);
   nameEl.value = ''; maxEl.value = '200';
   save(); renderClsList(); renderClsLib();
@@ -3797,7 +3874,8 @@ function renderClsLib() {
 function readdClass(i) {
   const x = S.classLib[i]; if (!x) return;
   if (S.classes.some(c => c.name.toLowerCase() === x.name.toLowerCase())) return;
-  S.classes.push({ id: newClassId(), name: x.name, maxPill: Math.max(2, x.maxPill || 100) });
+  S.classes.push({ id: newClassId(), name: x.name, maxPill: Math.max(2, x.maxPill || 100),
+    description: x.description || '', ageGroup: x.ageGroup || '', specs: x.specs || '' });
   save(); renderAdmin();
 }
 
@@ -5707,6 +5785,10 @@ function wizShow(n) {
   nextBtn.disabled = false;
   if (n === 2) {
     document.getElementById('wizTrackName').value = S.track.name || '';
+    document.getElementById('wizTrackLength').value = S.track.length || '';
+    document.getElementById('wizTrackSurface').value = S.track.surface || '';
+    document.getElementById('wizTrackConfig').value = S.track.configuration || '';
+    document.getElementById('wizTrackHistory').value = S.track.history || '';
     nextBtn.disabled = !S.track.name;
     const lp = document.getElementById('wizLogoPrev');
     const lr = document.getElementById('wizLogoRemove');
@@ -5721,7 +5803,12 @@ function wizNext() {
   if (UI.wizStep === 2) {
     const name = (document.getElementById('wizTrackName').value || '').trim();
     if (!name) { alert('Please enter your track name.'); return; }
-    S.track.name = name; save(); renderHeader();
+    S.track.name = name;
+    S.track.length = document.getElementById('wizTrackLength').value.trim();
+    S.track.surface = document.getElementById('wizTrackSurface').value;
+    S.track.configuration = document.getElementById('wizTrackConfig').value;
+    S.track.history = document.getElementById('wizTrackHistory').value.trim();
+    save(); renderHeader();
   }
   if (UI.wizStep === 3) { if (!wizSaveClasses()) return; save(); renderHeader(); }
   if (UI.wizStep === 4) {
@@ -5741,13 +5828,36 @@ function renderWizClasses() {
   if (!el) return;
   el.innerHTML = S.classes.map((c, i) =>
     '<div class="wiz-cls-row"><input id="wizCls' + i + '" type="text" value="' + esc(c.name) + '" maxlength="40" placeholder="Class name"><span class="pill-hint">Pills 1–' + c.maxPill + '</span></div>'
+    + '<div style="padding:0 0 8px 4px"><span style="font-size:11px;color:var(--muted);cursor:pointer;text-decoration:underline" onclick="var p=this.parentElement.nextElementSibling;p.style.display=p.style.display===\'none\'?\'block\':\'none\'">'
+      + ((c.description || c.ageGroup || c.specs) ? 'Edit spectator info' : '+ Add spectator info (optional)') + '</span></div>'
+    + '<div style="display:none;padding:0 0 10px 4px"><div style="display:grid;gap:6px;max-width:440px">'
+      + '<input type="text" value="' + esc(c.ageGroup || '') + '" placeholder="Age group / eligibility" style="width:100%" onchange="saveClassInfo(' + c.id + ',\'ageGroup\',this.value)">'
+      + '<input type="text" value="' + esc(c.specs || '') + '" placeholder="Kart / engine specs" style="width:100%" onchange="saveClassInfo(' + c.id + ',\'specs\',this.value)">'
+      + '<textarea rows="2" style="width:100%;resize:vertical" placeholder="Description for spectators" onchange="saveClassInfo(' + c.id + ',\'description\',this.value)">' + esc(c.description || '') + '</textarea>'
+    + '</div></div>'
   ).join('')
-  + '<button class="btn btn-sm" type="button" onclick="wizAddClass()" style="margin-top:8px">+ Add a class</button>';
+  + '<button class="btn btn-sm" type="button" onclick="wizAddClass()" style="margin-top:8px">+ Add a class</button>'
+  + wizClsLibHtml();
 }
 function wizAddClass() {
   if (!wizSaveClasses()) return;   // keep any renames typed so far — re-rendering would discard them
   S.classes.push({ id: newClassId(), name: 'New class ' + (S.classes.length + 1), maxPill: 200, description: '', ageGroup: '', specs: '' });
   save(); renderWizClasses();
+}
+// "Choose an existing class" — surfaces classLib here too, so the wizard is a real
+// alternative to hunting for the same control in Admin → Classes.
+function wizClsLibHtml() {
+  const active = new Set(S.classes.map(c => c.name.toLowerCase()));
+  const lib = S.classLib.map((x, i) => ({ ...x, i })).filter(x => !active.has(x.name.toLowerCase()));
+  if (!lib.length) return '';
+  return '<div style="margin-top:10px"><label style="font-size:12px;color:var(--muted)">Or choose a saved class</label><div class="sugg">'
+    + lib.map(x => '<button type="button" onclick="wizReaddClass(' + x.i + ')">+ <b>' + esc(x.name) + '</b></button>').join('')
+    + '</div></div>';
+}
+function wizReaddClass(i) {
+  if (!wizSaveClasses()) return;   // keep any renames typed so far
+  readdClass(i);   // carries description/ageGroup/specs forward from the library (see readdClass)
+  renderWizClasses();
 }
 function wizSaveClasses() {
   const warnings = [];
