@@ -10,7 +10,7 @@
 ## Driver cards (spectator profiles + premium tier)
 
 **Vision:** spectators tap a driver's name in the lineup and see a profile card —
-record, kart number, age, hometown, sponsors. A paid premium tier lets a driver pay
+record, car number, age, hometown, sponsors. A paid premium tier lets a driver pay
 to upgrade their card to a broadcast-style, NASCAR/Indy-looking animated graphic.
 
 **Decisions made**
@@ -38,7 +38,7 @@ to upgrade their card to a broadcast-style, NASCAR/Indy-looking animated graphic
 - Extend each driver with optional text profile: age, hometown, sponsors.
 - `driverStats(driverId)` — tally starts / wins / podiums / top-5s / best finish /
   season points from history + today.
-- Tap a name in any lineup → a card overlay with kart #, class, auto-stats, and the
+- Tap a name in any lineup → a card overlay with car #, class, auto-stats, and the
   manual profile text. Read-only for spectators; admin can edit the profile inline.
 
 **Phase 2 — Premium look.** ✅ *Done (2026-07-08).* The broadcast-style animated card: driver photo, team

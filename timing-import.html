@@ -460,7 +460,7 @@ const TARGET_DESC = {
   feat: 'Imports the main-event finishing order. All drivers in the file earn series points by their finishing position.',
 };
 const COL_LABELS = {
-  trans:'Transponder #', num:'Kart / Car #', name:'Driver name (or first)', name2:'Last name (if split)',
+  trans:'Transponder #', num:'Car #', name:'Driver name (or first)', name2:'Last name (if split)',
   cls:'Class', pos:'Position / Finish', time:'Lap time (qualifying)',
 };
 
@@ -513,7 +513,7 @@ function showPreview() {
   const issues = [];
   if (!App.useClsCol && !App.clsId) issues.push('Pick a target class (or switch to "use class column").');
   if (App.useClsCol && App.cols.cls < 0) issues.push('Map the "Class" column so the tool knows which class each row belongs to.');
-  if (App.cols.num < 0 && App.cols.name < 0 && App.cols.trans < 0) issues.push('Map at least one identity column: Transponder #, Kart/Car #, or Driver name.');
+  if (App.cols.num < 0 && App.cols.name < 0 && App.cols.trans < 0) issues.push('Map at least one identity column: Transponder #, Car #, or Driver name.');
   if (App.target !== 'heat' && App.cols.pos < 0 && App.cols.time < 0) issues.push('Map "Position/Finish" or "Lap time" so the tool knows the order/result.');
   if (App.target === 'heat' && App.cols.pos < 0) issues.push('Map "Position/Finish" for heat results.');
   if (issues.length) {
@@ -648,7 +648,7 @@ function renderPreview() {
 
   const isQual = App.target === 'qual';
   document.getElementById('prevHead').innerHTML =
-    '<th>Driver</th><th>Kart #</th><th>Match</th><th>' + (isQual ? 'Grid rank' : 'Finish') + '</th><th>Class</th><th>Status</th>';
+    '<th>Driver</th><th>Car #</th><th>Match</th><th>' + (isQual ? 'Grid rank' : 'Finish') + '</th><th>Class</th><th>Status</th>';
 
   document.getElementById('prevBody').innerHTML = preview.map(r => {
     const cls = (B.classes || []).find(c => c.id === r.clsId);

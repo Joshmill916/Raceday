@@ -1,5 +1,5 @@
 // Regression suite for the sign-up identity-merge bug (customer complaint, 2026-07-15):
-// two DIFFERENT real people who happen to type the same name+kart number were being
+// two DIFFERENT real people who happen to type the same name+car number were being
 // silently merged into ONE permanent roster record (findRosterMatch's exact-match
 // branch had no safety check at all). The fix: only auto-merge on an explicit
 // suggest()/pickRoster() pick — any other match requires a confirm() before merging,

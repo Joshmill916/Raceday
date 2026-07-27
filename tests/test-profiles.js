@@ -52,7 +52,7 @@ const check = (n, ok, x) => { if (ok) { pass++; console.log('  ✅ ' + n); } els
 
   await page.evaluate(() => nav('home')); await page.waitForTimeout(150);
   const homeTxt = await page.textContent('#page-home');
-  check('home feed shows recent races', homeTxt.includes('Riverside Kart Park') && homeTxt.includes('Lonestar Speedway'));
+  check('home feed shows recent races', homeTxt.includes('Riverside Speedway') && homeTxt.includes('Lonestar Speedway'));
 
   await page.evaluate(() => nav('stats')); await page.waitForTimeout(150);
   const statsTxt = await page.textContent('#page-stats');
@@ -60,20 +60,20 @@ const check = (n, ok, x) => { if (ok) { pass++; console.log('  ✅ ' + n); } els
 
   console.log('— Import dedupe —');
   await page.evaluate(() => nav('settings')); await page.waitForTimeout(150);
-  const dupAdded = await page.evaluate(() => ingestExport({ trackId: 'raceday_riverside', trackName: 'Riverside Kart Park', date: '2026-06-14', results: [{ class: 'Junior 80cc', position: 1, points: 25 }] }));
+  const dupAdded = await page.evaluate(() => ingestExport({ trackId: 'raceday_riverside', trackName: 'Riverside Speedway', date: '2026-06-14', results: [{ class: 'Junior 80cc', position: 1, points: 25 }] }));
   check('duplicate result (same track+date+class) not re-added', dupAdded === 0 && await page.evaluate(() => P.raceResults.length === 5));
-  const newAdded = await page.evaluate(() => ingestExport({ trackId: 'raceday_riverside', trackName: 'Riverside Kart Park', date: '2026-07-05', results: [{ class: 'Junior 80cc', position: 4, points: 15 }] }));
+  const newAdded = await page.evaluate(() => ingestExport({ trackId: 'raceday_riverside', trackName: 'Riverside Speedway', date: '2026-07-05', results: [{ class: 'Junior 80cc', position: 4, points: 15 }] }));
   check('new date/class result is added', newAdded === 1 && await page.evaluate(() => P.raceResults.length === 6));
 
   console.log('— Edit profile —');
   await page.fill('#stBio', 'Racing since I could reach the pedals.');
-  await page.fill('#stSponsors', 'Smith Auto, FastKarts');
+  await page.fill('#stSponsors', 'Smith Auto, Apex Racing');
   await page.click('button[onclick="saveProfileFields()"]'); await page.waitForTimeout(150);
   check('bio saved', await page.evaluate(() => P.driver.bio === 'Racing since I could reach the pedals.'));
   check('sponsors parsed into array', await page.evaluate(() => P.sponsors.length === 2 && P.sponsors[0].name === 'Smith Auto'));
   await page.evaluate(() => nav('card')); await page.waitForTimeout(150);
   const cardTxt = await page.textContent('#page-card');
-  check('card page shows bio and sponsors', cardTxt.includes('Racing since I could reach the pedals.') && cardTxt.includes('Smith Auto') && cardTxt.includes('FastKarts'));
+  check('card page shows bio and sponsors', cardTxt.includes('Racing since I could reach the pedals.') && cardTxt.includes('Smith Auto') && cardTxt.includes('Apex Racing'));
 
   console.log('— Unlink track —');
   await page.evaluate(() => nav('link')); await page.waitForTimeout(150);
@@ -143,7 +143,7 @@ const check = (n, ok, x) => { if (ok) { pass++; console.log('  ✅ ' + n); } els
                 if (path === 'profiles/' + pid + '/card') return Promise.resolve({ val: function () {
                   return {
                     name: 'Robin Park', num: '9', hometown: 'Dayton, OH', age: '15',
-                    teamColor: '#1f6fd6', photo: '', sponsors: 'Fast Kart Co · Speedy Tires',
+                    teamColor: '#1f6fd6', photo: '', sponsors: 'Apex Racing · Speedy Tires',
                     premiumCode: code, updatedAt: 1752600000000,
                   };
                 } });
@@ -160,12 +160,12 @@ const check = (n, ok, x) => { if (ok) { pass++; console.log('  ✅ ' + n); } els
   await page.click('button[onclick="restoreProfile()"]'); await page.waitForTimeout(300);
   check('onboarding closes after a valid link-code restore', await page.evaluate(() => document.getElementById('onboardModal').style.display === 'none'));
   check('identity restored from the published card', await page.evaluate(() => P.driver.name === 'Robin Park' && P.driver.number === '9' && P.driver.hometown === 'Dayton, OH'));
-  check('sponsors reconstructed from the flattened card string', await page.evaluate(() => P.sponsors.length === 2 && P.sponsors[0].name === 'Fast Kart Co' && P.sponsors[1].name === 'Speedy Tires'));
+  check('sponsors reconstructed from the flattened card string', await page.evaluate(() => P.sponsors.length === 2 && P.sponsors[0].name === 'Apex Racing' && P.sponsors[1].name === 'Speedy Tires'));
   check('premium status recomputed and honored (valid code)', await page.evaluate(() => P.tier === 'premium'));
   check('race history is explicitly EMPTY — never recoverable from a card alone', await page.evaluate(() => P.raceResults.length === 0));
   check('shortCode recorded so the profile can re-publish under the same link', await page.evaluate(() => P.shortCode === 'RESTORE1'));
 
-  console.log('— Bug: restore must succeed for a real card with no kart number yet (onboarding never asks for one) —');
+  console.log('— Bug: restore must succeed for a real card with no car number yet (onboarding never asks for one) —');
   await page.evaluate(() => nav('settings')); await page.waitForTimeout(150);
   await Promise.all([page.waitForNavigation(), page.click('button[onclick="deleteProfile()"]')]);
   await page.waitForSelector('#onboardModal');
@@ -181,7 +181,7 @@ const check = (n, ok, x) => { if (ok) { pass++; console.log('  ✅ ' + n); } els
                 if (path === 'profiles_short/NONUM001') return Promise.resolve({ val: function () { return pid; } });
                 if (path === 'profiles/' + pid + '/card') return Promise.resolve({ val: function () {
                   // A driver who published right after onboarding, before ever setting
-                  // a kart number in Settings — num is a real, valid, empty string.
+                  // a car number in Settings — num is a real, valid, empty string.
                   return { name: 'Casey Nguyen', num: '', hometown: '', age: '', teamColor: '', photo: '', sponsors: '', premiumCode: '', updatedAt: 1752600000000 };
                 } });
                 return Promise.resolve({ val: function () { return null; } });
@@ -195,8 +195,8 @@ const check = (n, ok, x) => { if (ok) { pass++; console.log('  ✅ ' + n); } els
   await page.click('a[onclick="toggleRestore(event)"]'); await page.waitForTimeout(100);
   await page.fill('#restoreInput', 'NONUM001');
   await page.click('button[onclick="restoreProfile()"]'); await page.waitForTimeout(300);
-  check('a published card with an empty kart number is NOT wrongly rejected', await page.evaluate(() => document.getElementById('onboardModal').style.display === 'none'));
-  check('restored profile keeps the name, with an empty kart number (not a lost card)', await page.evaluate(() => P.driver.name === 'Casey Nguyen' && P.driver.number === ''));
+  check('a published card with an empty car number is NOT wrongly rejected', await page.evaluate(() => document.getElementById('onboardModal').style.display === 'none'));
+  check('restored profile keeps the name, with an empty car number (not a lost card)', await page.evaluate(() => P.driver.name === 'Casey Nguyen' && P.driver.number === ''));
 
   await browser.close(); server.close();
   console.log(`\n==== ${pass} passed, ${fail} failed ====`);

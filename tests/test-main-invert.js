@@ -166,7 +166,7 @@ const check = (name, ok, extra) => {
     const f = featureData(c2.id);
     return featureGridOrder(f, c2.id).map(r => r.name);
   });
-  check('4-kart class, invert 2 → E2,E1,E3,E4', res2.join(',') === 'E2,E1,E3,E4', res2.join(','));
+  check('4-car class, invert 2 → E2,E1,E3,E4', res2.join(',') === 'E2,E1,E3,E4', res2.join(','));
 
   console.log('\n— Admin UI + setter —');
   const admHtml = await page.evaluate(() => { renderClsList(); return document.getElementById('clsList').innerHTML; });

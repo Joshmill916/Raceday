@@ -535,7 +535,7 @@ function restoreFromBackupJson(raw) {
 
 // Partial restore from the PUBLISHED card only — works even with no prior backup file,
 // since it just re-pulls whatever this profile already published to Firebase. Recovers
-// identity, kart #, sponsors, and premium status, but NEVER race history: cardPayload()
+// identity, car #, sponsors, and premium status, but NEVER race history: cardPayload()
 // only ever sends the lean card fields, so career stats/results only ever lived on the
 // original device and can't be pulled back this way.
 function restoreFromLinkCode(code) {
@@ -552,7 +552,7 @@ function restoreFromLinkCode(code) {
   }).then(function (result) {
     if (!result) return;
     var profileId = result.profileId, card = result.card;
-    // Only a name is guaranteed — onboarding never asks for a kart number, and
+    // Only a name is guaranteed — onboarding never asks for a car number, and
     // "Publish my card" is available immediately, so a real, live card can easily have
     // an empty num. Rejecting on a missing num would wrongly treat a genuinely
     // published card as if it didn't exist.
@@ -586,7 +586,7 @@ function restoreFromLinkCode(code) {
     save();
     $id('onboardModal').style.display = 'none';
     nav('home');
-    alert('✅ Card restored for ' + P.driver.name + '.\n\nYour identity, kart #, and premium status are back — but your race history isn\'t included. It only ever lived on your original device. If you still have access to it, use "Back up my profile" there and restore that file here instead for full history.');
+    alert('✅ Card restored for ' + P.driver.name + '.\n\nYour identity, car #, and premium status are back — but your race history isn\'t included. It only ever lived on your original device. If you still have access to it, use "Back up my profile" there and restore that file here instead for full history.');
   }).catch(function () {
     alert("Couldn't reach the profile service — check your connection and try again.");
   });
@@ -869,7 +869,7 @@ function renderSettings() {
     + '<div class="slbl">Profile</div>'
     + '<label>Name</label><input type="text" id="stName" value="' + esc(d.name) + '" maxlength="40">'
     + '<label>Email</label><input type="email" id="stEmail" value="' + esc(d.email) + '" maxlength="80">'
-    + '<label>Kart / vehicle number</label><input type="text" id="stNumber" value="' + esc(d.number || '') + '" maxlength="5" placeholder="e.g. 47 or 12A" autocapitalize="characters">'
+    + '<label>Car number</label><input type="text" id="stNumber" value="' + esc(d.number || '') + '" maxlength="5" placeholder="e.g. 47 or 12A" autocapitalize="characters">'
     + '<label>Team color</label><input type="color" id="stTeamColor" value="' + esc(/^#[0-9a-fA-F]{6}$/.test(d.teamColor || '') ? d.teamColor : '#1f6fd6') + '" style="height:44px;padding:4px">'
     + '<label>Driver photo</label>'
     + '<div style="display:flex;gap:10px;align-items:center">'
@@ -881,7 +881,7 @@ function renderSettings() {
     + '<label>Hometown</label><input type="text" id="stHometown" value="' + esc(d.hometown) + '" maxlength="60">'
     + '<label>Age</label><input type="number" id="stAge" value="' + (d.age || '') + '" min="1" max="120">'
     + '<label>Bio (max 280 characters)</label><textarea id="stBio" maxlength="280">' + esc(d.bio) + '</textarea>'
-    + '<label>Sponsors (comma-separated)</label><input type="text" id="stSponsors" maxlength="150" value="' + esc(P.sponsors.map(function (s) { return s.name; }).join(', ')) + '" placeholder="Smith Auto, FastKarts">'
+    + '<label>Sponsors (comma-separated)</label><input type="text" id="stSponsors" maxlength="150" value="' + esc(P.sponsors.map(function (s) { return s.name; }).join(', ')) + '" placeholder="Smith Auto, Apex Racing">'
     + '<button class="btn btn-primary btn-block" onclick="saveProfileFields()" style="margin-top:16px">Save changes</button>'
     + '</div>';
 
@@ -996,9 +996,9 @@ function importResultsFromText() {
 
 function loadDemoResults() {
   var demo = [
-    { trackId: 'raceday_riverside', trackName: 'Riverside Kart Park', date: '2026-06-14', results: [{ class: 'Junior 80cc', position: 1, points: 25 }] },
-    { trackId: 'raceday_riverside', trackName: 'Riverside Kart Park', date: '2026-06-21', results: [{ class: 'Junior 80cc', position: 3, points: 18 }] },
-    { trackId: 'raceday_riverside', trackName: 'Riverside Kart Park', date: '2026-06-28', results: [{ class: 'Junior 80cc', position: 2, points: 21 }] },
+    { trackId: 'raceday_riverside', trackName: 'Riverside Speedway', date: '2026-06-14', results: [{ class: 'Junior 80cc', position: 1, points: 25 }] },
+    { trackId: 'raceday_riverside', trackName: 'Riverside Speedway', date: '2026-06-21', results: [{ class: 'Junior 80cc', position: 3, points: 18 }] },
+    { trackId: 'raceday_riverside', trackName: 'Riverside Speedway', date: '2026-06-28', results: [{ class: 'Junior 80cc', position: 2, points: 21 }] },
     { trackId: 'raceday_lonestar', trackName: 'Lonestar Speedway', date: '2026-06-20', results: [{ class: 'Senior 100cc', position: 1, points: 25 }] },
     { trackId: 'raceday_lonestar', trackName: 'Lonestar Speedway', date: '2026-06-27', results: [{ class: 'Senior 100cc', position: 5, points: 12 }] }
   ];

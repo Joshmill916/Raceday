@@ -486,7 +486,7 @@
         <div style="display:flex;gap:20px;align-items:flex-start;flex-wrap:wrap">
           <div style="flex:1;min-width:220px">
             <label>Track name</label>
-            <input id="trackName" type="text" placeholder="e.g. Riverside Kart Speedway" onchange="saveTrack()" />
+            <input id="trackName" type="text" placeholder="e.g. Riverside Speedway" onchange="saveTrack()" />
           </div>
           <div>
             <label>Track logo</label>
@@ -529,7 +529,7 @@
     <section class="adm-sec" id="adm-format">
       <div class="card">
       <div class="g4">
-        <div><label>Max karts per heat</label><input type="number" id="mHeat" min="2" max="30" onchange="saveSett()" /></div>
+        <div><label>Max cars per heat</label><input type="number" id="mHeat" min="2" max="30" onchange="saveSett()" /></div>
         <div><label>Max in feature</label><input type="number" id="mFeat" min="2" max="40" onchange="saveSett()" /></div>
         <div><label>Max in B-main</label><input type="number" id="mBMain" min="2" max="30" onchange="saveSett()" /></div>
         <div><label>B-main transfers</label><input type="number" id="mTrans" min="0" max="10" onchange="saveSett()" /></div>
@@ -693,7 +693,7 @@
         </div>
         <div id="impDriverRows" style="margin-bottom:8px"></div>
         <div style="display:flex;gap:8px;flex-wrap:wrap;align-items:center;margin-bottom:10px">
-          <input id="impDriverSearch" type="text" placeholder="Search driver name or kart #" style="flex:2;min-width:160px" oninput="renderImpSearch()" />
+          <input id="impDriverSearch" type="text" placeholder="Search driver name or car #" style="flex:2;min-width:160px" oninput="renderImpSearch()" />
           <button class="btn btn-sm" onclick="addImpRow()">+ Add driver</button>
         </div>
         <div id="impSearchResults" style="margin-bottom:8px"></div>
@@ -733,11 +733,11 @@
       </div></div>
       <div class="guide-step"><div class="guide-num">3</div><div class="guide-body">
         <h3>Reading the grid</h3>
-        <p><b>Lowest spot starts up front.</b> Find your kart number — that row is where you line up.</p>
+        <p><b>Lowest spot starts up front.</b> Find your car number — that row is where you line up.</p>
       </div></div>
       <div class="guide-step"><div class="guide-num">4</div><div class="guide-body">
         <h3>Tap for more</h3>
-        <p>Tap a <b>driver's name</b> to see their kart number and classes. Tap <b>ℹ About</b> next to the class menu to learn what the class is — age group, karts, and more.</p>
+        <p>Tap a <b>driver's name</b> to see their car number and classes. Tap <b>ℹ About</b> next to the class menu to learn what the class is — age group, cars, and more.</p>
       </div></div>
     </div>
     <div id="fullGuide">
@@ -790,7 +790,7 @@
           <li><b>Track identity</b> — your name and logo on the lineups, printout, and TV. First time here? Hit <b>Setup wizard</b> to walk through name, classes, and PIN in one go.</li>
           <li><b>Classes</b> — add or remove classes, drag the running order, set each class's pill count. <b>Main invert</b> flips the top N starting spots of the feature or the B-mains once the heats are scored — heat totals still decide who makes each main, invert only changes where they start.</li>
           <li><b>Race settings</b> — heat size, feature size, max in a B-main, transfers, and the B-main format (single / parallel / cascade — tap the <span style="font-weight:700">i</span> buttons to learn each).</li>
-          <li><b>Today's entries</b> — all drivers signed up today. Edit kart numbers and grid spots inline. <b>Class column</b>: move a driver to another class — you'll choose whether they keep their pill or draw a fresh one. <b>Pts button</b>: mark a driver non-points for today without changing their roster flag.</li>
+          <li><b>Today's entries</b> — all drivers signed up today. Edit car numbers and grid spots inline. <b>Class column</b>: move a driver to another class — you'll choose whether they keep their pill or draw a fresh one. <b>Pts button</b>: mark a driver non-points for today without changing their roster flag.</li>
           <li><b>Driver book</b> — the persistent driver roster. <b>Points / No points</b> toggle marks someone as a non-points member permanently — they race every night but never appear in standings.</li>
           <li><b>Import past race</b> — entering the app mid-season? Add previous nights one at a time (date, class, drivers, points) so standings are accurate from the start.</li>
           <li><b>License</b> — enter your access code to unlock past the free trial.</li>
@@ -991,7 +991,7 @@
     <div id="wizS2" style="display:none">
       <p style="margin-bottom:1rem;font-weight:600">What's your track called?</p>
       <label>Track name</label>
-      <input id="wizTrackName" type="text" placeholder="e.g. Riverside Kart Speedway" maxlength="60" style="margin-bottom:.75rem" oninput="document.getElementById('wizNextBtn').disabled=!this.value.trim()" />
+      <input id="wizTrackName" type="text" placeholder="e.g. Riverside Speedway" maxlength="60" style="margin-bottom:.75rem" oninput="document.getElementById('wizNextBtn').disabled=!this.value.trim()" />
       <p style="margin-bottom:8px;font-weight:600">Logo (optional)</p>
       <div style="display:flex;align-items:center;gap:10px;flex-wrap:wrap">
         <img id="wizLogoPrev" alt="" style="display:none;height:44px;max-width:110px;object-fit:contain;border:1px solid var(--line);border-radius:6px;padding:3px;background:#fff">
@@ -1100,7 +1100,7 @@ const KEY = 'raceday_v1';
 
 // ---------- Usage reporting ----------
 // Aggregate, anonymous beacons to the app owner: registration counts (no names,
-// no kart numbers, no contact info) and crash messages. Leave TELEMETRY_URL blank
+// no car numbers, no contact info) and crash messages. Leave TELEMETRY_URL blank
 // to disable everything — nothing is sent and no disclosure shows. To turn it on,
 // paste the Google Apps Script web-app URL between the quotes.
 const APP_VERSION = '2026-06';
@@ -2047,7 +2047,7 @@ function register() {
   // Resolve the roster match, but auto-trust it ONLY if the driver explicitly tapped
   // their name from the suggestion/roster-pick list moments ago (cur.pickedId). Any
   // other match came from typed-from-scratch input — a coincidence risk, since two
-  // different real people can share a name+kart# (a common number reused across
+  // different real people can share a name+car# (a common number reused across
   // classes/days) — so a human must confirm before merging into someone else's
   // permanent roster identity and history. Decline == different person == no match.
   let match = findRosterMatch(cur.name, cur.num);
@@ -2085,7 +2085,7 @@ function register() {
   }
   // A returning driver changing their number rewrites it in EVERY class they already
   // race today — so validate the new number against those classes too, not just the
-  // newly-selected ones, or we'd silently create a duplicate kart # elsewhere.
+  // newly-selected ones, or we'd silently create a duplicate car # elsewhere.
   if (match && String(match.num).toLowerCase() !== cur.num.toLowerCase()) {
     const myClassIds = [...new Set(S.raceDay.entries.filter(e => e.driverId === match.id).map(e => e.classId))];
     for (const cid of myClassIds) {
@@ -2233,12 +2233,12 @@ function renderGrid() {
       h += '<div class="slbl" style="margin-top:6px">Full field — ' + (invN && scope === 'field' ? 'qualifying order, top ' + invN + ' inverted' : (heats === 1 ? 'qualifying order' : 'pill draw order')) + '</div>' + gridMarkup(field, single);
       h += '<div class="slbl">' + (heats === 1 ? 'Qualifying heats' : 'Set 1 heats') + invNote + '</div>';
       set1.forEach((heat, hi) => {
-        h += '<div class="heat-cap"><span>Heat ' + (hi + 1) + '</span><small>' + heat.length + ' karts</small></div>' + gridMarkup(heat, single);
+        h += '<div class="heat-cap"><span>Heat ' + (hi + 1) + '</span><small>' + heat.length + ' cars</small></div>' + gridMarkup(heat, single);
       });
       if (heats === 2) {
         h += '<div class="slbl">Set 2 heats — inverted</div>';
         set2.forEach((heat, hi) => {
-          h += '<div class="heat-cap inv"><span>Heat ' + (hi + 1) + '</span><small>' + heat.length + ' karts · inverted</small></div>' + gridMarkup(heat, single);
+          h += '<div class="heat-cap inv"><span>Heat ' + (hi + 1) + '</span><small>' + heat.length + ' cars · inverted</small></div>' + gridMarkup(heat, single);
         });
       }
     }
@@ -2309,7 +2309,7 @@ function renderViewerLineups() {
     const heats = classHeats(cls);
     const set1 = invertWithinHeats(heatArrays(racers, cls), cls);
     h += '<div class="slbl">' + (heats === 1 ? 'Heat lineups' : 'Set 1 heats') + '</div>';
-    set1.forEach((heat, hi) => { h += '<div class="heat-cap"><span>Heat ' + (hi + 1) + '</span><small>' + heat.length + ' karts</small></div>' + gridMarkup(heat, single, true); });
+    set1.forEach((heat, hi) => { h += '<div class="heat-cap"><span>Heat ' + (hi + 1) + '</span><small>' + heat.length + ' cars</small></div>' + gridMarkup(heat, single, true); });
     if (heats === 2) {
       h += '<div class="slbl">Set 2 — inverted</div>';
       set1.map(ht => [...ht].reverse()).forEach((heat, hi) => { h += '<div class="heat-cap inv"><span>Heat ' + (hi + 1) + '</span></div>' + gridMarkup(heat, single, true); });
@@ -2689,7 +2689,7 @@ function printHeats() {
     sets.forEach(([title, set, cl]) => {
       html += '<h3>' + title + '</h3>';
       set.forEach((heat, hi) => {
-        html += '<p><strong>' + (heats === 0 ? 'Full field' : 'Heat ' + (hi + 1)) + '</strong> (' + heat.length + ' karts)</p>'
+        html += '<p><strong>' + (heats === 0 ? 'Full field' : 'Heat ' + (hi + 1)) + '</strong> (' + heat.length + ' cars)</p>'
           + '<table' + cl + '><tr><th>Pos</th><th>Driver</th><th>Vehicle #</th><th>Pill</th><th>Grid spot</th></tr>';
         heat.forEach((r, i) => {
           const pt = posText(i + 1);
@@ -3275,13 +3275,13 @@ function addImpRowDriver(id) {
 }
 function addImpRow() {
   const q = (document.getElementById('impDriverSearch').value || '').trim();
-  if (!q) { alert('Type a driver name or kart # to search, then click their name. Or type a new name to add them.'); return; }
+  if (!q) { alert('Type a driver name or car # to search, then click their name. Or type a new name to add them.'); return; }
   // Try to find in roster first
   const match = S.roster.find(d => d.name.toLowerCase() === q.toLowerCase());
   if (match) { addImpRowDriver(match.id); return; }
   // Create a new roster entry
-  const num = prompt('Kart number for ' + q + '?', ''); if (num == null) return;
-  if (!/^[A-Za-z0-9]{1,5}$/.test(num.trim())) { alert('Kart number must be 1–5 letters or digits.'); return; }
+  const num = prompt('Car number for ' + q + '?', ''); if (num == null) return;
+  if (!/^[A-Za-z0-9]{1,5}$/.test(num.trim())) { alert('Car number must be 1–5 letters or digits.'); return; }
   const d = { id: genDriverId(), name: q.trim(), num: num.trim(), noPoints: false };
   S.roster.push(d); save();
   _impRows.push({ driverId: d.id, name: d.name, num: d.num, pts: 0 });
@@ -3754,7 +3754,7 @@ function renderClsList() {
           + ((c.description || c.ageGroup || c.specs) ? 'Edit spectator info' : '+ Add spectator info') + '</span></div>'
       + '<div style="display:none;padding:0 0 10px 44px"><div style="display:grid;gap:8px;max-width:480px">'
         + '<label style="font-size:12px">Age group / eligibility<input type="text" value="' + esc(c.ageGroup || '') + '" placeholder="e.g. Ages 8–14" style="display:block;width:100%;margin-top:3px" onchange="saveClassInfo(' + c.id + ',\'ageGroup\',this.value)"></label>'
-        + '<label style="font-size:12px">Kart / engine specs<input type="text" value="' + esc(c.specs || '') + '" placeholder="e.g. Yamaha KT100, 55 lb min weight" style="display:block;width:100%;margin-top:3px" onchange="saveClassInfo(' + c.id + ',\'specs\',this.value)"></label>'
+        + '<label style="font-size:12px">Car / engine specs<input type="text" value="' + esc(c.specs || '') + '" placeholder="e.g. Yamaha KT100, 55 lb min weight" style="display:block;width:100%;margin-top:3px" onchange="saveClassInfo(' + c.id + ',\'specs\',this.value)"></label>'
         + '<label style="font-size:12px">Description for spectators<textarea rows="3" style="display:block;width:100%;margin-top:3px;resize:vertical" placeholder="Explain what makes this class unique — who races it, what the racing is like, anything fans should know." onchange="saveClassInfo(' + c.id + ',\'description\',this.value)">' + esc(c.description || '') + '</textarea></label>'
       + '</div></div>';
   }).join('');
@@ -3922,7 +3922,7 @@ function refillLastDay() {
   const otherSkipped = skipped - pillsExhausted.length;
   alert('🏁 Re-entered ' + added + (added === 1 ? ' entry' : ' entries') + ' with fresh pills.'
     + (pillsExhausted.length ? '\n\nSkipped — no pills left:\n• ' + pillsExhausted.join('\n• ') : '')
-    + (otherSkipped > 0 ? '\n\nAlso skipped ' + otherSkipped + ' (already entered, not in roster, or kart # conflict).' : ''));
+    + (otherSkipped > 0 ? '\n\nAlso skipped ' + otherSkipped + ' (already entered, not in roster, or car # conflict).' : ''));
 }
 
 // Quick entry: returning driver + class, one tap, pill drawn automatically
@@ -3974,17 +3974,17 @@ function renderEntryList() {
   if (!rows.length) { el.innerHTML = '<p class="empty">No entries match “' + esc(q) + '”.</p>'; return; }
   el.innerHTML = '<div style="background:#fffbeb;border:1px solid #f59e0b;border-radius:6px;padding:9px 13px;margin:0 0 12px;font-size:13px;line-height:1.6">'
     + '<b>To edit an entry:</b> '
-    + 'Change <b>Kart #</b> to fix a wrong number (updates all heats today). '
+    + 'Change <b>Car #</b> to fix a wrong number (updates all heats today). '
     + 'Change <b>Class</b> to move the driver to a different class. '
     + 'Use <b>▲ ▼</b> on <b>Grid spot</b> to adjust their starting position.</div>'
     + '<table><thead><tr>'
     + '<th>Driver</th>'
-    + '<th>Kart #<br><span style="font-size:10px;font-weight:400;color:var(--muted)">fix number</span></th>'
+    + '<th>Car #<br><span style="font-size:10px;font-weight:400;color:var(--muted)">fix number</span></th>'
     + '<th>Class<br><span style="font-size:10px;font-weight:400;color:var(--muted)">move driver</span></th>'
     + '<th>Grid spot<br><span style="font-size:10px;font-weight:400;color:var(--muted)">use ▲ ▼</span></th>'
     + '<th></th></tr></thead><tbody>'
     + rows.map(r => '<tr><td style="font-weight:600">' + esc(r.name) + '</td>'
-      + '<td><input type="text" maxlength="5" value="' + esc(r.num) + '" title="Kart number" style="width:52px;text-align:center;padding:5px 4px;font-size:14px;font-weight:700" onchange="setEntryNum(' + r.i + ',this.value)"></td>'
+      + '<td><input type="text" maxlength="5" value="' + esc(r.num) + '" title="Car number" style="width:52px;text-align:center;padding:5px 4px;font-size:14px;font-weight:700" onchange="setEntryNum(' + r.i + ',this.value)"></td>'
       + '<td><select title="Move this driver to another class" style="max-width:150px;padding:5px 6px;font-size:13px" onchange="moveEntryClass(' + r.i + ',this.value)">'
         + S.classes.map(c => '<option value="' + c.id + '"' + (c.id === r.clsId ? ' selected' : '') + '>' + esc(c.name) + '</option>').join('')
         + '</select></td>'
@@ -4016,7 +4016,7 @@ function setEntryPill(i, val, opts) {
   if (p === e.pill) { renderEntryList(); return; }
   const d = driverById(e.driverId) || { name: '?', num: '?' };
   // Safeguard: a typed grid-spot change re-orders the whole class — confirm intent (the ▲▼ nudges skip this).
-  if (opts.confirm && !confirm('Move ' + d.name + ' (kart #' + d.num + ') from grid spot ' + e.pill + ' to ' + p + '?\n\nThis re-orders the entire ' + (cls.name || 'class') + ' lineup.\n\n(To change the kart NUMBER instead, edit the driver in the Driver book.)')) {
+  if (opts.confirm && !confirm('Move ' + d.name + ' (car #' + d.num + ') from grid spot ' + e.pill + ' to ' + p + '?\n\nThis re-orders the entire ' + (cls.name || 'class') + ' lineup.\n\n(To change the car NUMBER instead, edit the driver in the Driver book.)')) {
     renderEntryList(); return;                        // cancelled → revert the input to the stored spot
   }
   const old = e.pill;
@@ -4088,7 +4088,7 @@ function moveEntryClass(i, newClassId) {
     save(); renderEntryList();
   }
 }
-// Change a driver's kart number inline. Mirrors the sign-up rules: 1–5 letters/numbers,
+// Change a driver's car number inline. Mirrors the sign-up rules: 1–5 letters/numbers,
 // unique within every class the driver races today. The number lives on the driver,
 // so this updates them in the book and every class they're in — no lineup reshuffle.
 function setEntryNum(i, val) {
@@ -4097,7 +4097,7 @@ function setEntryNum(i, val) {
   const num = String(val == null ? '' : val).trim();
   if (num === String(d.num)) { renderEntryList(); return; }      // no real change
   if (!/^[A-Za-z0-9]{1,5}$/.test(num)) {
-    alert('Kart number must be 1–5 letters or numbers (e.g. 7, 12, 12A).');
+    alert('Car number must be 1–5 letters or numbers (e.g. 7, 12, 12A).');
     renderEntryList(); return;
   }
   const myClasses = [...new Set(S.raceDay.entries.filter(x => x.driverId === d.id).map(x => x.classId))];
@@ -4111,7 +4111,7 @@ function setEntryNum(i, val) {
   }
   const old = d.num;
   d.num = num;
-  logAudit('Kart number edit', '#' + old + ' ' + d.name, '#' + num, '');
+  logAudit('Car number edit', '#' + old + ' ' + d.name, '#' + num, '');
   save();
   renderEntryList();
 }
@@ -4995,13 +4995,13 @@ function impTimeUnparsed(s) {
   if (!s || /^(dnf|dns|dq|dsq|ret|nc)$/i.test(s)) return false;
   return impParseLapTime(s) === Infinity;
 }
-// A resolved name that looks like a kart number or an embedded lap time — a mis-mapped Name column.
+// A resolved name that looks like a car number or an embedded lap time — a mis-mapped Name column.
 function impNameSuspect(name, num) {
   const n = String(name || '').trim();
   if (!n) return false;
   if (/\d{1,2}[:.]\d{2}/.test(n)) return true;           // contains a time like 00.12.264 or 1:02
   if (/^\d+$/.test(n)) return true;                       // name is all digits
-  if (num && n === String(num).trim()) return true;       // name equals the kart number
+  if (num && n === String(num).trim()) return true;       // name equals the car number
   return false;
 }
 // A stored book name that is really a placeholder/number — safe to overwrite from the file.
@@ -5081,7 +5081,7 @@ function impCell(row, key) {
   return (i >= 0 && i < row.length) ? row[i].trim() : '';
 }
 // Match priority transponder → number → name (forgiving name + "Last, First").
-// Cross-references the kart number: a match whose stored number disagrees is flagged.
+// Cross-references the car number: a match whose stored number disagrees is flagged.
 function impMatchDriver(row) {
   const trans = impCell(row, 'trans');
   const num   = impCell(row, 'num');
@@ -5205,7 +5205,7 @@ function impComputePreview() {
         else if (m.transConflict) status = 'conflict';
         if (pendName && status !== 'skip') note = (note ? note + ' · ' : '') + '+ new class “' + pendName + '”';
         if (status !== 'skip') {
-          // Dedupe by transponder when present (so two same-numbered karts with different
+          // Dedupe by transponder when present (so two same-numbered cars with different
           // transponders both keep their grid spot); otherwise by number.
           const numLc = (m.driver ? String(m.driver.num||'') : m.num).toLowerCase();
           const tnorm = impNormTrans(m.trans || (m.driver && m.driver.trans) || '');
@@ -5274,14 +5274,14 @@ function impRenderPreview() {
     warnLines.push('⛔ No <b>Name</b> column detected — drivers would be created as “Car #&lt;number&gt;”. Set the Name column in the mapping above before importing.');
   if (nmSusp)
     warnLines.push('⚠ ' + nmSusp + ' row' + (nmSusp>1?'s':'') + ' have a name that looks like a number or a lap time (often a mis-mapped Name column). Check the Name column.');
-  // A single kart number repeated across many rows almost always means the # column is mis-mapped.
+  // A single car number repeated across many rows almost always means the # column is mis-mapped.
   const actRows = impPreview.filter(r => r.status !== 'skip');
   if (actRows.length >= 5) {
     const tally = {};
     actRows.forEach(r => { const k = (r.driver ? String(r.driver.num||'') : String(r.num||'')).toLowerCase(); if (k) tally[k] = (tally[k]||0)+1; });
     let topK = '', topN = 0; for (const k in tally) if (tally[k] > topN) { topN = tally[k]; topK = k; }
     if (topN > 3 && topN >= actRows.length * 0.3)
-      warnLines.push('⚠ Kart # “' + esc(topK) + '” repeats on ' + topN + ' of ' + actRows.length + ' rows — the Kart # column may be mis-mapped.');
+      warnLines.push('⚠ Car # “' + esc(topK) + '” repeats on ' + topN + ' of ' + actRows.length + ' rows — the Car # column may be mis-mapped.');
   }
   if (tBad)
     warnLines.push('⚠ ' + tBad + ' row' + (tBad>1?'s':'') + ' have a lap time we could not read — those drivers would sort to the back. Check the Lap time column / format.');
@@ -5294,13 +5294,13 @@ function impRenderPreview() {
 
   let cf = '';
   if (tConf) cf += '<label style="display:block;font-size:12.5px;margin-bottom:4px;cursor:pointer"><input type="checkbox"' + (Imp.updTrans?' checked':'') + ' onchange="Imp.updTrans=this.checked"> Update stored transponders from the file where they differ</label>';
-  if (nConf) cf += '<label style="display:block;font-size:12.5px;margin-bottom:4px;cursor:pointer"><input type="checkbox"' + (Imp.updNum?' checked':'') + ' onchange="Imp.updNum=this.checked"> Update stored kart numbers from the file where they differ</label>';
+  if (nConf) cf += '<label style="display:block;font-size:12.5px;margin-bottom:4px;cursor:pointer"><input type="checkbox"' + (Imp.updNum?' checked':'') + ' onchange="Imp.updNum=this.checked"> Update stored car numbers from the file where they differ</label>';
   if (nmConf) cf += '<label style="display:block;font-size:12.5px;cursor:pointer"><input type="checkbox"' + (Imp.updName?' checked':'') + ' onchange="Imp.updName=this.checked"> Update stored driver names from the file where they differ</label>';
   const cr = document.getElementById('impConflictRow');
   cr.innerHTML = cf; cr.style.display = cf ? '' : 'none';
 
   const isQual = Imp.target === 'qual';
-  document.getElementById('impHead').innerHTML = '<th>Driver</th><th>Kart #</th><th>Match</th><th>' + (isQual?'Grid':'Finish') + '</th><th>Class</th><th>Status</th>';
+  document.getElementById('impHead').innerHTML = '<th>Driver</th><th>Car #</th><th>Match</th><th>' + (isQual?'Grid':'Finish') + '</th><th>Class</th><th>Status</th>';
   document.getElementById('impBody').innerHTML = impPreview.map(r => {
     const cls = (S.classes||[]).find(c => c.id === r.clsId);
     const clsName = cls ? cls.name : (r.clsId < 0 ? '(unknown)' : '—');
@@ -5326,7 +5326,7 @@ function impRenderPreview() {
 }
 
 function impRenderMap() {
-  const labels = { trans:'Transponder', num:'Kart #', name:'Name / First', name2:'Last name', cls:'Class', pos:'Pos / Finish', time:'Lap time' };
+  const labels = { trans:'Transponder', num:'Car #', name:'Name / First', name2:'Last name', cls:'Class', pos:'Pos / Finish', time:'Lap time' };
   const opt = sel => '<option value="-1">—</option>' + Imp.header.map((hh,i) => '<option value="'+i+'"'+(sel===i?' selected':'')+'>'+esc(hh||('Col '+(i+1)))+'</option>').join('');
   let h = '<div style="font-size:11.5px;color:var(--muted);margin-bottom:5px">Auto-detected — change any that look wrong:</div><div class="imp-map">';
   Object.keys(labels).forEach(k => {
@@ -5832,7 +5832,7 @@ function renderWizClasses() {
       + ((c.description || c.ageGroup || c.specs) ? 'Edit spectator info' : '+ Add spectator info (optional)') + '</span></div>'
     + '<div style="display:none;padding:0 0 10px 4px"><div style="display:grid;gap:6px;max-width:440px">'
       + '<input type="text" value="' + esc(c.ageGroup || '') + '" placeholder="Age group / eligibility" style="width:100%" onchange="saveClassInfo(' + c.id + ',\'ageGroup\',this.value)">'
-      + '<input type="text" value="' + esc(c.specs || '') + '" placeholder="Kart / engine specs" style="width:100%" onchange="saveClassInfo(' + c.id + ',\'specs\',this.value)">'
+      + '<input type="text" value="' + esc(c.specs || '') + '" placeholder="Car / engine specs" style="width:100%" onchange="saveClassInfo(' + c.id + ',\'specs\',this.value)">'
       + '<textarea rows="2" style="width:100%;resize:vertical" placeholder="Description for spectators" onchange="saveClassInfo(' + c.id + ',\'description\',this.value)">' + esc(c.description || '') + '</textarea>'
     + '</div></div>'
   ).join('')

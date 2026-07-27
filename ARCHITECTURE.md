@@ -8,7 +8,7 @@ blank folder.
 
 ## 1. What RaceDay is
 
-A browser app for running a **race day** at a karting / drag / oval track: drivers
+A browser app for running a **race day** at a race track (karts or cars; oval, road course, or drag strip): drivers
 sign up, get a random **pill** (starting-position draw), the app builds **heats**,
 **B-mains**, and a **feature**, tracks **points/series standings**, archives **history**,
 and shows live **lineups on a TV**. It is sold to tracks as a licensed product.
@@ -126,7 +126,7 @@ Persisted as JSON under `localStorage['raceday_v1']`.
   reveal (`#s3`). `cur = {name, num}` holds the in-progress driver.
 - `suggest()` autocompletes from `S.roster`; returning drivers are matched by
   `findRosterMatch()` (case-insensitive name).
-- `register()` validates (a class picked, license/trial OK via `canEnter()`, unique kart
+- `register()` validates (a class picked, license/trial OK via `canEnter()`, unique car
   number per class, pills available), adds/updates the driver in `roster`, then for each
   class calls `drawPill()` and pushes `{driverId, classId, pill}` to `raceDay.entries`.
 - `drawPill(clsId)` picks a random unused pill in `1..maxPill` (`pillsUsed()` = taken set).
@@ -138,7 +138,7 @@ Persisted as JSON under `localStorage['raceday_v1']`.
   splits them: **alternate** fill (pills spread across heats — `i % n`) or **block** fill
   (`i / per`). Set 2 is each heat reversed (inverted start).
 - `gridMarkup()` renders single- or double-file; `posText(pos)` → `{row, side}`
-  (P1=Row1 Inside = pole, marked with a checkered tag). `discNum()` draws the kart number
+  (P1=Row1 Inside = pole, marked with a checkered tag). `discNum()` draws the car number
   on a yellow plate, font shrinking for longer numbers.
 
 ### 6.3 Results (`renderResults` → `renderClassResults`)

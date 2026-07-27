@@ -247,7 +247,7 @@ the same code formats automatically."
   → entries, tower → results), so this rarely bites.
 - **Free-tier ceilings** (Spark): 100 simultaneous connections, 1 GB stored, 10 GB/mo
   download. Comfortable for many tracks; revisit if you scale to dozens of busy venues.
-- **Names are in the cloud.** Driver names + kart numbers live in your Firebase
+- **Names are in the cloud.** Driver names + car numbers live in your Firebase
   project (they have to — the TV shows them). No contact or payment data is collected
   by the app, so none of that is exposed.
 
