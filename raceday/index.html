@@ -1193,8 +1193,9 @@ function defaults() {
     // MUST equal the latest migration number in migrate(). Left at 2 when migration 3
     // (PIN hashing) shipped, every fresh install re-hashed its already-hashed PIN on the
     // next load — locking the owner out with the CORRECT PIN.
-    schemaVersion: 5,
-    sync: { enabled: false, key: '' }             // live multi-device sync (off until activated)
+    schemaVersion: 6,
+    sync: { enabled: false, key: '' },             // live multi-device sync (off until activated)
+    demo: false                                    // true only inside an auto-seeded ?demo=1 session — gates real Firebase writes
   };
 }
 function migrate(s) {
@@ -1276,6 +1277,10 @@ function migrate(s) {
       if (h.publishedAt == null) h.publishedAt = 0;
     });
     s.schemaVersion = 5;
+  }
+  if (s.schemaVersion < 6) {
+    if (s.demo == null) s.demo = false;
+    s.schemaVersion = 6;
   }
   return s;
 }
@@ -2503,6 +2508,7 @@ function linkProfilePrompt() {
 }
 function refreshProfile() {
   const d = driverById(driverCardId); if (!d || !(d.profileId || d.profileCode)) return;
+  if (d.profile && d.profile.demoOnly) { alert('This is demo data — nothing to refresh.'); return; }
   linkProfile(d.id, d.profileId || d.profileCode)
     .then(renderDriverCard)
     .catch(() => { renderDriverCard(); alert("Couldn't refresh — check the connection."); });
@@ -3317,6 +3323,16 @@ function shareResultsWithDriven(idx) {
     });
   });
   if (!rows.length) { alert('No drivers with a linked Driven profile in this race day — nothing to share.'); return; }
+  // Demo sessions never touch the real Firebase project — the fake profileIds here
+  // don't correspond to anything real, and a demo visitor clicking this for real would
+  // otherwise write junk to production under a made-up track/profile every time.
+  if (S.demo) {
+    snap.published = true; snap.publishedAt = Date.now();
+    save();
+    renderResultsShareBanner();
+    alert('✅ Results shared — ' + rows.length + ' driver' + (rows.length === 1 ? '' : 's') + ' will see tonight\'s results in Driven.');
+    return;
+  }
   ensureFirebase().then(() => {
     const db = firebase.database();
     return Promise.all(rows.map(r => db.ref(r.path).set(r.payload)
@@ -3549,7 +3565,9 @@ function renderHeader() {
   else { img.removeAttribute('src'); img.style.display = 'none'; }
   const brand = document.getElementById('hdrBrand');
   if (S.track.name) {
-    brand.textContent = S.track.name;
+    // A quiet marker so a visitor poking around Admin for a while in the auto-seeded
+    // demo doesn't mistake sample drivers/results for real production data.
+    brand.innerHTML = esc(S.track.name) + (S.demo ? ' <span style="font-size:11px;font-weight:700;letter-spacing:.06em;padding:2px 7px;border-radius:20px;border:1px solid currentColor;opacity:.8;vertical-align:middle">DEMO</span>' : '');
     document.getElementById('hdrTag').textContent = 'RaceDay — driver registration & live starting lineups';
   } else {
     brand.innerHTML = 'Race<em>Day</em>';
@@ -4404,6 +4422,92 @@ function seedDemo() {
   render(curPage);
   nav('grid');
 }
+// Auto-seeded, richer demo for a marketing-site visitor (?demo=1) — unlike seedDemo()
+// above (sign-up entries only), this builds a complete, already-scored, already-
+// archived night: track/class context filled in, a few drivers with a fake "linked"
+// Driven profile (entirely offline — no real Firebase writes, see the demoOnly guard
+// in shareResultsWithDriven()/refreshProfile()), heats and the feature both scored,
+// and the archived snapshot marked already shared. Leaves the same live, scored
+// entries sitting in S.raceDay too (archiveDay() only snapshots, never clears it), so
+// a fresh visitor sees a fully populated lineup/results/points page immediately.
+function seedFullDemoNight() {
+  S.demo = true;
+  if (!S.track.id) S.track.id = genTrackId();
+  S.track.name = 'Sample Speedway';
+  S.track.length = '3/8 mile';
+  S.track.surface = 'Dirt';
+  S.track.configuration = 'Oval';
+  S.track.history = 'Racing every week since 1978 — a tight, family-owned bullring known for side-by-side finishes.';
+
+  const classContext = {
+    'Junior 80cc': { ageGroup: 'Ages 8-13', specs: 'Yamaha KT100, 55 lb min weight', description: 'The entry point for new racers — tight, low-speed racing that still teaches real car control.' },
+    'Senior 100cc': { ageGroup: 'Ages 14+', specs: 'Yamaha KT100, 165 lb min weight', description: 'The step up once a driver outgrows Juniors — same tight racing, more speed.' },
+    'Open Shifter': { ageGroup: 'Ages 16+', specs: '125cc shifter kart, 190 lb min weight', description: 'The fastest class at the track — six-speed shifter karts, experienced drivers only.' }
+  };
+  S.classes.forEach(cls => {
+    const ctx = classContext[cls.name];
+    if (ctx && !cls.description && !cls.ageGroup && !cls.specs) {
+      cls.ageGroup = ctx.ageGroup; cls.specs = ctx.specs; cls.description = ctx.description;
+      rememberClass(cls.name, cls.maxPill, { ageGroup: ctx.ageGroup, specs: ctx.specs, description: ctx.description });
+    }
+  });
+
+  const demoNames = ['Ava Brooks', 'Ben Carter', 'Cody Diaz', 'Dana Evans', 'Eli Ford', 'Finn Gray', 'Gia Hall', 'Hank Irwin', 'Ivy James', 'Jax King', 'Kya Lane', 'Leo Moss', 'Mia Nash', 'Noah Otis', 'Opal Pratt', 'Quinn Reed', 'Rio Sands', 'Sky Tate'];
+  S.raceDay = { date: today(), entries: [], heatResults: {}, pointsRace: {}, resultGov: {}, resultVersions: {} };
+  const createdIds = [];
+  demoNames.forEach((name, i) => {
+    let d = findRosterMatch(name);
+    if (!d) { d = { id: genDriverId(), name, num: String(i + 1) }; S.roster.push(d); }
+    createdIds.push(d.id);
+    const cid = S.classes[i % S.classes.length].id;
+    const pill = drawPill(cid);
+    if (pill !== null) S.raceDay.entries.push({ driverId: d.id, classId: cid, pill });
+  });
+
+  // A few drivers get a fake "linked" Driven profile — hand-built directly on the
+  // roster record, never through the real linkProfile()/Firebase fetch. demoOnly:true
+  // is what shareResultsWithDriven()/refreshProfile() check to never touch the
+  // network for these. One gets a valid premium code, computed entirely offline from
+  // this file's own PREM_SALT/pHash/premShort — no registered code, no network call.
+  const demoBios = [
+    { hometown: 'Rivertown, OH', age: '15', sponsors: 'Acme Kart Shop, Bob\'s Tires', teamColor: '#1f6fd6' },
+    { hometown: 'Millbrook, TX', age: '17', sponsors: 'Miller Racing Engines', teamColor: '#c8372d' },
+    { hometown: 'Fairview, IN', age: '14', sponsors: 'Fairview Diner', teamColor: '#0e8a4d' },
+    { hometown: 'Clarksdale, GA', age: '19', sponsors: 'Clarksdale Auto Parts, Speedy Fasteners', teamColor: '#d9980f' }
+  ];
+  [0, 4, 9, 13].filter(i => i < createdIds.length).forEach((driverIdx, i) => {
+    const d = S.roster.find(r => r.id === createdIds[driverIdx]);
+    if (!d) return;
+    const profileId = 'prof_demo' + String(i).padStart(4, '0') + 'x';
+    const bio = demoBios[i] || demoBios[0];
+    d.profileId = profileId;
+    d.profileCode = profileId.toUpperCase();
+    d.profile = { age: bio.age, hometown: bio.hometown, sponsors: bio.sponsors, teamColor: bio.teamColor, photo: '', premium: false, premiumCode: '', source: 'profiles', demoOnly: true };
+    if (i === 0) d.profile.premiumCode = 'PREM-' + premShort(profileId) + '-' + pHash(profileId + '|PREM|' + PREM_SALT).slice(0, 8);
+  });
+
+  // Score every class fully — small field, so featureData() locks everyone straight
+  // to the feature with no B-mains, keeping this simple and archiveDay()'s
+  // incomplete-points check happy with no confirm() prompt.
+  S.classes.forEach(cls => {
+    const racers = classRacers(cls.id);
+    if (!racers.length) return;
+    const res = getRes(cls.id);
+    heatArrays(racers, cls).forEach(heat => {
+      heat.forEach((r, i) => { res['h1_' + r.id] = i + 1; res['h2_' + r.id] = heat.length - i; });
+    });
+    const fd = featureData(cls.id);
+    [...fd.locked, ...fd.transferred].forEach((r, i) => { res['ft_' + r.id] = i + 1; });
+  });
+
+  if (!archiveDay()) return;   // shouldn't decline — every points class above is fully scored
+  S.history[0].published = true;
+  S.history[0].publishedAt = Date.now();
+  save();
+  render(curPage);
+  nav('grid');
+  setTimeout(() => alert('🏁 Welcome to the RaceDay demo!\n\nA full night is already scored and archived. Tap any driver\'s name to see their card, check Points for series standings, or start a new race day yourself to try the "Share results with Driven" flow.'), 300);
+}
 
 // ---------- Usage beacons ----------
 // Fire-and-forget, never blocks the app, silently no-ops when TELEMETRY_URL is
@@ -4985,6 +5089,22 @@ function handleUrlParams() {
     const q = new URLSearchParams(location.search);
     let role = q.get('role');
     const sk = q.get('sync');
+    const dm = q.get('demo');
+    // Demo mode only ever fires for a genuinely fresh, standalone admin device with no
+    // real join link in the same URL — a real ?sync=/?role= link always wins, so a demo
+    // link can never accidentally hijack someone actually joining a track. Own
+    // idempotency flag (not rd_url_applied, which is keyed to exact location.search)
+    // so relaunching from a saved/home-screen URL doesn't reseed the demo every time.
+    if (dm && !role && !sk && !S.track.name && deviceRole() === 'admin' && !(S.sync && S.sync.enabled)) {
+      let demoApplied = null;
+      try { demoApplied = localStorage.getItem('rd_demo_applied'); } catch (e) {}
+      if (location.search !== demoApplied) {
+        seedFullDemoNight();
+        try { localStorage.setItem('rd_demo_applied', location.search); } catch (e) {}
+      }
+      history.replaceState({}, '', location.pathname);
+      return;
+    }
     if (!role && !sk) return;
     // Operator role requires the build-time OPERATOR_KEY as a URL param (?opk=...) — a
     // guessed/leaked ?role=operator link with no matching key is inert, same deterrent
