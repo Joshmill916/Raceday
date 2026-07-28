@@ -328,6 +328,13 @@ function migrate(p) {
   if (p.premiumCode == null) p.premiumCode = '';
   if (p.shortCode == null) p.shortCode = '';
   if (p.publishedAt == null) p.publishedAt = 0;
+  // source/verifiedBy: added for RaceDay-verified results (pullRaceDayResults()).
+  // Honest default for anything already here — nothing so far was verified, it was
+  // either typed in by hand or is the demo loader's sample data.
+  (p.raceResults || []).forEach(function (r) {
+    if (r.source == null) r.source = r.trackId === 'raceday_riverside' || r.trackId === 'raceday_lonestar' ? 'demo' : 'manual';
+    if (r.verifiedBy === undefined) r.verifiedBy = null;
+  });
   return p;
 }
 
@@ -886,8 +893,14 @@ function renderSettings() {
     + '</div>';
 
   h += '<div class="card">'
-    + '<div class="slbl">Import results</div>'
-    + '<p class="sub" style="margin-bottom:10px">Paste a results export from RaceDay (JSON) to add races to your profile.</p>'
+    + '<div class="slbl">Results from RaceDay</div>'
+    + '<p class="sub" style="margin-bottom:10px">Pulls results a track has shared for you — these count as verified.</p>'
+    + '<button class="btn btn-primary btn-block" onclick="checkRaceDayResults()">' + icon('refresh') + ' Check for new results</button>'
+    + '</div>';
+
+  h += '<div class="card">'
+    + '<div class="slbl">Import results manually</div>'
+    + '<p class="sub" style="margin-bottom:10px">Paste a results export from RaceDay (JSON) to add races to your profile. Manually added results aren\'t verified.</p>'
     + '<textarea id="importJson" placeholder="Paste RaceDay export JSON here"></textarea>'
     + '<button class="btn btn-block" onclick="importResultsFromText()" style="margin-top:10px">Import</button>'
     + '<button class="btn btn-block" onclick="loadDemoResults()" style="margin-top:8px">Load demo results (try it out)</button>'
@@ -958,7 +971,10 @@ function removePhoto() { P.driver.photo = null; save(); renderSettings(); }
 /* ---------- Import / ingest ---------- */
 // Accepts a single export object or an array of them:
 // { trackId, trackName, date, results: [{ profileId?, name, class, position, points }] }
-function ingestExport(data) {
+// source tags provenance for achievements later: 'manual' (pasted, unverifiable — a
+// driver holds the file and can edit it), 'demo' (loadDemoResults(), never counts
+// toward anything), or 'raceday' (only ever set by pullRaceDayResults(), never here).
+function ingestExport(data, source) {
   var exportsArr = Array.isArray(data) ? data : [data];
   var added = 0;
   exportsArr.forEach(function (exp) {
@@ -971,7 +987,8 @@ function ingestExport(data) {
       if (exists) return;
       P.raceResults.push({
         date: exp.date, trackId: exp.trackId, trackName: exp.trackName || exp.trackId, class: r.class,
-        position: r.position != null ? Number(r.position) : null, points: r.points != null ? Number(r.points) : null
+        position: r.position != null ? Number(r.position) : null, points: r.points != null ? Number(r.points) : null,
+        source: source || 'manual', verifiedBy: null
       });
       added++; trackLinked = true;
     });
@@ -988,7 +1005,7 @@ function importResultsFromText() {
   if (!raw) { alert('Paste JSON first.'); return; }
   var data;
   try { data = JSON.parse(raw); } catch (e) { alert('That doesn\'t look like valid JSON.'); return; }
-  var added = ingestExport(data);
+  var added = ingestExport(data, 'manual');
   alert(added + ' new result' + (added === 1 ? '' : 's') + ' imported.');
   $id('importJson').value = '';
   renderSettings();
@@ -1002,9 +1019,65 @@ function loadDemoResults() {
     { trackId: 'raceday_lonestar', trackName: 'Lonestar Speedway', date: '2026-06-20', results: [{ class: 'Senior 100cc', position: 1, points: 25 }] },
     { trackId: 'raceday_lonestar', trackName: 'Lonestar Speedway', date: '2026-06-27', results: [{ class: 'Senior 100cc', position: 5, points: 12 }] }
   ];
-  var added = ingestExport(demo);
+  var added = ingestExport(demo, 'demo');
   alert('Loaded ' + added + ' demo result' + (added === 1 ? '' : 's') + '. Check Home and Stats!');
   renderSettings();
+}
+
+// Pulls results a RaceDay track has published for this profile — reads the
+// profileTracks/<profileId> reverse index (written by RaceDay at sign-up link time and
+// again whenever a track shares results), then results/<trackId>/... for each track
+// found there. Same date+trackId+class dedupe as ingestExport(); tagged source:'raceday'
+// since it came from a path only a track (not this driver) can write to.
+function pullRaceDayResults() {
+  return ensureFirebase().then(function () {
+    return firebase.database().ref('profileTracks/' + P.profileId).once('value');
+  }).then(function (snap) {
+    var tracks = snap.val() || {};
+    var trackIds = Object.keys(tracks);
+    if (!trackIds.length) return 0;
+    return Promise.all(trackIds.map(function (trackId) {
+      return firebase.database().ref('results/' + trackId).once('value').then(function (rsnap) {
+        return { trackId: trackId, fallbackName: (tracks[trackId] && tracks[trackId].trackName) || trackId, data: rsnap.val() || {} };
+      });
+    })).then(function (perTrack) {
+      var added = 0;
+      perTrack.forEach(function (t) {
+        Object.keys(t.data).forEach(function (date) {           // t.data[date] = {className: {driverKey: row}}
+          var byClass = t.data[date] || {};
+          Object.keys(byClass).forEach(function (className) {
+            var byDriver = byClass[className] || {};
+            Object.keys(byDriver).forEach(function (driverKey) {
+              var row = byDriver[driverKey];
+              if (!row || row.profileId !== P.profileId) return;
+              var exists = P.raceResults.some(function (x) { return x.trackId === t.trackId && x.date === date && x.class === className; });
+              if (exists) return;
+              P.raceResults.push({
+                date: date, trackId: t.trackId, trackName: row.trackName || t.fallbackName, class: className,
+                position: typeof row.position === 'number' ? row.position : null,
+                points: typeof row.points === 'number' ? row.points : null,
+                source: 'raceday', verifiedBy: null
+              });
+              added++;
+              if (!P.linkedTracks.some(function (lt) { return lt.trackId === t.trackId; })) {
+                P.linkedTracks.push({ trackId: t.trackId, trackName: row.trackName || t.fallbackName, linkedDate: Date.now() });
+              }
+            });
+          });
+        });
+      });
+      if (added) save();
+      return added;
+    });
+  });
+}
+function checkRaceDayResults() {
+  pullRaceDayResults().then(function (added) {
+    alert(added ? '✅ Found ' + added + ' new result' + (added === 1 ? '' : 's') + ' from RaceDay.' : 'No new results yet — check back after your next race night.');
+    if (added) renderSettings();
+  }).catch(function () {
+    alert("Couldn't reach RaceDay's results — check your connection and try again.");
+  });
 }
 
 function deleteProfile() {

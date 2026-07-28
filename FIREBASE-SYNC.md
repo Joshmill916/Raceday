@@ -169,6 +169,61 @@ can't verify a license code (no HMAC/crypto in rules), so the options are:
 
 Until one of these is built, `tracks/*` stays on the path-as-password model.
 
+## Results pipeline: RaceDay → Firebase → Driven (built 2026-07-27)
+
+Build Step 1 of the Driven three-tier redesign (`DRIVEN_TIERS_DESIGN.md`) — makes
+`raceResults` provenance real (`source: 'raceday'|'manual'|'demo'`) instead of
+100% driver-paste. Two new paths, same path-as-password model as everything else here:
+
+```json
+"results": {
+  "$trackId": {
+    "$date": {
+      "$className": {
+        "$driverKey": {
+          ".read": true, ".write": true,
+          ".validate": "newData.hasChildren(['profileId','name','num','position'])",
+          "profileId": { ".validate": "newData.isString() && newData.val().matches(/^prof_[a-z0-9]{6,20}$/i)" },
+          "name": { ".validate": "newData.isString() && newData.val().length <= 40" },
+          "num": { ".validate": "newData.isString() && newData.val().length <= 8" },
+          "position": { ".validate": "newData.isNumber()" },
+          "points": { ".validate": "newData.isNumber()" },
+          "trackName": { ".validate": "newData.isString() && newData.val().length <= 60" },
+          "$other": { ".validate": false }
+        }
+      }
+    }
+  }
+},
+"profileTracks": {
+  "$profileId": {
+    "$trackId": {
+      ".read": true, ".write": true,
+      ".validate": "newData.hasChildren(['trackName'])",
+      "trackName": { ".validate": "newData.isString() && newData.val().length <= 60" },
+      "lastSeen": { ".validate": "newData.isNumber()" },
+      "$other": { ".validate": false }
+    }
+  }
+}
+```
+
+- **`results/<trackId>/<date>/<className>/<driverKey>`** — one row per driver per class
+  per race day. Written only by RaceDay (`shareResultsWithDriven()`,
+  `raceday/index.html`), via an explicit admin action ("Share results with Driven"),
+  never automatic — the admin gets a prompt right after archiving and a persistent
+  reminder banner (`renderResultsShareBanner()`) if it's still unpublished within 24h.
+- **`profileTracks/<profileId>/<trackId>`** — a reverse index so Driven knows which
+  tracks to pull `results/` from without scanning the whole database. Written by
+  RaceDay both at sign-up link time (`linkProfile()`) and again on every results
+  publish.
+- **`trackId`** is `S.track.id` (`raceday/index.html`) — a persistent id independent
+  of `S.sync.key` (multi-device sync is off by default, so reusing the sync key would
+  have locked most tracks out of publishing entirely).
+- Driven reads both paths in `pullRaceDayResults()` (`driven/index.html`), deduping
+  the same way manual paste already does (trackId+date+class), tagging pulled entries
+  `source: 'raceday'`.
+
 ## Automatic payment → code issuance (built 2026-07-15, needs owner setup to go live)
 
 A Cloud Function backend that lets a customer pay online (Stripe) and receive a

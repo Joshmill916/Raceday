@@ -34,6 +34,38 @@
         ".read": true,
         ".write": false
       }
+    },
+    "results": {
+      "$trackId": {
+        "$date": {
+          "$className": {
+            "$driverKey": {
+              ".read": true,
+              ".write": true,
+              ".validate": "newData.hasChildren(['profileId','name','num','position'])",
+              "profileId": { ".validate": "newData.isString() && newData.val().matches(/^prof_[a-z0-9]{6,20}$/i)" },
+              "name": { ".validate": "newData.isString() && newData.val().length <= 40" },
+              "num": { ".validate": "newData.isString() && newData.val().length <= 8" },
+              "position": { ".validate": "newData.isNumber()" },
+              "points": { ".validate": "newData.isNumber()" },
+              "trackName": { ".validate": "newData.isString() && newData.val().length <= 60" },
+              "$other": { ".validate": false }
+            }
+          }
+        }
+      }
+    },
+    "profileTracks": {
+      "$profileId": {
+        "$trackId": {
+          ".read": true,
+          ".write": true,
+          ".validate": "newData.hasChildren(['trackName'])",
+          "trackName": { ".validate": "newData.isString() && newData.val().length <= 60" },
+          "lastSeen": { ".validate": "newData.isNumber()" },
+          "$other": { ".validate": false }
+        }
+      }
     }
   }
 }

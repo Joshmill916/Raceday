@@ -392,6 +392,11 @@
 
   <div id="licBanner" class="banner" style="display:none"></div>
 
+  <div id="resultsBanner" class="banner" style="display:none">
+    <span id="resultsBannerText"></span>
+    <button class="btn btn-sm btn-primary" id="resultsBannerBtn">Share now</button>
+  </div>
+
   <!-- SIGN UP -->
   <div id="page-signup" class="page active">
     <div id="s1">
@@ -1155,9 +1160,13 @@ function drawQR(canvas, text) {
 function deviceRole() { return localStorage.getItem('rd_role') || 'admin'; }
 function setDeviceRole(r) { try { localStorage.setItem('rd_role', r); } catch (e) {} }
 function today() { const d = new Date(); return d.getFullYear()+'-'+String(d.getMonth()+1).padStart(2,'0')+'-'+String(d.getDate()).padStart(2,'0'); }
+// A stable per-track id, independent of multi-device sync (S.sync.key only exists once
+// sync is turned on, which is off by default) — this is what the results-publish pipeline
+// keys Firebase writes on, so it has to exist for every track, synced or not.
+function genTrackId() { return 'track_' + Math.random().toString(36).slice(2, 10) + Math.random().toString(36).slice(2, 6); }
 function defaults() {
   return {
-    track: { name: '', logo: '', length: '', surface: '', configuration: '', history: '' }, // track identity + optional spectator context
+    track: { id: genTrackId(), name: '', logo: '', length: '', surface: '', configuration: '', history: '' }, // track identity + optional spectator context
     provider: { legalName: '', operator: '', jurisdiction: '' }, // legalName = software owner; operator = track/customer legal entity (for docs)
     adminPin: '',                                 // empty = Admin tab is open to everyone
     operatorPin: '',                              // owner's private PIN to "take control" in operator mode (local only, never synced)
@@ -1184,12 +1193,12 @@ function defaults() {
     // MUST equal the latest migration number in migrate(). Left at 2 when migration 3
     // (PIN hashing) shipped, every fresh install re-hashed its already-hashed PIN on the
     // next load — locking the owner out with the CORRECT PIN.
-    schemaVersion: 4,
+    schemaVersion: 5,
     sync: { enabled: false, key: '' }             // live multi-device sync (off until activated)
   };
 }
 function migrate(s) {
-  if (!s.track) s.track = { name: '', logo: '', length: '', surface: '', configuration: '', history: '' };
+  if (!s.track) s.track = { id: genTrackId(), name: '', logo: '', length: '', surface: '', configuration: '', history: '' };
   if (!s.history) s.history = [];
   if (s.adminPin == null) s.adminPin = '';
   if (s.operatorPin == null) s.operatorPin = '';
@@ -1256,6 +1265,17 @@ function migrate(s) {
       if (!x.specs) x.specs = '';
     });
     s.schemaVersion = 4;
+  }
+  if (s.schemaVersion < 5) {
+    // Persistent track id for the results-publish pipeline (Driven), plus a
+    // published/publishedAt flag on every archived day so existing history starts
+    // honestly "never shared" rather than silently missing the fields.
+    if (!s.track.id) s.track.id = genTrackId();
+    if (s.history) s.history.forEach(h => {
+      if (h.published == null) h.published = false;
+      if (h.publishedAt == null) h.publishedAt = 0;
+    });
+    s.schemaVersion = 5;
   }
   return s;
 }
@@ -1501,6 +1521,7 @@ function render(p) {
   if (p === 'admin') renderAdmin();
   checkDayBanner();
   renderLicBanner();
+  renderResultsShareBanner();
 }
 // Static doc pages (Terms, Privacy, Business Recommendations) live outside the role-gated
 // nav. They overlay the current page; "← Back" returns to wherever the user was (curPage).
@@ -1644,13 +1665,30 @@ function newRaceDay() {
       exportBackup();
     }
   }
+  const histLenBefore = S.history.length;
   if (!archiveDay()) return;   // cancelled at the incomplete-points warning — keep the board
+  const justArchived = S.history.length > histLenBefore ? 0 : -1;   // unshift() puts it at index 0
   logAudit('Started new race day', S.raceDay.date, today(), 'Race day');
   resOverride = {};
   S.raceDay = { date: today(), entries: [], heatResults: {}, pointsRace: {}, resultGov: {}, resultVersions: {} };
   save();
   resetReg();
   render(curPage);
+  if (justArchived === 0) maybePromptShareResults(0);
+}
+// Right after a night archives, offer to share it with Driven immediately — only if
+// anyone that night actually has a linked profile (nothing to share otherwise, and no
+// point interrupting the admin with an empty offer).
+function maybePromptShareResults(idx) {
+  const snap = S.history[idx];
+  if (!snap) return;
+  const n = shareableCount(snap);
+  if (!n) return;
+  if (confirm('Share tonight\'s results with Driven? ' + n + ' driver' + (n === 1 ? '' : 's') + ' with a linked profile will see today\'s results.\n\nOK = share now · Cancel = remind me later')) {
+    shareResultsWithDriven(idx);
+  } else {
+    renderResultsShareBanner();   // "remind me later" — surface the persistent nudge right away
+  }
 }
 // Core of "erase everything" — no auth guard here, callers gate it themselves. Keeps the
 // license/trial/packet usage (a device's paid status isn't data to lose), clears
@@ -1820,6 +1858,20 @@ function renderLicBanner() {
     b.style.cssText = 'background:var(--pit-red-bg);border-color:#f0c4c0;color:var(--pit-red)';
     b.textContent = '🔒 ' + entryBlockedMsg();
   }
+}
+// Reminds the admin about the most recently archived, still-unpublished race day —
+// only while it's within 24h of being archived (results going stale isn't worth
+// nagging about forever) and only if it actually has drivers with a linked profile.
+function renderResultsShareBanner() {
+  const b = document.getElementById('resultsBanner');
+  if (deviceRole() === 'viewer') { b.style.display = 'none'; return; }
+  const DAY_MS = 24 * 60 * 60 * 1000;
+  const idx = S.history.findIndex(h => !h.published && (Date.now() - (h.savedAt || 0)) < DAY_MS && shareableCount(h) > 0);
+  if (idx < 0) { b.style.display = 'none'; return; }
+  b.style.display = '';
+  const n = shareableCount(S.history[idx]);
+  document.getElementById('resultsBannerText').textContent = '📤 ' + n + ' driver' + (n === 1 ? '' : 's') + ' from ' + S.history[idx].date + ' can see tonight\'s results in Driven — not shared yet.';
+  document.getElementById('resultsBannerBtn').onclick = () => shareResultsWithDriven(idx);
 }
 function activateLic() {
   const inp = document.getElementById('licCode');
@@ -3187,6 +3239,7 @@ function resultGovBar(clsId) {
 function buildSnapshot() {
   const snap = {
     date: S.raceDay.date, savedAt: Date.now(), classes: [],
+    published: false, publishedAt: 0,   // set by shareResultsWithDriven() once sent
     // raw driver/class pairs so a later race day can re-enter the same field
     pairs: S.raceDay.entries.map(e => ({ driverId: e.driverId, classId: e.classId, className: (classById(e.classId) || {}).name }))
   };
@@ -3233,6 +3286,49 @@ function archiveDay() {
   if (S.history.length > 60) S.history.length = 60;
   scheduleUsageBeacon();
   return true;
+}
+// Firebase keys can't contain . # $ [ ] / — a free-typed class name easily could.
+function fbKey(s) { return String(s || '').replace(/[.#$\[\]/]/g, '_'); }
+// Counts drivers in an archived day with a linked Driven profile — used both to decide
+// whether the post-archive prompt is worth showing at all, and by the reminder banner.
+function shareableCount(snap) {
+  let n = 0;
+  (snap.classes || []).forEach(cls => (cls.featureFinish || []).forEach(f => { const d = driverById(f.driverId); if (d && d.profileId) n++; }));
+  return n;
+}
+// Publishes one archived day's results to Firebase for Driven to pull — every driver
+// that night with a linked profile, resolved fresh via driverById() at publish time
+// (the archived snapshot itself only ever carries driverId/name/num, never profileId,
+// since a driver can link/unlink long after a night is archived).
+function shareResultsWithDriven(idx) {
+  const snap = S.history[idx];
+  if (!snap) return;
+  const trackId = S.track.id, trackName = S.track.name || '';
+  const rows = [];
+  snap.classes.forEach(cls => {
+    const clsKey = fbKey(cls.name);
+    (cls.featureFinish || []).forEach(f => {
+      const d = driverById(f.driverId);
+      if (!d || !d.profileId) return;
+      const pointsRow = (cls.points || []).find(p => p.driverId === f.driverId);
+      const payload = { profileId: d.profileId, name: f.name, num: f.num || '', position: f.fin, trackName: trackName };
+      if (pointsRow) payload.points = pointsRow.pts;
+      rows.push({ profileId: d.profileId, path: 'results/' + trackId + '/' + snap.date + '/' + clsKey + '/' + f.driverId, payload });
+    });
+  });
+  if (!rows.length) { alert('No drivers with a linked Driven profile in this race day — nothing to share.'); return; }
+  ensureFirebase().then(() => {
+    const db = firebase.database();
+    return Promise.all(rows.map(r => db.ref(r.path).set(r.payload)
+      .then(() => db.ref('profileTracks/' + r.profileId + '/' + trackId).set({ trackName: trackName, lastSeen: Date.now() }))));
+  }).then(() => {
+    snap.published = true; snap.publishedAt = Date.now();
+    save();
+    renderResultsShareBanner();
+    alert('✅ Results shared — ' + rows.length + ' driver' + (rows.length === 1 ? '' : 's') + ' will see tonight\'s results in Driven.');
+  }).catch(() => {
+    alert("Couldn't reach Driven — check your connection and try again. Nothing was lost; you can share from Race day history anytime.");
+  });
 }
 
 // ---------- Import past race ----------
@@ -4439,6 +4535,10 @@ function linkProfile(driverId, codeOrId) {
       d.profileCode = raw.toUpperCase();
       d.profile = clean;
       save();
+      // Fire-and-forget: lets a driver's Driven app show "linked track: X" right away,
+      // before any results exist. Never blocks/fails the link itself on a hiccup here —
+      // shareResultsWithDriven() writes this same path again at publish time regardless.
+      firebase.database().ref('profileTracks/' + id + '/' + S.track.id).set({ trackName: S.track.name || '', lastSeen: Date.now() }).catch(() => {});
       return d;
     })
   ).catch(err => {
@@ -5905,6 +6005,7 @@ applyRole();
 renderRosterPick();
 checkDayBanner();
 renderLicBanner();
+renderResultsShareBanner();
 renderGrid();
 initSync();
 // Pick up any Profiles cards that were linked while offline (no-op when none are pending).
