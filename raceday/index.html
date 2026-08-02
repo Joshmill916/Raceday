@@ -715,6 +715,7 @@
         <div style="display:flex;gap:10px;flex-wrap:wrap">
           <button class="btn" onclick="newRaceDay()">🏁 Start a new race day</button>
           <button class="btn" onclick="seedDemo()">Load demo race day</button>
+          <button class="btn btn-danger" id="exitDemoBtn" style="display:none" onclick="exitDemoMode()">Exit demo mode</button>
           <button class="btn btn-danger" onclick="resetForNewTrack()">Set up for a new track</button>
           <button class="btn btn-danger" onclick="resetAll()">Erase everything</button>
         </div>
@@ -1727,15 +1728,45 @@ function resetAll() {
 // they start on a fresh trial and activate their own license.
 function resetForNewTrack() {
   if (!adminOk()) return;
-  if (!confirm('Set up this device for a new track?\n\nKEEPS: drivers, classes, today\'s lineups, results, and history.\nCLEARS: the license and the free-trial count (a fresh trial starts).\n\nUse this when handing the app to a different track so they activate their own license.')) return;
+  if (!confirm('Set up this device for a new track?\n\nKEEPS: drivers, classes, today\'s lineups, results, and history.\nCLEARS: the license, the free-trial count, and demo mode/sample data if this device ever ran the live demo.\n\nUse this when handing the app to a different track so they activate their own license.')) return;
   if (!confirm('Confirm: clear the license and reset the trial on this device? The race data stays.')) return;
   S.license = null;
   S.trialDays = [];
   S.licUse = {};
-  logAudit('Reset license & trial for new track', '', 'fresh trial, no license', '');
+  const wasDemo = S.demo;
+  const removed = clearDemoResidue();
+  logAudit('Reset license & trial for new track', '', 'fresh trial, no license' + (wasDemo ? ' (demo cleared)' : ''), '');
   save();
   renderHeader(); renderLicCard(); renderLicBanner(); render(curPage);
-  alert('Done — fresh trial, no license. The track can activate their own code in Admin → License.');
+  alert('Done — fresh trial, no license.' + (wasDemo ? ' This device had run the demo — demo mode is now off' + (removed.drivers || removed.nights ? ' and sample data was removed.' : '; check History/Driver book for anything unfamiliar and remove manually.') : '') + ' The track can activate their own code in Admin → License.');
+}
+// Clears the one-way S.demo flag and removes any roster/history rows the demo tagged when
+// it created them (demoSeed on drivers, demo on the archived night) — a pre-existing driver
+// the demo happened to reuse via findRosterMatch is never tagged, so it's never touched here.
+// Demo data seeded before this tagging existed won't be found; callers should tell the admin
+// to check History/Driver book manually in that case.
+function clearDemoResidue() {
+  S.demo = false;
+  const demoIds = new Set(S.roster.filter(d => d.demoSeed).map(d => d.id));
+  if (demoIds.size) {
+    S.roster = S.roster.filter(d => !demoIds.has(d.id));
+    S.raceDay.entries = S.raceDay.entries.filter(e => !demoIds.has(e.driverId));
+  }
+  const before = S.history.length;
+  S.history = S.history.filter(h => !h.demo);
+  return { drivers: demoIds.size, nights: before - S.history.length };
+}
+function exitDemoMode() {
+  if (!adminOk()) return;
+  if (!S.demo) { alert('This device is not in demo mode.'); return; }
+  if (!confirm('Exit demo mode on this device?\n\nCLEARS: the DEMO flag (fixes the badge, and lets "Share results with Driven" actually publish instead of silently no-op\'ing).\nKEEPS: your driver book, classes, race day, and history.\n\nAny sample drivers/nights this app version tagged as demo data are removed automatically. If this device ran an older version of the demo, that data isn\'t tagged and won\'t be found — check Admin → History and Admin → Driver book afterward for anything unfamiliar (e.g. a "Sample Speedway" night, or drivers like Ava Brooks / Ben Carter) and remove it with the existing Delete/Remove buttons there.\n\nContinue?')) return;
+  const removed = clearDemoResidue();
+  logAudit('Exited demo mode', 'demo', 'live', '');
+  save();
+  renderHeader(); render(curPage);
+  alert('Demo mode cleared.' + (removed.drivers || removed.nights
+    ? ' Removed ' + removed.drivers + ' sample driver(s) and ' + removed.nights + ' sample night(s) tagged as demo data.'
+    : ' No tagged demo data was found — this device\'s demo data predates tagging; check History/Driver book manually.'));
 }
 
 // ---------- License & free trial ----------
@@ -3692,6 +3723,8 @@ function renderAdmin() {
   }
   const logoRemoveBtn = document.getElementById('logoRemove');
   if (logoRemoveBtn) logoRemoveBtn.style.display = S.track.logo ? '' : 'none';
+  const exitDemoBtn = document.getElementById('exitDemoBtn');
+  if (exitDemoBtn) exitDemoBtn.style.display = S.demo ? '' : 'none';
   document.getElementById('mHeat').value = S.settings.maxHeat;
   document.getElementById('mBMain').value = S.settings.maxBMain;
   document.getElementById('mFeat').value = S.settings.maxFeature;
@@ -4464,7 +4497,7 @@ function seedFullDemoNight() {
   const createdIds = [];
   demoNames.forEach((name, i) => {
     let d = findRosterMatch(name);
-    if (!d) { d = { id: genDriverId(), name, num: String(i + 1) }; S.roster.push(d); }
+    if (!d) { d = { id: genDriverId(), name, num: String(i + 1), demoSeed: true }; S.roster.push(d); }
     createdIds.push(d.id);
     const cid = S.classes[i % S.classes.length].id;
     const pill = drawPill(cid);
@@ -4510,6 +4543,7 @@ function seedFullDemoNight() {
   if (!archiveDay()) return;   // shouldn't decline — every points class above is fully scored
   S.history[0].published = true;
   S.history[0].publishedAt = Date.now();
+  S.history[0].demo = true;
   save();
   render(curPage);
   nav('grid');
@@ -5102,7 +5136,11 @@ function handleUrlParams() {
     // link can never accidentally hijack someone actually joining a track. Own
     // idempotency flag (not rd_url_applied, which is keyed to exact location.search)
     // so relaunching from a saved/home-screen URL doesn't reseed the demo every time.
-    if (dm && !role && !sk && !S.track.name && deviceRole() === 'admin' && !(S.sync && S.sync.enabled)) {
+    const freshDevice = !S.track.name
+      && !(S.roster && S.roster.length)
+      && !(S.raceDay && S.raceDay.entries && S.raceDay.entries.length)
+      && !(S.history && S.history.length);
+    if (dm && !role && !sk && freshDevice && deviceRole() === 'admin' && !(S.sync && S.sync.enabled)) {
       let demoApplied = null;
       try { demoApplied = localStorage.getItem('rd_demo_applied'); } catch (e) {}
       if (location.search !== demoApplied) {
