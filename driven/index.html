@@ -509,6 +509,7 @@ function refreshEntitlement() {
 }
 // What tracks receive. Deliberately lean: no email, no bio, no results.
 function cardPayload() {
+  if (!P || !P.driver) return null;
   var d = P.driver;
   return {
     name: d.name || '',
@@ -530,6 +531,7 @@ function cardPayload() {
 // can run before the SDK loads. updatedAt is numeric (no length cap) so it's not checked.
 var CARD_CAPS = { name: 40, num: 8, age: 8, hometown: 60, sponsors: 160, photo: 80000, premiumCode: 40 };
 function cardStrings() {
+  if (!P || !P.driver) return {};
   var d = P.driver;
   return {
     name: d.name || '', num: d.number || '', age: d.age != null ? String(d.age) : '',

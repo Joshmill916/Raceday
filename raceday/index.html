@@ -1108,7 +1108,7 @@ const KEY = 'raceday_v1';
 // no car numbers, no contact info) and crash messages. Leave TELEMETRY_URL blank
 // to disable everything — nothing is sent and no disclosure shows. To turn it on,
 // paste the Google Apps Script web-app URL between the quotes.
-const APP_VERSION = '2026-06';
+const APP_VERSION = '2026-08';
 const LEGAL_VERSION = '2026-06';   // bump when Terms / Privacy wording changes, so acceptances are versioned
 const TELEMETRY_URL = 'https://script.google.com/macros/s/AKfycbxa3i3y17TLp_NfXOOu2jM7-YzXH2fScxcXoQYmIh0-873rxWfxg0HdRP1DVsxZq6iR/exec';
 
@@ -1513,9 +1513,12 @@ function nav(p) {
   curPage = p;
   document.querySelectorAll('.page').forEach(el => el.classList.remove('active'));
   document.querySelectorAll('#mainNav button').forEach(b => b.classList.remove('active'));
-  document.getElementById('page-' + p).classList.add('active');
+  const pageEl = document.getElementById('page-' + p);
+  if (!pageEl) return;   // stale cached JS/DOM mismatch (e.g. tab open across a deploy) — bail rather than crash
+  pageEl.classList.add('active');
   const idx = ['signup','grid','results','points','admin','help'].indexOf(p);
-  document.querySelectorAll('#mainNav button')[idx].classList.add('active');
+  const navBtn = document.querySelectorAll('#mainNav button')[idx];
+  if (navBtn) navBtn.classList.add('active');
   render(p);
 }
 function render(p) {
@@ -3561,6 +3564,7 @@ function importBackup(input) {
 // ---------- Track identity ----------
 function renderHeader() {
   const img = document.getElementById('hdrLogo');
+  if (!img) return;   // stale cached JS/DOM mismatch (e.g. tab open across a deploy) — bail rather than crash
   if (S.track.logo) { img.src = S.track.logo; img.style.display = ''; }
   else { img.removeAttribute('src'); img.style.display = 'none'; }
   const brand = document.getElementById('hdrBrand');
@@ -3682,9 +3686,12 @@ function renderAdmin() {
   document.getElementById('trackConfig').value = S.track.configuration || '';
   document.getElementById('trackHistory').value = S.track.history || '';
   const prev = document.getElementById('logoPrev');
-  if (S.track.logo) { prev.src = S.track.logo; prev.style.display = ''; }
-  else { prev.removeAttribute('src'); prev.style.display = 'none'; }
-  document.getElementById('logoRemove').style.display = S.track.logo ? '' : 'none';
+  if (prev) {
+    if (S.track.logo) { prev.src = S.track.logo; prev.style.display = ''; }
+    else { prev.removeAttribute('src'); prev.style.display = 'none'; }
+  }
+  const logoRemoveBtn = document.getElementById('logoRemove');
+  if (logoRemoveBtn) logoRemoveBtn.style.display = S.track.logo ? '' : 'none';
   document.getElementById('mHeat').value = S.settings.maxHeat;
   document.getElementById('mBMain').value = S.settings.maxBMain;
   document.getElementById('mFeat').value = S.settings.maxFeature;
