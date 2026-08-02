@@ -413,7 +413,7 @@ function premShort(profileId) { return profileId.slice(5, 13).toUpperCase(); }
 // (functions/index.js) writes profiles/<id>/entitlement directly and the buyer is
 // redirected straight back into the app (?pro=1, see handleBootParams()). Fill in the
 // real URLs once created; leave a period blank to hide just that button.
-var PRO_PAYMENT_LINKS = { monthly: '', yearly: '' };
+var PRO_PAYMENT_LINKS = { monthly: 'https://buy.stripe.com/00w3cxdwm3Nk1ATedIaMU04', yearly: 'https://buy.stripe.com/aFa8wRfEu83A1DTglQaMU03' };
 function proBuyUrl(period) {
   var link = PRO_PAYMENT_LINKS[period];
   if (!link) return '';
