@@ -424,7 +424,7 @@ function proBuyUrl(period) {
 // cancel, all on the SAME subscription (a Payment Link can only ever start a new one,
 // which is why plan changes go through here instead of "buy the other link"). Fill in
 // once deployed; leave blank to hide the "Manage subscription" link.
-var BILLING_PORTAL_URL = '';
+var BILLING_PORTAL_URL = 'https://us-central1-raceday-d32dd.cloudfunctions.net/billingPortal';
 function billingPortalUrl() {
   if (!BILLING_PORTAL_URL) return '';
   return BILLING_PORTAL_URL + (BILLING_PORTAL_URL.indexOf('?') >= 0 ? '&' : '?') + 'profileId=' + encodeURIComponent(P.profileId);
