@@ -335,8 +335,33 @@ function migrate(p) {
     if (r.source == null) r.source = r.trackId === 'raceday_riverside' || r.trackId === 'raceday_lonestar' ? 'demo' : 'manual';
     if (r.verifiedBy === undefined) r.verifiedBy = null;
   });
+  // Three tiers (basic/upgrade/premium) collapsed to two (free/pro). 'upgrade' was a
+  // free, unverified local toggle — nobody paid for it — so it folds into free. Only
+  // 'premium', which required a real code, carries over as the paid tier. The code
+  // FORMAT is unchanged (PREM-<SHORT>-<HASH8>), so every already-issued code still
+  // activates and RaceDay's own premCheck() re-verification is unaffected.
+  if (p.tier === 'premium') p.tier = 'pro';
+  else if (p.tier === 'basic' || p.tier === 'upgrade' || !TIERS[p.tier]) p.tier = 'free';
   return p;
 }
+
+/* ---------- Tier registry ---------- */
+// Two tiers today: free and pro. Adding another later (say a mid tier between them)
+// means adding one entry here with a rank in the gap — nothing else in the app
+// compares tier strings directly, everything gates through tierAtLeast(), so a new
+// tier slots in without touching the card renderer or any feature check.
+// `card` is the CSS class family used to render that tier's card; `.mcard` in the
+// stylesheet is an unused third design kept ready for exactly that case.
+var TIERS = {
+  free: { key: 'free', label: 'Free', rank: 0,  paid: false, card: 'bcard' },
+  pro:  { key: 'pro',  label: 'Pro',  rank: 10, paid: true,  card: 'pcard' }
+};
+var TIER_FALLBACK = 'free';
+function tierDef(key) { return TIERS[key] || TIERS[TIER_FALLBACK]; }
+function currentTier() { return tierDef(P && P.tier); }
+// Feature gate: "does the current tier reach at least this one?" — rank-based so an
+// inserted mid tier keeps every existing check correct without edits.
+function tierAtLeast(key) { return currentTier().rank >= tierDef(key).rank; }
 
 function newProfile(name, email, hometown, age) {
   return {
@@ -345,7 +370,7 @@ function newProfile(name, email, hometown, age) {
     linkedTracks: [],
     raceResults: [],
     sponsors: [],
-    tier: 'basic',
+    tier: 'free',
     premiumCode: '',
     shortCode: '',      // published track-link code (derived from profileId at publish time)
     publishedAt: 0
@@ -383,10 +408,10 @@ function activatePremium() {
   var code = ($id('premCode').value || '').trim();
   if (!code) return;
   if (!premCheck(P.profileId, code)) { alert("That code isn't valid for this profile — check it character by character."); return; }
-  P.tier = 'premium';
+  P.tier = 'pro';
   P.premiumCode = code.toUpperCase();
   save();
-  alert('✅ Premium unlocked — your card just got the broadcast look.');
+  alert('✅ Pro unlocked — your card just got the broadcast look.');
   nav('card');
 }
 
@@ -431,7 +456,7 @@ function cardPayload() {
     sponsors: P.sponsors.map(function (s) { return s.name; }).join(' · '),
     teamColor: /^#[0-9a-fA-F]{6}$/.test(d.teamColor || '') ? d.teamColor : '',
     photo: d.photo || '',
-    premiumCode: P.tier === 'premium' ? (P.premiumCode || '') : '',
+    premiumCode: tierAtLeast('pro') ? (P.premiumCode || '') : '',
     updatedAt: firebase.database.ServerValue.TIMESTAMP
   };
 }
@@ -447,7 +472,7 @@ function cardStrings() {
   return {
     name: d.name || '', num: d.number || '', age: d.age != null ? String(d.age) : '',
     hometown: d.hometown || '', sponsors: P.sponsors.map(function (s) { return s.name; }).join(' · '),
-    photo: d.photo || '', premiumCode: P.tier === 'premium' ? (P.premiumCode || '') : ''
+    photo: d.photo || '', premiumCode: tierAtLeast('pro') ? (P.premiumCode || '') : ''
   };
 }
 function cardTooLong() {
@@ -580,13 +605,13 @@ function restoreFromLinkCode(code) {
       sponsors: (typeof card.sponsors === 'string' && card.sponsors)
         ? card.sponsors.split(' · ').map(function (n) { return { name: n.trim() }; }).filter(function (s) { return s.name; })
         : [],
-      tier: 'basic',
+      tier: 'free',
       premiumCode: '',
       shortCode: short,
       publishedAt: typeof card.updatedAt === 'number' ? card.updatedAt : Date.now()
     };
     if (card.premiumCode && premCheck(profileId, card.premiumCode)) {
-      restored.tier = 'premium';
+      restored.tier = 'pro';
       restored.premiumCode = String(card.premiumCode).toUpperCase();
     }
     P = migrate(restored);
@@ -693,12 +718,12 @@ function photoOK(src) { return typeof src === 'string' && /^data:image\/(png|jpe
 function renderCard() {
   var d = P.driver;
   var initials = d.name.split(/\s+/).map(function (w) { return w[0] || ''; }).slice(0, 2).join('').toUpperCase();
-  var tier = P.tier || 'basic';
   var stats = computeStats();
-  var tierBadge = { basic: '', upgrade: ' — <span style="color:var(--brand);font-weight:700">Upgrade</span>', premium: ' — <span class="prem-badge">Premium</span>' };
-  var h = '<h2>Your Card</h2><p class="sub">This is what tracks and fans see' + (tierBadge[tier] || '') + '.</p>';
+  var isPro = tierAtLeast('pro');
+  var h = '<h2>Your Card</h2><p class="sub">This is what tracks and fans see'
+    + (currentTier().paid ? ' — <span class="prem-badge">' + esc(currentTier().label) + '</span>' : '') + '.</p>';
 
-  if (tier === 'premium') {
+  if (isPro) {
     var team = /^#[0-9a-fA-F]{6}$/.test(d.teamColor || '') ? d.teamColor : '#1f6fd6';
     h += '<div class="pcard" style="--pc-team:' + team + '">'
       + '<div class="pcard-hd">'
@@ -716,25 +741,6 @@ function renderCard() {
       + '<div class="pcard-body">'
       + (d.bio ? '<div style="line-height:1.6;margin-bottom:8px">' + esc(d.bio) + '</div>' : '')
       + (P.sponsors.length ? P.sponsors.map(function (s) { return '<span class="sponsor-chip">' + esc(s.name) + '</span>'; }).join('') : '')
-      + '</div></div>';
-  } else if (tier === 'upgrade') {
-    var team = /^#[0-9a-fA-F]{6}$/.test(d.teamColor || '') ? d.teamColor : '#1f6fd6';
-    h += '<div class="mcard" style="--mc-team:' + team + '">'
-      + '<div class="mcard-hd">'
-      + (photoOK(d.photo) ? '<img class="mcard-photo" src="' + d.photo + '" alt="">'
-                          : '<div class="mcard-disc">' + esc(d.number || initials) + '</div>')
-      + '<div><div class="mcard-name">' + esc(d.name) + '</div>'
-      + '<div class="mcard-meta">' + [d.number ? '#' + esc(d.number) : '', d.hometown ? esc(d.hometown) : ''].filter(Boolean).join(' &nbsp;·&nbsp; ') + '</div></div>'
-      + '</div>'
-      + '<div class="mcard-body">'
-      + (d.bio ? '<div class="prof-bio">' + esc(d.bio) + '</div>' : '<div class="prof-bio placeholder">No bio yet — add one in Settings.</div>')
-      + '<div class="slbl">Sponsors</div>'
-      + (P.sponsors.length ? P.sponsors.map(function (s) { return '<span class="sponsor-chip">' + esc(s.name) + '</span>'; }).join('') : '<p class="empty" style="padding:4px 0 0">No sponsors added yet.</p>')
-      + '<div class="mcard-stats">'
-      + '<div class="mcard-stat"><b>' + stats.total.races + '</b><span>Races</span></div>'
-      + '<div class="mcard-stat"><b>' + stats.total.wins + '</b><span>Wins</span></div>'
-      + '<div class="mcard-stat"><b>' + stats.total.podiums + '</b><span>Podiums</span></div>'
-      + '</div>'
       + '</div></div>';
   } else {
     h += '<div class="bcard">'
@@ -759,42 +765,27 @@ function renderCard() {
     + (P.publishedAt ? '<div class="pub-status">Published · link code <b>' + esc(P.shortCode) + '</b> · updated ' + new Date(P.publishedAt).toLocaleString() + '</div>' : '')
     + '</div>';
 
-  // Tier upsell / status
-  if (tier === 'basic') {
-    h += '<div class="card"><div class="slbl">Available upgrades</div>'
-      + '<p class="sub" style="margin-bottom:14px">Choose how your card looks at every RaceDay track.</p>'
-      + '<div style="display:flex;gap:10px;flex-direction:column">'
-      + '<div style="padding:14px;border:1.5px solid #d5d8de;border-radius:10px;background:#f4f5f7">'
-      + '<div style="font-weight:700;font-size:14px;margin-bottom:4px">Upgrade — Photo + team color</div>'
-      + '<div style="font-size:13px;color:var(--muted);line-height:1.5">Add your photo and team color accent. Appears on every track with a clean, modern look.</div>'
-      + '<button class="btn btn-block" style="margin-top:8px" onclick="selectTier(\'upgrade\')">Upgrade</button>'
-      + '</div>'
+  // Tier upsell / status. Driven by the TIERS registry, so adding a tier later means
+  // adding a registry entry (and its copy below), not restructuring this.
+  if (!isPro) {
+    h += '<div class="card"><div class="slbl">Upgrade to Pro</div>'
+      + '<p class="sub" style="margin-bottom:14px">Your card, in full broadcast style, at every RaceDay track.</p>'
       + '<div style="padding:14px;border:1.5px solid var(--brand);border-radius:10px;background:color-mix(in srgb, var(--brand) 6%, transparent)">'
-      + '<div style="font-weight:700;font-size:14px;margin-bottom:4px;color:var(--brand)">Premium — Broadcast style</div>'
-      + '<div style="font-size:13px;color:var(--muted);line-height:1.5">Full broadcast look with photo, ghost number, team color accent, and animated effects. Gets noticed.</div>'
-      + (premiumBuyUrl() ? '<a class="btn btn-block" style="margin-bottom:8px" href="' + esc(premiumBuyUrl()) + '" target="_blank" rel="noopener">Buy premium online</a>' : '')
-      + '<label style="margin-top:8px;margin-bottom:4px">Premium code</label><input type="text" id="premCode" placeholder="PREM-XXXXXXXX-XXXXXXXX" autocapitalize="characters" style="margin-bottom:8px">'
-      + '<button class="btn btn-go btn-block" onclick="activatePremium()">Unlock premium</button>'
-      + '</div>'
+      + '<div style="font-weight:700;font-size:14px;margin-bottom:4px;color:var(--brand)">Pro</div>'
+      + '<div style="font-size:13px;color:var(--muted);line-height:1.5">Photo, ghost number, team color accent, and career stats on the card itself \u2014 the look that gets noticed at the sign-up table.</div>'
+      + (premiumBuyUrl() ? '<a class="btn btn-block" style="margin-top:10px;margin-bottom:8px" href="' + esc(premiumBuyUrl()) + '" target="_blank" rel="noopener">Get Pro</a>' : '')
+      + '<label style="margin-top:8px;margin-bottom:4px">Have a code?</label><input type="text" id="premCode" placeholder="PREM-XXXXXXXX-XXXXXXXX" autocapitalize="characters" style="margin-bottom:8px">'
+      + '<button class="btn btn-go btn-block" onclick="activatePremium()">Unlock Pro</button>'
       + '</div>'
       + '</div>';
-  } else if (tier === 'upgrade') {
-    h += '<div class="card"><div class="slbl">Your tier</div>'
-      + '<p class="sub" style="margin-bottom:10px">Upgrade active — your card displays your photo and team color at every track.</p>'
-      + '<div style="display:flex;gap:8px">'
-      + '<button class="btn btn-sm" onclick="selectTier(\'basic\')">Downgrade</button>'
-      + '<label style="flex:1;margin:0"><input type="text" id="premCode" placeholder="PREM-XXXXXXXX-XXXXXXXX" autocapitalize="characters"> <button class="btn btn-sm" style="margin-top:8px" onclick="activatePremium()">Go premium</button></label>'
-      + '</div>'
+  } else {
+    h += '<div class="card"><div class="slbl">Your plan</div>'
+      + '<p class="sub" style="margin:0">' + esc(currentTier().label) + ' is active \u2014 your card shows the full broadcast look at every track.</p>'
       + '</div>';
   }
   $id('page-card').innerHTML = h;
 }
 
-function selectTier(t) {
-  P.tier = t;
-  save();
-  renderCard();
-}
 
 /* ---------- Stats page ---------- */
 function renderStats() {

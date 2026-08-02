@@ -161,7 +161,7 @@ const check = (n, ok, x) => { if (ok) { pass++; console.log('  ✅ ' + n); } els
   check('onboarding closes after a valid link-code restore', await page.evaluate(() => document.getElementById('onboardModal').style.display === 'none'));
   check('identity restored from the published card', await page.evaluate(() => P.driver.name === 'Robin Park' && P.driver.number === '9' && P.driver.hometown === 'Dayton, OH'));
   check('sponsors reconstructed from the flattened card string', await page.evaluate(() => P.sponsors.length === 2 && P.sponsors[0].name === 'Apex Racing' && P.sponsors[1].name === 'Speedy Tires'));
-  check('premium status recomputed and honored (valid code)', await page.evaluate(() => P.tier === 'premium'));
+  check('pro status recomputed and honored (valid code)', await page.evaluate(() => P.tier === 'pro'));
   check('race history is explicitly EMPTY — never recoverable from a card alone', await page.evaluate(() => P.raceResults.length === 0));
   check('shortCode recorded so the profile can re-publish under the same link', await page.evaluate(() => P.shortCode === 'RESTORE1'));
 
