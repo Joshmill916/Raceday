@@ -328,6 +328,7 @@ function migrate(p) {
   if (p.premiumCode == null) p.premiumCode = '';
   if (p.shortCode == null) p.shortCode = '';
   if (p.publishedAt == null) p.publishedAt = 0;
+  if (p.entitlement == null) p.entitlement = null;
   // source/verifiedBy: added for RaceDay-verified results (pullRaceDayResults()).
   // Honest default for anything already here — nothing so far was verified, it was
   // either typed in by hand or is the demo loader's sample data.
@@ -358,7 +359,24 @@ var TIERS = {
 };
 var TIER_FALLBACK = 'free';
 function tierDef(key) { return TIERS[key] || TIERS[TIER_FALLBACK]; }
-function currentTier() { return tierDef(P && P.tier); }
+// Offline redeem code (P.tier) is permanent and always trusted. A server-side Pro
+// subscription (P.entitlement) is only trusted while its last successful check is
+// within this grace window — beyond that a device that's been offline too long quietly
+// falls back to free rather than trusting a possibly-stale "still Pro" forever.
+var ENTITLEMENT_GRACE_MS = 7 * 24 * 60 * 60 * 1000;
+function entitlementTierKey() {
+  var e = P && P.entitlement;
+  if (!e) return TIER_FALLBACK;
+  if ((Date.now() - (e.checkedAt || 0)) > ENTITLEMENT_GRACE_MS) return TIER_FALLBACK;
+  return TIERS[e.tier] ? e.tier : TIER_FALLBACK;
+}
+// The client honors whichever of (offline code, entitlement) grants the higher tier —
+// each is a completely independent unlock path, this is just their union.
+function currentTier() {
+  var offline = tierDef(P && P.tier);
+  var ent = tierDef(entitlementTierKey());
+  return ent.rank > offline.rank ? ent : offline;
+}
 // Feature gate: "does the current tier reach at least this one?" — rank-based so an
 // inserted mid tier keeps every existing check correct without edits.
 function tierAtLeast(key) { return currentTier().rank >= tierDef(key).rank; }
@@ -373,7 +391,8 @@ function newProfile(name, email, hometown, age) {
     tier: 'free',
     premiumCode: '',
     shortCode: '',      // published track-link code (derived from profileId at publish time)
-    publishedAt: 0
+    publishedAt: 0,
+    entitlement: null   // server-side Pro subscription status — see refreshEntitlement()
   };
 }
 
@@ -389,20 +408,44 @@ function pHash(str) {
   return fnv(str, 2166136261) + fnv(str + '#2', 2166136261);
 }
 function premShort(profileId) { return profileId.slice(5, 13).toUpperCase(); }
-// Stripe Payment Link for automatic online purchase — a webhook mints the matching
-// premium code (bound to this profile via a ?client_reference_id= passthrough) and
-// the buyer claims it at ../claim.html. Fill in the real URL once created (see
-// FIREBASE-SYNC.md); leave blank to hide the "Buy online" button.
-var PREMIUM_PAYMENT_LINK = '';
-function premiumBuyUrl() {
-  if (!PREMIUM_PAYMENT_LINK) return '';
-  return PREMIUM_PAYMENT_LINK + (PREMIUM_PAYMENT_LINK.indexOf('?') >= 0 ? '&' : '?') + 'client_reference_id=' + encodeURIComponent(P.profileId);
+// Stripe Payment Links for the recurring Pro subscription — one per billing period.
+// Unlike the old one-time premium purchase, there's no code to claim: the webhook
+// (functions/index.js) writes profiles/<id>/entitlement directly and the buyer is
+// redirected straight back into the app (?pro=1, see handleBootParams()). Fill in the
+// real URLs once created; leave a period blank to hide just that button.
+var PRO_PAYMENT_LINKS = { monthly: '', yearly: '' };
+function proBuyUrl(period) {
+  var link = PRO_PAYMENT_LINKS[period];
+  if (!link) return '';
+  return link + (link.indexOf('?') >= 0 ? '&' : '?') + 'client_reference_id=' + encodeURIComponent(P.profileId);
+}
+// The deployed billingPortal Cloud Function's URL (functions/index.js) — redirects an
+// already-subscribed profile into Stripe's Customer Portal to switch monthly/yearly or
+// cancel, all on the SAME subscription (a Payment Link can only ever start a new one,
+// which is why plan changes go through here instead of "buy the other link"). Fill in
+// once deployed; leave blank to hide the "Manage subscription" link.
+var BILLING_PORTAL_URL = '';
+function billingPortalUrl() {
+  if (!BILLING_PORTAL_URL) return '';
+  return BILLING_PORTAL_URL + (BILLING_PORTAL_URL.indexOf('?') >= 0 ? '&' : '?') + 'profileId=' + encodeURIComponent(P.profileId);
 }
 function premCheck(profileId, code) {
   var parts = String(code || '').trim().toUpperCase().split('-');
   if (parts.length !== 3 || parts[0] !== 'PREM') return false;
   if (parts[1] !== premShort(profileId)) return false;
   return parts[2] === pHash(profileId + '|PREM|' + PREM_SALT).slice(0, 8);
+}
+// The exact value a real redeemed code would have for this profileId — computed
+// locally, NOT stored in P.premiumCode (which stays reserved for an actually-typed-in
+// code). Since premCheck() only ever re-verifies the hash and has no concept of "was
+// this purchased", publishing this for an active Pro subscription satisfies RaceDay's
+// existing premCheck()/cardPremiumOK() with zero changes to raceday/index.html.
+// KNOWN TRADEOFF: this widens who can compute a working code for a given profile from
+// "nobody without devtools" to "anyone who can see that profile's public card while
+// Pro is active" (restoreFromLinkCode() already trusts any premCheck-valid code it
+// finds there). Accepted for this pass — see the entitlement-backend plan.
+function localPremiumCode(profileId) {
+  return 'PREM-' + premShort(profileId) + '-' + pHash(profileId + '|PREM|' + PREM_SALT).slice(0, 8);
 }
 function activatePremium() {
   var code = ($id('premCode').value || '').trim();
@@ -445,6 +488,25 @@ function ensureFirebase() {
     if (!firebase.apps.length) firebase.initializeApp(FIREBASE_CONFIG);
   });
 }
+// One-shot read of the server-side entitlement (Driven Pro subscriptions, written by
+// functions/index.js's stripeWebhook) — mirrors this file's existing one-shot-only
+// Firebase style, no .on() listener. Only updates P.entitlement.checkedAt on a
+// SUCCESSFUL read (including "no entitlement" as a successful read of "free") — never
+// on a network failure, or the 7-day grace window would silently mean "7 days since we
+// last merely tried" instead of "7 days offline", with no indication why Pro vanished.
+function refreshEntitlement() {
+  if (!P || !P.profileId) return Promise.resolve(null);
+  return ensureFirebase().then(function () {
+    return firebase.database().ref('profiles/' + P.profileId + '/entitlement').once('value');
+  }).then(function (snap) {
+    var v = snap.val();
+    P.entitlement = (v && typeof v === 'object' && TIERS[v.tier])
+      ? { tier: v.tier, status: String(v.status || ''), currentPeriodEnd: Number(v.currentPeriodEnd) || 0, checkedAt: Date.now() }
+      : { tier: 'free', status: 'none', currentPeriodEnd: 0, checkedAt: Date.now() };
+    save();
+    return P.entitlement;
+  });
+}
 // What tracks receive. Deliberately lean: no email, no bio, no results.
 function cardPayload() {
   var d = P.driver;
@@ -456,7 +518,7 @@ function cardPayload() {
     sponsors: P.sponsors.map(function (s) { return s.name; }).join(' · '),
     teamColor: /^#[0-9a-fA-F]{6}$/.test(d.teamColor || '') ? d.teamColor : '',
     photo: d.photo || '',
-    premiumCode: tierAtLeast('pro') ? (P.premiumCode || '') : '',
+    premiumCode: tierAtLeast('pro') ? (P.premiumCode || localPremiumCode(P.profileId)) : '',
     updatedAt: firebase.database.ServerValue.TIMESTAMP
   };
 }
@@ -472,7 +534,7 @@ function cardStrings() {
   return {
     name: d.name || '', num: d.number || '', age: d.age != null ? String(d.age) : '',
     hometown: d.hometown || '', sponsors: P.sponsors.map(function (s) { return s.name; }).join(' · '),
-    photo: d.photo || '', premiumCode: tierAtLeast('pro') ? (P.premiumCode || '') : ''
+    photo: d.photo || '', premiumCode: tierAtLeast('pro') ? (P.premiumCode || localPremiumCode(P.profileId)) : ''
   };
 }
 function cardTooLong() {
@@ -771,16 +833,21 @@ function renderCard() {
     h += '<div class="card"><div class="slbl">Upgrade to Pro</div>'
       + '<p class="sub" style="margin-bottom:14px">Your card, in full broadcast style, at every RaceDay track.</p>'
       + '<div style="padding:14px;border:1.5px solid var(--brand);border-radius:10px;background:color-mix(in srgb, var(--brand) 6%, transparent)">'
-      + '<div style="font-weight:700;font-size:14px;margin-bottom:4px;color:var(--brand)">Pro</div>'
+      + '<div style="font-weight:700;font-size:14px;margin-bottom:4px;color:var(--brand)">Pro \u2014 $3/mo or $20/yr</div>'
       + '<div style="font-size:13px;color:var(--muted);line-height:1.5">Photo, ghost number, team color accent, and career stats on the card itself \u2014 the look that gets noticed at the sign-up table.</div>'
-      + (premiumBuyUrl() ? '<a class="btn btn-block" style="margin-top:10px;margin-bottom:8px" href="' + esc(premiumBuyUrl()) + '" target="_blank" rel="noopener">Get Pro</a>' : '')
+      + (proBuyUrl('monthly') ? '<a class="btn btn-block" style="margin-top:10px;margin-bottom:6px" href="' + esc(proBuyUrl('monthly')) + '" target="_blank" rel="noopener">Get Pro \u2014 $3/mo</a>' : '')
+      + (proBuyUrl('yearly') ? '<a class="btn btn-block" style="margin-bottom:8px" href="' + esc(proBuyUrl('yearly')) + '" target="_blank" rel="noopener">Get Pro \u2014 $20/yr</a>' : '')
       + '<label style="margin-top:8px;margin-bottom:4px">Have a code?</label><input type="text" id="premCode" placeholder="PREM-XXXXXXXX-XXXXXXXX" autocapitalize="characters" style="margin-bottom:8px">'
       + '<button class="btn btn-go btn-block" onclick="activatePremium()">Unlock Pro</button>'
       + '</div>'
       + '</div>';
   } else {
+    var viaSub = entitlementTierKey() === 'pro';
+    var renewLine = (viaSub && P.entitlement && P.entitlement.currentPeriodEnd)
+      ? ' Renews ' + new Date(P.entitlement.currentPeriodEnd).toLocaleDateString() + '.' : '';
     h += '<div class="card"><div class="slbl">Your plan</div>'
-      + '<p class="sub" style="margin:0">' + esc(currentTier().label) + ' is active \u2014 your card shows the full broadcast look at every track.</p>'
+      + '<p class="sub" style="margin:0 0 8px">' + esc(currentTier().label) + ' is active \u2014 your card shows the full broadcast look at every track.' + renewLine + '</p>'
+      + (viaSub && billingPortalUrl() ? '<a class="btn btn-block" href="' + esc(billingPortalUrl()) + '" target="_blank" rel="noopener">Manage subscription</a>' : '')
       + '</div>';
   }
   $id('page-card').innerHTML = h;
@@ -1086,9 +1153,44 @@ function deleteProfile() {
   } else wipe();
 }
 
+/* ---------- Post-checkout return (?pro=1) ---------- */
+// Both the subscription Payment Links and billingPortalUrl()'s return_url land here —
+// there's no code to paste (unlike claim.html's flow for the offline path), so just
+// poll the entitlement record until the webhook has landed. Idempotency mirrors
+// raceday/index.html's handleUrlParams(): a saved home-screen link relaunches from the
+// exact same URL every time, so history.replaceState alone isn't enough to stop this
+// re-firing (and re-alerting) on every subsequent open.
+function pollEntitlement(attempt) {
+  refreshEntitlement().then(function () {
+    if (tierAtLeast('pro')) { alert('✅ Pro is active — your card just got the broadcast look.'); nav('card'); return; }
+    if (attempt < 9) setTimeout(function () { pollEntitlement(attempt + 1); }, 1500 + attempt * 500);
+    else offerEntitlementRetry();
+  }).catch(function () {
+    if (attempt < 9) setTimeout(function () { pollEntitlement(attempt + 1); }, 1500 + attempt * 500);
+    else offerEntitlementRetry();
+  });
+}
+function offerEntitlementRetry() {
+  if (confirm('Still confirming your payment — this can take a minute. Check again now?')) pollEntitlement(0);
+}
+function handleBootParams() {
+  var qs = location.search;
+  if (!/[?&]pro=1(&|$)/.test(qs)) { if (P) refreshEntitlement().catch(function () {}); return; }
+  var flagKey = 'rd_pro_applied_' + qs;
+  history.replaceState(null, '', location.pathname + location.hash);
+  if (localStorage.getItem(flagKey)) { if (P) refreshEntitlement().catch(function () {}); return; }
+  localStorage.setItem(flagKey, '1');
+  if (!P || !P.profileId) {
+    alert('Payment succeeded, but this device has no matching Driven profile. Restore your profile in Settings, then check back for your Pro status.');
+    return;
+  }
+  pollEntitlement(0);
+}
+
 /* ---------- Boot ---------- */
 P = load();
 if (!P) { openOnboarding(); } else { nav('home'); }
+handleBootParams();
 </script>
 </body>
 </html>
