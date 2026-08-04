@@ -397,6 +397,11 @@
     <button class="btn btn-sm btn-primary" id="resultsBannerBtn">Share now</button>
   </div>
 
+  <div id="backupBanner" class="banner" style="display:none">
+    <span id="backupBannerText"></span>
+    <button class="btn btn-sm btn-primary" onclick="exportBackup()">Download backup</button>
+  </div>
+
   <!-- SIGN UP -->
   <div id="page-signup" class="page active">
     <div id="s1">
@@ -983,6 +988,19 @@
 <!-- Operator mode bar: watch (read-only) / control (live), with its own PIN -->
 <div id="opBar" style="display:none"></div>
 
+<!-- Saved-data recovery modal: shown instead of a silent blank wizard when localStorage
+     held something under KEY that couldn't be read (see LOAD_FAILURE in load()). -->
+<div id="recoveryModal" class="wiz-overlay" style="display:none">
+  <div class="wiz-box">
+    <div class="wiz-title">⚠️ Saved data couldn't be loaded</div>
+    <p>We found saved race day data on this device, but it couldn't be read normally. <span id="recoverRawInfo"></span></p>
+    <p>This can happen after a crash or an interrupted save. <strong>Your data has NOT been erased</strong> — download it below and send it to the app owner for help recovering it before doing anything else.</p>
+    <button class="btn btn-primary" style="width:100%;margin-bottom:8px" onclick="downloadRecoveryFile()">⬇ Download raw data file</button>
+    <p style="font-size:12px;color:var(--muted)">This downloads exactly what was found, even though the app can't read it — it may still be recoverable manually.</p>
+    <button class="btn btn-sm" style="width:100%" onclick="confirmStartFresh()">I understand — start fresh on this device</button>
+  </div>
+</div>
+
 <!-- First-run setup wizard -->
 <div id="setupWizard" class="wiz-overlay" style="display:none">
   <div class="wiz-box" style="position:relative">
@@ -1084,6 +1102,13 @@
   <button onclick="nav('grid');setViewStage('results');hideViewerToast()">View →</button>
 </div>
 
+<!-- Kept separate from viewerToast on purpose — this fires for the admin/staff roles
+     that actually see track identity, not spectators, and shouldn't share that toast's
+     "results updated" wording or its View-results click handler. -->
+<div id="trackSyncToast" class="vw-toast" style="display:none">
+  🔄 Track identity was updated by the connected device
+</div>
+
 <div id="qualTimesModal" class="vdc-overlay" style="display:none" onclick="if(event.target===this)closeQualTimes()">
   <div class="qt-box">
     <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:4px">
@@ -1161,6 +1186,13 @@ function drawQR(canvas, text) {
 function deviceRole() { return localStorage.getItem('rd_role') || 'admin'; }
 function setDeviceRole(r) { try { localStorage.setItem('rd_role', r); } catch (e) {} }
 function today() { const d = new Date(); return d.getFullYear()+'-'+String(d.getMonth()+1).padStart(2,'0')+'-'+String(d.getDate()).padStart(2,'0'); }
+// Whole calendar days between a 'YYYY-MM-DD' date and today — used to escalate the
+// stale-race-day banner the longer a night goes un-archived (checkDayBanner(), below).
+function daysSince(dateStr) {
+  const d = new Date(dateStr + 'T00:00:00');
+  if (isNaN(d)) return 0;
+  return Math.round((new Date(today() + 'T00:00:00') - d) / 86400000);
+}
 // A stable per-track id, independent of multi-device sync (S.sync.key only exists once
 // sync is turned on, which is off by default) — this is what the results-publish pipeline
 // keys Firebase writes on, so it has to exist for every track, synced or not.
@@ -1194,9 +1226,10 @@ function defaults() {
     // MUST equal the latest migration number in migrate(). Left at 2 when migration 3
     // (PIN hashing) shipped, every fresh install re-hashed its already-hashed PIN on the
     // next load — locking the owner out with the CORRECT PIN.
-    schemaVersion: 6,
+    schemaVersion: 7,
     sync: { enabled: false, key: '' },             // live multi-device sync (off until activated)
-    demo: false                                    // true only inside an auto-seeded ?demo=1 session — gates real Firebase writes
+    demo: false,                                   // true only inside an auto-seeded ?demo=1 session — gates real Firebase writes
+    lastBackupAt: 0                                // Date.now() of the last "Download full backup" click — drives renderBackupBanner()
   };
 }
 function migrate(s) {
@@ -1283,10 +1316,30 @@ function migrate(s) {
     if (s.demo == null) s.demo = false;
     s.schemaVersion = 6;
   }
+  if (s.schemaVersion < 7) {
+    if (s.lastBackupAt == null) s.lastBackupAt = 0;
+    s.schemaVersion = 7;
+  }
   return s;
 }
+// Set when localStorage held something under KEY but it couldn't be turned into a
+// usable state (parse failure, or missing raceDay/classes) — distinct from a genuine
+// fresh install, where nothing was ever saved. checkLoadFailure() (below) surfaces this
+// instead of silently landing the admin on a blank setup wizard while real data sits
+// unread on the device.
+let LOAD_FAILURE = null;
 function load() {
-  try { const raw = localStorage.getItem(KEY); if (raw) { const s = JSON.parse(raw); if (s && s.raceDay && s.classes) return migrate(s); } } catch(e) {}
+  let raw = null;
+  try {
+    raw = localStorage.getItem(KEY);
+    if (raw) {
+      const s = JSON.parse(raw);
+      if (s && s.raceDay && s.classes) return migrate(s);
+      LOAD_FAILURE = { raw, reason: 'missing raceDay/classes' };
+    }
+  } catch (e) {
+    if (raw) LOAD_FAILURE = { raw, reason: 'parse error: ' + (e && e.message || e) };
+  }
   return defaults();
 }
 function save() { try { localStorage.setItem(KEY, JSON.stringify(S)); } catch(e) {} if (syncOn()) syncPush(); }
@@ -1531,6 +1584,7 @@ function render(p) {
   checkDayBanner();
   renderLicBanner();
   renderResultsShareBanner();
+  renderBackupBanner();
 }
 // Static doc pages (Terms, Privacy, Business Recommendations) live outside the role-gated
 // nav. They overlay the current page; "← Back" returns to wherever the user was (curPage).
@@ -1659,12 +1713,27 @@ function renderFooter() {
 }
 
 // ---------- Race day handling ----------
+// Escalates the longer a night goes un-archived: a race day that's never turned into
+// "Start a new race day" just keeps accumulating in this one unprotected S.raceDay blob
+// indefinitely, with no separate backup point of its own — the wording gets louder the
+// longer that risk has been sitting there, culminating in the same red styling
+// renderLicBanner() uses for an expired license.
 function checkDayBanner() {
   const b = document.getElementById('dayBanner');
-  if (S.raceDay.date !== today() && (S.raceDay.entries.length || Object.keys(S.raceDay.heatResults).length)) {
+  const hasData = S.raceDay.entries.length || Object.keys(S.raceDay.heatResults).length;
+  if (S.raceDay.date === today() || !hasData) { b.style.display = 'none'; b.style.cssText = ''; return; }
+  const days = daysSince(S.raceDay.date);
+  b.style.display = '';
+  if (days >= 7) {
+    b.style.cssText = 'background:var(--pit-red-bg);border-color:#f0c4c0;color:var(--pit-red)';
+    document.getElementById('dayBannerText').textContent = '⚠️ Everything since ' + S.raceDay.date + ' (' + days + ' days ago) is sitting in one unprotected place on this device. Start a new race day to save it safely, or download a backup now.';
+  } else if (days >= 3) {
+    b.style.cssText = '';
+    document.getElementById('dayBannerText').textContent = '⏳ These entries are from ' + S.raceDay.date + ' (' + days + ' days ago) and haven\'t been archived yet.';
+  } else {
+    b.style.cssText = '';
     document.getElementById('dayBannerText').textContent = 'These entries are from ' + S.raceDay.date + '.';
-    b.style.display = '';
-  } else { b.style.display = 'none'; }
+  }
 }
 function newRaceDay() {
   if (!adminOk()) return;
@@ -1767,6 +1836,25 @@ function exitDemoMode() {
   alert('Demo mode cleared.' + (removed.drivers || removed.nights
     ? ' Removed ' + removed.drivers + ' sample driver(s) and ' + removed.nights + ' sample night(s) tagged as demo data.'
     : ' No tagged demo data was found — this device\'s demo data predates tagging; check History/Driver book manually.'));
+}
+// Surfaces a LOAD_FAILURE set by load() (see there) — called once after the normal boot
+// render has already painted the app shell on the defaults() fallback, so this is purely
+// additive on top of an otherwise-working boot, not a blocking step inside it.
+function checkLoadFailure() {
+  if (!LOAD_FAILURE) return;
+  document.getElementById('recoverRawInfo').textContent = 'Found ' + LOAD_FAILURE.raw.length + ' characters of saved data.';
+  showModal('recoveryModal', 'flex');
+}
+function downloadRecoveryFile() {
+  if (!LOAD_FAILURE) return;
+  downloadFile('raceday-unreadable-' + Date.now() + '.json', LOAD_FAILURE.raw, 'application/json');
+}
+function confirmStartFresh() {
+  if (!confirm('Start fresh on this device? The saved data that could not be read will be permanently overwritten. Make sure you already downloaded it if you might need it.')) return;
+  LOAD_FAILURE = null;
+  save();   // persists the already-active defaults() S, overwriting the unreadable key
+  hideModal('recoveryModal');
+  render(curPage);
 }
 
 // ---------- License & free trial ----------
@@ -1911,6 +1999,22 @@ function renderResultsShareBanner() {
   const n = shareableCount(S.history[idx]);
   document.getElementById('resultsBannerText').textContent = '📤 ' + n + ' driver' + (n === 1 ? '' : 's') + ' from ' + S.history[idx].date + ' can see tonight\'s results in Driven — not shared yet.';
   document.getElementById('resultsBannerBtn').onclick = () => shareResultsWithDriven(idx);
+}
+// Nudges toward "Admin → Backup & export → Download full backup" once it's been a while
+// since the last one — only when there's actually something worth losing. This exists
+// because exportBackup() is otherwise 100% manual with no reminder of its own; a device
+// that's never had this clicked shows the "no backup yet" wording indefinitely until one is.
+function renderBackupBanner() {
+  const b = document.getElementById('backupBanner');
+  if (deviceRole() === 'viewer') { b.style.display = 'none'; return; }
+  const hasData = S.raceDay.entries.length || S.history.length || S.roster.length;
+  const STALE_MS = 7 * 24 * 60 * 60 * 1000;
+  if (!hasData || (S.lastBackupAt && Date.now() - S.lastBackupAt < STALE_MS)) { b.style.display = 'none'; return; }
+  b.style.display = '';
+  const days = S.lastBackupAt ? Math.floor((Date.now() - S.lastBackupAt) / (24 * 60 * 60 * 1000)) : null;
+  document.getElementById('backupBannerText').textContent = days == null
+    ? '💾 No backup has been downloaded yet on this device — download one to protect your season\'s data.'
+    : '💾 It\'s been ' + days + ' days since your last backup — download one now to protect your season\'s data.';
 }
 function activateLic() {
   const inp = document.getElementById('licCode');
@@ -2664,6 +2768,14 @@ function showViewerToast() {
 function hideViewerToast() {
   const el = document.getElementById('viewerToast');
   if (el) el.style.display = 'none';
+}
+let _trackSyncToastTimer = null;
+function showTrackSyncToast() {
+  const el = document.getElementById('trackSyncToast');
+  if (!el) return;
+  el.style.display = 'flex';
+  clearTimeout(_trackSyncToastTimer);
+  _trackSyncToastTimer = setTimeout(() => { el.style.display = 'none'; }, 5000);
 }
 
 // ---------- Qualifying times (manual entry → optional grid order) ----------
@@ -3564,6 +3676,9 @@ function exportEntriesCSV() {
 }
 function exportBackup() {
   downloadFile('raceday-backup-' + today() + '.json', JSON.stringify(S, null, 2), 'application/json');
+  S.lastBackupAt = Date.now();
+  save();
+  renderBackupBanner();
 }
 function importBackup(input) {
   const f = input.files && input.files[0];
@@ -4730,6 +4845,8 @@ function syncApplySnapshot(v) {
   if (!v) return;
   const wasViewer = deviceRole() === 'viewer';
   const prevFin = wasViewer ? JSON.stringify(S.classes.map(c => featureFinish(c.id))) : null;
+  const prevTrackName = S.track && S.track.name;
+  const prevTrackLogo = S.track && S.track.logo;
   Sync.applying = true;
   SYNC_FIELDS.forEach(f => {
     const raw = syncGetIn(v, f);
@@ -4741,6 +4858,11 @@ function syncApplySnapshot(v) {
   renderHeader(); render(curPage); if (TV.on) tvRender();
   if (wasViewer && prevFin !== null && JSON.stringify(S.classes.map(c => featureFinish(c.id))) !== prevFin) {
     showViewerToast();
+  }
+  // Only alert when a DISTINCT existing identity was silently replaced — skip a fresh
+  // device's first join (prevTrackName empty), which is normal, not a surprise overwrite.
+  if (prevTrackName && (prevTrackName !== S.track.name || prevTrackLogo !== S.track.logo)) {
+    showTrackSyncToast();
   }
 }
 
@@ -6162,7 +6284,7 @@ function wizRemoveLogo() {
 }
 
 // ---------- Live sync across tabs + init ----------
-window.addEventListener('storage', e => { if (e.key === KEY) { S = load(); renderHeader(); render(curPage); if (TV.on) tvRender(); } });
+window.addEventListener('storage', e => { if (e.key === KEY) { S = load(); renderHeader(); render(curPage); checkLoadFailure(); if (TV.on) tvRender(); } });
 handleUrlParams();
 renderHeader();
 renderFooter();
@@ -6171,6 +6293,7 @@ renderRosterPick();
 checkDayBanner();
 renderLicBanner();
 renderResultsShareBanner();
+renderBackupBanner();
 renderGrid();
 initSync();
 // Pick up any Profiles cards that were linked while offline (no-op when none are pending).
@@ -6183,7 +6306,12 @@ if (navigator.onLine && (S.roster || []).some(d => d.profile && d.profile.pendin
 // becomes viewer, sync becomes enabled) would get the full setup wizard: track name,
 // classes, and a NEW ADMIN PIN, all fully editable and all synced live to the shared
 // room. The admin can always re-run setup manually from Admin → Setup wizard.
-if (!S.track.name && deviceRole() === 'admin' && !(S.sync && S.sync.enabled)) openSetupWizard();
+// Also never fires when LOAD_FAILURE is set — S.track.name is empty on the defaults()
+// fallback just like a real fresh install, but this device isn't actually fresh; the
+// recovery modal (below) is what shows instead, since silently offering "set up a new
+// track" here would look identical to onboarding and bury the fact that real data exists.
+if (!LOAD_FAILURE && !S.track.name && deviceRole() === 'admin' && !(S.sync && S.sync.enabled)) openSetupWizard();
+checkLoadFailure();
 </script>
 </body>
 </html>
