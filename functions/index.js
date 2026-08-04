@@ -1,9 +1,18 @@
 // stripeWebhook — the sole automated minter for RaceDay license codes and Driven
-// premium codes. Everything it produces must validate against the EXISTING client
-// checks (activateLic() in ../raceday/index.html, activatePremium() in ../driven/index.html)
-// unchanged — this function only adds a paid, automatic path to the same code formats
-// that raceday-codegen.html has always minted by hand. See BACKLOG.md / ROADMAP.md for
-// why this exists and what stays explicitly out of scope (tracks/* write-gating).
+// premium codes, and (since the Pro-subscription build) the sole writer of Driven's
+// server-side entitlement record. Everything the one-time-payment path produces must
+// validate against the EXISTING client checks (activateLic() in ../raceday/index.html,
+// activatePremium() in ../driven/index.html) unchanged — this function only adds a
+// paid, automatic path to the same code formats that raceday-codegen.html has always
+// minted by hand. See BACKLOG.md / ROADMAP.md for why this exists and what stays
+// explicitly out of scope (tracks/* write-gating).
+//
+// billingPortal — a small companion endpoint that redirects a Driven profile owner into
+// Stripe's Customer Portal so they can switch Pro plans or cancel, all on the SAME
+// subscription object. That matters beyond convenience: a Payment Link can only ever
+// START a new subscription, never modify an existing one, so routing plan changes
+// through the portal instead of "buy the other link" is what keeps a profile down to
+// one subscription at a time — which handleSubscriptionEvent's race guard assumes.
 const { onRequest } = require('firebase-functions/v2/https');
 const { defineSecret } = require('firebase-functions/params');
 const logger = require('firebase-functions/logger');
@@ -64,6 +73,72 @@ function mintForLineItem(session, price, codegen) {
   throw new Error('Price ' + price.id + ' has no recognized plan_kind metadata: ' + JSON.stringify(meta));
 }
 
+// Driven Pro subscription status -> tier. active/trialing counts as paid; everything
+// else (past_due, canceled, unpaid, incomplete_expired) reverts to free. This mapping
+// lives only here — the Cloud Function is the sole source of truth for entitlement,
+// unlike the deterministic offline premium code the client can verify on its own.
+function deriveTier(status) {
+  return (status === 'active' || status === 'trialing') ? 'pro' : 'free';
+}
+
+function entitlementFromSub(sub) {
+  return {
+    tier: deriveTier(sub.status),
+    status: sub.status,
+    subId: sub.id,
+    customerId: sub.customer,
+    currentPeriodEnd: (sub.current_period_end || 0) * 1000,
+    updatedAt: admin.database.ServerValue.TIMESTAMP,
+  };
+}
+
+// Initial subscription checkout — mirrors mintForLineItem's one-time-payment path but
+// writes an entitlement record instead of a redeemable code. There's nothing to claim:
+// Driven polls profiles/<id>/entitlement directly after the checkout redirect.
+async function handleSubscriptionCheckout(session, stripe, db) {
+  const profileId = session.client_reference_id;
+  if (!profileId || !/^prof_[a-z0-9]{6,20}$/i.test(profileId)) {
+    throw new Error('Missing or malformed profileId (client_reference_id): ' + profileId);
+  }
+  const sub = await stripe.subscriptions.retrieve(session.subscription);
+  // Primary routing for future customer.subscription.* events, which carry the
+  // Subscription object but not the originating Checkout Session — client_reference_id
+  // is unreachable from them otherwise. Stored on the subscription itself so it's also
+  // visible from the Stripe Dashboard for debugging.
+  await stripe.subscriptions.update(sub.id, { metadata: { profileId } });
+  await db.ref('profiles/' + profileId + '/entitlement').set(entitlementFromSub(sub));
+  // Fallback index only, in case a future event ever arrives without the metadata above.
+  await db.ref('subscriptions/' + sub.id).set(profileId);
+  logger.info('Subscription entitlement set for profile ' + profileId + ' (sub ' + sub.id + ')');
+}
+
+// customer.subscription.updated / .deleted — renewals, cancellations, and payment
+// failures (a failed renewal surfaces as status:'past_due' on an .updated event, not a
+// separate event type, so both are handled identically here).
+async function handleSubscriptionEvent(sub, db) {
+  let profileId = sub.metadata && sub.metadata.profileId;
+  if (!profileId) {
+    const idxSnap = await db.ref('subscriptions/' + sub.id).once('value');
+    profileId = idxSnap.val();
+  }
+  if (!profileId || !/^prof_[a-z0-9]{6,20}$/i.test(profileId)) {
+    logger.warn('Subscription event for unroutable subscription ' + sub.id);
+    return;
+  }
+  const entRef = db.ref('profiles/' + profileId + '/entitlement');
+  const current = (await entRef.once('value')).val();
+  // A profile should only ever have one CURRENT subscription (plan switches go through
+  // the Billing Portal on the same subscription object) — but Stripe doesn't guarantee
+  // webhook delivery order, so guard against an event for an already-superseded
+  // subscription silently overwriting a newer one's entitlement.
+  if (current && current.subId && current.subId !== sub.id) {
+    logger.info('Ignoring ' + sub.id + ' event — profile ' + profileId + ' entitlement now owned by ' + current.subId);
+    return;
+  }
+  await entRef.set(entitlementFromSub(sub));
+  logger.info('Subscription entitlement updated for profile ' + profileId + ' (sub ' + sub.id + ', status ' + sub.status + ')');
+}
+
 exports.stripeWebhook = onRequest(
   { secrets: [STRIPE_SECRET_KEY, STRIPE_WEBHOOK_SECRET, LIC_SALT, PREM_SALT], cors: false },
   async (req, res) => {
@@ -79,14 +154,49 @@ exports.stripeWebhook = onRequest(
       return;
     }
 
-    // Ack everything else immediately so Stripe stops retrying; we only act on this one.
+    const db = admin.database();
+
+    // Subscription lifecycle events — separate from the one-time-payment path below.
+    // Unlike that path, a transient failure here returns non-200 so Stripe's built-in
+    // retry (up to 3 days) self-heals it: there's no codeGrants-style record a client
+    // can poll to notice a silent failure and complain, so retrying is the only safety net.
+    if (event.type === 'customer.subscription.updated' || event.type === 'customer.subscription.deleted') {
+      try {
+        await handleSubscriptionEvent(event.data.object, db);
+        res.status(200).send('ok');
+      } catch (err) {
+        logger.error('Subscription event handling failed for ' + event.data.object.id, err.message);
+        res.status(500).send('retry');
+      }
+      return;
+    }
+
+    // Ack everything else immediately so Stripe stops retrying; only checkout.session.completed
+    // (below) and the two subscription events above are acted on.
     if (event.type !== 'checkout.session.completed') {
       res.status(200).send('ignored');
       return;
     }
 
-    const sessionId = event.data.object.id;
-    const db = admin.database();
+    const session = event.data.object;
+
+    if (session.mode === 'subscription') {
+      try {
+        await handleSubscriptionCheckout(session, stripe, db);
+        res.status(200).send('ok');
+      } catch (err) {
+        // A malformed client_reference_id is unrecoverable — retrying changes nothing.
+        // Everything else (a DB write or Stripe API call failing) is transient, so let
+        // Stripe retry instead of losing the entitlement write silently.
+        const unrecoverable = /Missing or malformed profileId/.test(err.message);
+        logger.error('Subscription checkout handling failed for session ' + session.id, err.message);
+        res.status(unrecoverable ? 200 : 500).send(unrecoverable ? 'ignored' : 'retry');
+      }
+      return;
+    }
+
+    // ---- existing one-time-payment path (license codes, one-time Driven premium) ----
+    const sessionId = session.id;
     const grantRef = db.ref('codeGrants/' + sessionId);
 
     try {
@@ -96,15 +206,15 @@ exports.stripeWebhook = onRequest(
       process.env.PREM_SALT = PREM_SALT.value();
       const codegen = require('./lib/codegen');
 
-      const session = await stripe.checkout.sessions.retrieve(sessionId, {
+      const fullSession = await stripe.checkout.sessions.retrieve(sessionId, {
         // ...price.product so planMeta() can fall back to the Product's metadata.
         expand: ['line_items', 'line_items.data.price', 'line_items.data.price.product'],
       });
-      const items = session.line_items && session.line_items.data || [];
+      const items = fullSession.line_items && fullSession.line_items.data || [];
       if (!items.length) throw new Error('Session has no line items');
       if (items.length > 1) throw new Error('Session has more than one line item — one purchase, one code, by design');
 
-      const result = mintForLineItem(session, items[0].price, codegen);
+      const result = mintForLineItem(fullSession, items[0].price, codegen);
       await grantRef.set({ code: result.code, plan_kind: result.plan_kind, createdAt: admin.database.ServerValue.TIMESTAMP });
       logger.info('Minted ' + result.plan_kind + ' code for session ' + sessionId);
     } catch (err) {
@@ -115,5 +225,28 @@ exports.stripeWebhook = onRequest(
     }
 
     res.status(200).send('ok');
+  }
+);
+
+exports.billingPortal = onRequest(
+  { secrets: [STRIPE_SECRET_KEY], cors: false },
+  async (req, res) => {
+    const profileId = String(req.query.profileId || '');
+    if (!/^prof_[a-z0-9]{6,20}$/i.test(profileId)) {
+      res.status(400).send('Missing or malformed profileId');
+      return;
+    }
+    const db = admin.database();
+    const customerId = (await db.ref('profiles/' + profileId + '/entitlement/customerId').once('value')).val();
+    if (!customerId) {
+      res.status(404).send('No subscription found for this profile');
+      return;
+    }
+    const stripe = new Stripe(STRIPE_SECRET_KEY.value());
+    const portal = await stripe.billingPortal.sessions.create({
+      customer: customerId,
+      return_url: 'https://victoryraceday.com/driven/?pro=1',
+    });
+    res.redirect(303, portal.url);
   }
 );
