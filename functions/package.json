@@ -5,7 +5,7 @@
   "engines": { "node": "20" },
   "main": "index.js",
   "scripts": {
-    "test": "node lib/codegen.test.js"
+    "test": "node lib/codegen.test.js && node lib/pruneBackups.test.js"
   },
   "dependencies": {
     "firebase-admin": "^12.5.0",

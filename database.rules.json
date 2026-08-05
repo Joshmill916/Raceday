@@ -107,6 +107,13 @@
         ".read": true,
         ".write": false
       }
+    },
+    "backupTracks": {
+      "$trackId": {
+        ".read": false,
+        ".write": true,
+        ".validate": "newData.isBoolean()"
+      }
     }
   }
 }

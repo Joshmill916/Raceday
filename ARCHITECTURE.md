@@ -119,9 +119,9 @@ Persisted as JSON under `localStorage['raceday_v1']`.
   which is what preserves the *device's* own license, trial, and PINs.
 - **Cloud backup (opt-in, `S.settings.cloudBackup`, default off):** `backupToCloud()` writes
   a scrubbed copy of the season to `trackBackups/<trackId>/latest` and `…/daily/<date>` in
-  Firebase — fired automatically at the end of `newRaceDay()` and from a manual button.
-  The vault is **write-only** (`".read": false`), which is why it uses two fixed slots
-  rather than pruning: a client can't list what it can't read.
+  Firebase — fired automatically at the end of `newRaceDay()` and from a manual button. The
+  vault is **write-only** (`".read": false`), so no client (including the track that wrote
+  it) can list or read any backup back — only the owner, via the Admin SDK.
   - `CLOUD_BACKUP_FIELDS` is an **allowlist** — a denylist would leak every field added
     later by default. Deliberately excluded: `adminPin`/`operatorPin` (credential hashes),
     `license`/`trialDays`/`licUse` (device-bound; a backup never transfers a license),
@@ -133,6 +133,17 @@ Persisted as JSON under `localStorage['raceday_v1']`.
     live device.
   - Privacy Policy §3 describes this feature; **keep it in sync with the allowlist.**
     `tests/test-cloud-backup.js` fails if a secret ever reaches the payload.
+  - **Pruning** (`functions/index.js`, `exports.pruneOldBackups`): `daily/<date>` entries
+    are never deleted by the client — write-only by design means the client also can't
+    prune its own history. A weekly scheduled Cloud Function deletes `daily/` entries older
+    than `BACKUP_RETENTION_DAYS` (180) using a native range query
+    (`.orderByKey().endBefore(cutoff)`), which only ever reads what it's about to delete —
+    nothing within the retention window is re-downloaded on any run. It enumerates tracks
+    via `backupTracks/<trackId>: true`, a tiny boolean index written alongside every backup
+    specifically so the prune job never has to read `trackBackups` (the actual payload data)
+    just to find keys. `latest` is never pruned. Date math lives in
+    `functions/lib/pruneBackups.js`, tested in `functions/lib/pruneBackups.test.js`
+    (`npm test` inside `functions/`).
 
 ---
 

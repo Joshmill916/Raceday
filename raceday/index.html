@@ -3834,12 +3834,16 @@ function backupToCloud(reason) {
   if (rec.data.length > 5000000) { console.warn('RaceDay cloud backup: payload too large, skipped'); return Promise.resolve(false); }
   return ensureFirebase().then(() => {
     const base = 'trackBackups/' + S.track.id;
-    // The vault is write-only, so the client can't list keys to prune. Two fixed slots
-    // instead: `latest` (overwritten every time) and one slot per day, which bounds
-    // growth at one record per track per day without ever needing read access.
+    // The vault is write-only, so the client can't list keys to prune — an owner-side
+    // scheduled function (pruneOldBackups in functions/index.js) does that instead, and
+    // needs a cheap way to enumerate track ids without downloading every track's backup
+    // data just to find them. backupTracks is that index: booleans only, trivial to
+    // read in full at any scale. `latest` is overwritten every time (bounded); `daily`
+    // adds one dated record per backup, which is what the prune job trims.
     return Promise.all([
       firebase.database().ref(base + '/latest').set(rec),
-      firebase.database().ref(base + '/daily/' + today()).set(rec)
+      firebase.database().ref(base + '/daily/' + today()).set(rec),
+      firebase.database().ref('backupTracks/' + S.track.id).set(true)
     ]);
   }).then(() => {
     S.lastCloudBackupAt = rec.at;

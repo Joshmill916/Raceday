@@ -215,6 +215,34 @@ const check = (name, ok, extra) => {
   check('restores node is read-only to clients',
     rules.restores && rules.restores.$code['.read'] === true && rules.restores.$code['.write'] === false,
     JSON.stringify(rules.restores));
+  // backupTracks is the tiny index pruneOldBackups (functions/index.js) reads to
+  // enumerate tracks without downloading every track's actual backup payload.
+  const bt = rules.backupTracks && rules.backupTracks.$trackId;
+  check('backupTracks exists', !!bt);
+  check('backupTracks is NOT publicly readable', bt && bt['.read'] === false, JSON.stringify(bt && bt['.read']));
+  check('backupTracks is writable (clients set their own flag)', bt && bt['.write'] === true);
+  check('backupTracks only accepts booleans', bt && /isBoolean/.test(bt['.validate'] || ''), JSON.stringify(bt && bt['.validate']));
+
+  console.log('\n=== 9. backupToCloud() writes the prune index alongside the backup ===');
+  resetDlg();
+  const writes = await page.evaluate(() => {
+    // Stub window.firebase so backupToCloud()'s own ensureFirebase() call short-circuits
+    // (loadFirebase() resolves immediately once window.firebase.database already exists)
+    // and every .set() call is recorded instead of hitting the network.
+    const calls = [];
+    const fakeRef = (path) => ({ set: (v) => { calls.push({ path, v }); return Promise.resolve(); } });
+    const realFirebase = window.firebase;
+    window.firebase = { database: () => ({ ref: fakeRef }), apps: [{}] };
+    S.settings.cloudBackup = true;
+    S.demo = false;
+    return backupToCloud('test').then(() => {
+      window.firebase = realFirebase;
+      return calls.map(c => c.path);
+    }).catch(e => { window.firebase = realFirebase; return 'ERROR: ' + e.message; });
+  });
+  check('writes latest, a dated daily entry, and the backupTracks index',
+    Array.isArray(writes) && writes.some(p => /\/latest$/.test(p)) && writes.some(p => /\/daily\//.test(p)) && writes.some(p => /^backupTracks\//.test(p)),
+    JSON.stringify(writes));
 
   console.log('\n' + (fail === 0 ? '✅' : '❌') + ` cloud-backup: ${pass} passed, ${fail} failed`);
   await browser.close();
