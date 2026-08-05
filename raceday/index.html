@@ -696,7 +696,9 @@
 
     <section class="adm-sec" id="adm-import">
       <div class="card">
-        <p style="font-size:13px;color:var(--muted);margin-bottom:12px">Add results from a previous race night so points standings are accurate from day one. Enter one night at a time.</p>
+        <p style="font-size:13px;color:var(--muted);margin-bottom:6px">Fix or backfill season points. Use this when you started mid-season, ran nights without the app, or need to correct a night that was lost or entered wrong.</p>
+        <p style="font-size:12px;color:var(--muted);margin-bottom:12px">Enter one night per class at a time. Every entry <b>adds</b> to that class's season total, so enter each night once — to change a night you already added, use its Edit button under Race history.</p>
+        <div id="impEditBanner" style="display:none;font-size:13px;background:#fff8e1;border:1px solid #f0e0a0;border-radius:6px;padding:8px 10px;margin-bottom:10px"></div>
         <div style="display:flex;gap:8px;flex-wrap:wrap;margin-bottom:10px">
           <div style="flex:1;min-width:160px"><label>Race date</label><input id="impDate" type="date" /></div>
           <div style="flex:2;min-width:180px"><label>Class</label><select id="impClass" style="width:100%"></select></div>
@@ -705,10 +707,11 @@
         <div style="display:flex;gap:8px;flex-wrap:wrap;align-items:center;margin-bottom:10px">
           <input id="impDriverSearch" type="text" placeholder="Search driver name or car #" style="flex:2;min-width:160px" oninput="renderImpSearch()" />
           <button class="btn btn-sm" onclick="addImpRow()">+ Add driver</button>
+          <button class="btn btn-sm" onclick="addImpWholeClass()">+ Add whole class</button>
         </div>
         <div id="impSearchResults" style="margin-bottom:8px"></div>
         <div style="display:flex;gap:8px;flex-wrap:wrap">
-          <button class="btn btn-primary" onclick="saveImportedRace()">Save race night</button>
+          <button class="btn btn-primary" id="impSaveBtn" onclick="saveImportedRace()">Save race night</button>
           <button class="btn" onclick="clearImpForm()">Clear</button>
         </div>
         <p id="impMsg" style="display:none;font-size:13px;margin-top:8px"></p>
@@ -3495,13 +3498,35 @@ function shareResultsWithDriven(idx) {
 
 // ---------- Import past race ----------
 let _impRows = [];   // [{driverId, name, num, pts}]
+// Index into S.history of the entry being edited, or null when adding a new one. Editing
+// rewrites that entry in place so a correction never double-counts toward season points.
+let _impEditIdx = null;
 function renderImpForm() {
   const sel = document.getElementById('impClass');
   if (!sel) return;
+  // Rebuilding the options drops the selection, and an admin re-render can fire mid-edit —
+  // losing it would quietly save the entry under whichever class sorts first.
+  const prev = sel.value;
   sel.innerHTML = S.classes.map(c => '<option value="' + c.id + '">' + esc(c.name) + '</option>').join('');
+  if (prev && S.classes.some(c => String(c.id) === prev)) sel.value = prev;
   const d = document.getElementById('impDate');
   if (d && !d.value) d.value = today();
   renderImpRows();
+  renderImpEditBanner();
+}
+// Reflects add-vs-edit mode in the banner and the save button.
+function renderImpEditBanner() {
+  const b = document.getElementById('impEditBanner');
+  const btn = document.getElementById('impSaveBtn');
+  const editing = _impEditIdx != null && S.history[_impEditIdx];
+  if (b) {
+    b.style.display = editing ? '' : 'none';
+    if (editing) {
+      b.innerHTML = '<b>Editing the entry from ' + esc(S.history[_impEditIdx].date) + '.</b> Saving replaces it — season points are recalculated, not added to. '
+        + '<button class="btn btn-sm" style="margin-left:6px" onclick="clearImpForm()">Cancel edit</button>';
+    }
+  }
+  if (btn) btn.textContent = editing ? 'Save changes' : 'Save race night';
 }
 function renderImpRows() {
   const el = document.getElementById('impDriverRows');
@@ -3547,6 +3572,49 @@ function addImpRow() {
   document.getElementById('impSearchResults').innerHTML = '';
   renderImpRows();
 }
+// Fill the rows with everyone who has raced this class — today's entries plus anyone who
+// has scored in it before — all at 0 points, so an admin types down a list instead of
+// searching for each driver one at a time.
+function addImpWholeClass() {
+  const clsEl = document.getElementById('impClass');
+  const cls = clsEl ? classById(parseInt(clsEl.value, 10)) : null;
+  if (!cls) { showImpMsg('Pick a class first.', 'error'); return; }
+  const key = cls.name.toLowerCase();
+  const seen = new Set(_impRows.map(r => r.driverId != null ? 'd' + r.driverId : 'n' + r.name.toLowerCase()));
+  let added = 0;
+  const push = (driverId, name, num) => {
+    const k = driverId != null ? 'd' + driverId : 'n' + String(name).toLowerCase();
+    if (seen.has(k)) return;
+    seen.add(k);
+    _impRows.push({ driverId: driverId, name: name, num: num, pts: 0 });
+    added++;
+  };
+  classRacers(cls.id).forEach(r => push(r.id, r.name, r.num));
+  S.history.forEach(hd => hd.classes.forEach(c => {
+    if (c.name.toLowerCase() !== key || !c.points) return;
+    c.points.forEach(p => push(p.driverId, p.name, p.num));
+  }));
+  renderImpRows();
+  showImpMsg(added ? 'Added ' + added + (added === 1 ? ' driver' : ' drivers') + ' at 0 points — enter each one\'s points, and remove anyone who didn\'t race.'
+                   : 'No past drivers found for ' + cls.name + ' — add them with the search box.', added ? 'ok' : 'error');
+}
+// Load a previously imported entry back into the form for correction.
+function editImportedRace(i) {
+  if (!adminOk()) return;
+  const hd = S.history[i];
+  if (!hd || !hd.imported || hd.classes.length !== 1) return;
+  const c = hd.classes[0];
+  const cls = S.classes.find(x => x.name.toLowerCase() === c.name.toLowerCase());
+  if (!cls) { alert('The class "' + c.name + '" no longer exists, so this entry can\'t be edited.\n\nRe-add the class first, or delete this entry and enter it again.'); return; }
+  _impEditIdx = i;
+  _impRows = (c.points || []).map(p => ({ driverId: p.driverId, name: p.name, num: p.num, pts: p.pts || 0 }));
+  adminOpen('adm-import');
+  renderImpForm();
+  const d = document.getElementById('impDate'); if (d) d.value = hd.date;
+  const sel = document.getElementById('impClass'); if (sel) sel.value = String(cls.id);
+  renderImpRows();
+  renderImpEditBanner();
+}
 function saveImportedRace() {
   const dateEl = document.getElementById('impDate');
   const clsEl = document.getElementById('impClass');
@@ -3557,8 +3625,10 @@ function saveImportedRace() {
   if (!date) { showImpMsg('Please enter a race date.', 'error'); return; }
   if (!cls) { showImpMsg('Please select a class.', 'error'); return; }
   if (!_impRows.length) { showImpMsg('Add at least one driver.', 'error'); return; }
-  // Check for duplicate: same date + class already in history
-  const dup = S.history.some(hd => hd.date === date && hd.classes.some(c => c.name.toLowerCase() === cls.name.toLowerCase()));
+  // Check for duplicate: same date + class already in history. When editing, the entry
+  // being replaced is not its own duplicate.
+  const editing = _impEditIdx != null && S.history[_impEditIdx];
+  const dup = S.history.some((hd, hi) => hi !== _impEditIdx && hd.date === date && hd.classes.some(c => c.name.toLowerCase() === cls.name.toLowerCase()));
   if (dup) { alert('A history entry for ' + cls.name + ' on ' + date + ' already exists.\n\nEdit or delete the existing entry instead.'); return; }
   const entry = {
     date: date,
@@ -3573,13 +3643,18 @@ function saveImportedRace() {
       featureFinish: []
     }]
   };
-  S.history.push(entry);
+  const n = _impRows.length;
+  if (editing) S.history[_impEditIdx] = entry; else S.history.push(entry);
   S.history.sort((a, b) => (b.date > a.date ? 1 : b.date < a.date ? -1 : 0));
   if (S.history.length > 60) S.history.length = 60;
-  logAudit('Imported past race', cls.name + ' · ' + date, _impRows.length + ' drivers', '');
+  logAudit(editing ? 'Edited imported race' : 'Imported past race', cls.name + ' · ' + date, n + ' drivers', '');
   save();
-  showImpMsg('Saved — ' + _impRows.length + ' drivers added to ' + cls.name + ' on ' + date + '.', 'ok');
-  _impRows = []; renderImpRows();
+  clearImpForm();   // resets the form (and hides any stale message) before the new one shows
+  showImpMsg(editing
+    ? 'Updated — ' + cls.name + ' on ' + date + ' now has ' + n + (n === 1 ? ' driver.' : ' drivers.')
+    : 'Saved — ' + n + ' drivers added to ' + cls.name + ' on ' + date + '.', 'ok');
+  UI.histOpen = null;
+  renderHistory();
 }
 function showImpMsg(msg, type) {
   const el = document.getElementById('impMsg');
@@ -3590,7 +3665,7 @@ function showImpMsg(msg, type) {
   setTimeout(() => { el.style.display = 'none'; }, 4000);
 }
 function clearImpForm() {
-  _impRows = []; renderImpRows();
+  _impRows = []; _impEditIdx = null; renderImpRows(); renderImpEditBanner();
   const d = document.getElementById('impDate'); if (d) d.value = today();
   const s = document.getElementById('impDriverSearch'); if (s) s.value = '';
   const r = document.getElementById('impSearchResults'); if (r) r.innerHTML = '';
@@ -3609,6 +3684,9 @@ function renderHistory() {
       + '<span style="margin-left:auto;display:flex;gap:6px">'
       + '<button class="btn btn-sm" onclick="toggleHist(' + i + ')">' + (UI.histOpen === i ? 'Hide' : 'View') + '</button>'
       + '<button class="btn btn-sm" onclick="histCSV(' + i + ')">CSV</button>'
+      // Only hand-entered single-class entries are editable — a real archived night's
+      // results come from the race day itself and aren't re-enterable through this form.
+      + (hd.imported && hd.classes.length === 1 ? '<button class="btn btn-sm" onclick="editImportedRace(' + i + ')">Edit</button>' : '')
       + '<button class="btn btn-sm btn-danger" onclick="delHist(' + i + ')">Delete</button></span></div>';
     if (UI.histOpen === i) {
       hd.classes.forEach(c => {
@@ -3634,6 +3712,8 @@ function toggleHist(i) { UI.histOpen = UI.histOpen === i ? null : i; renderHisto
 function delHist(i) {
   if (!confirm('Delete the archived race day from ' + S.history[i].date + '? This cannot be undone.')) return;
   S.history.splice(i, 1);
+  // A pending edit points at a history index — deleting shifts every later index, so drop it.
+  if (_impEditIdx != null) clearImpForm();
   UI.histOpen = null;
   save();
   renderHistory();
@@ -3784,7 +3864,7 @@ const ADMIN_NAV = [
   { id:'adm-sync',     label:'Multi-device sync',   icon:'🔄', group:'Account' },
   { id:'adm-roster',   label:'Driver book',         icon:'👥', group:'Records' },
   { id:'adm-backup',   label:'Backup & export',     icon:'💾', group:'Records' },
-  { id:'adm-import',   label:'Import past race',    icon:'📥', group:'Records' },
+  { id:'adm-import',   label:'Fix season points',   icon:'📥', group:'Records' },
   { id:'adm-legal',    label:'Legal & business',    icon:'📄', group:'Records' },
   { id:'adm-audit',    label:'Records & audit',     icon:'📊', group:'Records' },
   { id:'adm-danger',   label:'Danger zone',         icon:'⚠️', group:'Danger' },
