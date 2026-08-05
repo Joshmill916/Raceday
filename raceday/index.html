@@ -633,7 +633,22 @@
           <button class="btn" onclick="exportEntriesCSV()">Entries → CSV</button>
           <button class="btn" onclick="exportResultsCSV()">Results → CSV</button>
         </div>
-        <p style="font-size:12px;color:var(--muted);margin-top:8px">This app stores everything in this browser only. Download a backup now and then — restoring it on any device brings back the driver book, classes, settings, history, and today's race day.</p>
+        <p style="font-size:12px;color:var(--muted);margin-top:8px">Download a backup now and then — restoring it on any device brings back the driver book, classes, settings, history, and today's race day. Unless you turn on cloud backup below, this app keeps everything in this browser only.</p>
+        <div class="hr"></div>
+        <div class="slbl">Cloud backup</div>
+        <label style="display:flex;gap:8px;align-items:flex-start;font-size:13px;margin:8px 0">
+          <input type="checkbox" id="cloudBackupChk" onchange="toggleCloudBackup(this)" style="margin-top:2px">
+          <span>Back this track up to RaceDay's servers, so a lost or wiped device doesn't mean a lost season.</span></label>
+        <p style="font-size:12px;color:var(--muted);margin:0 0 8px">Sends your classes, driver book, lineups, results, and season history. Never sends your admin PIN, your license code, or sign-up consent records. Backs up automatically when you start a new race day.</p>
+        <div style="display:flex;gap:10px;flex-wrap:wrap;align-items:center">
+          <button class="btn btn-sm" id="cloudBackupBtn" onclick="backupToCloudNow()">☁ Back up now</button>
+          <span id="cloudBackupStatus" style="font-size:12px;color:var(--muted)"></span>
+        </div>
+        <div style="display:flex;gap:8px;flex-wrap:wrap;align-items:center;margin-top:12px">
+          <input id="cloudRestoreCode" type="text" placeholder="Restore code" style="flex:1;min-width:140px" />
+          <button class="btn btn-sm" id="cloudRestoreBtn" onclick="restoreFromCloudCode()">Restore</button>
+        </div>
+        <p style="font-size:12px;color:var(--muted);margin:6px 0 0">Lost a device? Ask RaceDay support for a restore code, then enter it here. Your license and PIN stay with this device.</p>
       </div>
     </section>
 
@@ -1223,16 +1238,17 @@ function defaults() {
       { id: 2, name: 'Senior 100cc', maxPill: 200 },
       { id: 3, name: 'Open Shifter', maxPill: 200 }
     ],
-    settings: { maxHeat: 8, maxBMain: 12, maxFeature: 20, transfers: 2, gridStyle: 'double', heatFill: 'alternate', bmainMode: 'single', bmainCount: 2, points: { mode: 'fixed', table: [10, 8, 6, 5, 4, 3, 2, 1], beyond: 0 }, requireConsent: true, captureConsentIP: true },
+    settings: { maxHeat: 8, maxBMain: 12, maxFeature: 20, transfers: 2, gridStyle: 'double', heatFill: 'alternate', bmainMode: 'single', bmainCount: 2, points: { mode: 'fixed', table: [10, 8, 6, 5, 4, 3, 2, 1], beyond: 0 }, requireConsent: true, captureConsentIP: true, cloudBackup: false },
     raceDay: { date: today(), entries: [], heatResults: {}, pointsRace: {}, resultGov: {}, resultVersions: {} },  // entries: {driverId, classId, pill}; resultGov: per-class {status,locked}; resultVersions: per-class snapshots
     nextId: 100,
     // MUST equal the latest migration number in migrate(). Left at 2 when migration 3
     // (PIN hashing) shipped, every fresh install re-hashed its already-hashed PIN on the
     // next load — locking the owner out with the CORRECT PIN.
-    schemaVersion: 7,
+    schemaVersion: 8,
     sync: { enabled: false, key: '' },             // live multi-device sync (off until activated)
     demo: false,                                   // true only inside an auto-seeded ?demo=1 session — gates real Firebase writes
-    lastBackupAt: 0                                // Date.now() of the last "Download full backup" click — drives renderBackupBanner()
+    lastBackupAt: 0,                               // Date.now() of the last "Download full backup" click — drives renderBackupBanner()
+    lastCloudBackupAt: 0                           // Date.now() of the last successful cloud backup (settings.cloudBackup opt-in)
   };
 }
 function migrate(s) {
@@ -1322,6 +1338,13 @@ function migrate(s) {
   if (s.schemaVersion < 7) {
     if (s.lastBackupAt == null) s.lastBackupAt = 0;
     s.schemaVersion = 7;
+  }
+  if (s.schemaVersion < 8) {
+    // Off for every existing track. Cloud backup sends participant data off the device,
+    // so it starts disabled and stays that way until the track turns it on themselves.
+    if (s.settings.cloudBackup == null) s.settings.cloudBackup = false;
+    if (s.lastCloudBackupAt == null) s.lastCloudBackupAt = 0;
+    s.schemaVersion = 8;
   }
   return s;
 }
@@ -1688,19 +1711,29 @@ function renderPrivacyDoc() {
     + '<li>Information is used only to administer events — registration, lineups, scoring, and standings.</li>'
     + '</ul>'
 
-    + '<h3>3. Your choices</h3>'
+    + '<h3>3. Cloud backup (optional)</h3>'
+    + '<p>The Operator may switch on <b>cloud backup</b> in the Admin panel. This is <b>off by default</b> and only ever starts after the Operator turns it on. While it is on, a copy of the Operator\'s race data is sent to and held by ' + P + ' so that a lost, damaged, or wiped device does not mean a lost season.</p>'
+    + '<ul>'
+    + '<li><b>What is included:</b> track details, classes, the driver book (including any driver photos the Operator has added), sign-up entries, lineups, results, season history, and event settings.</li>'
+    + '<li><b>What is excluded:</b> admin and operator PINs, license codes, the administrative audit log, and participant acceptance records (including the IP addresses described in section 6). These are never transmitted to the Provider by this feature.</li>'
+    + '<li>Backups are transmitted over encrypted (HTTPS) connections and are <b>not publicly readable</b>. They are used only to restore that same Operator\'s data at that Operator\'s request, and are <b>never sold</b> or used for any other purpose.</li>'
+    + '<li>The Operator may switch cloud backup off at any time, and may ask the Provider to delete stored backups.</li>'
+    + '</ul>'
+    + '<p class="muted-note">Because this sends participant information — including information about minors, where the Operator runs junior classes — to the Provider, the Operator should confirm it has the authority to do so before turning it on.</p>'
+
+    + '<h3>4. Your choices</h3>'
     + '<ul>'
     + '<li><b>Participants may request deletion</b> of their information by contacting the Operator. The Operator can remove a driver from the driver book and erase stored data.</li>'
     + '<li>Operators can export and permanently erase all stored data at any time from the Admin panel.</li>'
     + '</ul>'
 
-    + '<h3>4. Payments</h3>'
+    + '<h3>5. Payments</h3>'
     + '<ul>'
     + '<li>If payments are collected, the Operator should use a <b>reputable third-party payment processor</b> (for example, a PCI-compliant provider).</li>'
     + '<li><b>Payment card information should never be entered into or stored directly by the Software.</b> RaceDay does not collect, process, or store card numbers.</li>'
     + '</ul>'
 
-    + '<h3>5. Acceptance records</h3>'
+    + '<h3>6. Acceptance records</h3>'
     + '<p>When participants accept these policies during registration, the Software records the acceptance (date, time, and — where available — the device\'s public IP address) for audit purposes. These records are kept by the Operator.</p>'
 
     + '<p class="muted-note">This document is a template provided for convenience and is not legal advice. Have it reviewed by a licensed attorney before relying on it.</p>';
@@ -1755,6 +1788,9 @@ function newRaceDay() {
   save();
   resetReg();
   render(curPage);
+  // Fire-and-forget, after the board is already cleared and saved — a backup failure
+  // (offline is normal at a track) must never interrupt or undo starting the night.
+  backupToCloud('archive');
   if (justArchived === 0) maybePromptShareResults(0);
 }
 // Right after a night archives, offer to share it with Driven immediately — only if
@@ -3760,6 +3796,93 @@ function exportBackup() {
   save();
   renderBackupBanner();
 }
+// ---------- Cloud backup ----------
+// Off-device copy of a track's race data, so a lost/wiped device isn't a lost season.
+//
+// This is an ALLOWLIST on purpose. A denylist would leak every field added later by
+// default, and the fields deliberately left out are the ones that would hurt most:
+//   • adminPin / operatorPin — credential hashes; a restoring device sets its own
+//   • license / trialDays / licUse — device-bound, and importBackup() already refuses
+//     to carry a license across devices, so uploading it buys nothing
+//   • consents — participant consent records, which carry IP addresses
+//   • audit — the who-did-what log
+//   • sync — the live-sync room key
+// Nothing omitted here is needed to rebuild a season, so the recovery value is intact.
+const CLOUD_BACKUP_FIELDS = ['track', 'provider', 'classes', 'classLib', 'roster', 'raceDay', 'history', 'settings', 'nextId', 'schemaVersion'];
+function cloudBackupPayload() {
+  const out = {};
+  CLOUD_BACKUP_FIELDS.forEach(f => { if (S[f] !== undefined) out[f] = S[f]; });
+  // settings carries the consent toggles but not the consent records; strip the cloud
+  // flag itself so a restore never silently re-enables uploading on another device.
+  if (out.settings) { out.settings = Object.assign({}, out.settings); delete out.settings.cloudBackup; }
+  return out;
+}
+function cloudBackupOn() { return !!(S.settings && S.settings.cloudBackup); }
+// Fire-and-forget: never blocks a race night, never alerts. Failures are silent by
+// design (offline is the normal case at a track) — the Admin card shows the last
+// successful time so an admin can still tell whether it's working.
+function backupToCloud(reason) {
+  if (!cloudBackupOn() || S.demo || !FIREBASE_CONFIG.apiKey) return Promise.resolve(false);
+  if (deviceRole() === 'viewer') return Promise.resolve(false);   // spectator devices never upload
+  if (!S.track.id) { S.track.id = genTrackId(); save(); }
+  const rec = {
+    at: Date.now(),
+    trackName: (S.track.name || '').slice(0, 60),
+    schemaVersion: S.schemaVersion || 0,
+    data: JSON.stringify(cloudBackupPayload())
+  };
+  if (rec.data.length > 5000000) { console.warn('RaceDay cloud backup: payload too large, skipped'); return Promise.resolve(false); }
+  return ensureFirebase().then(() => {
+    const base = 'trackBackups/' + S.track.id;
+    // The vault is write-only, so the client can't list keys to prune. Two fixed slots
+    // instead: `latest` (overwritten every time) and one slot per day, which bounds
+    // growth at one record per track per day without ever needing read access.
+    return Promise.all([
+      firebase.database().ref(base + '/latest').set(rec),
+      firebase.database().ref(base + '/daily/' + today()).set(rec)
+    ]);
+  }).then(() => {
+    S.lastCloudBackupAt = rec.at;
+    save();
+    renderCloudBackupCard();
+    return true;
+  }).catch(e => { console.warn('RaceDay cloud backup:', e && e.message || e); return false; });
+}
+function toggleCloudBackup(el) {
+  if (!adminOk()) { el.checked = cloudBackupOn(); return; }
+  if (el.checked) {
+    if (!confirm('Back this track up to RaceDay\'s servers?\n\nWhat gets sent: your classes, driver book (names, car numbers, and any photos), lineups, results, and season history.\n\nWhat is NEVER sent: your admin PIN, your license code, and the sign-up consent records.\n\nYou can turn this off at any time.')) { el.checked = false; return; }
+  }
+  S.settings.cloudBackup = el.checked;
+  logAudit(el.checked ? 'Enabled cloud backup' : 'Disabled cloud backup', S.track.name || '', '', '');
+  save();
+  renderCloudBackupCard();
+  if (el.checked) backupToCloud('enabled');
+}
+function backupToCloudNow() {
+  if (!adminOk()) return;
+  if (!cloudBackupOn()) { alert('Turn on "Back up this track to RaceDay\'s servers" first.'); return; }
+  const btn = document.getElementById('cloudBackupBtn');
+  if (btn) { btn.disabled = true; btn.textContent = 'Backing up…'; }
+  backupToCloud('manual').then(ok => {
+    if (btn) { btn.disabled = false; btn.textContent = '☁ Back up now'; }
+    if (!ok) alert('Couldn\'t reach the backup server just now. Your data is safe on this device — it will back up automatically next time you start a new race day while online.');
+    renderCloudBackupCard();
+  });
+}
+function renderCloudBackupCard() {
+  const el = document.getElementById('cloudBackupStatus');
+  const chk = document.getElementById('cloudBackupChk');
+  if (chk) chk.checked = cloudBackupOn();
+  if (!el) return;
+  if (!cloudBackupOn()) { el.textContent = 'Off — this track\'s data stays on its own devices.'; return; }
+  if (!S.lastCloudBackupAt) { el.textContent = 'On — no backup has reached the server yet.'; return; }
+  const mins = Math.floor((Date.now() - S.lastCloudBackupAt) / 60000);
+  el.textContent = 'On — last backed up ' + (mins < 1 ? 'just now'
+    : mins < 60 ? mins + ' min ago'
+    : mins < 1440 ? Math.floor(mins / 60) + ' hr ago'
+    : Math.floor(mins / 1440) + ' days ago') + '.';
+}
 function importBackup(input) {
   const f = input.files && input.files[0];
   input.value = '';
@@ -3768,23 +3891,65 @@ function importBackup(input) {
   fr.onload = () => {
     let s;
     try { s = JSON.parse(fr.result); } catch (e) { alert("That file isn't a RaceDay backup."); return; }
-    if (!s || !s.raceDay || !s.classes) { alert("That file isn't a RaceDay backup."); return; }
-    if (!confirm('Restore this backup? The race data (drivers, classes, lineups, results, history) will be replaced by the backup.\n\nThis device keeps its OWN license and trial — a backup never transfers a license.')) return;
-    // License, trial days, and packet usage belong to THIS device, not the backup file.
-    // A backup shared between people must never carry one track's license onto another's
-    // device, so we preserve the importing device's own identity (mirrors resetAll's keep).
-    const keep = { license: S.license, trialDays: S.trialDays, licUse: S.licUse };
-    S = migrate(s);
-    S.license = keep.license;
-    S.trialDays = keep.trialDays;
-    S.licUse = keep.licUse;
-    save();
-    renderHeader();
-    resetReg();
-    renderLicCard(); renderLicBanner();
-    render(curPage);
+    applyRestoredState(s, 'this backup');
   };
   fr.readAsText(f);
+}
+// Shared by the file restore and the cloud restore, so the two can never drift apart on
+// the parts that matter: what counts as a valid backup, and what stays with the device.
+function applyRestoredState(s, label) {
+  if (!s || !s.raceDay || !s.classes) { alert("That file isn't a RaceDay backup."); return false; }
+  if (!confirm('Restore ' + label + '? The race data (drivers, classes, lineups, results, history) will be replaced.\n\nThis device keeps its OWN license and trial — a backup never transfers a license.')) return false;
+  // License, trial days, and packet usage belong to THIS device, not the backup file.
+  // A backup shared between people must never carry one track's license onto another's
+  // device, so we preserve the importing device's own identity (mirrors resetAll's keep).
+  // PINs come along the same way: a cloud payload has none, so keep the device's own.
+  const keep = { license: S.license, trialDays: S.trialDays, licUse: S.licUse,
+                 adminPin: S.adminPin, operatorPin: S.operatorPin };
+  S = migrate(s);
+  S.license = keep.license;
+  S.trialDays = keep.trialDays;
+  S.licUse = keep.licUse;
+  // Falsy, not null: migrate() backfills a missing PIN to '', and '' means "Admin is open
+  // to everyone" (adminOk). A cloud payload never carries PINs, so a == null check here
+  // would silently strip the device's admin PIN on every cloud restore.
+  if (!S.adminPin) S.adminPin = keep.adminPin;
+  if (!S.operatorPin) S.operatorPin = keep.operatorPin;
+  save();
+  renderHeader();
+  resetReg();
+  renderLicCard(); renderLicBanner();
+  render(curPage);
+  return true;
+}
+// Restore from a code the RaceDay owner issues after pulling a track's vault backup.
+// Read-only public node — same path-as-password shape as codeGrants.
+function restoreFromCloudCode() {
+  if (!adminOk()) return;
+  const inp = document.getElementById('cloudRestoreCode');
+  const code = ((inp && inp.value) || '').trim().toUpperCase();
+  if (!code) { alert('Enter the restore code you were given.'); return; }
+  if (!/^[A-Z0-9-]{4,40}$/.test(code)) { alert('That doesn\'t look like a restore code.'); return; }
+  if (!FIREBASE_CONFIG.apiKey) { alert('Cloud restore is not set up on this build.'); return; }
+  const btn = document.getElementById('cloudRestoreBtn');
+  if (btn) { btn.disabled = true; btn.textContent = 'Checking…'; }
+  const done = () => { if (btn) { btn.disabled = false; btn.textContent = 'Restore'; } };
+  ensureFirebase()
+    .then(() => firebase.database().ref('restores/' + code).once('value'))
+    .then(snap => {
+      done();
+      const rec = snap.val();
+      if (!rec) { alert('No backup found for that code. Check it with whoever gave it to you — codes are one per restore and can expire.'); return; }
+      let s = null;
+      try { s = typeof rec.data === 'string' ? JSON.parse(rec.data) : rec.data; } catch (e) { s = null; }
+      if (!s) { alert('That backup couldn\'t be read.'); return; }
+      const when = rec.at ? new Date(rec.at).toLocaleDateString() : 'an earlier date';
+      if (applyRestoredState(s, 'the backup of ' + (rec.trackName || 'this track') + ' from ' + when)) {
+        if (inp) inp.value = '';
+        alert('Restored. Check your classes, driver book, and history look right before running a night.');
+      }
+    })
+    .catch(e => { done(); alert('Couldn\'t reach the restore server. Check your connection and try again.'); console.warn('RaceDay cloud restore:', e && e.message || e); });
 }
 
 // ---------- Track identity ----------
@@ -3904,7 +4069,7 @@ function adminOpen(secId) { UI.admOpen = secId; renderAdminNav(); }
 function adminHome() { UI.admOpen = null; renderAdminNav(); }
 
 function renderAdmin() {
-  renderClsList(); renderClsLib(); renderQuickAdd(); renderEntryList(); renderRosterList(); renderHistory(); renderImpForm(); renderPinCard(); renderLicCard(); renderSyncCard(); renderPointsInputs();
+  renderClsList(); renderClsLib(); renderQuickAdd(); renderEntryList(); renderRosterList(); renderHistory(); renderImpForm(); renderPinCard(); renderLicCard(); renderSyncCard(); renderPointsInputs(); renderCloudBackupCard();
   renderLegalInputs(); renderConsentCard(); renderAuditCard();
   document.getElementById('trackName').value = S.track.name;
   document.getElementById('trackLength').value = S.track.length || '';

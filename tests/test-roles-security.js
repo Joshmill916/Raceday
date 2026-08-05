@@ -446,6 +446,28 @@ const check = (name, ok, extra) => {
   check('correct PIN still unlocks admin after a reload', await page.evaluate(() => { sessionStorage.removeItem('rd_admin_ok'); return adminOk(); }));
   check('defaults() schemaVersion matches the latest migration', await page.evaluate(() => { const d = defaults(); const m = migrate(JSON.parse(JSON.stringify(d))); return d.schemaVersion === m.schemaVersion; }));
 
+  console.log('\n=== 13. A RESTORE must not strip this device\'s admin PIN ===');
+  // (Caught in development: a cloud backup payload deliberately carries no PIN, and
+  //  migrate() backfills a missing adminPin to ''. '' means "Admin is open to everyone"
+  //  (adminOk), so a `== null` guard in the restore path silently unprotected the Admin
+  //  tab on every cloud restore. The guard: restore a PIN-less payload, PIN must survive.)
+  resetDlg();
+  answer = () => true;   // accept the restore confirm
+  const pinKept = await page.evaluate(() => {
+    localStorage.clear(); S = load();
+    S.track.name = 'T'; S.adminPin = pinHash('4321'); S.classes = [{ id: 1, name: 'X', maxPill: 20 }];
+    S.license = { code: 'MY-LIC' }; save();
+    const incoming = JSON.parse(JSON.stringify(cloudBackupPayload()));   // no adminPin by design
+    applyRestoredState(incoming, 'a test backup');
+    return { pin: S.adminPin, expected: pinHash('4321'), lic: S.license && S.license.code };
+  });
+  check('admin PIN survives a PIN-less (cloud) restore', pinKept.pin === pinKept.expected, JSON.stringify(pinKept));
+  check('Admin is NOT left open to everyone after a restore', await page.evaluate(() => !!S.adminPin));
+  check('license still stays with the device across a restore', pinKept.lic === 'MY-LIC', String(pinKept.lic));
+  resetDlg();
+  answer = (m) => { if (/Enter the admin PIN/i.test(m)) return '4321'; return false; };
+  check('the kept PIN still unlocks admin', await page.evaluate(() => { sessionStorage.removeItem('rd_admin_ok'); return adminOk(); }));
+
   await browser.close();
   server.close();
   console.log(`\n==== ${pass} passed, ${fail} failed ====`);
