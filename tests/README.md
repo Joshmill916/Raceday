@@ -17,6 +17,8 @@ contention across suites can wedge one when they're chained.
 | `test-profiles.js` | Driven app (`driven/index.html`): onboarding, profileId + QR, demo import, career stats, dedupe, edit, unlink, delete, persistence |
 | `test-qual-mains.js` | "Qualifying · straight to mains" race format — seeding, B-main transfers, points, viewer/TV/print, 2-heat regression guard |
 | `test-roster-match.js` | Sign-up identity-merge fix — typed name+number collisions require confirmation instead of silently merging into an unrelated driver; explicit suggestion picks stay frictionless |
+| `test-points-repair.js` | "Fix season points" admin form — a repair entry feeds `seriesStandings()`, nights sum, and **editing one replaces it instead of double-counting**; duplicate guard, stale-index-on-delete, whole-class prefill, Edit offered only on hand-entered entries |
+| `test-cloud-backup.js` | **Cloud backup payload scrubbing** — the uploaded payload must never carry PIN hashes, the license code, the audit log, or consent records (which hold participant IPs); plus off-by-default + migration never opting a track in, the explicit-consent toggle, restore keeping the device's own license/PIN, the write-only vault rules, and that `backupToCloud()` writes the `backupTracks` prune-index alongside every backup |
 | `test-roles-security.js` | **Role-boundary + boot-sequence invariants** — what each role may see/do, the setup-wizard gating, `?role=` URL promotion, stuck-device recovery, forgotten-PIN recovery, sync write-blocks, and the join-clobber warning |
 
 Each spins up its own HTTP server on a unique port and exits 1 on any failure.

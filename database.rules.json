@@ -76,6 +76,44 @@
         ".read": false,
         ".write": false
       }
+    },
+    "trackBackups": {
+      "$trackId": {
+        ".read": false,
+        "latest": {
+          ".write": true,
+          ".validate": "newData.hasChildren(['at','data'])",
+          "at": { ".validate": "newData.isNumber()" },
+          "trackName": { ".validate": "newData.isString() && newData.val().length <= 60" },
+          "schemaVersion": { ".validate": "newData.isNumber()" },
+          "data": { ".validate": "newData.isString() && newData.val().length <= 5000000" },
+          "$other": { ".validate": false }
+        },
+        "daily": {
+          "$date": {
+            ".write": true,
+            ".validate": "newData.hasChildren(['at','data'])",
+            "at": { ".validate": "newData.isNumber()" },
+            "trackName": { ".validate": "newData.isString() && newData.val().length <= 60" },
+            "schemaVersion": { ".validate": "newData.isNumber()" },
+            "data": { ".validate": "newData.isString() && newData.val().length <= 5000000" },
+            "$other": { ".validate": false }
+          }
+        }
+      }
+    },
+    "restores": {
+      "$code": {
+        ".read": true,
+        ".write": false
+      }
+    },
+    "backupTracks": {
+      "$trackId": {
+        ".read": false,
+        ".write": true,
+        ".validate": "newData.isBoolean()"
+      }
     }
   }
 }

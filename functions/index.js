@@ -13,7 +13,15 @@
 // START a new subscription, never modify an existing one, so routing plan changes
 // through the portal instead of "buy the other link" is what keeps a profile down to
 // one subscription at a time — which handleSubscriptionEvent's race guard assumes.
+//
+// pruneOldBackups — bounds the storage cost of the opt-in cloud backup feature
+// (raceday/index.html's backupToCloud()). Every backup writes a dated entry under
+// trackBackups/<trackId>/daily/<date> that is never deleted client-side — the vault is
+// deliberately write-only (.read: false) so no client can read, let alone prune, its own
+// or anyone else's history. See the comment on the function itself for why this reads
+// backupTracks (a tiny index) rather than trackBackups directly.
 const { onRequest } = require('firebase-functions/v2/https');
+const { onSchedule } = require('firebase-functions/v2/scheduler');
 const { defineSecret } = require('firebase-functions/params');
 const logger = require('firebase-functions/logger');
 const admin = require('firebase-admin');
@@ -250,3 +258,38 @@ exports.billingPortal = onRequest(
     res.redirect(303, portal.url);
   }
 );
+
+const { cutoffDateStr } = require('./lib/pruneBackups');
+
+// Roughly two seasons of weekly backups. A starting default — no data is lost by
+// pruning more slowly than a track's actual usage; only tune this if storage still
+// grows faster than expected.
+const BACKUP_RETENTION_DAYS = 180;
+
+exports.pruneOldBackups = onSchedule('every monday 06:00', async () => {
+  const db = admin.database();
+  // backupTracks/<trackId>:true is a tiny index (booleans only) written alongside every
+  // backup specifically so this job can enumerate tracks without reading trackBackups
+  // itself — that node holds the actual backup payloads, and reading it in full on every
+  // run just to find keys would re-download every track's current backup on a schedule,
+  // the same unbounded-cost problem this job exists to prevent.
+  const tracks = (await db.ref('backupTracks').once('value')).val() || {};
+  const trackIds = Object.keys(tracks);
+  const cutoff = cutoffDateStr(BACKUP_RETENTION_DAYS);
+  let prunedTracks = 0, prunedEntries = 0;
+  for (const trackId of trackIds) {
+    // A range query bounded by the cutoff returns ONLY the already-expired entries —
+    // i.e. exactly what's about to be deleted. Nothing within the retention window is
+    // ever read, on any run, so this job's own cost doesn't scale with retained data.
+    const stale = await db.ref('trackBackups/' + trackId + '/daily').orderByKey().endBefore(cutoff).once('value');
+    const updates = {};
+    stale.forEach(child => { updates[child.key] = null; });
+    const n = Object.keys(updates).length;
+    if (n) {
+      await db.ref('trackBackups/' + trackId + '/daily').update(updates);
+      prunedTracks++;
+      prunedEntries += n;
+    }
+  }
+  logger.info('pruneOldBackups: checked ' + trackIds.length + ' tracks, removed ' + prunedEntries + ' backups older than ' + cutoff + ' across ' + prunedTracks + ' tracks');
+});
