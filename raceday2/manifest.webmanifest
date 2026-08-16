@@ -1,0 +1,14 @@
+{
+  "name": "RaceDay — Lineups & Results",
+  "short_name": "RaceDay",
+  "description": "Sign-ups, live lineups, results, and points for kart and dirt-track race days.",
+  "start_url": "./",
+  "scope": "./",
+  "display": "standalone",
+  "orientation": "any",
+  "background_color": "#0b0c0f",
+  "theme_color": "#0b0c0f",
+  "icons": [
+    { "src": "icon-rd.png", "sizes": "512x512", "type": "image/png", "purpose": "any" }
+  ]
+}
