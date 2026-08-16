@@ -325,7 +325,7 @@ select { appearance:none; background-image:linear-gradient(45deg,transparent 50%
 .check { display:flex; align-items:flex-start; gap:10px; font-size:13.5px; line-height:1.5; color:var(--ink-dim); cursor:pointer; margin:0; font-weight:500; }
 .check input[type="checkbox"] { width:20px; height:20px; min-height:0; flex:none; margin-top:1px; accent-color:var(--plate); cursor:pointer; }
 .check b { color:var(--ink); }
-.inline-num { width:74px; min-height:36px; padding:6px 8px; font-size:14px; text-align:center; }
+.inline-num { width:74px; max-width:74px; min-height:36px; padding:6px 8px; font-size:14px; text-align:center; flex:none; }
 
 /* ============================================================================
    THE DISC — the number plate. The app's signature element and its atom.
@@ -2065,6 +2065,114 @@ function scheduleUsageBeacon() {
   clearTimeout(usageTimer);
   usageTimer = setTimeout(() => sendUsage('registration', currentCounts()), 30000);
 }
+/* Seeded demo content — a manual admin-triggered demo, and the richer
+   auto-seeded night for a marketing-site visitor (?demo=1). */
+function seedDemo() {
+  if (!adminOk()) return;
+  if (!S.classes.length) { alert('Add at least one race class before loading a demo race day.'); return; }
+  if (!canEnter()) { alert(entryBlockedMsg() + ' — use a valid license to load a demo race day.'); return; }
+  if (syncOn()) { alert('This device is on Multi-device sync — loading demo here would push demo data to every synced device and replace the real race.\n\nTurn off sync on this device first (Admin → Multi-device sync), then load the demo.'); return; }
+  if (!confirm('Load a demo race day with 25 sample drivers? Current entries are archived to history first (driver book is kept).')) return;
+  if (!archiveDay()) return;   // cancelled at the incomplete-points warning — keep the board
+  // A demo day counts against the free trial (otherwise the trial gate above never
+  // closes — demo forever). Licensed tracks demo free: never burn a paid packet day.
+  if (!licStatus().licensed) consumeTrialDay();
+  resOverride = {};
+  const demoNames = ['Ava Brooks','Ben Carter','Cody Diaz','Dana Evans','Eli Ford','Finn Gray','Gia Hall','Hank Irwin','Ivy James','Jax King','Kya Lane','Leo Moss','Mia Nash','Noah Otis','Opal Pratt','Quinn Reed','Rio Sands','Sky Tate','Tess Uri','Uma Vance','Vic Webb','Wes Xu','Yara York','Zane Zell','Pat Quick'];
+  S.raceDay = { date: today(), entries: [], heatResults: {}, pointsRace: {}, resultGov: {}, resultVersions: {} };
+  demoNames.forEach((name, i) => {
+    let d = findRosterMatch(name);
+    if (!d) { d = { id: genDriverId(), name, num: String(i + 1) }; S.roster.push(d); }
+    const classIds = i < 25 ? [S.classes[i % S.classes.length].id] : [];
+    if (i % 4 === 0 && S.classes.length > 1) classIds.push(S.classes[(i + 1) % S.classes.length].id); // some run two classes
+    classIds.forEach(cid => {
+      const pill = drawPill(cid);
+      if (pill !== null) S.raceDay.entries.push({ driverId: d.id, classId: cid, pill });
+    });
+  });
+  save();
+  render(curPage);
+  nav('grid');
+}
+function seedFullDemoNight() {
+  S.demo = true;
+  if (!S.track.id) S.track.id = genTrackId();
+  S.track.name = 'Sample Speedway';
+  S.track.length = '3/8 mile';
+  S.track.surface = 'Dirt';
+  S.track.configuration = 'Oval';
+  S.track.history = 'Racing every week since 1978 — a tight, family-owned bullring known for side-by-side finishes.';
+
+  const classContext = {
+    'Junior 80cc': { ageGroup: 'Ages 8-13', specs: 'Yamaha KT100, 55 lb min weight', description: 'The entry point for new racers — tight, low-speed racing that still teaches real car control.' },
+    'Senior 100cc': { ageGroup: 'Ages 14+', specs: 'Yamaha KT100, 165 lb min weight', description: 'The step up once a driver outgrows Juniors — same tight racing, more speed.' },
+    'Open Shifter': { ageGroup: 'Ages 16+', specs: '125cc shifter kart, 190 lb min weight', description: 'The fastest class at the track — six-speed shifter karts, experienced drivers only.' }
+  };
+  S.classes.forEach(cls => {
+    const ctx = classContext[cls.name];
+    if (ctx && !cls.description && !cls.ageGroup && !cls.specs) {
+      cls.ageGroup = ctx.ageGroup; cls.specs = ctx.specs; cls.description = ctx.description;
+      rememberClass(cls.name, cls.maxPill, { ageGroup: ctx.ageGroup, specs: ctx.specs, description: ctx.description });
+    }
+  });
+
+  const demoNames = ['Ava Brooks', 'Ben Carter', 'Cody Diaz', 'Dana Evans', 'Eli Ford', 'Finn Gray', 'Gia Hall', 'Hank Irwin', 'Ivy James', 'Jax King', 'Kya Lane', 'Leo Moss', 'Mia Nash', 'Noah Otis', 'Opal Pratt', 'Quinn Reed', 'Rio Sands', 'Sky Tate'];
+  S.raceDay = { date: today(), entries: [], heatResults: {}, pointsRace: {}, resultGov: {}, resultVersions: {} };
+  const createdIds = [];
+  demoNames.forEach((name, i) => {
+    let d = findRosterMatch(name);
+    if (!d) { d = { id: genDriverId(), name, num: String(i + 1), demoSeed: true }; S.roster.push(d); }
+    createdIds.push(d.id);
+    const cid = S.classes[i % S.classes.length].id;
+    const pill = drawPill(cid);
+    if (pill !== null) S.raceDay.entries.push({ driverId: d.id, classId: cid, pill });
+  });
+
+  // A few drivers get a fake "linked" Driven profile — hand-built directly on the
+  // roster record, never through the real linkProfile()/Firebase fetch. demoOnly:true
+  // is what shareResultsWithDriven()/refreshProfile() check to never touch the
+  // network for these. One gets a valid premium code, computed entirely offline from
+  // this file's own PREM_SALT/pHash/premShort — no registered code, no network call.
+  const demoBios = [
+    { hometown: 'Rivertown, OH', age: '15', sponsors: 'Acme Kart Shop, Bob\'s Tires', teamColor: '#1f6fd6' },
+    { hometown: 'Millbrook, TX', age: '17', sponsors: 'Miller Racing Engines', teamColor: '#c8372d' },
+    { hometown: 'Fairview, IN', age: '14', sponsors: 'Fairview Diner', teamColor: '#0e8a4d' },
+    { hometown: 'Clarksdale, GA', age: '19', sponsors: 'Clarksdale Auto Parts, Speedy Fasteners', teamColor: '#d9980f' }
+  ];
+  [0, 4, 9, 13].filter(i => i < createdIds.length).forEach((driverIdx, i) => {
+    const d = S.roster.find(r => r.id === createdIds[driverIdx]);
+    if (!d) return;
+    const profileId = 'prof_demo' + String(i).padStart(4, '0') + 'x';
+    const bio = demoBios[i] || demoBios[0];
+    d.profileId = profileId;
+    d.profileCode = profileId.toUpperCase();
+    d.profile = { age: bio.age, hometown: bio.hometown, sponsors: bio.sponsors, teamColor: bio.teamColor, photo: '', premium: false, premiumCode: '', source: 'profiles', demoOnly: true };
+    if (i === 0) d.profile.premiumCode = 'PREM-' + premShort(profileId) + '-' + pHash(profileId + '|PREM|' + PREM_SALT).slice(0, 8);
+  });
+
+  // Score every class fully — small field, so featureData() locks everyone straight
+  // to the feature with no B-mains, keeping this simple and archiveDay()'s
+  // incomplete-points check happy with no confirm() prompt.
+  S.classes.forEach(cls => {
+    const racers = classRacers(cls.id);
+    if (!racers.length) return;
+    const res = getRes(cls.id);
+    heatArrays(racers, cls).forEach(heat => {
+      heat.forEach((r, i) => { res['h1_' + r.id] = i + 1; res['h2_' + r.id] = heat.length - i; });
+    });
+    const fd = featureData(cls.id);
+    [...fd.locked, ...fd.transferred].forEach((r, i) => { res['ft_' + r.id] = i + 1; });
+  });
+
+  if (!archiveDay()) return;   // shouldn't decline — every points class above is fully scored
+  S.history[0].published = true;
+  S.history[0].publishedAt = Date.now();
+  S.history[0].demo = true;
+  save();
+  render(curPage);
+  nav('grid');
+  setTimeout(() => alert('🏁 Welcome to the RaceDay demo!\n\nA full night is already scored and archived. Tap any driver\'s name to see their card, check Points for series standings, or start a new race day yourself to try the "Share results with Driven" flow.'), 300);
+}
 function setRolePrompt() {
   const r = prompt('Set this device\'s job — type one of:  admin  ·  register  ·  scoring  ·  tv  ·  operator', deviceRole());
   if (!r) return;
@@ -3618,15 +3726,1406 @@ function unlinkProfile() { toast('Driven linking lands in the next build phase.'
 function todoPanel(title, note) {
   return '<h2>' + esc(title) + '</h2><div class="card"><p class="muted">' + esc(note) + '</p></div>';
 }
-function renderAdmin()   { document.getElementById('adminWrap').innerHTML = todoPanel('Admin', 'Coming in phase 3.'); }
-function renderHelp()    { document.getElementById('helpWrap').innerHTML  = todoPanel('Guide', 'Coming in phase 3.'); }
-function renderFooter()  {}
-function renderSyncCard() {}
-function renderLicCard() {}
-function renderCloudBackupCard() {}
-function admOpen() { nav('admin'); }
-function openSetupWizard() {}
-function seedFullDemoNight() {}
+
+/* ============================================================================
+   ENGINE — admin logic (verbatim from raceday/index.html)
+   activateLic/delLic/licBuyLinksHtml already ported in §1b above — not repeated.
+   ========================================================================= */
+function applyPointsPreset(key) {
+  const q = POINT_PRESETS[key];
+  if (!q) return;   // 'custom' (empty value): leave current settings as-is
+  S.settings.points = { mode: q.mode, table: q.table.slice(), beyond: q.beyond };
+  save(); renderPointsInputs();
+}
+function savePoints() {
+  // Hand-editing the table always means a fixed custom table from now on.
+  const t = document.getElementById('ptsTable').value.split(/[\s,]+/).map(x => parseInt(x)).filter(n => !isNaN(n) && n >= 0);
+  if (t.length) { S.settings.points.table = t; S.settings.points.mode = 'fixed'; }
+  S.settings.points.beyond = Math.max(0, parseInt(document.getElementById('ptsBeyond').value) || 0);
+  save(); renderPointsInputs();
+}
+function addImpRowDriver(id) {
+  const d = driverById(id); if (!d) return;
+  if (_impRows.some(r => r.driverId === id)) return;
+  _impRows.push({ driverId: id, name: d.name, num: d.num, pts: 0 });
+  document.getElementById('impDriverSearch').value = '';
+  document.getElementById('impSearchResults').innerHTML = '';
+  renderImpRows();
+}
+function addImpRow() {
+  const q = (document.getElementById('impDriverSearch').value || '').trim();
+  if (!q) { alert('Type a driver name or car # to search, then click their name. Or type a new name to add them.'); return; }
+  // Try to find in roster first
+  const match = S.roster.find(d => d.name.toLowerCase() === q.toLowerCase());
+  if (match) { addImpRowDriver(match.id); return; }
+  // Create a new roster entry
+  const num = prompt('Car number for ' + q + '?', ''); if (num == null) return;
+  if (!/^[A-Za-z0-9]{1,5}$/.test(num.trim())) { alert('Car number must be 1–5 letters or digits.'); return; }
+  const d = { id: genDriverId(), name: q.trim(), num: num.trim(), noPoints: false };
+  S.roster.push(d); save();
+  _impRows.push({ driverId: d.id, name: d.name, num: d.num, pts: 0 });
+  document.getElementById('impDriverSearch').value = '';
+  document.getElementById('impSearchResults').innerHTML = '';
+  renderImpRows();
+}
+function addImpWholeClass() {
+  const clsEl = document.getElementById('impClass');
+  const cls = clsEl ? classById(parseInt(clsEl.value, 10)) : null;
+  if (!cls) { showImpMsg('Pick a class first.', 'error'); return; }
+  const key = cls.name.toLowerCase();
+  const seen = new Set(_impRows.map(r => r.driverId != null ? 'd' + r.driverId : 'n' + r.name.toLowerCase()));
+  let added = 0;
+  const push = (driverId, name, num) => {
+    const k = driverId != null ? 'd' + driverId : 'n' + String(name).toLowerCase();
+    if (seen.has(k)) return;
+    seen.add(k);
+    _impRows.push({ driverId: driverId, name: name, num: num, pts: 0 });
+    added++;
+  };
+  classRacers(cls.id).forEach(r => push(r.id, r.name, r.num));
+  S.history.forEach(hd => hd.classes.forEach(c => {
+    if (c.name.toLowerCase() !== key || !c.points) return;
+    c.points.forEach(p => push(p.driverId, p.name, p.num));
+  }));
+  renderImpRows();
+  showImpMsg(added ? 'Added ' + added + (added === 1 ? ' driver' : ' drivers') + ' at 0 points — enter each one\'s points, and remove anyone who didn\'t race.'
+                   : 'No past drivers found for ' + cls.name + ' — add them with the search box.', added ? 'ok' : 'error');
+}
+function editImportedRace(i) {
+  if (!adminOk()) return;
+  const hd = S.history[i];
+  if (!hd || !hd.imported || hd.classes.length !== 1) return;
+  const c = hd.classes[0];
+  const cls = S.classes.find(x => x.name.toLowerCase() === c.name.toLowerCase());
+  if (!cls) { alert('The class "' + c.name + '" no longer exists, so this entry can\'t be edited.\n\nRe-add the class first, or delete this entry and enter it again.'); return; }
+  _impEditIdx = i;
+  _impRows = (c.points || []).map(p => ({ driverId: p.driverId, name: p.name, num: p.num, pts: p.pts || 0 }));
+  admOpen('repair');
+  renderImpForm();
+  const d = document.getElementById('impDate'); if (d) d.value = hd.date;
+  const sel = document.getElementById('impClass'); if (sel) sel.value = String(cls.id);
+  renderImpRows();
+  renderImpEditBanner();
+}
+function saveImportedRace() {
+  const dateEl = document.getElementById('impDate');
+  const clsEl = document.getElementById('impClass');
+  const msgEl = document.getElementById('impMsg');
+  const date = (dateEl && dateEl.value) || '';
+  const clsId = clsEl ? parseInt(clsEl.value, 10) : 0;
+  const cls = classById(clsId);
+  if (!date) { showImpMsg('Please enter a race date.', 'error'); return; }
+  if (!cls) { showImpMsg('Please select a class.', 'error'); return; }
+  if (!_impRows.length) { showImpMsg('Add at least one driver.', 'error'); return; }
+  // Check for duplicate: same date + class already in history. When editing, the entry
+  // being replaced is not its own duplicate.
+  const editing = _impEditIdx != null && S.history[_impEditIdx];
+  const dup = S.history.some((hd, hi) => hi !== _impEditIdx && hd.date === date && hd.classes.some(c => c.name.toLowerCase() === cls.name.toLowerCase()));
+  if (dup) { alert('A history entry for ' + cls.name + ' on ' + date + ' already exists.\n\nEdit or delete the existing entry instead.'); return; }
+  const entry = {
+    date: date,
+    savedAt: Date.now(),
+    imported: true,
+    classes: [{
+      name: cls.name,
+      pointsRace: true,
+      points: _impRows.map(r => ({ driverId: r.driverId, name: r.name, num: r.num, pts: r.pts || 0 })),
+      standings: [],
+      feature: [],
+      featureFinish: []
+    }]
+  };
+  const n = _impRows.length;
+  if (editing) S.history[_impEditIdx] = entry; else S.history.push(entry);
+  S.history.sort((a, b) => (b.date > a.date ? 1 : b.date < a.date ? -1 : 0));
+  if (S.history.length > 60) S.history.length = 60;
+  logAudit(editing ? 'Edited imported race' : 'Imported past race', cls.name + ' · ' + date, n + ' drivers', '');
+  save();
+  clearImpForm();   // resets the form (and hides any stale message) before the new one shows
+  showImpMsg(editing
+    ? 'Updated — ' + cls.name + ' on ' + date + ' now has ' + n + (n === 1 ? ' driver.' : ' drivers.')
+    : 'Saved — ' + n + ' drivers added to ' + cls.name + ' on ' + date + '.', 'ok');
+  UI.histOpen = null;
+  renderHistory();
+}
+function showImpMsg(msg, type) {
+  const el = document.getElementById('impMsg');
+  if (!el) return;
+  el.textContent = msg;
+  el.style.display = '';
+  el.style.color = type === 'error' ? 'var(--pit-red)' : 'var(--flag-green)';
+  setTimeout(() => { el.style.display = 'none'; }, 4000);
+}
+function clearImpForm() {
+  _impRows = []; _impEditIdx = null; renderImpRows(); renderImpEditBanner();
+  const d = document.getElementById('impDate'); if (d) d.value = today();
+  const s = document.getElementById('impDriverSearch'); if (s) s.value = '';
+  const r = document.getElementById('impSearchResults'); if (r) r.innerHTML = '';
+  const m = document.getElementById('impMsg'); if (m) m.style.display = 'none';
+}
+function delHist(i) {
+  if (!confirm('Delete the archived race day from ' + S.history[i].date + '? This cannot be undone.')) return;
+  S.history.splice(i, 1);
+  // A pending edit points at a history index — deleting shifts every later index, so drop it.
+  if (_impEditIdx != null) clearImpForm();
+  UI.histOpen = null;
+  save();
+  renderHistory();
+}
+function histCSV(i) { const hd = S.history[i]; downloadFile('raceday-results-' + hd.date + '.csv', snapCSV(hd), 'text/csv'); }
+function saveTrack() {
+  S.track.name = document.getElementById('trackName').value.trim();
+  S.track.length = document.getElementById('trackLength').value.trim();
+  S.track.surface = document.getElementById('trackSurface').value;
+  S.track.configuration = document.getElementById('trackConfig').value;
+  S.track.history = document.getElementById('trackHistory').value.trim();
+  save();
+  renderHeader();
+}
+function uploadLogo(input) {
+  const f = input.files && input.files[0];
+  input.value = '';
+  if (!f) return;
+  const img = new Image();
+  const url = URL.createObjectURL(f);
+  img.onload = () => {
+    URL.revokeObjectURL(url);
+    const scale = Math.min(1, 256 / Math.max(img.width, img.height));
+    const c = document.createElement('canvas');
+    c.width = Math.max(1, Math.round(img.width * scale));
+    c.height = Math.max(1, Math.round(img.height * scale));
+    c.getContext('2d').drawImage(img, 0, 0, c.width, c.height);
+    const data = c.toDataURL('image/png');
+    if (data.length > 400000) { alert('That image is too heavy to store in the browser — try a simpler or smaller logo.'); return; }
+    S.track.logo = data;
+    save();
+    renderHeader();
+    renderAdmin();
+  };
+  img.onerror = () => { URL.revokeObjectURL(url); alert("Couldn't read that file as an image."); };
+  img.src = url;
+}
+function delLogo() {
+  S.track.logo = '';
+  save();
+  renderHeader();
+  renderAdmin();
+}
+function saveProvider() {
+  if (!S.provider) S.provider = { legalName: '', operator: '', jurisdiction: '' };
+  S.provider.legalName = document.getElementById('provLegal').value.trim();
+  S.provider.operator = document.getElementById('provOperator').value.trim();
+  save(); renderFooter();
+}
+function saveConsentSettings() {
+  S.settings.requireConsent = document.getElementById('reqConsent').checked;
+  S.settings.captureConsentIP = document.getElementById('capIP').checked;
+  save();
+}
+function clearAudit() {
+  if (!adminOk()) return;
+  if (!confirm('Clear the entire audit log? This cannot be undone. Export a CSV first if you need a record.')) return;
+  S.audit = []; save(); renderAuditCard();
+}
+/* downloadCSV/exportConsentsCSV/exportAuditCSV already ported in §1e above. */
+function saveSett() {
+  S.settings.maxHeat = parseInt(document.getElementById('mHeat').value) || 8;
+  S.settings.maxBMain = parseInt(document.getElementById('mBMain').value) || 12;
+  S.settings.maxFeature = parseInt(document.getElementById('mFeat').value) || 20;
+  S.settings.transfers = Math.max(0, parseInt(document.getElementById('mTrans').value) || 0);
+  S.settings.heatFill = document.getElementById('mHeatFill').value === 'block' ? 'block' : 'alternate';
+  const bm = document.getElementById('mBmainMode').value;
+  S.settings.bmainMode = ['single', 'parallel', 'cascade'].includes(bm) ? bm : 'single';
+  S.settings.bmainCount = Math.max(2, Math.min(8, parseInt(document.getElementById('mBmainCount').value) || 2));
+  document.getElementById('mBmainCount').disabled = S.settings.bmainMode === 'single';
+  save();
+}
+function toggleHelp(id) { const e = document.getElementById(id); e.style.display = e.style.display === 'none' ? '' : 'none'; }
+function saveClassInfo(id, field, val) {
+  const c = classById(id); if (!c) return;
+  c[field] = val.trim();
+  rememberClass(c.name, c.maxPill, { [field]: c[field] });   // so it survives this class being removed and re-added later
+  save();
+}
+function setClassFormat(id, val) {
+  const c = classById(id); if (!c) return;
+  if (val === 'standard') { c.invert = 0; }
+  else { c.invertScope = val; if (!(classInvertN(c))) c.invert = 4; }
+  save(); renderClsList(); renderGrid();
+}
+function setClassInvert(id, val) {
+  const c = classById(id); if (!c) return;
+  c.invert = Math.max(2, parseInt(val) || 2);
+  save(); renderClsList(); renderGrid();
+}
+function setClassMainInvert(id, field, val) {
+  const c = classById(id); if (!c) return;
+  const n = parseInt(val) || 0;
+  c[field] = n >= 2 ? n : 0;
+  save(); renderClsList(); renderGrid();
+}
+function setClassSize(id, field, val) {
+  const c = classById(id); if (!c) return;
+  const n = parseInt(val, 10);
+  if (n >= 2) c[field] = n; else delete c[field];
+  save(); renderClsList(); renderGrid();
+  if (curPage === 'results') renderResults();
+}
+function setClassHeats(id, val) {
+  const c = classById(id); if (!c) return;
+  c.heats = (String(val) === '1') ? 1 : (String(val) === '0') ? 0 : 2;
+  save(); renderClsList(); renderGrid();
+  if (curPage === 'results') renderResults();
+}
+function moveClass(id, dir) {
+  const i = S.classes.findIndex(c => c.id === id);
+  const j = i + dir;
+  if (i < 0 || j < 0 || j >= S.classes.length) return;
+  const tmp = S.classes[i]; S.classes[i] = S.classes[j]; S.classes[j] = tmp;
+  save();
+  renderClsList();
+}
+function rememberClass(name, maxPill, extra) {
+  const fields = extra || {};
+  const hit = S.classLib.find(x => x.name.toLowerCase() === name.toLowerCase());
+  if (hit) {
+    hit.name = name; hit.maxPill = maxPill;
+    if (fields.description !== undefined) hit.description = fields.description;
+    if (fields.ageGroup !== undefined) hit.ageGroup = fields.ageGroup;
+    if (fields.specs !== undefined) hit.specs = fields.specs;
+  } else {
+    S.classLib.push({ name, maxPill, description: fields.description || '', ageGroup: fields.ageGroup || '', specs: fields.specs || '' });
+  }
+}
+function setClassMax(id, val) {
+  const c = classById(id); if (!c) return;
+  const used = pillsUsed(id).size;
+  c.maxPill = Math.max(2, used, parseInt(val) || 200);
+  rememberClass(c.name, c.maxPill);
+  save(); renderClsList();
+}
+function newClassId() {
+  let id = Date.now();
+  while (S.classes.some(c => c.id === id)) id++;
+  return id;
+}
+function addClass() {
+  const nameEl = document.getElementById('newClass'), maxEl = document.getElementById('newClassMax');
+  const name = nameEl.value.trim();
+  if (!name) return;
+  const maxPill = Math.max(2, parseInt(maxEl.value) || 200);
+  // A name matching one in the library pulls its spectator info forward instead of
+  // starting blank — the whole point of the library is not re-typing this every season.
+  const libHit = S.classLib.find(x => x.name.toLowerCase() === name.toLowerCase());
+  S.classes.push({ id: newClassId(), name, maxPill,
+    description: (libHit && libHit.description) || '', ageGroup: (libHit && libHit.ageGroup) || '', specs: (libHit && libHit.specs) || '' });
+  rememberClass(name, maxPill);
+  nameEl.value = ''; maxEl.value = '200';
+  save(); renderClsList(); renderClsLib();
+}
+function delClass(id) {
+  const cnt = classRacers(id).length;
+  if (!confirm('Remove this class?' + (cnt ? ' ' + cnt + " of today's entries in it will be removed too." : '') + ' Its name stays under saved classes for one-tap re-adding.')) return;
+  S.classes = S.classes.filter(c => c.id !== id);
+  S.raceDay.entries = S.raceDay.entries.filter(e => e.classId !== id);
+  delete S.raceDay.heatResults[resKey(id)];
+  save(); renderAdmin();
+}
+function readdClass(i) {
+  const x = S.classLib[i]; if (!x) return;
+  if (S.classes.some(c => c.name.toLowerCase() === x.name.toLowerCase())) return;
+  S.classes.push({ id: newClassId(), name: x.name, maxPill: Math.max(2, x.maxPill || 100),
+    description: x.description || '', ageGroup: x.ageGroup || '', specs: x.specs || '' });
+  save(); renderAdmin();
+}
+function lastDayPairs() {
+  const hd = S.history[0];
+  if (!hd) return null;
+  if (hd.pairs) return hd.pairs;
+  // archives saved before pairs existed: rebuild from the standings by name
+  const pairs = [];
+  hd.classes.forEach(c => c.standings.forEach(s => {
+    const d = S.roster.find(r => r.name.toLowerCase() === s.name.toLowerCase());
+    if (d) pairs.push({ driverId: d.id, className: c.name });
+  }));
+  return pairs;
+}
+function refillLastDay() {
+  if (!canEnter()) { alert(entryBlockedMsg()); return; }
+  const pairs = lastDayPairs();
+  if (!pairs || !pairs.length) { alert('No archived race day to copy from yet — this works from your Race day history.'); return; }
+  if (!confirm("Re-enter everyone from the last race day (" + S.history[0].date + ")? Each entry gets a fresh pill draw.")) return;
+  let added = 0, skipped = 0;
+  const pillsExhausted = [];
+  pairs.forEach(p => {
+    const d = driverById(p.driverId);
+    let c = p.classId != null ? classById(p.classId) : null;
+    if (!c && p.className) c = S.classes.find(x => x.name.toLowerCase() === p.className.toLowerCase());
+    if (!d || !c) { skipped++; return; }
+    if (S.raceDay.entries.some(e => e.driverId === d.id && e.classId === c.id)) { skipped++; return; }
+    const clash = S.raceDay.entries.some(e => {
+      if (e.classId !== c.id || e.driverId === d.id) return false;
+      const o = driverById(e.driverId);
+      return o && String(o.num).toLowerCase() === String(d.num).toLowerCase();
+    });
+    if (clash) { skipped++; return; }
+    const pill = drawPill(c.id);
+    if (pill === null) { pillsExhausted.push(d.name + ' #' + d.num + ' (' + c.name + ')'); skipped++; return; }
+    S.raceDay.entries.push({ driverId: d.id, classId: c.id, pill });
+    added++;
+  });
+  if (added) consumeTrialDay();
+  save();
+  renderAdmin();
+  const otherSkipped = skipped - pillsExhausted.length;
+  alert('🏁 Re-entered ' + added + (added === 1 ? ' entry' : ' entries') + ' with fresh pills.'
+    + (pillsExhausted.length ? '\n\nSkipped — no pills left:\n• ' + pillsExhausted.join('\n• ') : '')
+    + (otherSkipped > 0 ? '\n\nAlso skipped ' + otherSkipped + ' (already entered, not in roster, or car # conflict).' : ''));
+}
+function quickAdd() {
+  if (!canEnter()) { alert(entryBlockedMsg()); return; }
+  const d = driverById(parseInt(document.getElementById('qaDriver').value));
+  const c = classById(parseInt(document.getElementById('qaClass').value));
+  if (!d || !c) { alert('Pick a driver and a class first.'); return; }
+  if (S.raceDay.entries.some(e => e.driverId === d.id && e.classId === c.id)) { alert(d.name + ' is already entered in ' + c.name + ' today.'); return; }
+  const clash = S.raceDay.entries.find(e => {
+    if (e.classId !== c.id || e.driverId === d.id) return false;
+    const o = driverById(e.driverId);
+    return o && String(o.num).toLowerCase() === String(d.num).toLowerCase();
+  });
+  if (clash) { alert('Number #' + d.num + ' is already racing in ' + c.name + ' — change one of the numbers first.'); return; }
+  let pill = drawPill(c.id);
+  if (pill === null) {                       // grid is full (e.g. set by a qualifying import) → add at the back
+    pill = S.raceDay.entries.filter(e => e.classId === c.id).reduce((m, e) => Math.max(m, e.pill), 0) + 1;
+    if (pill > (c.maxPill || 0)) c.maxPill = pill;
+  }
+  consumeTrialDay();
+  S.raceDay.entries.push({ driverId: d.id, classId: c.id, pill });
+  logAudit('Driver added to grid', '', '#' + d.num + ' ' + d.name + ' · P' + pill, c.name);
+  save();
+  renderAdmin();
+  alert('🏁 ' + d.name + ' is in ' + c.name + ' — grid spot #' + pill + '. Use ▲ ▼ in Today\'s entries to fix their position.');
+}
+function toggleEntryNoPoints(i) {
+  const e = S.raceDay.entries[i]; if (!e) return;
+  const d = driverById(e.driverId) || { name: '?' };
+  e.noPoints = !e.noPoints;
+  save(); renderEntryList();
+}
+function setEntryPill(i, val, opts) {
+  opts = opts || {};
+  const e = S.raceDay.entries[i]; if (!e) return;
+  const cls = classById(e.classId) || {};
+  let p = parseInt(val, 10);
+  const field = S.raceDay.entries.filter(x => x.classId === e.classId).sort((a, b) => a.pill - b.pill);
+  if (!(p > 0)) { renderEntryList(); return; }       // invalid → revert the field to stored order
+  p = Math.min(p, field.length);
+  if (p === e.pill) { renderEntryList(); return; }
+  const d = driverById(e.driverId) || { name: '?', num: '?' };
+  // Safeguard: a typed grid-spot change re-orders the whole class — confirm intent (the ▲▼ nudges skip this).
+  if (opts.confirm && !confirm('Move ' + d.name + ' (car #' + d.num + ') from grid spot ' + e.pill + ' to ' + p + '?\n\nThis re-orders the entire ' + (cls.name || 'class') + ' lineup.\n\n(To change the car NUMBER instead, edit the driver in the Driver book.)')) {
+    renderEntryList(); return;                        // cancelled → revert the input to the stored spot
+  }
+  const old = e.pill;
+  const ordered = field.filter(x => x !== e);
+  ordered.splice(p - 1, 0, e);
+  ordered.forEach((x, idx) => { x.pill = idx + 1; });
+  logAudit('Grid position edit', '#' + d.num + ' P' + old, 'P' + e.pill, cls.name);
+  save();
+  renderEntryList();
+}
+function bumpEntryPill(i, delta) { const e = S.raceDay.entries[i]; if (e) setEntryPill(i, e.pill + delta); }
+function moveEntryClass(i, newClassId) {
+  const e = S.raceDay.entries[i]; if (!e) return;
+  const from = classById(e.classId), to = classById(parseInt(newClassId, 10));
+  if (!to || to.id === e.classId) { renderEntryList(); return; }
+  const d = driverById(e.driverId) || { name: '?', num: '?' };
+  if (S.raceDay.entries.some(x => x !== e && x.driverId === e.driverId && x.classId === to.id)) {
+    alert(d.name + ' is already entered in ' + to.name + '.'); renderEntryList(); return;
+  }
+  const numClash = S.raceDay.entries.some(x => x.classId === to.id && x.driverId !== e.driverId
+    && String((driverById(x.driverId) || {}).num).toLowerCase() === String(d.num).toLowerCase());
+  if (numClash) { alert('#' + d.num + ' is already racing in ' + to.name + '. Change the number first.'); renderEntryList(); return; }
+  const used = pillsUsed(to.id);
+  const pillFree = !used.has(e.pill) && e.pill <= (to.maxPill || 200);
+  const anyFree = drawPill(to.id) !== null;
+  if (!pillFree && !anyFree) { alert('All pills are taken in ' + to.name + '. Raise that class\'s pill count first.'); renderEntryList(); return; }
+  const fromName = from ? from.name : 'this class';
+  if (pillFree) {
+    // Give admin the choice: keep same pill or draw fresh
+    showPillChoice(
+      'Move ' + d.name + ' from ' + fromName + ' to ' + to.name + '?',
+      'Keep pill #' + e.pill, 'Draw new pill',
+      function(choice) {
+        if (choice === 'cancel') { renderEntryList(); return; }
+        let newPill;
+        if (choice === 'keep') { newPill = e.pill; }
+        else { newPill = drawPill(to.id); if (newPill == null) { alert('All pills are taken in ' + to.name + '.'); renderEntryList(); return; } }
+        const oldPill = e.pill, oldCls = from ? from.name : '';
+        e.classId = to.id; e.pill = newPill; delete e.heat;
+        logAudit('Moved driver to another class', d.name + ' · ' + oldCls + ' P' + oldPill, to.name + ' P' + newPill, '');
+        save(); renderEntryList();
+      }
+    );
+  } else {
+    // Original pill taken — only option is draw new
+    if (!confirm('Move ' + d.name + ' from ' + fromName + ' to ' + to.name + '?\n\nPill #' + e.pill + ' is taken there, so they\'ll get a new pill drawn. The lineups for both classes update automatically.')) { renderEntryList(); return; }
+    const newPill = drawPill(to.id);
+    if (newPill == null) { alert('All pills are taken in ' + to.name + '.'); renderEntryList(); return; }
+    const oldPill = e.pill, oldCls = from ? from.name : '';
+    e.classId = to.id; e.pill = newPill; delete e.heat;
+    logAudit('Moved driver to another class', d.name + ' · ' + oldCls + ' P' + oldPill, to.name + ' P' + newPill, '');
+    save(); renderEntryList();
+  }
+}
+function setEntryNum(i, val) {
+  const e = S.raceDay.entries[i]; if (!e) return;
+  const d = driverById(e.driverId); if (!d) { renderEntryList(); return; }
+  const num = String(val == null ? '' : val).trim();
+  if (num === String(d.num)) { renderEntryList(); return; }      // no real change
+  if (!/^[A-Za-z0-9]{1,5}$/.test(num)) {
+    alert('Car number must be 1–5 letters or numbers (e.g. 7, 12, 12A).');
+    renderEntryList(); return;
+  }
+  const myClasses = [...new Set(S.raceDay.entries.filter(x => x.driverId === d.id).map(x => x.classId))];
+  for (const cid of myClasses) {
+    const clash = S.raceDay.entries.find(x => x.classId === cid && x.driverId !== d.id
+      && String((driverById(x.driverId) || {}).num).toLowerCase() === num.toLowerCase());
+    if (clash) {
+      alert('#' + num + ' is already racing in ' + ((classById(cid) || {}).name || 'that class') + '. Pick a different number.');
+      renderEntryList(); return;
+    }
+  }
+  const old = d.num;
+  d.num = num;
+  logAudit('Car number edit', '#' + old + ' ' + d.name, '#' + num, '');
+  save();
+  renderEntryList();
+}
+function delEntry(i) {
+  const e = S.raceDay.entries[i]; if (!e) return;
+  const d = driverById(e.driverId) || { name: 'this driver' };
+  const c = classById(e.classId) || { name: 'this class' };
+  if (!confirm('Remove ' + d.name + ' from ' + c.name + '? Pill #' + e.pill + ' goes back in the draw.')) return;
+  S.raceDay.entries.splice(i, 1);
+  save(); renderAdmin();
+}
+function toggleNoPoints(id) {
+  const d = driverById(id); if (!d) return;
+  d.noPoints = !d.noPoints;
+  logAudit(d.noPoints ? 'Marked non-points' : 'Restored to points', d.name, d.noPoints ? 'non-points' : 'points member', '');
+  save(); renderRosterList();
+}
+function delRoster(id) {
+  const d = driverById(id); if (!d) return;
+  const todayCnt = S.raceDay.entries.filter(e => e.driverId === id).length;
+  if (!confirm('Remove ' + d.name + ' from the driver book?' + (todayCnt ? " Their entries today will be removed too." : ''))) return;
+  S.roster = S.roster.filter(x => x.id !== id);
+  S.raceDay.entries = S.raceDay.entries.filter(e => e.driverId !== id);
+  save(); renderAdmin();
+}
+function printQRPoster() {
+  if (!syncOn()) { alert('Turn on Multi-device sync first — the spectator view rides on it.'); return; }
+  const url = location.origin + location.pathname + '?sync=' + encodeURIComponent(syncKey()) + '&role=viewer';
+  const cv = document.createElement('canvas'); cv.width = 600;
+  if (typeof drawQR !== 'function' || !drawQR(cv, url)) { alert('Could not build the QR code.'); return; }
+  const img = cv.toDataURL('image/png');
+  const track = (S.track && S.track.name) || 'RaceDay';
+  const w = window.open('', '_blank');
+  if (!w) { alert('Allow pop-ups to print the poster.'); return; }
+  w.document.write('<!DOCTYPE html><html><head><title>Lineups QR — ' + esc(track) + '</title><style>'
+    + 'body{font-family:Arial,Helvetica,sans-serif;text-align:center;padding:48px 24px;color:#111}'
+    + 'h1{font-size:38px;margin:0 0 6px}h2{font-size:24px;font-weight:600;color:#444;margin:0 0 28px}'
+    + 'img{width:72%;max-width:480px;height:auto;image-rendering:pixelated}'
+    + 'p.big{font-size:24px;margin-top:28px;font-weight:700}p.sub{font-size:17px;color:#555;margin-top:6px}'
+    + '.code{font-size:13px;color:#888;margin-top:18px;word-break:break-all}'
+    + '</style></head><body>'
+    + '<h1>' + esc(track) + '</h1><h2>Scan for live lineups</h2>'
+    + '<img src="' + img + '" alt="QR code">'
+    + '<p class="big">📱 Point your phone camera here</p>'
+    + '<p class="sub">See your qualifying, heat, B-main &amp; feature lineups — updates live</p>'
+    + '<div class="code">' + esc(url) + '</div>'
+    + '</body></html>');
+  w.document.close();
+  setTimeout(function () { try { w.print(); } catch (e) {} }, 350);
+}
+function printDrivenPoster() {
+  const cv = document.createElement('canvas'); cv.width = 600;
+  if (typeof drawQR !== 'function' || !drawQR(cv, DRIVEN_URL)) { alert('Could not build the QR code.'); return; }
+  const img = cv.toDataURL('image/png');
+  const track = (S.track && S.track.name) || 'RaceDay';
+  const w = window.open('', '_blank');
+  if (!w) { alert('Allow pop-ups to print the poster.'); return; }
+  w.document.write('<!DOCTYPE html><html><head><title>Get Driven — ' + esc(track) + '</title><style>'
+    + 'body{font-family:Arial,Helvetica,sans-serif;text-align:center;padding:48px 24px;color:#111}'
+    + 'h1{font-size:38px;margin:0 0 6px}h2{font-size:24px;font-weight:600;color:#444;margin:0 0 28px}'
+    + 'img{width:72%;max-width:480px;height:auto;image-rendering:pixelated}'
+    + 'p.big{font-size:24px;margin-top:28px;font-weight:700}p.sub{font-size:17px;color:#555;margin-top:6px}'
+    + '.code{font-size:13px;color:#888;margin-top:18px;word-break:break-all}'
+    + '</style></head><body>'
+    + '<h1>DRIVEN</h1><h2>One racing profile — every track</h2>'
+    + '<img src="' + img + '" alt="QR code">'
+    + '<p class="big">📱 Scan to get the free app</p>'
+    + '<p class="sub">Build your driver card once — photo, number, sponsors — then give your link code at sign-up and it follows you to every RaceDay track.</p>'
+    + '<div class="code">' + esc(DRIVEN_URL) + '</div>'
+    + '</body></html>');
+  w.document.close();
+  setTimeout(function () { try { w.print(); } catch (e) {} }, 350);
+}
+function wizAddClass() {
+  if (!wizSaveClasses()) return;   // keep any renames typed so far — re-rendering would discard them
+  S.classes.push({ id: newClassId(), name: 'New class ' + (S.classes.length + 1), maxPill: 200, description: '', ageGroup: '', specs: '' });
+  save(); renderWizClasses();
+}
+function wizReaddClass(i) {
+  if (!wizSaveClasses()) return;   // keep any renames typed so far
+  readdClass(i);   // carries description/ageGroup/specs forward from the library (see readdClass)
+  renderWizClasses();
+}
+function wizSaveClasses() {
+  const warnings = [];
+  for (let i = 0; i < S.classes.length; i++) {
+    const c = S.classes[i];
+    const el = document.getElementById('wizCls' + i);
+    if (!el) continue;
+    const v = el.value.trim();
+    if (!v) { alert('Class ' + (i + 1) + ' name is blank. Every class needs a name.'); return false; }
+    if (v.toLowerCase() !== c.name.toLowerCase()) {
+      const count = S.history.filter(h => h.classes.some(hc => hc.name.toLowerCase() === c.name.toLowerCase())).length;
+      if (count > 0) warnings.push('"' + c.name + '" → "' + v + '" (' + count + ' archived race' + (count === 1 ? '' : 's') + ')');
+    }
+  }
+  if (warnings.length && !confirm('Renaming these classes will split their points series — past results won\'t merge with the new name.\n\n' + warnings.join('\n') + '\n\nRename anyway?')) return false;
+  S.classes.forEach((c, i) => {
+    const el = document.getElementById('wizCls' + i);
+    if (el) { const v = el.value.trim(); if (v) c.name = v; }
+  });
+  return true;
+}
+function wizUploadLogo(input) {
+  const file = input.files && input.files[0]; if (!file) return;
+  const reader = new FileReader();
+  reader.onload = e => {
+    S.track.logo = e.target.result; save();
+    const p = document.getElementById('wizLogoPrev'); p.src = e.target.result; p.style.display = '';
+    document.getElementById('wizLogoRemove').style.display = '';
+  };
+  reader.readAsDataURL(file);
+}
+function wizRemoveLogo() {
+  S.track.logo = ''; save(); renderHeader();
+  const p = document.getElementById('wizLogoPrev'); p.src = ''; p.style.display = 'none';
+  document.getElementById('wizLogoRemove').style.display = 'none';
+  document.getElementById('wizLogoFile').value = '';
+}
+
+/* ============================================================================
+   §9  ADMIN
+   v1: a tile-grid home feeding a second row of pill tabs, 16 sections deep, no
+   way to jump straight to a control. v2 splits by how often a section is
+   touched — Season setup (once), Race night (every night), Account & danger —
+   and adds search so "invert" or "b-main" jumps straight to the control. Every
+   one of the 16 v1 sections survives; none are cut, only regrouped.
+
+   Each section keeps its v1 field ids (trackName, mHeat, ptsTable, …) so the
+   logic functions ported in engine-admin.js — saveTrack, addClass, saveSett,
+   the whole points-repair form, the wizard — work completely unmodified.
+   ========================================================================= */
+
+let _impRows = [];        /* points-repair form: [{driverId, name, num, pts}] */
+let _impEditIdx = null;   /* set while editing an existing history entry */
+
+const ADMIN_SECTIONS = [
+  { id:'today',    door:'night',  ico:'📋', label:"Today's entries",    hint:'Add, move, or fix who\'s racing tonight', kw:'entries pill grid spot number quick add refill' },
+  { id:'history',  door:'night',  ico:'📅', label:'Race day history',   hint:'Past nights, CSV export, edit an import', kw:'archive export csv delete edit imported' },
+  { id:'track',    door:'setup',  ico:'🏁', label:'Track identity',     hint:'Name, logo, length, surface', kw:'name logo header surface configuration oval' },
+  { id:'classes',  door:'setup',  ico:'🏎',  label:'Race classes',      hint:'Add classes, pills, invert, running order', kw:'class pill invert heat qualifying age group specs' },
+  { id:'format',   door:'setup',  ico:'⚙️',  label:'Race format',       hint:'Heat size, B-mains, feature size', kw:'heat fill alternate block bmain b-main parallel cascade transfers' },
+  { id:'points',   door:'setup',  ico:'🏆', label:'Points series',      hint:'Standard, F1-style, linear, custom', kw:'points table preset standard f1 linear podium' },
+  { id:'legal',    door:'setup',  ico:'📄', label:'Legal & business',   hint:'Consent, provider name, terms', kw:'consent terms privacy ip legal owner operator' },
+  { id:'sync',     door:'setup',  ico:'🔄', label:'Multi-device sync',  hint:'Registration, scoring, TV, spectator links', kw:'sync code join device station operator spectator qr kiosk driven' },
+  { id:'pin',      door:'account',ico:'🔐', label:'Admin PIN',          hint:'Lock the Admin tab on this device', kw:'pin password lock security' },
+  { id:'license',  door:'account',ico:'🪪', label:'License',            hint:'Trial status, activate an access code', kw:'license trial packet season code activate' },
+  { id:'roster',   door:'account',ico:'👥', label:'Driver book',        hint:'Every driver ever entered here', kw:'driver book roster no points' },
+  { id:'backup',   door:'account',ico:'💾', label:'Backup & export',    hint:'Download backup, cloud backup, CSV', kw:'backup export csv cloud restore code' },
+  { id:'repair',   door:'account',ico:'📥', label:'Fix season points',  hint:'Backfill a night that was missed', kw:'import repair backfill missing points season' },
+  { id:'audit',    door:'account',ico:'📊', label:'Records & audit',    hint:'Acceptance log, admin action log', kw:'audit log consent acceptance override' },
+  { id:'danger',   door:'danger', ico:'⚠️', label:'Danger zone',        hint:'New race day, demo, resets', kw:'reset erase demo new race day wipe' }
+];
+const ADMIN_DOORS = [
+  { id:'night',   label:'Race night',    sub:'What you touch every night' },
+  { id:'setup',   label:'Season setup',  sub:'Set once, revisit rarely' },
+  { id:'account', label:'Account',       sub:'PIN, license, backups, records' },
+  { id:'danger',  label:'Danger zone',   sub:'Irreversible actions' }
+];
+
+function admOpen(id) { UI.admSec = id; UI.admDoor = null; UI.admQuery = ''; renderAdmin(); window.scrollTo(0, 0); }
+function admDoor(id) { UI.admDoor = id; UI.admSec = null; UI.admQuery = ''; renderAdmin(); }
+function admHome()   { UI.admSec = null; UI.admDoor = null; UI.admQuery = ''; renderAdmin(); }
+function admSearch(v) { UI.admQuery = v; renderAdminSearch(); }
+
+function renderAdmin() {
+  if (!adminOk()) { nav(allowedPages()[0].id); return; }
+  const el = document.getElementById('adminWrap');
+  const st = licStatus();
+
+  if (UI.admSec) {
+    const sec = ADMIN_SECTIONS.find(s => s.id === UI.admSec);
+    if (!sec) { admHome(); return; }
+    const door = ADMIN_DOORS.find(d => d.id === sec.door);
+    const siblings = ADMIN_SECTIONS.filter(s => s.door === sec.door);
+    el.innerHTML = '<div class="crumb">'
+      + '<button class="btn btn-sm" onclick="admHome()">← Admin</button>'
+      + '<span class="tiny">' + esc(door.label) + '</span></div>'
+      + '<h2 style="margin-bottom:14px">' + esc(sec.label) + '</h2>'
+      + (siblings.length > 1 ? '<div class="tabs">' + siblings.map(s =>
+          '<button class="tab' + (s.id === sec.id ? ' on' : '') + '" onclick="admOpen(\'' + s.id + '\')">' + s.ico + ' ' + esc(s.label) + '</button>').join('') + '</div>' : '')
+      + secMarkup(sec.id);
+    secMount(sec.id);
+    return;
+  }
+
+  el.innerHTML = '<h2>Admin</h2>'
+    + '<div class="adm-search"><input type="text" id="admSearchInput" placeholder="Search settings — try “invert” or “b-main”" '
+    + 'value="' + esc(UI.admQuery) + '" oninput="admSearch(this.value)"></div>'
+    + '<div id="admSearchResults"></div>'
+    + '<div id="admDoors">' + ADMIN_DOORS.map(admDoorCard).join('') + '</div>';
+  renderAdminSearch();
+}
+
+function admDoorCard(door) {
+  const secs = ADMIN_SECTIONS.filter(s => s.door === door.id);
+  return '<div class="slbl">' + esc(door.label) + ' <span class="tiny" style="text-transform:none;letter-spacing:0">— ' + esc(door.sub) + '</span></div>'
+    + '<div class="secs">' + secs.map(s =>
+      '<button class="sec-btn' + (door.id === 'danger' ? ' danger' : '') + '" onclick="admOpen(\'' + s.id + '\')">'
+      + '<span class="ico">' + s.ico + '</span><span><span class="nm">' + esc(s.label) + '<small>' + esc(s.hint) + '</small></span></span></button>'
+    ).join('') + '</div>';
+}
+
+function renderAdminSearch() {
+  const box = document.getElementById('admSearchResults');
+  const doors = document.getElementById('admDoors');
+  if (!box) return;
+  const q = UI.admQuery.trim().toLowerCase();
+  if (!q) { box.innerHTML = ''; if (doors) doors.style.display = ''; return; }
+  if (doors) doors.style.display = 'none';
+  const hits = ADMIN_SECTIONS.filter(s => (s.label + ' ' + s.hint + ' ' + s.kw).toLowerCase().includes(q));
+  box.innerHTML = hits.length
+    ? '<div class="adm-results">' + hits.map(s =>
+        '<button class="adm-hit" onclick="admOpen(\'' + s.id + '\')"><span class="ico">' + s.ico + '</span>'
+        + '<span class="nm">' + esc(s.label) + '<small>' + esc(s.hint) + '</small></span>'
+        + '<span class="where">' + esc((ADMIN_DOORS.find(d => d.id === s.door) || {}).label || '') + '</span></button>'
+      ).join('') + '</div>'
+    : emptyState('⌕', 'No settings match “' + q + '”.');
+}
+
+/* ---------------------------------------------------------------- sections */
+function secMarkup(id) {
+  switch (id) {
+    case 'today':   return secToday();
+    case 'history':  return '<div class="card" id="historyList"></div>';
+    case 'track':    return secTrack();
+    case 'classes':  return secClasses();
+    case 'format':   return secFormat();
+    case 'points':   return secPoints();
+    case 'legal':    return secLegal();
+    case 'sync':     return '<div class="card" id="syncCard"></div>';
+    case 'pin':      return '<div class="card" id="pinCard"></div>';
+    case 'license':  return '<div class="card" id="licCard"></div>';
+    case 'roster':   return '<div class="card card-flush" id="rosterList"></div>';
+    case 'backup':   return secBackup();
+    case 'repair':   return secRepair();
+    case 'audit':    return secAudit();
+    case 'danger':   return secDanger();
+    default: return '';
+  }
+}
+function secMount(id) {
+  if (id === 'today')   { renderQuickAdd(); renderEntryList(); }
+  if (id === 'history')  renderHistory();
+  if (id === 'track')   { mountTrack(); }
+  if (id === 'classes') { renderClsList(); renderClsLib(); }
+  if (id === 'format')  { mountFormat(); }
+  if (id === 'points')  { renderPointsInputs(); }
+  if (id === 'legal')   { renderLegalInputs(); }
+  if (id === 'sync')     renderSyncCard();
+  if (id === 'pin')      renderPinCard();
+  if (id === 'license')  renderLicCard();
+  if (id === 'roster')   renderRosterList();
+  if (id === 'backup')  { renderCloudBackupCard(); mountBackup(); }
+  if (id === 'repair')   renderImpForm();
+  if (id === 'audit')  { renderConsentCard(); renderAuditCard(); }
+  if (id === 'danger')  { const b = document.getElementById('exitDemoBtn'); if (b) b.style.display = S.demo ? '' : 'none'; }
+}
+
+/* --------------------------------------------------------------- today ---- */
+function secToday() {
+  return '<div class="card">'
+    + '<div class="rowflex"><button class="btn" onclick="refillLastDay()">↻ Re-enter last race day\'s field</button>'
+    + '<span class="tiny">Everyone from the last archived day, fresh pill draws.</span></div>'
+    + '<hr class="hr">'
+    + '<label>Quick add from the driver book</label>'
+    + '<div class="rowflex"><select id="qaDriver" style="flex:2;min-width:160px"></select>'
+    + '<select id="qaClass" style="flex:1.4;min-width:120px"></select>'
+    + '<button id="qaAddBtn" class="btn btn-primary" onclick="quickAdd()">Add + draw pill</button></div>'
+    + '<hr class="hr">'
+    + '<input id="entrySearch" type="text" placeholder="Find a driver — search name, vehicle #, or class" oninput="renderEntryList()" autocomplete="off">'
+    + '<div id="entryList" style="margin-top:12px"></div>'
+    + '<p class="tiny" style="margin-top:8px">Removing an entry pulls that driver from that class only — the pill goes back in the draw and their other classes are untouched.</p>'
+    + '</div>';
+}
+function renderQuickAdd() {
+  const qd = document.getElementById('qaDriver'), qc = document.getElementById('qaClass');
+  if (!qd) return;
+  qd.innerHTML = S.roster.length
+    ? [...S.roster].sort((a, b) => a.name.localeCompare(b.name))
+        .map(d => '<option value="' + d.id + '">' + esc(d.name) + ' — #' + esc(d.num) + '</option>').join('')
+    : '<option value="">No saved drivers yet</option>';
+  qc.innerHTML = S.classes.length
+    ? S.classes.map(c => '<option value="' + c.id + '">' + esc(c.name) + '</option>').join('')
+    : '<option value="">No classes set up</option>';
+}
+function renderEntryList() {
+  const el = document.getElementById('entryList');
+  if (!el) return;
+  const qaBtn = document.getElementById('qaAddBtn'); if (qaBtn) qaBtn.disabled = !canEnter();
+  if (!S.raceDay.entries.length) { el.innerHTML = emptyState('📋', 'No entries yet today.'); return; }
+  const qEl = document.getElementById('entrySearch');
+  const q = (qEl ? qEl.value : '').trim().toLowerCase();
+  const rows = S.raceDay.entries.map((e, i) => {
+    const d = driverById(e.driverId) || { name:'?', num:'?' };
+    const c = classById(e.classId) || { name:'?' };
+    return { i, name:d.name, num:d.num, cls:c.name, clsId:e.classId, pill:e.pill, noPoints: !!(e.noPoints || (d && d.noPoints)) };
+  }).filter(r => !q || r.name.toLowerCase().includes(q) || String(r.num).toLowerCase().includes(q) || r.cls.toLowerCase().includes(q))
+    .sort((a, b) => a.cls.localeCompare(b.cls) || a.pill - b.pill);
+  if (!rows.length) { el.innerHTML = emptyState('⌕', 'No entries match "' + q + '".'); return; }
+  el.innerHTML = '<div class="note note-info" style="margin-bottom:12px">'
+    + '<b>To fix an entry:</b> change <b>Car #</b> for a wrong number (updates every heat today) · '
+    + 'change <b>Class</b> to move the driver · use <b>▲ ▼</b> on <b>Grid spot</b> to adjust their start.</div>'
+    + '<div class="scroll-x"><table class="tbl"><thead><tr><th>Driver</th><th>Car #</th><th>Class</th><th>Grid spot</th><th></th></tr></thead><tbody>'
+    + rows.map(r => '<tr><td style="font-weight:600">' + esc(r.name) + '</td>'
+      + '<td><input type="text" maxlength="5" value="' + esc(r.num) + '" style="width:60px;text-align:center" onchange="setEntryNum(' + r.i + ',this.value)"></td>'
+      + '<td><select style="max-width:150px" onchange="moveEntryClass(' + r.i + ',this.value)">'
+        + S.classes.map(c => '<option value="' + c.id + '"' + (c.id === r.clsId ? ' selected' : '') + '>' + esc(c.name) + '</option>').join('') + '</select></td>'
+      + '<td><div class="rowflex" style="gap:4px;flex-wrap:nowrap">'
+        + '<button class="btn btn-sm" style="padding:4px 8px" onclick="bumpEntryPill(' + r.i + ',-1)">▲</button>'
+        + '<input type="number" min="1" value="' + r.pill + '" style="width:54px;text-align:center" onchange="setEntryPill(' + r.i + ',this.value,{confirm:true})">'
+        + '<button class="btn btn-sm" style="padding:4px 8px" onclick="bumpEntryPill(' + r.i + ',1)">▼</button></div></td>'
+      + '<td class="r"><div class="rowflex" style="justify-content:flex-end;flex-wrap:nowrap">'
+        + '<button class="btn btn-sm' + (r.noPoints ? ' btn-danger' : '') + '" onclick="toggleEntryNoPoints(' + r.i + ')">' + (r.noPoints ? 'No pts' : 'Pts') + '</button>'
+        + '<button class="btn btn-sm btn-danger" onclick="delEntry(' + r.i + ')">Remove</button></div></td></tr>').join('')
+    + '</tbody></table></div>';
+}
+
+/* --------------------------------------------------------------- track ---- */
+function secTrack() {
+  return '<div class="card">'
+    + '<div class="cols">'
+    +   '<div class="field"><label for="trackName">Track name</label><input id="trackName" type="text" placeholder="e.g. Riverside Speedway" onchange="saveTrack()"></div>'
+    +   '<div class="field"><label>Track logo</label><div class="rowflex">'
+    +     '<img id="logoPrev" alt="" style="display:none;height:48px;max-width:120px;object-fit:contain;border:1px solid var(--line);border-radius:8px;background:#fff;padding:4px">'
+    +     '<button class="btn btn-sm" onclick="document.getElementById(\'logoFile\').click()">Upload logo</button>'
+    +     '<button class="btn btn-sm btn-danger" id="logoRemove" style="display:none" onclick="delLogo()">Remove</button>'
+    +     '<input id="logoFile" type="file" accept="image/*" style="display:none" onchange="uploadLogo(this)"></div></div>'
+    + '</div>'
+    + '<p class="tiny" style="margin:-6px 0 14px">The name and logo show in the header and on printed lineups.</p>'
+    + '<div class="field"><label for="trackLength">Track length</label><input id="trackLength" type="text" placeholder="e.g. 3/8 mile" onchange="saveTrack()"></div>'
+    + '<div class="cols">'
+    +   '<div class="field"><label>Surface</label><select id="trackSurface" onchange="saveTrack()"><option value="">—</option><option value="Dirt">Dirt</option><option value="Pavement">Pavement</option></select></div>'
+    +   '<div class="field"><label>Configuration</label><select id="trackConfig" onchange="saveTrack()"><option value="">—</option><option value="Oval">Oval</option><option value="Road course">Road course</option></select></div>'
+    + '</div>'
+    + '<div class="field"><label for="trackHistory">Track history <span class="tiny" style="font-weight:400">— shown to spectators, optional</span></label>'
+    + '<textarea id="trackHistory" rows="3" placeholder="When it opened, what makes it unique, anything fans should know." onchange="saveTrack()"></textarea></div>'
+    + '<button class="btn btn-sm" onclick="openSetupWizard()">Re-run the setup wizard</button>'
+    + '</div>';
+}
+function mountTrack() {
+  document.getElementById('trackName').value = S.track.name;
+  document.getElementById('trackLength').value = S.track.length || '';
+  document.getElementById('trackSurface').value = S.track.surface || '';
+  document.getElementById('trackConfig').value = S.track.configuration || '';
+  document.getElementById('trackHistory').value = S.track.history || '';
+  const prev = document.getElementById('logoPrev');
+  if (S.track.logo) { prev.src = S.track.logo; prev.style.display = ''; } else { prev.removeAttribute('src'); prev.style.display = 'none'; }
+  document.getElementById('logoRemove').style.display = S.track.logo ? '' : 'none';
+}
+
+/* ------------------------------------------------------------- classes ---- */
+function secClasses() {
+  return '<div class="card">'
+    + '<div class="rowflex">'
+    +   '<input id="newClass" type="text" placeholder="Class name (e.g. Junior 80cc)" style="flex:2;min-width:180px">'
+    +   '<input id="newClassMax" type="number" placeholder="Pills" title="Highest pill number" value="200" min="2" max="999" style="width:90px">'
+    +   '<button class="btn btn-primary" onclick="addClass()">Add class</button></div>'
+    + '<p class="tiny" style="margin-top:8px">"Pills" is the highest pill number in that class\'s draw. The order below is the <b>running order</b> — use ↑ / ↓ to set which class races first.</p>'
+    + '<div id="clsList" style="margin-top:12px"></div><div id="clsLib"></div></div>';
+}
+/* v1 built this list as a dense inline-style row; v2 reuses every id and control but
+   in the card/list language, and keeps the same "edit spectator info" disclosure. */
+function renderClsList() {
+  const el = document.getElementById('clsList');
+  if (!el) return;
+  if (!S.classes.length) { el.innerHTML = emptyState('🏎', 'No classes yet — add the first one above.'); return; }
+  const last = S.classes.length - 1;
+  el.innerHTML = S.classes.map((c, idx) => {
+    const cnt = classRacers(c.id).length;
+    const invN = classInvertN(c);
+    const fmt = invN ? ((c.invertScope === 'heat') ? 'heat' : 'field') : 'standard';
+    return '<div class="card card-tight" style="margin-bottom:10px">'
+      + '<div class="spread">'
+      +   '<div class="rowflex" style="gap:4px"><button class="btn btn-sm" style="padding:3px 9px" onclick="moveClass(' + c.id + ',-1)"' + (idx === 0 ? ' disabled' : '') + '>↑</button>'
+      +   '<button class="btn btn-sm" style="padding:3px 9px" onclick="moveClass(' + c.id + ',1)"' + (idx === last ? ' disabled' : '') + '>↓</button></div>'
+      +   '<b style="font-size:15px">' + esc(c.name) + '</b>'
+      +   '<span class="badge badge-dim">' + plural(cnt, 'entered', 'entered') + '</span>'
+      +   '<button class="btn btn-sm btn-danger push" onclick="delClass(' + c.id + ')">Remove</button></div>'
+      + '<div class="cols" style="margin-top:10px">'
+      +   '<div class="field" style="margin:0"><label>Pills 1–</label><input class="inline-num" type="number" min="' + Math.max(2, cnt) + '" max="999" value="' + (c.maxPill || 200) + '" onchange="setClassMax(' + c.id + ',this.value)"></div>'
+      +   '<div class="field" style="margin:0"><label>Format</label><select onchange="setClassHeats(' + c.id + ',this.value)">'
+      +     '<option value="2"' + (classHeats(c) === 2 ? ' selected' : '') + '>Pill draw · 2 heats</option>'
+      +     '<option value="1"' + (classHeats(c) === 1 ? ' selected' : '') + '>Qualifying · 1 heat</option>'
+      +     '<option value="0"' + (classHeats(c) === 0 ? ' selected' : '') + '>Qualifying · straight to mains</option></select></div>'
+      +   '<div class="field" style="margin:0"><label>Heat start</label><select onchange="setClassFormat(' + c.id + ',this.value)">'
+      +     '<option value="standard"' + (fmt === 'standard' ? ' selected' : '') + '>Standard — no invert</option>'
+      +     '<option value="field"' + (fmt === 'field' ? ' selected' : '') + '>Invert top N — whole field</option>'
+      +     '<option value="heat"' + (fmt === 'heat' ? ' selected' : '') + '>Invert top N — each heat</option></select></div>'
+      +   (fmt !== 'standard' ? '<div class="field" style="margin:0"><label>Invert top</label><input class="inline-num" type="number" min="2" max="99" value="' + invN + '" onchange="setClassInvert(' + c.id + ',this.value)"></div>' : '')
+      + '</div>'
+      + '<div class="rowflex tiny" style="margin-top:10px" title="Blank = follow the global default in Race format"><b>Sizes</b>'
+      +   '<label style="margin:0;display:inline-flex;align-items:center;gap:4px">heat <input class="inline-num" type="number" min="2" max="30" value="' + (c.maxHeat || '') + '" placeholder="' + S.settings.maxHeat + '" onchange="setClassSize(' + c.id + ',\'maxHeat\',this.value)"></label>'
+      +   '<label style="margin:0;display:inline-flex;align-items:center;gap:4px">feature <input class="inline-num" type="number" min="2" max="40" value="' + (c.maxFeature || '') + '" placeholder="' + S.settings.maxFeature + '" onchange="setClassSize(' + c.id + ',\'maxFeature\',this.value)"></label>'
+      +   '<label style="margin:0;display:inline-flex;align-items:center;gap:4px">B-main <input class="inline-num" type="number" min="2" max="30" value="' + (c.maxBMain || '') + '" placeholder="' + S.settings.maxBMain + '" onchange="setClassSize(' + c.id + ',\'maxBMain\',this.value)"></label></div>'
+      + '<div class="rowflex tiny" style="margin-top:6px" title="After the heats are scored: flip that many starting spots at the front of the main. Who qualifies is unchanged — only where they start."><b>Main invert</b>'
+      +   '<label style="margin:0;display:inline-flex;align-items:center;gap:4px">feature <input class="inline-num" type="number" min="2" max="40" value="' + (clsFeatInvert(c) || '') + '" placeholder="—" onchange="setClassMainInvert(' + c.id + ',\'invertFeature\',this.value)"></label>'
+      +   '<label style="margin:0;display:inline-flex;align-items:center;gap:4px">B-mains <input class="inline-num" type="number" min="2" max="30" value="' + (clsBMainInvert(c) || '') + '" placeholder="—" onchange="setClassMainInvert(' + c.id + ',\'invertBMain\',this.value)"></label></div>'
+      + '<details style="margin-top:10px"><summary class="tiny" style="cursor:pointer">' + ((c.description || c.ageGroup || c.specs) ? 'Edit spectator info' : '+ Add spectator info') + '</summary>'
+      + '<div class="stack" style="margin-top:8px;max-width:480px">'
+      +   '<div class="field" style="margin:0"><label>Age group / eligibility</label><input type="text" value="' + esc(c.ageGroup || '') + '" placeholder="e.g. Ages 8–14" onchange="saveClassInfo(' + c.id + ',\'ageGroup\',this.value)"></div>'
+      +   '<div class="field" style="margin:0"><label>Car / engine specs</label><input type="text" value="' + esc(c.specs || '') + '" placeholder="e.g. Yamaha KT100, 55 lb min weight" onchange="saveClassInfo(' + c.id + ',\'specs\',this.value)"></div>'
+      +   '<div class="field" style="margin:0"><label>Description for spectators</label><textarea rows="3" placeholder="What makes this class unique, who races it." onchange="saveClassInfo(' + c.id + ',\'description\',this.value)">' + esc(c.description || '') + '</textarea></div>'
+      + '</div></details></div>';
+  }).join('');
+}
+function renderClsLib() {
+  const el = document.getElementById('clsLib');
+  if (!el) return;
+  const active = new Set(S.classes.map(c => c.name.toLowerCase()));
+  const lib = S.classLib.map((x, i) => ({ ...x, i })).filter(x => !active.has(x.name.toLowerCase()));
+  if (!lib.length) { el.innerHTML = ''; return; }
+  el.innerHTML = '<div class="slbl">Saved classes — tap to re-add</div><div class="chips">'
+    + lib.map(x => '<button type="button" class="chip" style="opacity:.85" onclick="readdClass(' + x.i + ')">+ ' + esc(x.name) + '</button>').join('') + '</div>';
+}
+
+/* -------------------------------------------------------------- format ---- */
+function secFormat() {
+  return '<div class="card">'
+    + '<div class="cols">'
+    +   '<div class="field" style="margin:0"><label>Max cars per heat</label><input type="number" id="mHeat" min="2" max="30" onchange="saveSett()"></div>'
+    +   '<div class="field" style="margin:0"><label>Max in feature</label><input type="number" id="mFeat" min="2" max="40" onchange="saveSett()"></div>'
+    +   '<div class="field" style="margin:0"><label>Max in B-main</label><input type="number" id="mBMain" min="2" max="30" onchange="saveSett()"></div>'
+    +   '<div class="field" style="margin:0"><label>B-main transfers</label><input type="number" id="mTrans" min="0" max="10" onchange="saveSett()"></div>'
+    + '</div>'
+    + '<p class="tiny" style="margin:10px 0 16px">Heat, feature, and B-main sizes are track-wide defaults — set a different size for one class under <b>Race classes</b>.</p>'
+    + '<div class="field"><label>Pill draw → heats</label><select id="mHeatFill" onchange="saveSett()">'
+    +   '<option value="alternate">Alternate — fast pills spread across heats</option>'
+    +   '<option value="block">Block — heat 1 gets the lowest pills, heat 2 the next</option></select></div>'
+    + '<div class="field"><label>B-mains</label><div class="rowflex">'
+    +   '<select id="mBmainMode" onchange="saveSett()" style="flex:2;min-width:200px">'
+    +     '<option value="single">Single — one B-main, drivers past it don\'t race</option>'
+    +     '<option value="parallel">Parallel — several B-mains, top of each goes to the feature</option>'
+    +     '<option value="cascade">Cascade — climb up through the mains to the feature</option></select>'
+    +   '<label style="margin:0" class="rowflex">How many <input class="inline-num" id="mBmainCount" type="number" min="2" max="8" onchange="saveSett()"></label></div>'
+    + '<p class="tiny" style="margin-top:8px"><b>Single:</b> one B-main; top finishers transfer, anyone past it doesn\'t race. '
+    + '<b>Parallel:</b> everyone left splits into equal B-mains — nobody is cut. '
+    + '<b>Cascade:</b> the slowest qualifiers start lowest and climb up main by main.</p></div></div>';
+}
+function mountFormat() {
+  document.getElementById('mHeat').value = S.settings.maxHeat;
+  document.getElementById('mBMain').value = S.settings.maxBMain;
+  document.getElementById('mFeat').value = S.settings.maxFeature;
+  document.getElementById('mTrans').value = S.settings.transfers;
+  document.getElementById('mHeatFill').value = S.settings.heatFill;
+  document.getElementById('mBmainMode').value = S.settings.bmainMode;
+  document.getElementById('mBmainCount').value = S.settings.bmainCount;
+  document.getElementById('mBmainCount').disabled = S.settings.bmainMode === 'single';
+}
+
+/* -------------------------------------------------------------- points ---- */
+function secPoints() {
+  return '<div class="card">'
+    + '<div class="field"><label>Points system</label><select id="ptsPreset" onchange="applyPointsPreset(this.value)">'
+    +   '<option value="standard">Standard (10-8-6-5-4-3-2-1)</option>'
+    +   '<option value="f1">F1-style (top 10)</option>'
+    +   '<option value="linear">Full-field linear (everyone scores)</option>'
+    +   '<option value="podium">Podium only (5-3-1)</option>'
+    +   '<option value="custom">Custom — type your own below</option></select></div>'
+    + '<div class="cols">'
+    +   '<div class="field" style="margin:0" id="ptsTableWrap"><label>Points by feature finish — 1st, 2nd, 3rd…</label><input id="ptsTable" type="text" placeholder="10, 8, 6, 5, 4, 3, 2, 1" onchange="savePoints()" autocomplete="off"></div>'
+    +   '<div class="field" style="margin:0"><label>Everyone else</label><input id="ptsBeyond" type="number" min="0" max="999" onchange="savePoints()"></div>'
+    + '</div>'
+    + '<p id="ptsLinearNote" style="display:none;font-size:12px;color:var(--plate);margin-top:8px"></p>'
+    + '<p class="tiny" style="margin-top:8px">Feature finish decides points. Anyone finishing past the list, not making the feature, or scoring DNF/DNS/DQ gets the "everyone else" value.</p></div>';
+}
+
+/* --------------------------------------------------------------- legal ---- */
+function secLegal() {
+  return '<div class="card">'
+    + '<p class="tiny" style="margin:0 0 14px">These names appear in the Terms of Service, Intellectual Property, and Privacy Policy shown to participants.</p>'
+    + '<div class="cols">'
+    +   '<div class="field" style="margin:0"><label>Software owner — legal entity (Provider)</label><input id="provLegal" type="text" placeholder="e.g. Acme Racing Software LLC" onchange="saveProvider()"></div>'
+    +   '<div class="field" style="margin:0"><label>Operator — track / promoter legal name</label><input id="provOperator" type="text" placeholder="e.g. Riverside Speedway LLC" onchange="saveProvider()"></div>'
+    + '</div>'
+    + '<label class="check" style="margin-top:16px"><input type="checkbox" id="reqConsent" onchange="saveConsentSettings()"><b>Require drivers to accept the Terms &amp; Privacy Policy at sign-up</b></label>'
+    + '<label class="check" style="margin-top:8px"><input type="checkbox" id="capIP" onchange="saveConsentSettings()"><b>Record the device\'s public IP with each acceptance (best-effort)</b></label>'
+    + '<p class="tiny" style="margin-top:8px">IP capture makes one lookup to a public service when a driver accepts. Turn it off for fully offline operation.</p>'
+    + '<hr class="hr">'
+    + '<div class="rowflex"><button class="btn btn-sm" onclick="openDoc(\'terms\')">View Terms of Service</button>'
+    + '<button class="btn btn-sm" onclick="openDoc(\'privacy\')">View Privacy Policy</button>'
+    + '<button class="btn btn-sm" onclick="openDoc(\'bizrec\')">📋 Business recommendations</button></div></div>';
+}
+function renderPointsInputs() {
+  const p = S.settings.points;
+  const sel = document.getElementById('ptsPreset');
+  if (sel) sel.value = currentPointsPreset() || 'custom';
+  const linear = p.mode === 'linear';
+  const tableInput = document.getElementById('ptsTable');
+  const tableWrap = document.getElementById('ptsTableWrap');
+  const linearNote = document.getElementById('ptsLinearNote');
+  if (tableInput) tableInput.value = linear ? '' : p.table.join(', ');
+  if (tableWrap) tableWrap.style.display = linear ? 'none' : '';
+  if (linearNote) {
+    linearNote.style.display = linear ? '' : 'none';
+    linearNote.textContent = 'Every feature finisher scores — 1st gets ' + Math.max(1, S.settings.maxFeature || 1) + ' points, last place gets 1.';
+  }
+  const beyond = document.getElementById('ptsBeyond');
+  if (beyond) beyond.value = p.beyond;
+}
+function renderRosterList() {
+  const el = document.getElementById('rosterList');
+  if (!el) return;
+  if (!S.roster.length) { el.innerHTML = emptyState('👥', 'Empty — drivers are saved here automatically the first time they sign up.'); return; }
+  el.innerHTML = '<p class="tiny" style="padding:14px 14px 0">Mark a driver <b>No points</b> to exclude them from the Points standings — they still race and appear in lineups and results.</p>'
+    + '<div class="scroll-x" style="padding:10px 14px 14px"><table class="tbl"><thead><tr><th>Driver</th><th>#</th><th>Points</th><th></th></tr></thead><tbody>'
+    + [...S.roster].sort((a, b) => a.name.localeCompare(b.name)).map(d =>
+      '<tr><td style="font-weight:600">' + esc(d.name) + '</td><td>#' + esc(d.num) + '</td>'
+      + '<td><button class="btn btn-sm' + (d.noPoints ? ' btn-danger' : '') + '" onclick="toggleNoPoints(' + d.id + ')">' + (d.noPoints ? 'No points' : 'Points') + '</button></td>'
+      + '<td class="r"><button class="btn btn-sm btn-danger" onclick="delRoster(' + d.id + ')">Remove</button></td></tr>').join('')
+    + '</tbody></table></div>';
+}
+function renderLegalInputs() {
+  const pl = document.getElementById('provLegal'); if (pl) pl.value = (S.provider && S.provider.legalName) || '';
+  const po = document.getElementById('provOperator'); if (po) po.value = (S.provider && S.provider.operator) || '';
+  const rc = document.getElementById('reqConsent'); if (rc) rc.checked = !!(S.settings && S.settings.requireConsent);
+  const ci = document.getElementById('capIP'); if (ci) ci.checked = !!(S.settings && S.settings.captureConsentIP);
+}
+
+/* -------------------------------------------------------------- backup ---- */
+function secBackup() {
+  return '<div class="card">'
+    + '<div class="rowflex">'
+    +   '<button class="btn" onclick="exportBackup()">⬇ Download full backup</button>'
+    +   '<button class="btn" onclick="document.getElementById(\'importFile\').click()">⬆ Restore from backup</button>'
+    +   '<input id="importFile" type="file" accept=".json,application/json" style="display:none" onchange="importBackup(this)">'
+    +   '<button class="btn" onclick="exportEntriesCSV()">Entries → CSV</button>'
+    +   '<button class="btn" onclick="exportResultsCSV()">Results → CSV</button></div>'
+    + '<p class="tiny" style="margin-top:8px">Download a backup now and then — restoring it on any device brings back the driver book, classes, settings, history, and today\'s race day.</p>'
+    + '<hr class="hr"><div class="slbl">Cloud backup</div>'
+    + '<label class="check"><input type="checkbox" id="cloudBackupChk" onchange="toggleCloudBackup(this)">'
+    + '<span>Back this track up to RaceDay\'s servers, so a lost or wiped device doesn\'t mean a lost season.</span></label>'
+    + '<p class="tiny" style="margin:8px 0">Sends classes, driver book, lineups, results, and season history. Never sends your PIN, license, or sign-up consent records.</p>'
+    + '<div class="rowflex"><button class="btn btn-sm" id="cloudBackupBtn" onclick="backupToCloudNow()">☁ Back up now</button>'
+    + '<span id="cloudBackupStatus" class="tiny"></span></div>'
+    + '<div class="rowflex" style="margin-top:12px"><input id="cloudRestoreCode" type="text" placeholder="Restore code" style="flex:1;min-width:140px">'
+    + '<button class="btn btn-sm" id="cloudRestoreBtn" onclick="restoreFromCloudCode()">Restore</button></div>'
+    + '<p class="tiny" style="margin-top:6px">Lost a device? Ask RaceDay support for a restore code, then enter it here.</p></div>';
+}
+function mountBackup() {}   /* cloud status text is rendered by renderCloudBackupCard() */
+function renderCloudBackupCard() {
+  const chk = document.getElementById('cloudBackupChk');
+  if (chk) chk.checked = cloudBackupOn();
+  const el = document.getElementById('cloudBackupStatus');
+  if (!el) return;
+  if (!cloudBackupOn()) { el.textContent = 'Off — this track\'s data stays on its own devices.'; return; }
+  if (!S.lastCloudBackupAt) { el.textContent = 'On — no backup has reached the server yet.'; return; }
+  const mins = Math.floor((Date.now() - S.lastCloudBackupAt) / 60000);
+  el.textContent = 'On — last backed up ' + (mins < 1 ? 'just now'
+    : mins < 60 ? mins + ' min ago'
+    : mins < 1440 ? Math.floor(mins / 60) + ' hr ago'
+    : Math.floor(mins / 1440) + ' days ago') + '.';
+}
+
+/* -------------------------------------------------------------- repair ---- */
+function secRepair() {
+  return '<div class="card">'
+    + '<p class="tiny" style="margin-bottom:6px">Fix or backfill season points. Use this when you started mid-season, ran nights without the app, or need to correct a night that was lost or entered wrong.</p>'
+    + '<p class="tiny" style="margin-bottom:12px">Enter one night per class at a time — every entry <b>adds</b> to that class\'s season total.</p>'
+    + '<div id="impEditBanner" style="display:none" class="note note-warn"></div>'
+    + '<div class="cols">'
+    +   '<div class="field" style="margin:0"><label>Race date</label><input id="impDate" type="date"></div>'
+    +   '<div class="field" style="margin:0"><label>Class</label><select id="impClass"></select></div></div>'
+    + '<div id="impDriverRows" style="margin-bottom:8px"></div>'
+    + '<div class="rowflex"><input id="impDriverSearch" type="text" placeholder="Search driver name or car #" style="flex:2;min-width:160px" oninput="renderImpSearch()">'
+    +   '<button class="btn btn-sm" onclick="addImpRow()">+ Add driver</button>'
+    +   '<button class="btn btn-sm" onclick="addImpWholeClass()">+ Add whole class</button></div>'
+    + '<div id="impSearchResults" style="margin:8px 0"></div>'
+    + '<div class="rowflex"><button class="btn btn-primary" id="impSaveBtn" onclick="saveImportedRace()">Save race night</button>'
+    +   '<button class="btn" onclick="clearImpForm()">Clear</button></div>'
+    + '<p id="impMsg" style="display:none;font-size:13px;margin-top:8px"></p></div>';
+}
+function renderImpForm() {
+  const sel = document.getElementById('impClass');
+  if (!sel) return;
+  const prev = sel.value;
+  sel.innerHTML = S.classes.map(c => '<option value="' + c.id + '">' + esc(c.name) + '</option>').join('');
+  if (prev && S.classes.some(c => String(c.id) === prev)) sel.value = prev;
+  const d = document.getElementById('impDate');
+  if (d && !d.value) d.value = today();
+  renderImpRows();
+  renderImpEditBanner();
+}
+function renderImpEditBanner() {
+  const b = document.getElementById('impEditBanner');
+  const btn = document.getElementById('impSaveBtn');
+  const editing = _impEditIdx != null && S.history[_impEditIdx];
+  if (b) {
+    b.style.display = editing ? '' : 'none';
+    if (editing) b.innerHTML = '<b>Editing the entry from ' + esc(S.history[_impEditIdx].date) + '.</b> Saving replaces it — season points are recalculated, not added to. '
+      + '<button class="btn btn-sm" style="margin-left:6px" onclick="clearImpForm()">Cancel edit</button>';
+  }
+  if (btn) btn.textContent = editing ? 'Save changes' : 'Save race night';
+}
+function renderImpRows() {
+  const el = document.getElementById('impDriverRows');
+  if (!el) return;
+  if (!_impRows.length) { el.innerHTML = ''; return; }
+  el.innerHTML = '<div class="list">' + _impRows.map((r, i) =>
+    '<div class="lrow"><div class="nm">' + esc(r.name) + '<small>#' + esc(r.num) + '</small></div>'
+    + '<input type="number" min="0" value="' + (r.pts || 0) + '" style="width:74px" oninput="_impRows[' + i + '].pts=parseInt(this.value)||0">'
+    + '<button class="btn btn-sm btn-danger" onclick="_impRows.splice(' + i + ',1);renderImpRows()">✕</button></div>').join('') + '</div>';
+}
+function renderImpSearch() {
+  const q = (document.getElementById('impDriverSearch').value || '').trim().toLowerCase();
+  const el = document.getElementById('impSearchResults');
+  if (!q) { el.innerHTML = ''; return; }
+  const already = new Set(_impRows.map(r => r.driverId));
+  const matches = S.roster.filter(d => !already.has(d.id) && (d.name.toLowerCase().includes(q) || String(d.num).toLowerCase().includes(q))).slice(0, 6);
+  el.innerHTML = matches.length
+    ? '<div class="rowflex">' + matches.map(d => '<button class="btn btn-sm" onclick="addImpRowDriver(' + d.id + ')">' + esc(d.name) + ' #' + esc(d.num) + '</button>').join('') + '</div>'
+    : '<p class="tiny" style="margin:0">No match — use "+ Add driver" to add someone new.</p>';
+}
+
+/* -------------------------------------------------------------- history --- */
+function renderHistory() {
+  const el = document.getElementById('historyList');
+  if (!el) return;
+  if (!S.history.length) { el.innerHTML = emptyState('📅', 'Nothing archived yet — a finished race day lands here when you start a new one.'); return; }
+  el.innerHTML = S.history.map((hd, i) => {
+    const drivers = hd.classes.reduce((n, c) => n + (c.standings.length || (c.points ? c.points.length : 0)), 0);
+    let h = '<div class="lrow" style="align-items:flex-start;flex-wrap:wrap;padding:12px 0">'
+      + '<div style="flex:1;min-width:180px"><b style="font-family:var(--display);font-size:16px">' + esc(hd.date) + '</b>'
+      + '<div class="tiny">' + plural(hd.classes.length, 'class', 'classes') + ' · ' + drivers + ' entries</div></div>'
+      + '<div class="rowflex" style="flex-wrap:nowrap">'
+      + '<button class="btn btn-sm" onclick="toggleHist(' + i + ')">' + (UI.histOpen === i ? 'Hide' : 'View') + '</button>'
+      + '<button class="btn btn-sm" onclick="histCSV(' + i + ')">CSV</button>'
+      + (hd.imported && hd.classes.length === 1 ? '<button class="btn btn-sm" onclick="editImportedRace(' + i + ')">Edit</button>' : '')
+      + '<button class="btn btn-sm btn-danger" onclick="delHist(' + i + ')">Delete</button></div></div>';
+    if (UI.histOpen === i) {
+      hd.classes.forEach(c => {
+        const isImported = hd.imported || (c.standings.length === 0 && c.points && c.points.length);
+        h += '<div class="slbl" style="margin:10px 0 6px">' + esc(c.name) + (isImported ? ' <span class="tiny">(imported)</span>' : '') + '</div>';
+        h += '<div class="scroll-x"><table class="tbl">' + (isImported
+          ? '<thead><tr><th>Driver</th><th>#</th><th class="r">Points</th></tr></thead><tbody>'
+            + (c.points || []).map(p => '<tr><td style="font-weight:600">' + esc(p.name) + '</td><td>#' + esc(p.num) + '</td><td class="r">' + p.pts + '</td></tr>').join('')
+          : '<thead><tr><th>Pos</th><th>Driver</th><th>#</th><th>Pill</th><th>H1</th><th>H2</th><th class="r">Total</th></tr></thead><tbody>'
+            + c.standings.map(s => '<tr><td>' + s.pos + '</td><td style="font-weight:600">' + esc(s.name) + '</td><td>#' + esc(s.num) + '</td><td>' + s.pill + '</td>'
+              + '<td>' + (s.f1 === '' ? '·' : esc(String(s.f1))) + '</td><td>' + (s.f2 === '' ? '·' : esc(String(s.f2))) + '</td><td class="r">' + (s.pts === '' ? '—' : s.pts) + '</td></tr>').join('')
+          ) + '</tbody></table></div>';
+      });
+    }
+    return h;
+  }).join('');
+}
+
+/* --------------------------------------------------------------- audit ---- */
+function secAudit() {
+  return '<div class="slbl">Acceptance log</div><div class="card card-flush" id="consentCard"></div>'
+    + '<div class="slbl">Audit log — overrides, locks &amp; result changes</div><div class="card card-flush" id="auditCard"></div>';
+}
+function renderConsentCard() {
+  const el = document.getElementById('consentCard'); if (!el) return;
+  const list = S.consents || [];
+  if (!list.length) { el.innerHTML = emptyState('📄', 'No acceptances recorded yet.'); return; }
+  const recent = list.slice(-50).reverse();
+  el.innerHTML = '<div class="spread" style="padding:14px 14px 0"><span class="tiny">' + plural(list.length, 'acceptance') + ' recorded · showing the latest ' + recent.length + '.</span>'
+    + '<button class="btn btn-sm push" onclick="exportConsentsCSV()">Export CSV</button></div>'
+    + '<div class="scroll-x" style="padding:10px 14px 14px"><table class="tbl"><thead><tr><th>Date</th><th>Time</th><th>Driver</th><th>#</th><th>Role</th><th>IP</th><th>Terms</th></tr></thead><tbody>'
+    + recent.map(c => '<tr><td>' + esc(c.date) + '</td><td>' + esc(c.time) + '</td><td>' + esc(c.driver) + '</td><td>' + esc(c.num) + '</td>'
+      + '<td>' + esc(c.role) + '</td><td>' + esc(c.ip || '—') + '</td><td>' + esc(c.legalVersion || c.version || '') + '</td></tr>').join('')
+    + '</tbody></table></div>';
+}
+function renderAuditCard() {
+  const el = document.getElementById('auditCard'); if (!el) return;
+  const list = S.audit || [];
+  if (!list.length) { el.innerHTML = emptyState('📊', 'No admin actions logged yet. Result edits, locks, official toggles, overrides, and restores appear here.'); return; }
+  const recent = list.slice(-100).reverse();
+  el.innerHTML = '<div class="spread" style="padding:14px 14px 0"><span class="tiny">' + plural(list.length, 'entry', 'entries') + ' · showing the latest ' + recent.length + '.</span>'
+    + '<span class="rowflex push"><button class="btn btn-sm" onclick="exportAuditCSV()">Export CSV</button>'
+    + '<button class="btn btn-sm btn-danger" onclick="clearAudit()">Clear log</button></span></div>'
+    + '<div class="scroll-x" style="padding:10px 14px 14px"><table class="tbl"><thead><tr><th>Date</th><th>Time</th><th>User</th><th>Action</th><th>Target</th><th>From</th><th>To</th></tr></thead><tbody>'
+    + recent.map(a => '<tr><td>' + esc(a.date) + '</td><td>' + esc(a.time) + '</td><td>' + esc(a.user) + '</td><td>' + esc(a.action) + '</td>'
+      + '<td>' + esc(a.target) + '</td><td>' + esc(a.oldValue) + '</td><td>' + esc(a.newValue) + '</td></tr>').join('')
+    + '</tbody></table></div>';
+}
+
+/* --------------------------------------------------------------- pin/license/sync */
+function renderPinCard() {
+  const el = document.getElementById('pinCard'); if (!el) return;
+  el.innerHTML = S.adminPin
+    ? '<div class="spread"><span>🔒 The Admin tab is PIN-protected on this device.</span>'
+      + '<span class="rowflex push"><button class="btn btn-sm" onclick="setPin()">Change PIN</button>'
+      + '<button class="btn btn-sm btn-danger" onclick="delPin()">Remove PIN</button></span></div>'
+      + '<p class="tiny" style="margin-top:8px">If the PIN is forgotten, entering the wrong one offers a recovery using this device\'s access code — no data lost.</p>'
+    : '<div class="spread"><span>No PIN set — anyone using this device can open Admin.</span>'
+      + '<button class="btn btn-sm btn-primary push" onclick="setPin()">Set admin PIN</button></div>'
+      + '<p class="tiny" style="margin-top:8px">Handy when drivers sign themselves up on this device — they\'ll see sign-up and lineups, but Admin asks for the PIN.</p>';
+}
+function renderLicCard() {
+  const el = document.getElementById('licCard'); if (!el) return;
+  const st = licStatus();
+  let h;
+  if (st.licensed) {
+    let line;
+    if (st.expired) line = '⚠️ License for <b>' + esc(st.name) + '</b> has ended — ' + esc(fmtExp(st.exp));
+    else if (st.plan === 'packet') line = '✅ Licensed to <b>' + esc(st.name) + '</b> — race packet: <b>' + st.left + ' of ' + st.total + '</b> race days left';
+    else line = '✅ Licensed to <b>' + esc(st.name) + '</b> — ' + esc(fmtExp(st.exp));
+    h = '<div class="spread"><span>' + line + '</span><button class="btn btn-sm btn-danger push" onclick="delLic()">Remove license</button></div>';
+    if (st.plan === 'packet') h += '<p class="tiny" style="margin-top:8px">A race day is counted the first time you add an entry that day. Re-entering this code never resets the count.</p>';
+  } else {
+    h = '<p style="margin-bottom:10px">Free trial — <b>' + S.trialDays.length + ' of ' + TRIAL_DAYS + '</b> race days used. Enter an access code to unlock more.</p>'
+      + '<div class="rowflex"><input id="licCode" type="text" placeholder="Access code (e.g. RIVERSIDE-S2026-AB12CD)" style="flex:1;min-width:200px" autocomplete="off">'
+      + '<button class="btn btn-primary" onclick="activateLic()">Activate</button></div>' + licBuyLinksHtml();
+  }
+  if (TELEMETRY_URL) h += '<p class="tiny" style="margin-top:8px">Usage stats are sent to the RaceDay developer — registration counts only, no names or personal data.</p>';
+  el.innerHTML = h;
+}
+function renderSyncCard() {
+  const el = document.getElementById('syncCard'); if (!el) return;
+  const configured = !!FIREBASE_CONFIG.apiKey;
+  if (!configured && !(S.sync && S.sync.enabled)) { el.innerHTML = '<p>Live sync isn\'t set up on this build yet. The app owner enables it once.</p>'; return; }
+  if (!configured) { el.innerHTML = '<p>Live sync isn\'t set up on this build yet. The app owner enables it once.</p>'; return; }
+  const role = deviceRole();
+  const roleName = { admin:'Admin (full control)', register:'Registration', scoring:'Scoring tower', tv:'TV display' }[role] || role;
+  let h = '';
+  if (syncOn()) {
+    const base = location.origin + location.pathname;
+    const k = syncKey();
+    const link = r => base + '?sync=' + encodeURIComponent(k) + '&role=' + r + (r === 'operator' ? '&opk=' + encodeURIComponent(OPERATOR_KEY) : '');
+    h += '<p>✅ Live sync is <b>ON</b> for this track. Sync code: <b>' + esc(k) + '</b> <button class="btn btn-sm" onclick="copyText(\'' + esc(k) + '\',\'Code\')">Copy code</button></p>';
+    h += '<p style="margin-top:10px">This device\'s job: <b>' + esc(roleName) + '</b> <button class="btn btn-sm" onclick="setRolePrompt()">Change</button></p>';
+    h += '<p class="tiny" style="margin-top:12px">Set up another device — send it one of these links:</p>';
+    h += '<div style="margin-top:6px">' + linkRow('Registration link', link('register')) + linkRow('Scoring tower link', link('scoring')) + linkRow('TV display link', link('tv')) + '</div>';
+    h += '<div style="margin-top:14px;border-top:1px solid var(--line);padding-top:12px">'
+      + '<div class="slbl" style="margin:0 0 6px">🛡 Operator link (private)</div>'
+      + '<p class="tiny" style="margin:0 0 8px">For YOUR own device only. Opens in <b>watch</b> mode; Take control (your Operator PIN) makes live changes.</p>'
+      + linkRow('Operator link', link('operator'))
+      + '<p class="tiny" style="margin:8px 0 4px">' + (S.operatorPin ? 'Operator PIN is set on this device.' : '⚠️ No Operator PIN set yet.') + ' '
+      + '<button class="btn btn-sm" onclick="setOperatorPin()">' + (S.operatorPin ? 'Change' : 'Set') + ' Operator PIN</button>'
+      + (S.operatorPin ? ' <button class="btn btn-sm btn-danger" onclick="delOperatorPin()">Remove</button>' : '') + '</p></div>';
+    h += '<div style="margin-top:14px;border-top:1px solid var(--line);padding-top:12px">'
+      + '<div class="slbl" style="margin:0 0 6px">📱 Spectator QR</div>'
+      + '<p class="tiny" style="margin:0 0 8px">Fans scan this to see live lineups on their own phones — read-only. Print it and hang it at the track.</p>'
+      + '<canvas id="specQR" width="200" height="200" style="background:#fff;border-radius:8px"></canvas>'
+      + '<div style="margin-top:8px">' + linkRow('Spectator link', link('viewer')) + '</div>'
+      + '<button class="btn btn-sm btn-primary" onclick="printQRPoster()">🖨 Print QR poster</button></div>';
+    h += '<div style="margin-top:14px;border-top:1px solid var(--line);padding-top:12px">'
+      + '<label class="check"><input type="checkbox" ' + (S.settings.kioskReg ? 'checked' : '') + ' onchange="toggleKiosk(this.checked)">'
+      + '<span>Self-serve kiosk mode on registration devices (hides the menu — racers only see sign-up)</span></label></div>';
+    if (role === 'admin') h += '<div style="margin-top:14px;border-top:1px solid var(--line);padding-top:12px">'
+      + '<div class="slbl" style="margin:0 0 6px">🔄 Fix mismatched devices</div>'
+      + '<p class="tiny" style="margin:0 0 8px">Push THIS device\'s race to the cloud so every device matches it.</p>'
+      + '<button class="btn btn-sm" onclick="syncMakeSource()">Make this device the source of truth</button></div>';
+    h += '<p class="tiny" style="margin-top:12px">Driver names, numbers, lineups and results sync to the cloud. The admin PIN, license, and history stay on this device only.</p>';
+    h += '<div style="margin-top:10px"><button class="btn btn-sm btn-danger" onclick="syncDisable()">Turn off sync on this device</button></div>';
+  } else {
+    h += '<p style="margin-bottom:10px">Run this track across several devices at once — a registration tablet, a scoring tower, and a TV screen, all live.</p>';
+    h += '<div class="rowflex"><button class="btn btn-primary" onclick="syncActivate()">Start sync for this track</button>'
+      + '<button class="btn" onclick="syncJoin()">Join with a sync code</button></div>';
+    h += '<p class="tiny" style="margin-top:8px">Start it on your main device, then send the links to the other devices. Also unlocks the Spectator QR.</p>';
+  }
+  h += '<div style="margin-top:14px;border-top:1px solid var(--line);padding-top:12px">'
+    + '<div class="slbl" style="margin:0 0 6px">🏁 Driven — driver profiles</div>'
+    + '<p class="tiny" style="margin:0 0 8px">Drivers install the free Driven app for one profile that follows them to every RaceDay track. Their card shows on the driver card here.</p>'
+    + '<div class="rowflex"><button class="btn btn-sm btn-primary" onclick="printDrivenPoster()">🖨 Print "Get Driven" poster</button>'
+    + '<a href="' + DRIVEN_URL + '" target="_blank" rel="noopener" class="tiny">Open the Driven app →</a></div></div>';
+  el.innerHTML = h;
+  if (syncOn()) { const cv = document.getElementById('specQR'); if (cv) drawQR(cv, location.origin + location.pathname + '?sync=' + encodeURIComponent(syncKey()) + '&role=viewer'); }
+}
+
+/* --------------------------------------------------------------- danger --- */
+function secDanger() {
+  return '<div class="card">'
+    + '<div class="rowflex">'
+    +   '<button class="btn" onclick="newRaceDay()">🏁 Start a new race day</button>'
+    +   '<button class="btn" onclick="seedDemo()">Load demo race day</button>'
+    +   '<button class="btn btn-danger" id="exitDemoBtn" style="display:none" onclick="exitDemoMode()">Exit demo mode</button>'
+    +   '<button class="btn btn-danger" onclick="resetForNewTrack()">Set up for a new track</button>'
+    +   '<button class="btn btn-danger" onclick="resetAll()">Erase everything</button></div>'
+    + '<p class="tiny" style="margin-top:8px">A new race day archives today\'s entries and results to history, then clears the board. Set up for a new track keeps race data but clears the license and starts a fresh trial. Erase everything wipes the driver book, history, and track settings too.</p></div>';
+}
+
+/* ============================================================================
+   SETUP WIZARD — first-run, 5 steps, as a sheet. Same ids as v1 so wizNext /
+   wizSaveClasses / wizUploadLogo (engine-admin.js) work unmodified.
+   ========================================================================= */
+const WIZ_STEPS = 5;
+function openSetupWizard() {
+  UI.wizStep = 1;
+  openSheet('Set up RaceDay', wizShellMarkup(), '', { wide:true, cls:'sheet dc', onClose: () => {} });
+  wizShow(1);
+}
+function wizShellMarkup() {
+  return '<div class="wiz-progress tiny">Step <span id="wizStepNum">1</span> of ' + WIZ_STEPS + '</div>'
+    + '<div id="wizS1">' + wizStep1() + '</div>'
+    + '<div id="wizS2" style="display:none">' + wizStep2() + '</div>'
+    + '<div id="wizS3" style="display:none">' + wizStep3() + '</div>'
+    + '<div id="wizS4" style="display:none">' + wizStep4() + '</div>'
+    + '<div id="wizS5" style="display:none">' + wizStep5() + '</div>'
+    + '<div class="wiz-nav"><button class="btn" id="wizBackBtn" onclick="wizBack()" style="display:none">← Back</button>'
+    + '<button class="btn btn-primary push" id="wizNextBtn" onclick="wizNext()">Next</button></div>';
+}
+function wizStep1() {
+  return '<h3>Welcome to RaceDay</h3><p class="sub">A few quick steps to set up your track. You can change any of this later in Admin.</p>'
+    + '<ul style="margin:14px 0 0 20px;font-size:14px;line-height:2">'
+    + '<li>Track name &amp; logo</li><li>Your race classes</li><li>An optional admin PIN</li><li>Multi-device links</li></ul>';
+}
+function wizStep2() {
+  return '<h3>Your track</h3>'
+    + '<div class="field"><label for="wizTrackName">Track name *</label><input id="wizTrackName" type="text" placeholder="e.g. Riverside Speedway" oninput="document.getElementById(\'wizNextBtn\').disabled=!this.value.trim()"></div>'
+    + '<div class="field"><label>Track logo (optional)</label><div class="rowflex">'
+    +   '<img id="wizLogoPrev" alt="" style="display:none;height:48px;max-width:120px;object-fit:contain;border:1px solid var(--line);border-radius:8px;background:#fff;padding:4px">'
+    +   '<button class="btn btn-sm" onclick="document.getElementById(\'wizLogoFile\').click()">Upload</button>'
+    +   '<button class="btn btn-sm btn-danger" id="wizLogoRemove" style="display:none" onclick="wizRemoveLogo()">Remove</button>'
+    +   '<input id="wizLogoFile" type="file" accept="image/*" style="display:none" onchange="wizUploadLogo(this)"></div></div>'
+    + '<div class="field"><label for="wizTrackLength">Track length</label><input id="wizTrackLength" type="text" placeholder="e.g. 3/8 mile"></div>'
+    + '<div class="cols">'
+    +   '<div class="field" style="margin:0"><label>Surface</label><select id="wizTrackSurface"><option value="">—</option><option value="Dirt">Dirt</option><option value="Pavement">Pavement</option></select></div>'
+    +   '<div class="field" style="margin:0"><label>Configuration</label><select id="wizTrackConfig"><option value="">—</option><option value="Oval">Oval</option><option value="Road course">Road course</option></select></div></div>'
+    + '<div class="field"><label for="wizTrackHistory">Track history (optional)</label><textarea id="wizTrackHistory" rows="2"></textarea></div>';
+}
+function wizStep3() { return '<h3>Race classes</h3><p class="sub">Add the classes that race here. You can add more, and set pill counts and invert rules, any time in Admin.</p><div id="wizClassList"></div>'; }
+function wizStep4() {
+  return '<h3>Admin PIN <span class="tiny" style="font-weight:400">(optional)</span></h3>'
+    + '<p class="sub">Protects the Admin tab on this device — handy if drivers sign themselves up here.</p>'
+    + '<div class="cols">'
+    +   '<div class="field" style="margin:0"><label>4–8 digit PIN</label><input id="wizPin1" type="password" inputmode="numeric" maxlength="8"></div>'
+    +   '<div class="field" style="margin:0"><label>Confirm</label><input id="wizPin2" type="password" inputmode="numeric" maxlength="8"></div></div>'
+    + '<p class="tiny">Leave both blank to skip — you can set one later in Admin → Admin PIN.</p>';
+}
+function wizStep5() {
+  return '<h3>🏁 You\'re set up</h3><p class="sub">Sign-up is ready. Head to Admin → Multi-device sync any time to connect a scoring tower, a TV, or hand out the free spectator link.</p>';
+}
+function wizShow(n) {
+  for (let i = 1; i <= WIZ_STEPS; i++) { const el = document.getElementById('wizS' + i); if (el) el.style.display = i === n ? '' : 'none'; }
+  document.getElementById('wizStepNum').textContent = n;
+  document.getElementById('wizBackBtn').style.display = n === 1 ? 'none' : '';
+  const nextBtn = document.getElementById('wizNextBtn');
+  nextBtn.textContent = n === WIZ_STEPS ? 'Done' : 'Next';
+  nextBtn.disabled = false;
+  if (n === 2) {
+    document.getElementById('wizTrackName').value = S.track.name || '';
+    document.getElementById('wizTrackLength').value = S.track.length || '';
+    document.getElementById('wizTrackSurface').value = S.track.surface || '';
+    document.getElementById('wizTrackConfig').value = S.track.configuration || '';
+    document.getElementById('wizTrackHistory').value = S.track.history || '';
+    nextBtn.disabled = !S.track.name;
+    const lp = document.getElementById('wizLogoPrev'), lr = document.getElementById('wizLogoRemove');
+    if (S.track.logo) { lp.src = S.track.logo; lp.style.display = ''; lr.style.display = ''; }
+    else { lp.style.display = 'none'; lr.style.display = 'none'; }
+  }
+  if (n === 3) renderWizClasses();
+  if (n === 4) { document.getElementById('wizPin1').value = ''; document.getElementById('wizPin2').value = ''; }
+}
+function wizBack() { if (UI.wizStep > 1) { UI.wizStep--; wizShow(UI.wizStep); } }
+function wizNext() {
+  if (UI.wizStep === 2) {
+    const name = (document.getElementById('wizTrackName').value || '').trim();
+    if (!name) { alert('Please enter your track name.'); return; }
+    S.track.name = name;
+    S.track.length = document.getElementById('wizTrackLength').value.trim();
+    S.track.surface = document.getElementById('wizTrackSurface').value;
+    S.track.configuration = document.getElementById('wizTrackConfig').value;
+    S.track.history = document.getElementById('wizTrackHistory').value.trim();
+    save(); renderHeader();
+  }
+  if (UI.wizStep === 3) { if (!wizSaveClasses()) return; save(); renderHeader(); }
+  if (UI.wizStep === 4) {
+    const p1 = document.getElementById('wizPin1').value.trim();
+    const p2 = document.getElementById('wizPin2').value.trim();
+    if (p1 || p2) {
+      if (p1 !== p2) { alert('PINs do not match.'); return; }
+      if (!/^\d{4,8}$/.test(p1)) { alert('PIN must be 4–8 digits.'); return; }
+      S.adminPin = pinHash(p1); save();
+    }
+  }
+  if (UI.wizStep === WIZ_STEPS) { closeSheet(); renderAll(); return; }
+  UI.wizStep++; wizShow(UI.wizStep);
+}
+function renderWizClasses() {
+  const el = document.getElementById('wizClassList');
+  if (!el) return;
+  el.innerHTML = S.classes.map((c, i) =>
+    '<div class="wiz-cls-row"><input id="wizCls' + i + '" type="text" value="' + esc(c.name) + '" maxlength="40" placeholder="Class name"><span class="pill-hint tiny">Pills 1–' + c.maxPill + '</span></div>'
+  ).join('') + '<button class="btn btn-sm" type="button" onclick="wizAddClass()" style="margin-top:8px">+ Add a class</button>' + wizClsLibHtml();
+}
+function wizClsLibHtml() {
+  const active = new Set(S.classes.map(c => c.name.toLowerCase()));
+  const lib = S.classLib.map((x, i) => ({ ...x, i })).filter(x => !active.has(x.name.toLowerCase()));
+  if (!lib.length) return '';
+  return '<div style="margin-top:10px"><label class="tiny">Or choose a saved class</label><div class="chips">'
+    + lib.map(x => '<button type="button" class="chip" onclick="wizReaddClass(' + x.i + ')">+ ' + esc(x.name) + '</button>').join('') + '</div></div>';
+}
+
+function renderFooter() {
+  const el = document.getElementById('appFooter');
+  if (!el) return;
+  const owner = (S.provider && S.provider.legalName && S.provider.legalName.trim()) || 'RaceDay';
+  const yr = new Date().getFullYear();
+  el.innerHTML = '<a onclick="openDoc(\'terms\')">Terms of Service</a> · <a onclick="openDoc(\'privacy\')">Privacy Policy</a>'
+    + '<br>© ' + yr + ' ' + esc(owner) + '. Licensed software — all rights reserved. Provided as an administrative aid; official results are determined by race officials.';
+  el.style.cssText = 'margin-top:30px;padding:18px var(--pad) 28px;border-top:1px solid var(--line);font-size:12.5px;color:var(--muted);text-align:center;line-height:1.7';
+}
+
+function guideStep(n, title, body) {
+  return '<div class="card" style="display:flex;gap:14px;align-items:flex-start">'
+    + '<div class="disc sm" style="flex:none">' + n + '</div>'
+    + '<div><h3 style="margin-bottom:6px">' + esc(title) + '</h3>' + body + '</div></div>';
+}
+
+function renderHelp() {
+  const el = document.getElementById('helpWrap');
+  const isViewer = deviceRole() === 'viewer';
+  if (isViewer) {
+    el.innerHTML = '<h2>How to read the lineups</h2><p class="sub">A quick guide to this page.</p>'
+      + guideStep(1, 'Pick your class', '<p>Use the class tabs at the top of Lineups to find yours.</p>')
+      + guideStep(2, 'Follow along', '<p>Qualifying, Heats, B-mains, Feature and Results fill in through the night as each round is scored — a toast pops up when results update.</p>')
+      + guideStep(3, 'Reading the grid', '<p><b>Lowest spot starts up front.</b> Find your car number — that\'s where you line up.</p>')
+      + guideStep(4, 'Tap for more', '<p>Tap a <b>driver\'s name</b> to see their car number, classes and career stats.</p>');
+    return;
+  }
+  el.innerHTML = '<h2>How to use RaceDay</h2>'
+    + '<p class="sub">A quick walkthrough — the tabs run in order, left to right.</p>'
+    + guideStep(1, 'Sign up — drivers join',
+        '<p>Type a name and vehicle number. If they\'ve raced here before, their name pops up to tap — no retyping, and it pre-ticks the classes they ran last time. Pick classes, hit <b>Draw my pills</b>. Lowest pill starts up front.</p>')
+    + guideStep(2, 'Lineups — see the grids',
+        '<p>Every class lined up by pill, split into heats. Switch <b>Double file / Single file</b> to match the track. <b>⏱ Qualifying times</b> sets the grid from lap times instead of a draw. <b>📺 TV display</b> fills a screen for the crowd; <b>🖨 Print</b> gives a paper sheet.</p>')
+    + guideStep(3, 'Score — enter finishes',
+        '<p>Pick each driver\'s finishing spot. Three ways to enter: <b>tap order</b> (tap cars as they finish), <b>number pad</b> (type the car number), or <b>dropdowns</b>. The B-main and feature lineups build themselves once heats are in — tags show exactly where each driver transfers.</p>')
+    + guideStep(4, 'Points — season standings',
+        '<p>A running championship by class. Feature finishes earn points from the table set in Admin → Points series. Drivers marked <b>No points</b> race but never score.</p>')
+    + guideStep(5, 'Admin — set it up once',
+        '<p>Search for any setting, or use the three doors: <b>Race night</b> (entries, history), <b>Season setup</b> (track, classes, format, points, sync), and <b>Account</b> (PIN, license, backups, records). First time here? Use the <b>Setup wizard</b>.</p>')
+    + guideStep(6, 'Multi-device sync (optional)',
+        '<p>Run a registration tablet, scoring tower and TV screen on the same race day at once — Admin → Multi-device sync → Start sync, then open the matching link on each device. The free spectator QR link is the same place.</p>');
+}
 /* ============================================================================
    §8  ROLES ON SCREEN  +  §9  BOOT
    ========================================================================= */

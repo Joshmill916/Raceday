@@ -30,8 +30,11 @@ const TYPES = { '.html':'text/html', '.js':'application/javascript', '.json':'ap
   await page.waitForTimeout(400);
 
   // A track with one 8-car class, one heat set, no B-main — small enough to score by
-  // hand three times, big enough to exercise transfers-free feature entry.
+  // hand three times, big enough to exercise transfers-free feature entry. A fresh
+  // profile auto-opens the setup wizard (empty S.track.name); close it before
+  // overwriting the state it was offering to fill in.
   await page.evaluate(() => {
+    closeSheet();
     S.track.name = 'Tap Test Speedway';
     S.classes = [{ id: 1, name: 'Junior 80cc', maxPill: 40, heats: 1, invert: 0, invertScope: 'field' }];
     S.settings.maxHeat = 10; S.settings.maxFeature = 20; S.settings.requireConsent = false;
