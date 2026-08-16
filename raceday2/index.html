@@ -400,6 +400,10 @@ table.tbl .r { text-align:right; }
   font-family:var(--display); font-size:15px; font-weight:700; letter-spacing:.06em; text-transform:uppercase;
 }
 .hh .push { margin-left:auto; }
+/* Sub-labels inside a display-font header drop back to body type. */
+.hh small { font-family:var(--body); font-weight:500; text-transform:none; letter-spacing:0; color:var(--muted); }
+.hh.feat small { color:rgba(22,20,8,.72); }
+.hh.bmain small,.hh.inv small { color:inherit; opacity:.8; }
 .hh.inv   { background:var(--flag-amber-bg); color:var(--flag-amber-ink); }
 .hh.bmain { background:var(--flag-green-bg); color:var(--flag-green-ink); }
 .hh.feat  { background:var(--plate); color:var(--plate-ink); }
@@ -2493,6 +2497,12 @@ function toast(msg, kind, actionLabel, actionFn) {
   _toastTimer = setTimeout(() => { host.innerHTML = ''; }, actionLabel ? 9000 : 3400);
 }
 function flashMsg(m) { toast(m, 'ok'); }
+/* A spectator's phone got new feature finishes over sync while they were looking at
+   something else — nudge, don't yank them to another screen. */
+function showViewerToast() { toast('Results updated', 'ok', 'See results', "nav('grid')"); }
+/* The shared room replaced this device's track identity. Normal on a first join, a
+   surprise afterwards — so this only fires when a DISTINCT identity was overwritten. */
+function showTrackSyncToast() { toast('This device now shows ' + (S.track.name || 'another track') + '.', 'err'); }
 
 /* --------------------------------------------------------------------- theme */
 function themeName() { try { return localStorage.getItem('rd_theme') || 'dark'; } catch (e) { return 'dark'; } }
@@ -2527,34 +2537,1094 @@ function emptyState(icon, msg, ctaLabel, ctaFn) {
 function driverLabel(d) { return d ? esc(d.name) : 'Unknown driver'; }
 /* Guard used by every write path that a spectator must never reach. */
 function canWrite() { return deviceRole() !== 'viewer' && deviceRole() !== 'tv' && !operatorWatching(); }
+
+/* ============================================================================
+   §1h  ENGINE — scoring, qualifying times, grid style (verbatim)
+   ========================================================================= */
+function setGridStyle(s) { S.settings.gridStyle = s; save(); renderGrid(); }
+function setViewClass(id) { UI.viewClsId = parseInt(id, 10) || null; renderGrid(); }
+function setViewStage(s) { UI.viewStage = s; renderGrid(); }
+let _qtClsId = null;
+function qtEntry(clsId, driverId) { return S.raceDay.entries.find(e => e.classId === clsId && e.driverId === driverId); }
+function qtCollect() {
+  const rows = [];
+  document.querySelectorAll('#qtBody input[data-id]').forEach(inp => {
+    const raw = inp.value.trim();
+    rows.push({ id: parseInt(inp.getAttribute('data-id'), 10), raw, t: raw ? impParseLapTime(raw) : Infinity });
+  });
+  return rows;
+}
+function qtOrder() {
+  const rows = qtCollect();
+  const pillOf = {}; classRacers(_qtClsId).forEach(r => pillOf[r.id] = r.pill);
+  const timed = rows.filter(r => r.t !== Infinity).sort((a, b) => a.t - b.t);
+  const untimed = rows.filter(r => r.t === Infinity).sort((a, b) => pillOf[a.id] - pillOf[b.id]);
+  return [...timed, ...untimed];
+}
+function saveQualTimes() {
+  if (!adminOk()) return;
+  qtCollect().forEach(r => {
+    const e = qtEntry(_qtClsId, r.id); if (!e) return;
+    if (r.raw && r.t !== Infinity) e.qualTime = r.raw; else delete e.qualTime;
+  });
+  save();
+  renderGrid();
+  if (typeof flashMsg === 'function') flashMsg('Qualifying times saved.');
+  renderQtBody();
+}
+function applyQualGrid() {
+  if (!adminOk()) return;
+  const order = qtOrder();
+  const timed = order.filter(r => r.t !== Infinity).length;
+  if (!timed) { alert('Enter at least one qualifying time first.'); return; }
+  if (!confirm('Set the ' + classById(_qtClsId).name + ' starting grid from these times?\n\nFastest goes to pole — this replaces the current order.')) return;
+  order.forEach((r, i) => {
+    const e = qtEntry(_qtClsId, r.id); if (!e) return;
+    e.pill = i + 1;
+    delete e.heat;   // grid purely from qualifying order, like the timing import
+    if (r.raw && r.t !== Infinity) e.qualTime = r.raw; else delete e.qualTime;
+  });
+  logAudit('Grid set from qualifying times', '', timed + ' timed', classById(_qtClsId).name);
+  save();
+  renderGrid();
+  if (typeof flashMsg === 'function') flashMsg('Grid set from qualifying times ✓');
+  closeQualTimes();
+}
+function saveResult(clsId, rk, val) {
+  const res = getRes(clsId);
+  if (resLocked(clsId)) {
+    alert('Results for ' + classById(clsId).name + ' are locked.\n\nAn admin can tap “Override” on the Results page to edit, or “Unlock”.');
+    renderClassResults(clsId);   // revert the field to the stored value
+    return;
+  }
+  const old = res[rk];
+  if (val === '' || val == null) delete res[rk];
+  else if (val === 'DNF' || val === 'DNS' || val === 'DQ') res[rk] = val;
+  else { const n = parseInt(val); if (n > 0) res[rk] = n; else delete res[rk]; }
+  const now = res[rk];
+  if (String(old == null ? '' : old) !== String(now == null ? '' : now)) {
+    logAudit(resOverride[resKey(clsId)] ? 'Result edit (override)' : 'Result edit',
+      old == null ? '(blank)' : old, now == null ? '(blank)' : now,
+      classById(clsId).name + ' · ' + rk);
+  }
+  save();
+  renderClassResults(clsId);
+}
+function togglePointsRace(clsId, on) { S.raceDay.pointsRace[clsId] = !!on; save(); renderClassResults(clsId); }
+function impNormName(s) {
+  return String(s || '').normalize('NFD').replace(/[̀-ͯ]/g, '')
+    .toLowerCase().replace(/[.,'`’‘´"“”\-]/g, '').replace(/\s+/g, ' ').trim();
+}
+function impParseLapTime(s) {
+  // Strip best-lap / flag markers (e.g. 00.12.210*) and normalize European comma
+  // decimals (22,031 → 22.031) before parsing.
+  s = String(s || '').trim().replace(/[*#!†]/g, '').replace(/,/g, '.').trim();
+  if (!s || /^(dnf|dns|dq|dsq|ret|nc)$/i.test(s)) return Infinity;
+  // Colon forms: hh:mm:ss.mmm or mm:ss.mmm
+  const h = s.match(/^(\d+):(\d{1,2}):(\d{1,2}(?:\.\d+)?)$/);
+  if (h) return parseInt(h[1]) * 3600 + parseInt(h[2]) * 60 + parseFloat(h[3]);
+  const m = s.match(/^(\d+):(\d+(?:\.\d+)?)$/);
+  if (m) return parseInt(m[1]) * 60 + parseFloat(m[2]);
+  // Dot-separated timing forms: hh.mm.ss.mmm or mm.ss.mmm (last group = fraction of a second)
+  const d3 = s.match(/^(\d+)\.(\d{1,2})\.(\d{1,2})\.(\d{1,3})$/);
+  if (d3) return parseInt(d3[1]) * 3600 + parseInt(d3[2]) * 60 + parseInt(d3[3]) + parseFloat('0.' + d3[4]);
+  const d2 = s.match(/^(\d+)\.(\d{1,2})\.(\d{1,3})$/);
+  if (d2) return parseInt(d2[1]) * 60 + parseInt(d2[2]) + parseFloat('0.' + d2[3]);
+  const n = parseFloat(s);
+  return isNaN(n) ? Infinity : n;
+}
+function impTimeUnparsed(s) {
+  s = String(s || '').trim();
+  if (!s || /^(dnf|dns|dq|dsq|ret|nc)$/i.test(s)) return false;
+  return impParseLapTime(s) === Infinity;
+}
+function findRosterMatch(name, num) {
+  const byName = S.roster.filter(d => d.name.toLowerCase() === String(name).toLowerCase());
+  if (!byName.length) return undefined;
+  if (num == null || num === '') return byName[0];
+  const exact = byName.find(d => String(d.num).toLowerCase() === String(num).toLowerCase());
+  if (exact) return exact;
+  const racingToday = byName.some(d => S.raceDay.entries.some(e => e.driverId === d.id));
+  return racingToday ? undefined : byName[0];
+}
+/* ============================================================================
+   §3  SIGN-UP
+   v1 walked every driver through three screens: name/number → classes → pills.
+   v2 is one screen. A returning driver taps their name (which fills the number
+   and pre-ticks the classes they ran last time) and hits DRAW — three taps.
+   Every safeguard from v1 survives: the identity-merge confirm, the per-class
+   number-clash checks, the pill-exhaustion check, the consent record, and the
+   license gate.
+   ========================================================================= */
+
+let signupDone = null;      /* {driver, drawn} while the pill reveal is showing */
+
+function renderSignup() {
+  const el = document.getElementById('signupWrap');
+  if (signupDone) { el.innerHTML = doneMarkup(signupDone.driver, signupDone.drawn); return; }
+
+  if (!S.classes.length) {
+    el.innerHTML = '<h2>Driver sign-up</h2>'
+      + (deviceRole() === 'admin'
+        ? '<div class="card">' + emptyState('🏁', 'No race classes set up yet — sign-ups open once you add one.', '⚙ Add your first class', "nav('admin');admOpen('classes')") + '</div>'
+        : '<div class="card">' + emptyState('🏁', 'No classes are set up yet — ask the admin to add classes first.') + '</div>');
+    return;
+  }
+
+  const blocked = !canEnter();
+  el.innerHTML = '<h2>Driver sign-up</h2>'
+    + '<p class="sub">Type your name. If you\'ve raced here before, tap it when it appears — your number and classes come with it.</p>'
+    + (blocked ? '<div class="note note-err" style="margin-bottom:14px">' + esc(entryBlockedMsg()) + '</div>' : '')
+    + '<div class="card">'
+    +   '<div class="field"><label for="dName">Driver name</label>'
+    +     '<input id="dName" class="input-lg" type="text" placeholder="Full name" autocomplete="off" '
+    +     'oninput="suggest()" onkeydown="if(event.key===\'Enter\')document.getElementById(\'dNum\').focus()">'
+    +     '<div class="sugg" id="suggBox"></div></div>'
+    +   '<div class="field"><label for="dNum">Vehicle number</label>'
+    +     '<input id="dNum" class="input-lg" type="text" placeholder="e.g. 47 or 12A" maxlength="5" '
+    +     'autocomplete="off" autocapitalize="characters" oninput="signupTyped()"></div>'
+    +   '<div class="field"><label>Classes tonight</label><div class="chips" id="chips"></div></div>'
+    +   '<details style="margin-bottom:14px"><summary class="tiny" style="cursor:pointer;padding:6px 0">＋ Driven link code (optional)</summary>'
+    +     '<div style="margin-top:8px"><input id="dProfCode" type="text" placeholder="e.g. K7Q2M4XN" maxlength="24" '
+    +     'autocomplete="off" autocapitalize="characters">'
+    +     '<p class="tiny" style="margin-top:5px">From your <a href="' + DRIVEN_URL + '" target="_blank" rel="noopener">Driven app</a> — pulls your card and career stats onto the lineup.</p></div></details>'
+    +   '<div id="consentRow" style="display:none;margin:4px 0 12px">'
+    +     '<label class="check"><input type="checkbox" id="consentChk" onchange="document.getElementById(\'e2\').style.display=\'none\'">'
+    +     '<span>I agree to the <a onclick="openDoc(\'terms\')">Terms of Service</a> and <a onclick="openDoc(\'privacy\')">Privacy Policy</a>, and confirm my information is correct.</span></label></div>'
+    +   '<div id="e1" class="note note-err" style="display:none;margin-bottom:10px"></div>'
+    +   '<div id="e2" class="note note-err" style="display:none;margin-bottom:10px"></div>'
+    +   '<button class="btn btn-go btn-block" id="drawBtn" onclick="register()"' + (blocked ? ' disabled' : '') + '>🎱 Draw my pills</button>'
+    + '</div>'
+    + rosterPickMarkup();
+
+  renderChips();
+  renderRosterPick();
+}
+
+/* The "raced here before?" list, shown until the name field has something in it. */
+function rosterPickMarkup() {
+  return '<div id="rosterPick" style="display:none"><div class="slbl">Raced here before? Tap your name — no typing</div>'
+    + '<div class="sugg" id="rosterPickList" style="max-height:280px;overflow-y:auto"></div></div>';
+}
+function renderRosterPick() {
+  const wrap = document.getElementById('rosterPick');
+  const nameEl = document.getElementById('dName');
+  if (!wrap || !nameEl) return;
+  if (!S.roster.length || nameEl.value.trim()) { wrap.style.display = 'none'; return; }
+  wrap.style.display = '';
+  document.getElementById('rosterPickList').innerHTML = [...S.roster]
+    .sort((a, b) => a.name.localeCompare(b.name))
+    .map(rosterBtn).join('');
+}
+function rosterBtn(d) {
+  return '<button onclick="pickRoster(' + d.id + ')">' + discNum(d.num)
+    + '<span class="nm">' + esc(d.name) + (d.noPoints ? '<small>Does not score points</small>' : '') + '</span></button>';
+}
+
+/* Typing again means the previous explicit "this is me" tap no longer holds. */
+function suggest() {
+  pickedRosterId = null;
+  const q = document.getElementById('dName').value.trim().toLowerCase();
+  const box = document.getElementById('suggBox');
+  renderRosterPick();
+  renderChips();
+  if (q.length < 1) { box.innerHTML = ''; return; }
+  box.innerHTML = S.roster
+    .filter(d => d.name.toLowerCase().includes(q) || String(d.num) === q)
+    .slice(0, 5).map(rosterBtn).join('');
+}
+function signupTyped() { pickedRosterId = null; renderChips(); }
+
+function pickRoster(id) {
+  const d = driverById(id);
+  if (!d) return;
+  document.getElementById('dName').value = d.name;
+  document.getElementById('dNum').value = d.num;
+  document.getElementById('suggBox').innerHTML = '';
+  pickedRosterId = id;                 /* explicit "this is me" — register() may trust it */
+  renderRosterPick();
+  renderChips(true);                   /* pre-tick the classes they ran last time */
+  const btn = document.getElementById('drawBtn');
+  if (btn) btn.scrollIntoView({ block:'nearest', behavior:'smooth' });
+}
+
+function signupVals() {
+  const n = document.getElementById('dName'), v = document.getElementById('dNum');
+  return { name: n ? n.value.trim() : '', num: v ? v.value.trim() : '' };
+}
+
+/* Chips are live: they re-render as the name/number change, so "already entered"
+   shows the moment we can tell who this is — v1 only knew at step 2. */
+function renderChips(prefill) {
+  const el = document.getElementById('chips');
+  if (!el) return;
+  const vals = signupVals();
+  const match = vals.name ? findRosterMatch(vals.name, vals.num) : undefined;
+  const trusted = match && pickedRosterId === match.id;
+  const enteredIds = match ? S.raceDay.entries.filter(e => e.driverId === match.id).map(e => e.classId) : [];
+  const lastRun = (prefill && match) ? lastClassesFor(match.id) : null;
+  const wasOn = {};
+  if (!prefill) S.classes.forEach(c => {
+    const n = document.getElementById('ch' + c.id);
+    if (n) wasOn[c.id] = n.classList.contains('on');
+  });
+
+  el.innerHTML = S.classes.map(c => {
+    const already = enteredIds.includes(c.id);
+    /* A CONFIRMED match already entered here is genuinely blocked. An UNCONFIRMED
+       match might be a different person who happens to share a name and number, so
+       the chip stays selectable — register()'s confirm() resolves who they are. */
+    if (already && trusted)
+      return '<span class="chip" style="opacity:.45;cursor:default" title="Already entered today">' + esc(c.name) + ' — entered</span>';
+    const on = prefill ? (lastRun && lastRun.includes(c.id)) : wasOn[c.id];
+    const title = (already && !trusted)
+      ? ' title="A driver with this exact name and number is already entered today — you\'ll be asked to confirm"' : '';
+    return '<button type="button" class="chip' + (on ? ' on' : '') + '"' + title + ' id="ch' + c.id
+      + '" onclick="this.classList.toggle(\'on\')">' + esc(c.name) + '</button>';
+  }).join('');
+
+  const row = document.getElementById('consentRow'), chk = document.getElementById('consentChk');
+  if (row && chk) {
+    if (S.settings && S.settings.requireConsent) {
+      row.style.display = '';
+      /* Only clear the tick when starting a fresh driver — not on every keystroke,
+         which is what made v1's checkbox untick itself on Back/Next. */
+      if (prefill) chk.checked = false;
+    } else row.style.display = 'none';
+  }
+}
+
+/* Classes this driver ran the last time they were on a board here. Archived days
+   store raw driver/class pairs (buildSnapshot's `pairs`), so this survives class
+   renames and re-creations by matching on name, exactly as the points series does. */
+function lastClassesFor(driverId) {
+  const todayIds = S.raceDay.entries.filter(e => e.driverId === driverId).map(e => e.classId);
+  if (todayIds.length) return todayIds;
+  for (const hd of (S.history || [])) {
+    const mine = (hd.pairs || []).filter(p => p.driverId === driverId);
+    if (!mine.length) continue;
+    const ids = [];
+    mine.forEach(p => {
+      const live = S.classes.find(c => c.id === p.classId)
+        || S.classes.find(c => c.name.toLowerCase() === String(p.className || '').toLowerCase());
+      if (live && ids.indexOf(live.id) < 0) ids.push(live.id);
+    });
+    if (ids.length) return ids;
+  }
+  return [];
+}
+
+function signupErr(which, msg) {
+  const el = document.getElementById(which);
+  if (!el) return;
+  el.style.display = ''; el.textContent = msg;
+  el.scrollIntoView({ block:'nearest', behavior:'smooth' });
+}
+
+function register() {
+  const vals = signupVals();
+  document.getElementById('e1').style.display = 'none';
+  document.getElementById('e2').style.display = 'none';
+
+  if (!vals.name || !vals.num) return signupErr('e1', 'Please enter both a name and a vehicle number.');
+  if (!/^[A-Za-z0-9]{1,5}$/.test(vals.num))
+    return signupErr('e1', 'Vehicle number can be 1–5 letters or numbers (e.g. 47, 7A, or A12).');
+
+  cur = { name: vals.name, num: vals.num, pickedId: pickedRosterId };
+
+  const sel = S.classes.filter(c => {
+    const e = document.getElementById('ch' + c.id);
+    return e && e.classList.contains('on');
+  });
+  if (!sel.length) return signupErr('e2', 'Tap at least one class to race in.');
+
+  if (S.settings && S.settings.requireConsent) {
+    const chk = document.getElementById('consentChk');
+    if (!chk || !chk.checked) return signupErr('e2', 'Please accept the Terms of Service and Privacy Policy to continue.');
+  }
+  if (!canEnter()) return signupErr('e2', entryBlockedMsg());
+
+  /* Resolve the roster match, but auto-trust it ONLY if the driver explicitly tapped
+     their name moments ago (cur.pickedId). Any other match came from typed-from-scratch
+     input — a coincidence risk, since two different real people can share a name and
+     car number — so a human confirms before merging into someone else's permanent
+     identity and history. Decline == different person == no match. */
+  let match = findRosterMatch(cur.name, cur.num);
+  if (match && cur.pickedId !== match.id) {
+    const merge = confirm(
+      'A driver already on file is named ' + match.name + ' with #' + match.num + '.\n\n'
+      + 'Is this the SAME person signing up right now?\n\n'
+      + 'OK = yes — use their existing driver record and history.\n'
+      + 'Cancel = no, this is a different person — create a new, separate driver record.'
+    );
+    if (!merge) match = undefined;
+  }
+
+  /* Once merged, drop any selected class they are ALREADY entered in — reachable
+     because an unconfirmed match's chips stay clickable. Without this we would push a
+     second entry for the same driver and class: a duplicate pill and a double-counted
+     finisher in that class's standings and points. */
+  let toEnter = sel;
+  if (match) {
+    const already = new Set(S.raceDay.entries.filter(e => e.driverId === match.id).map(e => e.classId));
+    toEnter = sel.filter(c => !already.has(c.id));
+    if (!toEnter.length)
+      return signupErr('e2', match.name + ' is already entered in ' + (sel.length === 1 ? 'that class' : 'every class you selected') + '.');
+  }
+
+  /* Vehicle number must be unique within each selected class. */
+  for (const c of toEnter) {
+    const clash = S.raceDay.entries.find(e => {
+      if (e.classId !== c.id) return false;
+      const d = driverById(e.driverId);
+      return d && String(d.num).toLowerCase() === cur.num.toLowerCase() && (!match || e.driverId !== match.id);
+    });
+    if (clash) return signupErr('e2', 'Number #' + cur.num + ' is already racing in ' + classById(c.id).name + '. Pick a different number for that class.');
+  }
+  /* A returning driver changing their number rewrites it in EVERY class they already
+     race today — so validate against those classes too, or we would silently create a
+     duplicate car number elsewhere on the board. */
+  if (match && String(match.num).toLowerCase() !== cur.num.toLowerCase()) {
+    const myClassIds = [...new Set(S.raceDay.entries.filter(e => e.driverId === match.id).map(e => e.classId))];
+    for (const cid of myClassIds) {
+      const clash = S.raceDay.entries.find(e => e.classId === cid && e.driverId !== match.id
+        && String((driverById(e.driverId) || {}).num).toLowerCase() === cur.num.toLowerCase());
+      if (clash) return signupErr('e2', 'Number #' + cur.num + ' is already racing in ' + classById(cid).name + ', where you\'re also entered. Pick a different number.');
+    }
+  }
+  /* Every selected class must still have a pill left. */
+  for (const c of toEnter) {
+    if (drawPill(c.id) === null)
+      return signupErr('e2', 'All pills are taken in ' + c.name + '. The admin can raise that class\'s pill count.');
+  }
+
+  /* Save / update the driver book. */
+  let driver = match;
+  if (driver) { driver.num = cur.num; driver.name = cur.name; }
+  else { driver = { id: genDriverId(), name: cur.name, num: cur.num, noPoints: false }; S.roster.push(driver); }
+
+  /* Driven link (optional): pull the driver's published card in the background. */
+  const profCodeEl = document.getElementById('dProfCode');
+  const profCode = profCodeEl ? profCodeEl.value.trim() : '';
+  if (profCode && !driver.profileId) linkProfile(driver.id, profCode).then(() => render(curPage)).catch(() => {});
+
+  /* Record the Terms/Privacy acceptance once per driver per day — not once per class,
+     which is what inflated v1's acceptance log. */
+  if (S.settings && S.settings.requireConsent) {
+    const day = today();
+    const alreadyConsented = (S.consents || []).some(c =>
+      c.date === day && c.driver === driver.name && String(c.num) === String(driver.num));
+    if (!alreadyConsented) recordConsent(driver.name, driver.num);
+  }
+
+  consumeTrialDay();
+  const drawn = [];
+  toEnter.forEach(c => {
+    const pill = drawPill(c.id);
+    S.raceDay.entries.push({ driverId: driver.id, classId: c.id, pill });
+    drawn.push({ cls: c, pill });
+  });
+  save();
+  signupDone = { driver, drawn };
+  renderSignup();
+  renderRaceControl();
+  window.scrollTo(0, 0);
+}
+
+function doneMarkup(driver, drawn) {
+  const first = esc(driver.name.split(' ')[0]);
+  let h = '<div class="reveal"><h2>🏁 You\'re on the grid, ' + first + '</h2>'
+    + '<p class="sub" style="margin:6px auto 0">#' + esc(driver.num)
+    + ' — here\'s your pill and starting spot for each class. Spots shift as more drivers draw.</p>'
+    + '<div class="reveal-grid">';
+  drawn.forEach((x, i) => {
+    const racers = classRacers(x.cls.id);
+    const pos = racers.findIndex(r => r.id === driver.id) + 1;
+    const pt = posText(pos);
+    h += '<div class="reveal-one"><div class="cls">' + esc(x.cls.name) + '</div>'
+      + '<div class="disc huge pill pop" style="animation-delay:' + (i * 0.22) + 's">' + x.pill + '</div>'
+      + '<div><b style="font-family:var(--display);font-size:22px">P' + pos + '</b>'
+      + '<div class="tiny">Row ' + pt.row + ' · ' + pt.side + ' · Pill #' + x.pill + '</div></div></div>';
+  });
+  h += '</div>'
+    + '<p class="tiny" style="max-width:44ch;margin:16px auto 0">Running a qualifying race? The pill is just a placeholder — setting the grid from qualifying times replaces it with the qualifying order.</p>'
+    + '<div class="rowflex" style="justify-content:center;margin-top:22px">'
+    + '<button class="btn btn-primary" onclick="resetReg()">Sign up the next driver</button>'
+    + '<button class="btn" onclick="nav(\'grid\')">See the full grid →</button></div></div>';
+  return h;
+}
+
+function resetReg() {
+  cur = null;
+  pickedRosterId = null;
+  signupDone = null;
+  if (curPage === 'signup') {
+    renderSignup();
+    const n = document.getElementById('dName');
+    if (n) n.focus();
+  }
+}
+
+/* Keep-or-redraw prompt, used when an admin edit frees a driver's pill. */
+function showPillChoice(msg, keepLabel, drawLabel, cb) {
+  UI.pillChoiceCb = cb;
+  openSheet('Pill', '<p>' + esc(msg) + '</p>',
+    '<button class="btn" onclick="_pillChoiceDo(\'keep\')">' + esc(keepLabel) + '</button>'
+    + '<button class="btn btn-primary" onclick="_pillChoiceDo(\'draw\')">' + esc(drawLabel) + '</button>',
+    { onClose: () => { const cb2 = UI.pillChoiceCb; UI.pillChoiceCb = null; if (cb2) cb2(null); } });
+}
+function _pillChoiceDo(choice) {
+  const cb = UI.pillChoiceCb;
+  UI.pillChoiceCb = null;
+  closeSheet();
+  if (cb) cb(choice);
+}
+/* ============================================================================
+   §4  LINEUPS
+   v1 stacked every class's every stage in one endless scroll. v2 keeps exactly
+   the same content but puts a class filter on top, so on race night you look at
+   the class that is about to go out rather than scrolling past four others.
+   ========================================================================= */
+
+function discNum(num) {
+  /* Vehicle number on the plate; the long modifier shrinks 3+ character numbers
+     like 123x or A12B so they stay inside the disc. */
+  const s = String(num);
+  return '<div class="disc sm' + (s.length >= 3 ? ' long' : '') + '">' + esc(s) + '</div>';
+}
+function discPill(n) { return '<div class="disc sm pill">' + esc(String(n)) + '</div>'; }
+
+function gridMarkup(racers, single) {
+  const sub = r => r.tag || (r.qualTime ? '⏱ ' + r.qualTime : 'Pill #' + r.pill);
+  /* Any row that knows its driver opens the driver card — every role, every
+     lineup. The TV display builds its own markup and stays non-clickable. */
+  const tap = r => r.id ? ' onclick="openDriverCard(' + r.id + ')" style="cursor:pointer"' : '';
+  if (single) {
+    return '<div class="grid1">' + racers.map((r, i) =>
+      '<div class="slot' + (i === 0 ? ' pole' : '') + '"><span class="spot">P' + (i + 1) + '</span>'
+      + (i === 0 ? '<span class="poletag">Pole</span>' : '')
+      + discNum(r.num) + '<div class="who"' + tap(r) + '><b>' + esc(r.name) + '</b><span>' + esc(sub(r)) + '</span></div></div>'
+    ).join('') + '</div>';
+  }
+  return '<div class="lane-labels"><div>Inside line</div><div>Outside line</div></div><div class="grid2">'
+    + racers.map((r, i) => {
+        const pos = i + 1, pt = posText(pos);
+        return '<div class="slot ' + (pos % 2 ? 'inside' : 'outside') + (pos === 1 ? ' pole' : '') + '">'
+          + '<span class="spot">P' + pos + ' · Row ' + pt.row + '</span>'
+          + (pos === 1 ? '<span class="poletag">Pole</span>' : '')
+          + discNum(r.num) + '<div class="who"' + tap(r) + '><b>' + esc(r.name) + '</b><span>' + esc(sub(r)) + '</span></div></div>';
+      }).join('') + '</div>';
+}
+
+function renderGrid() {
+  if (deviceRole() === 'viewer') return renderFanView();
+  const el = document.getElementById('gridWrap');
+  if (!S.classes.length) { el.innerHTML = '<h2>Lineups</h2>' + emptyState('▦', 'No classes set up yet.', '⚙ Add a class', "nav('admin');admOpen('classes')"); return; }
+
+  const single = S.settings.gridStyle === 'single';
+  const shown = S.classes.filter(c => UI.viewClsId == null || c.id === UI.viewClsId);
+
+  let h = '<div class="spread" style="margin-bottom:4px"><h2 style="margin:0">Lineups</h2>'
+    + '<span class="push"></span>'
+    + '<button class="btn btn-sm btn-primary" onclick="openTV()">📺 TV display</button>'
+    + '<button class="btn btn-sm" onclick="openPrint()">🖨 Print</button>'
+    + '<button class="btn btn-sm" onclick="openImport(\'qual\')">📥 Import timing</button></div>'
+    + '<p class="sub">Lowest pill starts up front; set 2 runs inverted. Spots update live as drivers draw. '
+    + 'Tap any driver for their card.</p>'
+    + '<div class="spread" style="margin-bottom:14px">'
+    +   '<div class="tabs" style="padding-bottom:0;flex:1">'
+    +     '<button class="tab' + (UI.viewClsId == null ? ' on' : '') + '" onclick="setViewClass(null)">All classes</button>'
+    +     S.classes.map(c => '<button class="tab' + (UI.viewClsId === c.id ? ' on' : '')
+          + '" onclick="setViewClass(' + c.id + ')">' + esc(c.name) + '</button>').join('')
+    +   '</div>'
+    +   '<div class="seg"><button class="' + (single ? '' : 'on') + '" onclick="setGridStyle(\'double\')">Double file</button>'
+    +   '<button class="' + (single ? 'on' : '') + '" onclick="setGridStyle(\'single\')">Single file</button></div>'
+    + '</div>';
+
+  shown.forEach(cls => { h += classGridMarkup(cls, single); });
+  el.innerHTML = h;
+}
+
+function classGridMarkup(cls, single) {
+  const racers = classRacers(cls.id);
+  let h = '<section style="margin-bottom:30px"><div class="spread" style="margin-bottom:10px">'
+    + '<h3 style="margin:0">' + esc(cls.name) + '</h3>'
+    + '<span class="badge badge-dim">' + plural(racers.length, 'entered', 'entered') + '</span>'
+    + (racers.length ? '<button class="btn btn-sm push" onclick="openQualTimes(' + cls.id + ')">⏱ Qualifying times</button>' : '')
+    + '</div>';
+  if (!racers.length) return h + emptyState('🏁', 'No drivers yet — first to sign up takes the pole.') + '</section>';
+
+  const invN = classInvertN(cls);
+  const scope = cls.invertScope || 'field';
+  const heats = classHeats(cls);
+  const set1 = invertWithinHeats(heatArrays(racers, cls), cls);
+  const set2 = set1.map(heat => [...heat].reverse());
+  const field = invertField(racers, cls);
+  const invNote = invN ? ' · top ' + invN + ' inverted (' + (scope === 'heat' ? 'each heat' : 'whole field') + ')' : '';
+
+  if (heats === 0) {
+    h += '<div class="slbl">Qualifying order — seeds the mains directly, no heats</div>' + gridMarkup(racers, single);
+  } else if (set1.length === 1) {
+    h += '<div class="slbl">Starting grid' + (heats === 1 ? ' — qualifying order' : ' — set 1') + invNote + '</div>' + gridMarkup(set1[0], single);
+    if (heats === 2) h += '<div class="slbl">Set 2 — inverted</div>' + gridMarkup(set2[0], single);
+  } else {
+    h += '<div class="slbl">Full field — ' + (invN && scope === 'field'
+        ? 'qualifying order, top ' + invN + ' inverted'
+        : (heats === 1 ? 'qualifying order' : 'pill draw order')) + '</div>' + gridMarkup(field, single);
+    h += '<div class="slbl">' + (heats === 1 ? 'Qualifying heats' : 'Set 1 heats') + invNote + '</div>';
+    set1.forEach((heat, hi) => {
+      h += '<p class="heat-cap"><b>Heat ' + (hi + 1) + '</b> · ' + plural(heat.length, 'car') + '</p>' + gridMarkup(heat, single);
+    });
+    if (heats === 2) {
+      h += '<div class="slbl">Set 2 heats — inverted</div>';
+      set2.forEach((heat, hi) => {
+        h += '<p class="heat-cap"><b>Heat ' + (hi + 1) + '</b> · ' + plural(heat.length, 'car') + ' · inverted</p>' + gridMarkup(heat, single);
+      });
+    }
+  }
+
+  /* Once every heat finish is in, the main-event grids post here too. A 0-heat
+     class is complete immediately, so its mains post as soon as drivers enter. */
+  if (classComplete(cls.id)) {
+    const fd = featureData(cls.id);
+    const toRow = heats === 0
+      ? s => ({ id: s.id, name: s.name, num: s.num, tag: s.qualTime ? '⏱ ' + s.qualTime : 'Seed P' + s.pill })
+      : s => ({ id: s.id, name: s.name, num: s.num, tag: 'Heat total ' + s.pts });
+    const bmInvNote = clsBMainInvert(cls) ? ' · top ' + clsBMainInvert(cls) + ' start inverted' : '';
+    const ftInvNote = clsFeatInvert(cls) ? ' · top ' + clsFeatInvert(cls) + ' start inverted' : '';
+    if (fd.mains.length) {
+      fd.mains.forEach(m => {
+        h += '<div class="slbl">' + esc(m.label) + ' — top ' + fd.transfers + ' to ' + esc(m.feeds) + bmInvNote + '</div>'
+          + gridMarkup(m.drivers.map(toRow), single);
+      });
+      if (fd.toFeatureSpots > 0 && fd.transferred.length >= fd.toFeatureSpots) {
+        h += '<div class="slbl">🏁 Feature lineup' + ftInvNote + '</div>' + gridMarkup(featureGridOrder(fd, cls.id).map(toRow), single);
+      } else {
+        h += emptyState('🏁', 'The feature grid posts here once the main finishes are entered on the Score tab.');
+      }
+    } else {
+      h += '<div class="slbl">🏁 Feature lineup — ' + (heats === 0 ? 'by qualifying order' : 'by heat total (low wins)') + ftInvNote + '</div>'
+        + gridMarkup(featureGridOrder(fd, cls.id).map(toRow), single);
+    }
+  }
+  return h + '</section>';
+}
+
+/* --------------------------------------------------------- qualifying times */
+function openQualTimes(clsId) {
+  if (!adminOk()) return;
+  const cls = classById(clsId); if (!cls) return;
+  _qtClsId = clsId;
+  openSheet(cls.name + ' — qualifying',
+    '<div id="qtBody"></div><p class="tiny" id="qtHint" style="margin-top:12px"></p>',
+    '<button class="btn" onclick="saveQualTimes()">Save times</button>'
+    + '<button class="btn btn-primary" onclick="applyQualGrid()">Set grid from times</button>',
+    { wide: true, onClose: () => { _qtClsId = null; } });
+  renderQtBody();
+}
+function closeQualTimes() { closeSheet(); }
+function renderQtBody() {
+  const el = document.getElementById('qtBody');
+  if (!el) return;
+  const racers = classRacers(_qtClsId);
+  if (!racers.length) { el.innerHTML = emptyState('⏱', 'No drivers in this class yet.'); return; }
+  el.innerHTML = '<div class="list">' + racers.map(r =>
+    '<div class="lrow qt-row"><div class="pos qt-rank">P' + r.pill + '</div>' + discNum(r.num)
+    + '<div class="nm">' + esc(r.name) + '</div>'
+    + '<input class="inline-num" style="width:104px;font-size:16px" inputmode="decimal" placeholder="—" '
+    + 'value="' + esc(r.qualTime || '') + '" data-id="' + r.id + '" oninput="qtPreview()"></div>'
+  ).join('') + '</div>';
+  qtPreview();
+}
+function qtPreview() {
+  const order = qtOrder();
+  const rankOf = {}; order.forEach((r, i) => rankOf[r.id] = i + 1);
+  document.querySelectorAll('#qtBody .qt-row').forEach(row => {
+    const inp = row.querySelector('input[data-id]');
+    const id = parseInt(inp.getAttribute('data-id'), 10);
+    const badge = row.querySelector('.qt-rank');
+    if (badge) badge.textContent = 'P' + rankOf[id];
+    const raw = inp.value.trim();
+    inp.style.borderColor = (raw && impTimeUnparsed(raw)) ? 'var(--pit-red)' : '';
+  });
+  const timed = order.filter(r => r.t !== Infinity).length;
+  const hint = document.getElementById('qtHint');
+  if (hint) hint.textContent = timed
+    ? plural(timed, 'driver') + ' timed. "Set grid" puts the fastest on pole; untimed drivers start at the back.'
+    : 'Enter times, then "Set grid" reorders the starting lineup. Or just save to record them.';
+}
+
+/* ============================================================================
+   DRIVER CARD (read-only core — the Driven/premium treatment lands with the
+   fan view). Tapping any name in any lineup, on any role, opens this.
+   ========================================================================= */
+function openDriverCard(driverId) {
+  const d = driverById(driverId);
+  if (!d) return;
+  driverCardId = driverId;
+  const st = driverStats(driverId);
+  const prem = cardPremiumOK(d);
+  const card = (d.profile && d.profile.card) || {};
+  const teamColor = prem && card.teamColor ? card.teamColor : '';
+
+  const myClasses = S.raceDay.entries.filter(e => e.driverId === driverId)
+    .map(e => (classById(e.classId) || {}).name).filter(Boolean);
+
+  let h = '<div class="dc-hero" style="margin:-18px -20px 0' + (teamColor ? ';--dc-team:' + esc(teamColor) : '') + '">'
+    + (card.photo ? '<img class="dc-photo" src="' + esc(card.photo) + '" alt="">' : '<div class="disc big">' + esc(String(d.num)) + '</div>')
+    + '<div style="min-width:0"><h3 style="margin:0 0 4px">' + esc(d.name) + '</h3>'
+    + '<div class="tiny">#' + esc(d.num) + (myClasses.length ? ' · ' + esc(myClasses.join(' · ')) : '')
+    + (prem ? ' · <span class="badge badge-plate">Driven Pro</span>' : '') + '</div></div></div>'
+    + '<div class="dc-stats" style="margin:0 -20px">'
+    +   dcStat(st.starts, 'Starts') + dcStat(st.wins, 'Wins') + dcStat(st.podiums, 'Podiums')
+    +   dcStat(st.top5, 'Top 5') + dcStat(st.best ? ordinal(st.best) : '—', 'Best') + dcStat(st.points, 'Season pts')
+    + '</div>';
+
+  const rows = [];
+  if (card.hometown || (d.profile && d.profile.hometown)) rows.push(['Hometown', card.hometown || d.profile.hometown]);
+  if (card.age || (d.profile && d.profile.age)) rows.push(['Age', card.age || d.profile.age]);
+  if (card.sponsors || (d.profile && d.profile.sponsors)) rows.push(['Sponsors', card.sponsors || d.profile.sponsors]);
+  if (d.noPoints) rows.push(['Points', 'Does not score toward the series']);
+  if (rows.length) h += '<div class="dc-rows" style="margin:0 -20px -18px">'
+    + rows.map(r => '<div class="dc-row"><b>' + esc(r[0]) + '</b><span>' + esc(String(r[1])) + '</span></div>').join('') + '</div>';
+
+  openSheet(d.name, h,
+    deviceRole() === 'admin'
+      ? '<button class="btn" onclick="editDriverCard()">Edit profile</button>'
+        + (d.profileId
+            ? '<button class="btn btn-sm" onclick="refreshProfile()">↻ Refresh from Driven</button>'
+            : '<button class="btn btn-sm" onclick="linkProfilePrompt()">Link Driven card</button>')
+      : '',
+    { cls: prem ? 'sheet dc prem' : 'sheet dc', onClose: () => { driverCardId = null; } });
+}
+function closeDriverCard() { closeSheet(); }
+function dcStat(n, l) { return '<div class="dc-stat"><div class="n">' + esc(String(n)) + '</div><div class="l">' + esc(l) + '</div></div>'; }
+function renderDriverCard() { if (driverCardId) openDriverCard(driverCardId); }
+/* ============================================================================
+   §5  SCORING
+   The biggest time sink on race night. v1 gave every driver a <select>, which
+   means reading a name, opening a dropdown, and finding a number — per car, per
+   heat, per class. v2 keeps that mode and adds the two ways people who actually
+   watch a race score it:
+
+     tap  — tap drivers in the order they crossed the line; positions assign
+            themselves. Long-press for DNF/DNS/DQ. Undo the last tap.
+     pad  — type the car number, Enter; that car takes the next position.
+
+   All three write the SAME heatResults keys through the same saveResult(), so
+   governance, locking, the audit log, versions and duplicate warnings are
+   untouched by the choice of entry mode.
+   ========================================================================= */
+
+function setScoreMode(m) {
+  UI.scoreMode = m;
+  try { localStorage.setItem('rd_score_mode', m); } catch (e) {}
+  renderClassResults(resTab);
+}
+
+function renderResults() {
+  const el = document.getElementById('resultsWrap');
+  const withRacers = S.classes.filter(c => classRacers(c.id).length);
+  if (!withRacers.length) {
+    el.innerHTML = '<h2>Score</h2>' + emptyState('⏱', 'No drivers registered yet.', 'Open sign-up', "nav('signup')");
+    return;
+  }
+  if (!resTab || !withRacers.find(c => c.id === resTab)) resTab = withRacers[0].id;
+
+  el.innerHTML = '<div class="spread" style="margin-bottom:4px"><h2 style="margin:0">Score</h2>'
+    + '<button class="btn btn-sm push" onclick="openImport(\'heat\')">📥 Import from timing</button></div>'
+    + '<p class="sub">Enter finishes and the standings, B-mains and feature lineup build themselves.</p>'
+    + '<div class="tabs">' + withRacers.map(c => {
+        const p = classProgress(c.id);
+        const dot = p && p.featDone ? '✅ ' : p && p.heatsDone ? '◐ ' : '';
+        return '<button class="tab' + (c.id === resTab ? ' on' : '') + '" onclick="resTab=' + c.id + ';renderResults()">'
+          + dot + esc(c.name) + '</button>';
+      }).join('') + '</div><div id="resBody"></div>';
+  renderClassResults(resTab);
+}
+
+/* Governance strip: official/unofficial, lock, override, versions. */
+function resultGovBar(clsId) {
+  const g = resGov(clsId), k = resKey(clsId);
+  const versions = (S.raceDay.resultVersions && S.raceDay.resultVersions[k]) || [];
+  const isAdmin = deviceRole() === 'admin';
+  let h = '<div class="gov">'
+    + (g.status === 'official' ? '<span class="badge badge-green">✅ Official</span>' : '<span class="badge badge-amber">📝 Unofficial</span>')
+    + (g.locked ? '<span class="badge badge-red">' + (resOverride[k] ? '🔓 Locked · override on' : '🔒 Locked') + '</span>' : '')
+    + '<span class="tiny push">Official results are decided by the race director — this is an aid only.</span>';
+  if (isAdmin) {
+    h += '<div class="rowflex" style="width:100%;margin-top:4px">'
+      + (g.status === 'official'
+          ? '<button class="btn btn-sm" onclick="setResStatus(' + clsId + ',\'unofficial\')">Mark unofficial</button>'
+          : '<button class="btn btn-sm btn-primary" onclick="setResStatus(' + clsId + ',\'official\')">Mark official</button>')
+      + '<button class="btn btn-sm" onclick="toggleResLock(' + clsId + ')">' + (g.locked ? 'Unlock' : '🔒 Lock results') + '</button>'
+      + (g.locked && !resOverride[k] ? '<button class="btn btn-sm btn-danger" onclick="overrideRes(' + clsId + ')">Override</button>' : '')
+      + '<button class="btn btn-sm" onclick="saveResVersion(' + clsId + ')" title="Snapshot the current finishes so you can roll back">💾 Save version</button>'
+      + (versions.length
+          ? '<select class="btn btn-sm" style="width:auto" onchange="if(this.value!==\'\'){restoreResVersion(' + clsId + ',parseInt(this.value));this.value=\'\'}">'
+            + '<option value="">↺ Restore version…</option>'
+            + versions.map((v, i) => '<option value="' + i + '">' + esc(v.label) + '</option>').join('') + '</select>'
+          : '')
+      + '</div>';
+  }
+  return h + '</div>';
+}
+
+/* ------------------------------------------------------------ entry widgets */
+function finSelect(clsId, rk, n, val) {
+  let o = '<option value="">—</option>';
+  for (let i = 1; i <= n; i++) o += '<option value="' + i + '"' + (val == i ? ' selected' : '') + '>' + i + '</option>';
+  ['DNF', 'DNS', 'DQ'].forEach(c => { o += '<option value="' + c + '"' + (val === c ? ' selected' : '') + '>' + c + '</option>'; });
+  return '<select class="fin-sel' + (val != null ? ' set' : '') + '" onchange="saveResult(' + clsId + ',\'' + rk + '\',this.value)">' + o + '</select>';
+}
+
+/* One race's worth of entry, in whichever mode this device prefers.
+   `group` = {clsId, prefix, drivers:[{id,name,num}], title, sub, headClass} */
+function raceEntry(group) {
+  const res = getRes(group.clsId);
+  const keyOf = id => group.prefix(id);
+  const dup = dupFinishWarn(res, group.drivers.map(d => d.id), keyOf);
+  const done = group.drivers.filter(d => res[keyOf(d.id)] != null).length;
+
+  let h = '<div class="hb"><div class="hh' + (group.headClass || '') + '"><span>' + esc(group.title) + '</span>'
+    + (group.sub ? '<small class="tiny">' + group.sub + '</small>' : '')
+    + '<span class="push"></span>'
+    + '<span class="badge ' + (done === group.drivers.length ? 'badge-green' : 'badge-dim') + '">'
+    + done + '/' + group.drivers.length + '</span>' + dup + '</div>';
+
+  if (UI.scoreMode === 'select') {
+    h += group.drivers.map(d =>
+      '<div class="lrow">' + discNum(d.num) + '<div class="nm">' + esc(d.name) + (d.sub ? '<small>' + d.sub + '</small>' : '') + '</div>'
+      + (d.tag || '') + finSelect(group.clsId, keyOf(d.id), group.drivers.length, res[keyOf(d.id)]) + '</div>').join('');
+    return h + '</div>';
+  }
+
+  /* tap + pad modes share the same body: a list of cars, each showing its
+     assigned position, plus the controls above it. */
+  const gid = group.gid;
+  const all = done >= group.drivers.length;
+  /* Once the field is fully placed there is no "next position" — saying P7 in a
+     six-car heat reads like something is still missing. */
+  const nextTxt = all
+    ? '<b style="color:var(--flag-green)">All ' + group.drivers.length + ' placed</b>'
+    : '<b style="color:var(--plate)">P' + scoreNextPos(group) + '</b>';
+  if (UI.scoreMode === 'pad') {
+    h += '<div class="padin" style="padding:12px 14px 0">'
+      + '<input id="pad_' + gid + '" inputmode="numeric" autocomplete="off" placeholder="#"' + (all ? ' disabled' : '') + ' '
+      + 'onkeydown="if(event.key===\'Enter\'){padEnter(\'' + gid + '\');event.preventDefault()}">'
+      + '<button class="btn" onclick="padEnter(\'' + gid + '\')"' + (all ? ' disabled' : '') + '>Next position →</button>'
+      + '<button class="btn btn-sm btn-ghost" onclick="scoreUndo(\'' + gid + '\')">↶ Undo</button>'
+      + '<span class="tiny">' + (all ? '' : 'Next: ') + nextTxt + '</span></div>';
+  } else {
+    h += '<div class="rowflex" style="padding:12px 14px 0">'
+      + '<span class="tiny">' + (all ? '' : 'Tap in finishing order. Next: ') + nextTxt + '</span>'
+      + '<span class="push"></span>'
+      + '<button class="btn btn-sm btn-ghost" onclick="scoreUndo(\'' + gid + '\')">↶ Undo</button>'
+      + '<button class="btn btn-sm btn-ghost" onclick="scoreClear(\'' + gid + '\')">Clear</button></div>';
+  }
+
+  h += '<div class="tapgrid" style="padding:12px 14px 14px">' + group.drivers.map(d => {
+    const v = res[keyOf(d.id)];
+    const placed = v != null;
+    const lbl = v === 'DNF' || v === 'DNS' || v === 'DQ' ? v : (placed ? 'P' + v : '');
+    return '<button class="tapcard' + (placed ? ' placed' : '') + '" '
+      + 'onclick="scoreTap(\'' + gid + '\',' + d.id + ')" '
+      + 'oncontextmenu="scoreFlag(\'' + gid + '\',' + d.id + ');return false" '
+      + 'ontouchstart="scoreLongStart(\'' + gid + '\',' + d.id + ')" ontouchend="scoreLongEnd()" ontouchmove="scoreLongEnd()">'
+      + discNum(d.num) + '<span class="nm">' + esc(d.name) + (d.sub ? '<small>' + d.sub + '</small>' : '') + '</span>'
+      + '<span class="assigned">' + lbl + '</span></button>';
+  }).join('') + '</div>';
+  return h + '</div>';
+}
+
+/* Groups are rebuilt on every render; this index lets the tap/pad handlers find
+   the one a button belongs to without threading state through the markup. */
+let _scoreGroups = {};
+
+function scoreNextPos(g) {
+  const res = getRes(g.clsId);
+  const used = g.drivers.map(d => res[g.prefix(d.id)]).filter(v => typeof v === 'number');
+  let n = 1;
+  while (used.indexOf(n) >= 0) n++;
+  return n;
+}
+function scoreTap(gid, driverId) {
+  const g = _scoreGroups[gid]; if (!g) return;
+  const res = getRes(g.clsId), rk = g.prefix(driverId);
+  /* Tapping an already-placed car clears it, so a misplaced tap is one tap to fix. */
+  saveResult(g.clsId, rk, res[rk] != null ? '' : String(scoreNextPos(g)));
+}
+function scoreFlag(gid, driverId) {
+  const g = _scoreGroups[gid]; if (!g) return;
+  const d = g.drivers.find(x => x.id === driverId); if (!d) return;
+  openSheet(d.name + ' — #' + d.num, '<p class="sub">Mark this car\'s result.</p>',
+    ['DNF', 'DNS', 'DQ'].map(c =>
+      '<button class="btn" onclick="closeSheet();saveResult(' + g.clsId + ',\'' + g.prefix(driverId) + '\',\'' + c + '\')">' + c + '</button>').join('')
+    + '<button class="btn btn-ghost" onclick="closeSheet();saveResult(' + g.clsId + ',\'' + g.prefix(driverId) + '\',\'\')">Clear</button>');
+}
+let _longTimer = null;
+function scoreLongStart(gid, driverId) {
+  clearTimeout(_longTimer);
+  _longTimer = setTimeout(() => { _longTimer = null; scoreFlag(gid, driverId); }, 550);
+}
+function scoreLongEnd() { clearTimeout(_longTimer); _longTimer = null; }
+function scoreUndo(gid) {
+  const g = _scoreGroups[gid]; if (!g) return;
+  const res = getRes(g.clsId);
+  let bestId = null, bestPos = 0;
+  g.drivers.forEach(d => {
+    const v = res[g.prefix(d.id)];
+    if (typeof v === 'number' && v > bestPos) { bestPos = v; bestId = d.id; }
+  });
+  if (bestId == null) { toast('Nothing to undo.'); return; }
+  saveResult(g.clsId, g.prefix(bestId), '');
+}
+function scoreClear(gid) {
+  const g = _scoreGroups[gid]; if (!g) return;
+  if (!confirm('Clear every finish in ' + g.title + '?')) return;
+  const res = getRes(g.clsId);
+  g.drivers.forEach(d => { delete res[g.prefix(d.id)]; });
+  logAudit('Cleared finishes', g.title, '(blank)', (classById(g.clsId) || {}).name);
+  save();
+  renderClassResults(g.clsId);
+}
+function padEnter(gid) {
+  const g = _scoreGroups[gid]; if (!g) return;
+  const inp = document.getElementById('pad_' + gid);
+  const raw = (inp ? inp.value : '').trim();
+  if (!raw) return;
+  const hits = g.drivers.filter(d => String(d.num).toLowerCase() === raw.toLowerCase());
+  if (!hits.length) { toast('No car #' + raw + ' in this race.', 'err'); if (inp) inp.select(); return; }
+  const res = getRes(g.clsId), rk = g.prefix(hits[0].id);
+  if (res[rk] != null) { toast('#' + raw + ' already has ' + (typeof res[rk] === 'number' ? 'P' + res[rk] : res[rk]) + '.', 'err'); if (inp) inp.select(); return; }
+  saveResult(g.clsId, rk, String(scoreNextPos(g)));
+  /* saveResult re-renders; put the caret back so the next number can just be typed. */
+  const back = document.getElementById('pad_' + gid);
+  if (back) { back.value = ''; back.focus(); }
+}
+
+/* --------------------------------------------------------------- the class */
+function renderClassResults(clsId) {
+  const el = document.getElementById('resBody');
+  if (!el) return;                      /* score pane not on screen */
+  const racers = classRacers(clsId);
+  if (!racers.length) { el.innerHTML = emptyState('⏱', 'No drivers in this class.'); return; }
+
+  _scoreGroups = {};
+  const cls = classById(clsId);
+  const set1 = heatSet(racers, cls);
+  const set2 = set1.map(heat => [...heat].reverse());
+  const res = getRes(clsId);
+  const heats = classHeats(cls);
+  const fd = featureData(clsId);
+  const locked = resLocked(clsId);
+
+  let h = resultGovBar(clsId);
+  h += '<div class="spread" style="margin-bottom:12px">'
+    + pointsRaceToggle(clsId, fd, res)
+    + '<span class="push"></span>'
+    + '<div class="seg seg-plate">'
+    +   '<button class="' + (UI.scoreMode === 'tap' ? 'on' : '') + '" onclick="setScoreMode(\'tap\')" title="Tap drivers in the order they finished">Tap order</button>'
+    +   '<button class="' + (UI.scoreMode === 'pad' ? 'on' : '') + '" onclick="setScoreMode(\'pad\')" title="Type the car number for each position">Number pad</button>'
+    +   '<button class="' + (UI.scoreMode === 'select' ? 'on' : '') + '" onclick="setScoreMode(\'select\')" title="A dropdown per driver">Dropdowns</button>'
+    + '</div></div>';
+
+  h += '<div' + (locked ? ' style="opacity:.55;pointer-events:none"' : '') + '>';
+
+  /* --- heats (a straight-to-mains class races none) --- */
+  if (heats >= 1) {
+    h += '<div class="slbl">' + (heats === 1 ? 'Qualifying heat' : 'Set 1 heats — pill order') + '</div>';
+    set1.forEach((heat, hi) => { h += heatGroup(clsId, 'h1', hi, heat, ''); });
+    if (heats === 2) {
+      h += '<div class="slbl">Set 2 heats — inverted</div>';
+      set2.forEach((heat, hi) => { h += heatGroup(clsId, 'h2', hi, heat, ' inv'); });
+    }
+  }
+
+  /* --- standings / seeding --- */
+  const standings = calcStandings(clsId);
+  const advMap = {};
+  fd.locked.forEach(r => { advMap[r.id] = { label: '→ Feature', feat: true }; });
+  fd.mains.forEach(m => { m.drivers.forEach(r => { if (!advMap[r.id]) advMap[r.id] = { label: '→ ' + m.label, feat: false }; }); });
+
+  h += '<div class="slbl">' + (heats === 0 ? 'Seeding — qualifying order' : 'Heat totals — the "race pill"') + '</div>'
+    + '<div class="hb"><div class="hh"><span>' + (heats === 0 ? 'Seeds' : 'Standings') + '</span>'
+    + '<small class="tiny">' + (heats === 0
+        ? 'fastest qualifier is the top seed · mains fill straight from here'
+        : 'finishes added up · low wins · ties go to the pill draw') + '</small></div>'
+    + standings.map((s, i) => {
+        const detail = heats === 0
+          ? (s.qualTime ? '⏱ ' + s.qualTime : 'seed P' + s.pill)
+          : 'heat' + (heats === 1 ? '' : 's') + ': ' + (heats === 1 ? finLabel(s.f1) : finLabel(s.f1) + ' + ' + finLabel(s.f2));
+        const adv = advMap[s.id];
+        return '<div class="lrow"><div class="pos' + (i < 3 ? ' p' + (i + 1) : '') + '">' + (i + 1) + '</div>'
+          + discNum(s.num)
+          + '<div class="nm">' + esc(s.name) + '<small>' + esc(detail) + '</small></div>'
+          + (s.scored < heats ? '<span class="badge badge-amber">' + s.scored + ' of ' + heats + '</span>' : '')
+          + (adv ? '<span class="' + (adv.feat ? 'badge badge-plate' : 'transfer-tag') + '">' + esc(adv.label) + '</span>' : '')
+          + (heats === 0 ? '' : '<span class="pts">' + (s.scored ? s.pts : '—') + '</span>') + '</div>';
+      }).join('') + '</div>';
+
+  /* --- B-mains --- */
+  const bmInv = clsBMainInvert(clsId);
+  fd.mains.forEach(m => {
+    const gid = 'bm' + m.key;
+    _scoreGroups[gid] = {
+      gid, clsId, title: m.label, prefix: id => bmKey(m.key, id),
+      drivers: m.drivers.map(r => ({
+        id: r.id, name: r.name, num: r.num,
+        sub: (heats === 0 ? (r.qualTime ? '⏱ ' + r.qualTime : 'seed P' + r.pill) : 'total ' + r.pts),
+        tag: m.made.some(t => t.id === r.id) ? '<span class="transfer-tag">→ ' + esc(m.feeds) + '</span>' : ''
+      }))
+    };
+    h += '<div class="slbl">' + esc(m.label) + '</div>'
+      + raceEntry(Object.assign({}, _scoreGroups[gid], {
+          headClass: ' bmain',
+          sub: 'top ' + fd.transfers + ' → ' + esc(m.feeds) + (bmInv ? ' · top ' + bmInv + ' start inverted' : '')
+        }));
+  });
+
+  /* --- feature --- */
+  const dp = dayPoints(clsId);
+  const ftInv = clsFeatInvert(clsId);
+  let ftRows = fd.locked.map(s => ({ r: s, tag: heats === 0
+    ? '<span class="transfer-tag">' + esc(s.qualTime ? '⏱ ' + s.qualTime : 'seed P' + s.pill) + '</span>'
+    : '<span class="pts">' + s.pts + '</span>' }));
+  if (fd.mains.length) {
+    for (let t = 0; t < fd.toFeatureSpots; t++) {
+      const r = fd.transferred[t];
+      ftRows.push(r ? { r, tag: '<span class="transfer-tag">' + esc(transferOrigin(fd, clsId, r.id)) + '</span>' } : { tbd: true });
+    }
+  }
+  /* Apply the feature invert to the STARTING order only once every transfer spot is
+     known, so placeholder rows never shuffle mid-night. */
+  if (ftInv && !ftRows.some(x => x.tbd)) ftRows = invertTop(ftRows, ftInv);
+
+  const ftDrivers = ftRows.filter(x => !x.tbd).map(x => ({
+    id: x.r.id, name: x.r.name, num: x.r.num,
+    tag: x.tag + (dp && res['ft_' + x.r.id] != null
+      ? '<span class="transfer-tag">+' + (typeof res['ft_' + x.r.id] === 'number' ? dp[x.r.id] : S.settings.points.beyond) + ' pts</span>'
+      : '')
+  }));
+  _scoreGroups.ft = { gid:'ft', clsId, title:'Feature', prefix: id => 'ft_' + id, drivers: ftDrivers };
+
+  h += '<div class="slbl">Feature lineup &amp; finish</div>'
+    + raceEntry(Object.assign({}, _scoreGroups.ft, {
+        title: '🏁 Feature',
+        headClass: ' feat',
+        sub: (fd.mains.length
+              ? fd.locked.length + (heats === 0 ? ' on qualifying' : ' on heat totals') + ' + ' + fd.toFeatureSpots + ' transferring up'
+              : (heats === 0 ? 'lined up by qualifying order' : 'lined up by heat totals'))
+             + (ftInv ? ' · top ' + ftInv + ' start inverted' : '')
+             + (isPointsRace(clsId) ? ' · finishes award series points' : '')
+      }));
+  const tbd = ftRows.filter(x => x.tbd).length;
+  if (tbd) h += '<p class="tiny" style="margin:-8px 0 14px">' + plural(tbd, 'transfer spot')
+    + ' still open — score the mains to fill ' + (tbd === 1 ? 'it' : 'them') + '.</p>';
+
+  h += '</div>';
+  el.innerHTML = h;
+}
+
+function heatGroup(clsId, set, hi, heat, invClass) {
+  const gid = set + '_' + hi;
+  _scoreGroups[gid] = {
+    gid, clsId, title: 'Heat ' + (hi + 1), prefix: id => set + '_' + id,
+    drivers: heat.map(r => ({ id: r.id, name: r.name, num: r.num }))
+  };
+  return raceEntry(Object.assign({}, _scoreGroups[gid], {
+    headClass: invClass, sub: invClass ? 'inverted' : ''
+  }));
+}
+
+/* "Today counts toward the points series" — enabled only once the feature is fully
+   entered. A DNF/DNS/DQ is a finished result for that purpose, so any stored value
+   counts; otherwise one DNF could permanently lock the toggle. */
+function pointsRaceToggle(clsId, fd, res) {
+  const field = [...fd.locked, ...fd.transferred];
+  const done = field.length > 0 && field.every(r => res['ft_' + r.id] != null);
+  return '<label class="check" style="' + (done ? '' : 'opacity:.55') + '">'
+    + '<input type="checkbox"' + (isPointsRace(clsId) ? ' checked' : '')
+    + (done ? '' : ' disabled title="Enter all feature finishes to enable"')
+    + ' onchange="togglePointsRace(' + clsId + ',this.checked)">'
+    + '<b>Today counts toward the points series</b></label>';
+}
+
+/* ============================================================================
+   §6  POINTS
+   ========================================================================= */
+function renderPoints() {
+  const el = document.getElementById('pointsWrap');
+  UI.ptsNames = seriesClassNames();
+  if (!UI.ptsNames.length) {
+    el.innerHTML = '<h2>Points series</h2>' + emptyState('🏆', 'No classes yet — set up classes in Admin first.',
+      deviceRole() === 'admin' ? '⚙ Add a class' : '', "nav('admin');admOpen('classes')");
+    return;
+  }
+  if (!UI.ptsTab || !UI.ptsNames.includes(UI.ptsTab)) UI.ptsTab = UI.ptsNames[0];
+
+  let h = '<h2>Points series</h2>'
+    + '<p class="sub">Season standings by class. Feature finishes earn the points set in Admin — tonight counts live once finishes are in, and past race days count from history.</p>'
+    + '<div class="tabs">' + UI.ptsNames.map((n, i) =>
+        '<button class="tab' + (n === UI.ptsTab ? ' on' : '') + '" onclick="UI.ptsTab=UI.ptsNames[' + i + '];renderPoints()">'
+        + esc(n) + '</button>').join('') + '</div>';
+
+  const cls = S.classes.find(c => c.name.toLowerCase() === UI.ptsTab.toLowerCase());
+  if (cls && classRacers(cls.id).length) {
+    const state = !isPointsRace(cls.id)
+      ? ['badge-dim', 'Tonight is not a points race for this class — toggle it on the Score tab.']
+      : dayPoints(cls.id)
+        ? ['badge-green', 'Tonight is a points race — the feature finishes below are already counted.']
+        : ['badge-amber', 'Tonight is a points race — it counts here once feature finishes are entered.'];
+    h += '<div class="note note-info" style="margin-bottom:14px;display:flex;gap:10px;align-items:center;flex-wrap:wrap">'
+      + '<span class="badge ' + state[0] + '">Tonight</span>' + esc(state[1]) + '</div>';
+  }
+
+  const rows = seriesStandings(UI.ptsTab);
+  if (!rows.length) {
+    h += emptyState('🏆', 'No points yet — they appear once feature finishes are entered, and add up as race days are archived.');
+  } else {
+    h += '<div class="card card-flush"><div class="scroll-x"><table class="tbl">'
+      + '<thead><tr><th></th><th>Driver</th><th>#</th><th class="r">Points</th><th class="r">Races</th></tr></thead><tbody>'
+      + rows.map((r, i) =>
+          '<tr><td class="pos' + (i < 3 ? ' p' + (i + 1) : '') + '" style="width:34px">' + (i + 1) + '</td>'
+          + '<td style="font-weight:600">' + esc(r.name) + '</td>'
+          + '<td class="muted">#' + esc(r.num) + '</td>'
+          + '<td class="r"><span class="pts">' + r.pts + '</span></td>'
+          + '<td class="r muted">' + r.days + '</td></tr>').join('')
+      + '</tbody></table></div></div>';
+  }
+  el.innerHTML = h;
+}
 /* ============================================================================
    §7  NOT YET PORTED — placeholders replaced as each build phase lands.
-   Every name here exists in v1 and is called by ported §1 engine code, so it
-   must be defined for the app to boot. Each one is replaced, not deleted.
+   Every name here exists in v1 and is called by ported §1 engine code or by the
+   views above, so it must be defined for the app to boot. Each one is replaced,
+   not deleted.
    ========================================================================= */
 const TV = { on:false, idx:0, locked:false, timer:null, ctlTimer:null };
 function tvRender() {}
 function openTV()  { toast('TV display lands in the next build phase.'); }
 function closeTV() {}
+function openPrint() { toast('The print system lands in the next build phase.'); }
+function openImport() { toast('Timing import lands in the next build phase.'); }
+function openDoc() { toast('The legal documents land in the next build phase.'); }
+function renderFanView() { document.getElementById('gridWrap').innerHTML = todoPanel('Lineups', 'The spectator view lands in the next build phase.'); }
+function editDriverCard() { toast('Card editing lands in the next build phase.'); }
+function linkProfilePrompt() { toast('Driven linking lands in the next build phase.'); }
+function refreshProfile() { toast('Driven linking lands in the next build phase.'); }
+function unlinkProfile() { toast('Driven linking lands in the next build phase.'); }
 
 function todoPanel(title, note) {
   return '<h2>' + esc(title) + '</h2><div class="card"><p class="muted">' + esc(note) + '</p></div>';
 }
-function renderSignup()  { document.getElementById('signupWrap').innerHTML  = todoPanel('Sign up', 'Coming in phase 2.'); }
-function renderGrid()    { document.getElementById('gridWrap').innerHTML    = todoPanel('Lineups', 'Coming in phase 2.'); }
-function renderResults() { document.getElementById('resultsWrap').innerHTML = todoPanel('Score', 'Coming in phase 2.'); }
-function renderPoints()  { document.getElementById('pointsWrap').innerHTML  = todoPanel('Points', 'Coming in phase 2.'); }
-function renderAdmin()   { document.getElementById('adminWrap').innerHTML   = todoPanel('Admin', 'Coming in phase 3.'); }
-function renderHelp()    { document.getElementById('helpWrap').innerHTML    = todoPanel('Guide', 'Coming in phase 3.'); }
+function renderAdmin()   { document.getElementById('adminWrap').innerHTML = todoPanel('Admin', 'Coming in phase 3.'); }
+function renderHelp()    { document.getElementById('helpWrap').innerHTML  = todoPanel('Guide', 'Coming in phase 3.'); }
 function renderFooter()  {}
-function renderClassResults() { renderResults(); }
 function renderSyncCard() {}
 function renderLicCard() {}
 function renderCloudBackupCard() {}
-function renderDriverCard() {}
-function renderRosterPick() {}
-function resetReg() {}
-function admOpen() {}
+function admOpen() { nav('admin'); }
 function openSetupWizard() {}
 function seedFullDemoNight() {}
 /* ============================================================================
