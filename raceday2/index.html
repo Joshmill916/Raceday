@@ -231,7 +231,7 @@ img { max-width:100%; }
 .cols { display:grid; gap:14px; grid-template-columns:repeat(auto-fit,minmax(280px,1fr)); }
 .rowflex { display:flex; gap:10px; flex-wrap:wrap; align-items:center; }
 .spread { display:flex; gap:12px; align-items:center; flex-wrap:wrap; }
-.spread > .push { margin-left:auto; }
+.spread > .push,.push { margin-left:auto; }
 
 .note { border-radius:var(--r-sm); padding:11px 14px; font-size:13.5px; line-height:1.55; border:1px solid; }
 .note-info  { background:var(--info-bg);       border-color:#1d3247; color:var(--info-ink); }
@@ -535,6 +535,42 @@ body.kiosk .wrap-narrow { max-width:600px; width:100%; }
 .dc.prem .dc-hero { background:linear-gradient(115deg,var(--dc-team,var(--plate)) -30%,var(--asphalt-1) 62%); position:relative; overflow:hidden; }
 .dc.prem .dc-hero::after { content:''; position:absolute; inset:0; background:linear-gradient(105deg,transparent 38%,rgba(255,255,255,.22) 50%,transparent 62%); animation:shine 3.4s ease-in-out infinite; }
 @keyframes shine { 0%,72% { transform:translateX(-110%); } 100% { transform:translateX(110%); } }
+
+/* ============================================================================
+   TV DISPLAY — full-screen broadcast mode. Its own scale (vh/vw), always dark
+   regardless of the app's theme — a TV in a dark building is the whole point.
+   ========================================================================= */
+.tv { position:fixed; inset:0; z-index:500; background:#07080a; color:#f2f2ee; display:flex; flex-direction:column; font-family:var(--body); }
+.tv-hd { display:flex; align-items:center; gap:2vh; padding:2.2vh 3vw 1.6vh; border-bottom:1px solid #23262d; flex:none; }
+.tv-hd img { height:6vh; max-width:16vw; object-fit:contain; background:#fff; border-radius:8px; padding:.6vh 1vw; }
+.tv-brand { font-family:var(--display); font-weight:800; font-size:3.4vh; letter-spacing:.03em; text-transform:uppercase; }
+.tv-lock-tag { font-family:var(--display); font-size:1.6vh; font-weight:800; letter-spacing:.08em; color:var(--pit-red); border:1px solid var(--pit-red); padding:.3vh 1vw; border-radius:99px; }
+.tv-clock { margin-left:auto; font-family:var(--display); font-weight:700; font-size:2.6vh; font-variant-numeric:tabular-nums; color:#9a9da6; }
+.tv-body { flex:1; min-height:0; padding:2vh 3vw 3vh; overflow:hidden; }
+.tv-h { display:flex; align-items:baseline; gap:1.4vw; margin-bottom:1.6vh; }
+.tv-h span:first-child { font-family:var(--display); font-weight:800; font-size:4.4vh; text-transform:uppercase; letter-spacing:.02em; }
+.tv-sub { font-size:2vh; color:#9a9da6; font-weight:600; }
+.tv-empty { display:flex; align-items:center; justify-content:center; height:70vh; font-family:var(--display); font-size:4vh; color:#5a5e68; }
+.tv-lanes { display:flex; justify-content:space-between; font-family:var(--display); font-size:1.8vh; font-weight:700; letter-spacing:.08em; text-transform:uppercase; color:#6b7080; margin-bottom:.8vh; }
+.tv-list,.tv-grid2 { display:grid; gap:.6vh 1.4vw; }
+.tv-grid2 { grid-template-columns:1fr 1fr; }
+.tv-split { display:grid; grid-template-columns:1fr 1px 1fr; gap:0 2vw; }
+.tv-split-rule { background:#23262d; margin:.5vh 0; }
+.tv-slot,.tv-trow { display:flex; align-items:center; gap:1vw; background:#111318; border:1px solid #23262d; border-radius:.6vh; padding:.5em .8em; }
+.tv-slot.pole,.tv-trow.pole { border-color:var(--plate); box-shadow:0 0 0 1px var(--plate); }
+.tv-pos { font-family:var(--display); font-weight:800; color:#8a8d95; width:2.6em; flex:none; }
+.tv-slot.pole .tv-pos,.tv-trow.pole .tv-pos { color:var(--plate); }
+.tv-row { font-family:var(--display); font-weight:700; font-size:.68em; color:#6b7080; flex:none; min-width:1.8em; }
+.tv-disc { flex:none; border-radius:50%; background:var(--plate); color:#161408; display:flex; align-items:center; justify-content:center; font-family:var(--display); font-weight:800; }
+.tv-nm { flex:1; min-width:0; font-weight:700; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+.tv-num { color:#9a9da6; font-weight:600; flex:none; }
+.tv-table { display:grid; gap:.6vh; max-width:52vw; }
+.tv-page { font-family:var(--display); font-weight:700; font-size:2vh; font-variant-numeric:tabular-nums; }
+.tv-ctl { position:fixed; left:0; right:0; bottom:0; display:flex; align-items:center; gap:1.4vw; padding:1.6vh 3vw; background:linear-gradient(0deg,rgba(0,0,0,.75),transparent); opacity:0; pointer-events:none; transition:opacity .2s; }
+.tv-ctl.show { opacity:1; pointer-events:auto; }
+.tv-ctl button { background:rgba(255,255,255,.08); border:1px solid rgba(255,255,255,.18); color:#fff; border-radius:8px; padding:1vh 1.6vw; font-size:1.9vh; font-weight:700; cursor:pointer; }
+.tv-ctl button:hover { background:rgba(255,255,255,.16); }
+.tv-ctl #tvPage { margin:0 .4vw; color:#c9ccd3; }
 
 /* ============================================================================
    MOTION
@@ -3705,23 +3741,1421 @@ function renderPoints() {
   el.innerHTML = h;
 }
 /* ============================================================================
-   §7  NOT YET PORTED — placeholders replaced as each build phase lands.
-   Every name here exists in v1 and is called by ported §1 engine code or by the
-   views above, so it must be defined for the app to boot. Each one is replaced,
-   not deleted.
+   §10 TV DISPLAY
    ========================================================================= */
 const TV = { on:false, idx:0, locked:false, timer:null, ctlTimer:null };
-function tvRender() {}
-function openTV()  { toast('TV display lands in the next build phase.'); }
-function closeTV() {}
-function openPrint() { toast('The print system lands in the next build phase.'); }
-function openImport() { toast('Timing import lands in the next build phase.'); }
-function openDoc() { toast('The legal documents land in the next build phase.'); }
-function renderFanView() { document.getElementById('gridWrap').innerHTML = todoPanel('Lineups', 'The spectator view lands in the next build phase.'); }
-function editDriverCard() { toast('Card editing lands in the next build phase.'); }
-function linkProfilePrompt() { toast('Driven linking lands in the next build phase.'); }
-function refreshProfile() { toast('Driven linking lands in the next build phase.'); }
-function unlinkProfile() { toast('Driven linking lands in the next build phase.'); }
+const TV_SECS = 12;
+
+/* ============================================================================
+   §10  TV DISPLAY — broadcast mode
+   v1 rotated only lineup/heat/main/feature grids. v2 keeps that engine verbatim
+   (tvGridSlides/tvPanelMarkup/tvGridMarkup, renamed but byte-identical logic)
+   and appends two new slide kinds: feature RESULTS once a class finishes, and a
+   POINTS top-10 once the series has standings — so the screen keeps saying
+   something worth watching after the last green flag, instead of looping the
+   same grids all night. Header is persistent (track, clock, page count);
+   overflow past 16 cars still splits into two columns on the same screen.
+   ========================================================================= */
+
+/* Lineup/heat/main/feature slides — verbatim v1 tvSlides(), renamed. */
+function tvGridSlides() {
+  const slides = [];
+  S.classes.forEach(cls => {
+    const racers = classRacers(cls.id);
+    if (!racers.length) return;
+    const heats = classHeats(cls);
+    const set1 = heatSet(racers, cls);
+    const set2 = set1.map(h => [...h].reverse());
+    if (heats === 0) {
+      slides.push({ title: cls.name, sub: 'Qualifying order — straight to mains', racers, kind:'grid' });
+    } else if (set1.length === 1) {
+      slides.push({ title: cls.name, sub: 'Starting grid — Set 1', racers: set1[0], kind:'grid' });
+      slides.push({ title: cls.name, sub: 'Set 2 — inverted', racers: set2[0], kind:'grid' });
+    } else {
+      set1.forEach((h, i) => slides.push({ title: cls.name, sub: 'Heat ' + (i + 1) + ' — Set 1', racers: h, kind:'grid' }));
+      set2.forEach((h, i) => slides.push({ title: cls.name, sub: 'Heat ' + (i + 1) + ' — Set 2 · inverted', racers: h, kind:'grid' }));
+    }
+    if (classComplete(cls.id)) {
+      const fd = featureData(cls.id);
+      const toRow = s => ({ name: s.name, num: s.num });
+      if (fd.mains.length) {
+        fd.mains.forEach(m => {
+          const feedTxt = m.feeds === 'the feature' ? 'feature' : m.feeds;
+          slides.push({ title: cls.name, sub: m.label + ' — top ' + fd.transfers + ' to ' + feedTxt, racers: m.drivers.map(toRow), kind:'grid' });
+        });
+        if (fd.toFeatureSpots > 0 && fd.transferred.length >= fd.toFeatureSpots) slides.push({ title: cls.name, sub: '🏁 Feature lineup', racers: featureGridOrder(fd, cls.id).map(toRow), kind:'grid' });
+      } else {
+        slides.push({ title: cls.name, sub: '🏁 Feature lineup', racers: featureGridOrder(fd, cls.id).map(toRow), kind:'grid' });
+      }
+    }
+  });
+  return slides;
+}
+/* New: once a feature is fully scored, a results slide — the payoff of the night. */
+function tvResultSlides() {
+  const out = [];
+  S.classes.forEach(cls => {
+    const finish = featureFinish(cls.id);
+    if (!finish.length) return;
+    const dp = isPointsRace(cls.id) ? dayPoints(cls.id) : null;
+    out.push({ title: cls.name, sub: '🏁 Feature results', kind:'results',
+      rows: finish.slice(0, 10).map(f => ({ pos:f.fin, name:f.name, num:f.num, pts: dp ? dp[f.id] : null })) });
+  });
+  return out;
+}
+/* New: season points, once there is a series to show. */
+function tvPointsSlides() {
+  const out = [];
+  seriesClassNames().forEach(name => {
+    const rows = seriesStandings(name);
+    if (!rows.length) return;
+    out.push({ title: name, sub: 'Season points — top 10', kind:'points',
+      rows: rows.slice(0, 10).map((r, i) => ({ pos:i + 1, name:r.name, num:r.num, pts:r.pts })) });
+  });
+  return out;
+}
+function tvSlides() { return [...tvGridSlides(), ...tvResultSlides(), ...tvPointsSlides()]; }
+
+/* Lineup/grid rendering — verbatim v1. */
+function tvPanelMarkup(racers, single, offset, fs, disc) {
+  let h = single ? '' : '<div class="tv-lanes"><span>Inside</span><span>Outside</span></div>';
+  h += '<div class="' + (single ? 'tv-list' : 'tv-grid2') + '">';
+  racers.forEach((r, i) => {
+    const pos = offset + i + 1;
+    const rowNum = Math.floor((offset + i) / (single ? 1 : 2)) + 1;
+    const len = String(r.num).length;
+    const df = len <= 2 ? 0.42 : len === 3 ? 0.33 : len === 4 ? 0.26 : 0.21;
+    const rowLbl = !single ? '<span class="tv-row">R' + rowNum + '</span>' : '';
+    h += '<div class="tv-slot' + (pos === 1 ? ' pole' : '') + '" style="font-size:' + fs.toFixed(2) + 'vh">'
+      + '<span class="tv-pos">P' + pos + '</span>'
+      + rowLbl
+      + '<span class="tv-disc" style="width:' + disc.toFixed(2) + 'vh;height:' + disc.toFixed(2) + 'vh;font-size:' + (disc * df).toFixed(2) + 'vh">' + esc(String(r.num)) + '</span>'
+      + '<span class="tv-nm">' + esc(r.name) + '</span>' + (r.tag ? '<span class="tv-num">' + esc(r.tag) + '</span>' : '') + '</div>';
+  });
+  return h + '</div>';
+}
+function tvGridMarkup(racers, single) {
+  const SPLIT = 16;
+  if (racers.length > SPLIT) {
+    const a = racers.slice(0, SPLIT), b = racers.slice(SPLIT);
+    const splitRows = single ? SPLIT : Math.ceil(SPLIT / 2);
+    const fs = Math.min(5.2, 70 / splitRows * 0.42);
+    const disc = Math.min(8.5, 70 / splitRows * 0.6);
+    return '<div class="tv-split">'
+      + '<div>' + tvPanelMarkup(a, single, 0, fs, disc) + '</div>'
+      + '<div class="tv-split-rule"></div>'
+      + '<div>' + tvPanelMarkup(b, single, SPLIT, fs, disc) + '</div></div>';
+  }
+  const rows = single ? Math.max(racers.length, 1) : Math.max(Math.ceil(racers.length / 2), 1);
+  const fs = Math.min(5.2, 70 / rows * 0.42);
+  const disc = Math.min(8.5, 70 / rows * 0.6);
+  return tvPanelMarkup(racers, single, 0, fs, disc);
+}
+/* New: results/points table slides — same font-scaling approach as the grid. */
+function tvTableMarkup(rows, ptsCol) {
+  const n = Math.max(rows.length, 1);
+  const fs = Math.min(4.6, 62 / n * 0.9);
+  return '<div class="tv-table" style="font-size:' + fs.toFixed(2) + 'vh">' + rows.map(r =>
+    '<div class="tv-trow' + (r.pos === 1 ? ' pole' : '') + '">'
+    + '<span class="tv-pos">P' + r.pos + '</span>'
+    + '<span class="tv-disc" style="width:' + (fs * 1.3).toFixed(2) + 'vh;height:' + (fs * 1.3).toFixed(2) + 'vh">' + esc(String(r.num)) + '</span>'
+    + '<span class="tv-nm">' + esc(r.name) + '</span>'
+    + (ptsCol && r.pts != null ? '<span class="tv-num">' + r.pts + ' pts</span>' : '') + '</div>'
+  ).join('') + '</div>';
+}
+
+function tvRender() {
+  if (!TV.on) return;
+  document.getElementById('tvTrack').textContent = S.track.name || 'RaceDay';
+  const logo = document.getElementById('tvLogo');
+  if (S.track.logo) { logo.src = S.track.logo; logo.style.display = ''; } else { logo.style.display = 'none'; }
+  document.getElementById('tvClock').textContent = new Date().toLocaleTimeString([], { hour:'numeric', minute:'2-digit' });
+  document.getElementById('tvLockTag').style.display = TV.locked ? '' : 'none';
+  const sl = document.getElementById('tvSlide');
+  const slides = tvSlides();
+  if (!slides.length) {
+    sl.innerHTML = '<div class="tv-empty">🏁 Lineups appear here as drivers sign up</div>';
+    document.getElementById('tvPage').textContent = '';
+    return;
+  }
+  TV.idx = ((TV.idx % slides.length) + slides.length) % slides.length;
+  const s = slides[TV.idx];
+  const body = s.kind === 'grid'
+    ? tvGridMarkup(s.racers, S.settings.gridStyle === 'single')
+    : tvTableMarkup(s.rows, s.kind === 'points' || s.rows.some(r => r.pts != null));
+  sl.innerHTML = '<div class="tv-h"><span>' + esc(s.title) + '</span><span class="tv-sub">' + esc(s.sub) + '</span></div>' + body;
+  document.getElementById('tvPage').textContent = (TV.idx + 1) + ' / ' + slides.length;
+}
+function tvTick() { if (!TV.locked) TV.idx++; tvRender(); }
+function openTV() {
+  TV.on = true; TV.idx = 0; TV.locked = false;
+  document.getElementById('tvOverlay').innerHTML = tvShellMarkup();
+  document.getElementById('tvOverlay').style.display = '';
+  if (document.documentElement.requestFullscreen) document.documentElement.requestFullscreen().catch(() => {});
+  tvRender();
+  clearInterval(TV.timer);
+  TV.timer = setInterval(tvTick, TV_SECS * 1000);
+}
+function closeTV(ev) {
+  if (ev) ev.stopPropagation();
+  TV.on = false;
+  clearInterval(TV.timer);
+  document.getElementById('tvOverlay').style.display = 'none';
+  document.getElementById('tvOverlay').innerHTML = '';
+  if (document.fullscreenElement && document.exitFullscreen) document.exitFullscreen().catch(() => {});
+}
+function tvShowCtl() {
+  const c = document.getElementById('tvCtl');
+  if (!c) return;
+  c.classList.add('show');
+  clearTimeout(TV.ctlTimer);
+  TV.ctlTimer = setTimeout(() => c.classList.remove('show'), 4000);
+}
+function tvPrev(ev) { ev.stopPropagation(); TV.idx--; tvRender(); tvShowCtl(); }
+function tvNext(ev) { ev.stopPropagation(); TV.idx++; tvRender(); tvShowCtl(); }
+function tvToggleLock(ev) {
+  ev.stopPropagation();
+  TV.locked = !TV.locked;
+  const b = document.getElementById('tvLockBtn'); if (b) b.textContent = TV.locked ? '🔓 Unlock rotation' : '🔒 Lock screen';
+  tvRender(); tvShowCtl();
+}
+function tvShellMarkup() {
+  return '<div class="tv-hd"><img id="tvLogo" alt="" style="display:none">'
+    + '<span id="tvTrack" class="tv-brand"></span>'
+    + '<span class="tv-lock-tag" id="tvLockTag" style="display:none">🔒 LOCKED</span>'
+    + '<span class="tv-clock" id="tvClock"></span></div>'
+    + '<div class="tv-body" id="tvSlide" onclick="tvShowCtl()"></div>'
+    + '<div class="tv-ctl" id="tvCtl" onclick="tvShowCtl()">'
+    + '<button onclick="tvPrev(event)">◀</button>'
+    + '<span id="tvPage" class="tv-page"></span>'
+    + '<button onclick="tvNext(event)">▶</button>'
+    + '<button id="tvLockBtn" onclick="tvToggleLock(event)">🔒 Lock screen</button>'
+    + '<button onclick="closeTV(event)">✕ Exit</button></div>';
+}
+document.addEventListener('keydown', e => { if (TV.on && e.key === 'Escape') closeTV(); });
+
+/* ============================================================================
+   §11  PRINT SYSTEM (verbatim engine data calls, new sheet UI)
+   ========================================================================= */
+/* ============================================================================
+   §11  PRINT SYSTEM
+   v1 had one output (a heat-assignment sheet) hardcoded to the Lineups tab's
+   print button. v2 opens a sheet of outputs — lineup sheets (the same content,
+   kept close to verbatim), a results sheet, and season points standings —
+   each self-contained (own <style>, opened in a new window), so printing never
+   depends on the app's own stylesheet or theme. Always ink-on-white; the track
+   logo heads every sheet.
+   ========================================================================= */
+
+function printShellOpen(title, bodyHtml) {
+  const html = '<!DOCTYPE html><html><head><title>' + esc(title) + '</title><style>'
+    + 'body{font-family:Arial,sans-serif;font-size:12px;padding:24px;color:#000;background:#fff}'
+    + 'h1{font-size:20px;margin-bottom:4px}h2{font-size:15px;margin:20px 0 6px;border-bottom:2px solid #000;padding-bottom:4px}'
+    + 'h3{font-size:13px;margin:12px 0 4px}p{color:#555;font-size:11px;margin-bottom:8px}'
+    + 'table{width:100%;border-collapse:collapse;margin-bottom:12px}'
+    + 'th,td{border:1px solid #bbb;padding:6px 8px;text-align:left}th{background:#eee;font-weight:700}'
+    + '.inv td{background:#fffbe8}.inv th{background:#f3e6bd}'
+    + '.phead{display:flex;align-items:center;gap:14px;margin-bottom:4px}'
+    + '.phead img{height:54px;max-width:140px;object-fit:contain;border:1px solid #ccc;border-radius:6px;padding:4px;background:#fff}'
+    + '.foot{margin-top:24px;font-size:10px;color:#888;border-top:1px solid #ccc;padding-top:8px}'
+    + '@media print{body{padding:0}}'
+    + '</style></head><body>'
+    + '<div class="phead">' + (S.track.logo ? '<img src="' + S.track.logo + '" alt="">' : '')
+    + '<h1>' + (S.track.name ? esc(S.track.name) + ' — ' : '') + esc(title) + '</h1></div>'
+    + '<p>' + esc(S.raceDay.date) + ' · Generated ' + new Date().toLocaleString() + '</p>'
+    + bodyHtml
+    + '<p class="foot">Unofficial — administrative aid only. Verify before posting. Official results are determined by the race director, track management, or sanctioning body.</p>'
+    + '</body></html>';
+  const w = window.open('', '_blank');
+  if (w) { w.document.write(html); w.document.close(); setTimeout(() => w.print(), 400); }
+  else toast('Allow pop-ups to print.', 'err');
+}
+
+function printLineupSheet() {
+  let h = '';
+  S.classes.forEach(cls => {
+    const racers = classRacers(cls.id);
+    if (!racers.length) return;
+    const set1 = heatSet(racers, cls), set2 = set1.map(heat => [...heat].reverse());
+    const heats = classHeats(cls);
+    h += '<h2>' + esc(cls.name) + ' — ' + racers.length + ' drivers</h2>';
+    const sets = heats === 0 ? [['Qualifying order — straight to mains', [racers], '']]
+      : heats === 1 ? [['Qualifying heat', set1, '']]
+      : [['Set 1 — pill order', set1, ''], ['Set 2 — inverted', set2, ' class="inv"']];
+    sets.forEach(([title, set, cl]) => {
+      h += '<h3>' + title + '</h3>';
+      set.forEach((heat, hi) => {
+        h += '<p><strong>' + (heats === 0 ? 'Full field' : 'Heat ' + (hi + 1)) + '</strong> (' + heat.length + ' cars)</p>'
+          + '<table' + cl + '><tr><th>Pos</th><th>Driver</th><th>Vehicle #</th><th>Pill</th><th>Grid spot</th></tr>'
+          + heat.map((r, i) => { const pt = posText(i + 1);
+              return '<tr><td>' + (i + 1) + '</td><td>' + esc(r.name) + '</td><td>#' + esc(r.num) + '</td><td>' + r.pill + '</td><td>Row ' + pt.row + ' — ' + pt.side + '</td></tr>'; }).join('')
+          + '</table>';
+      });
+    });
+  });
+  printShellOpen('Heat Assignments', h || '<p>No entries yet.</p>');
+}
+
+function printResultsSheet() {
+  let h = '';
+  S.classes.forEach(cls => {
+    const finish = featureFinish(cls.id);
+    if (!finish.length) return;
+    const dp = isPointsRace(cls.id) ? dayPoints(cls.id) : null;
+    h += '<h2>' + esc(cls.name) + ' — feature results</h2>'
+      + '<table><tr><th>Pos</th><th>Driver</th><th>Vehicle #</th>' + (dp ? '<th>Points</th>' : '') + '</tr>'
+      + finish.map(f => '<tr><td>' + f.fin + '</td><td>' + esc(f.name) + '</td><td>#' + esc(f.num) + '</td>'
+          + (dp ? '<td>' + (dp[f.id] != null ? dp[f.id] : '—') + '</td>' : '') + '</tr>').join('')
+      + '</table>';
+  });
+  printShellOpen('Feature Results', h || '<p>No feature results entered yet.</p>');
+}
+
+function printPointsSheet() {
+  let h = '';
+  seriesClassNames().forEach(name => {
+    const rows = seriesStandings(name);
+    if (!rows.length) return;
+    h += '<h2>' + esc(name) + ' — season points</h2>'
+      + '<table><tr><th>Pos</th><th>Driver</th><th>Vehicle #</th><th>Points</th><th>Races</th></tr>'
+      + rows.map((r, i) => '<tr><td>' + (i + 1) + '</td><td>' + esc(r.name) + '</td><td>#' + esc(r.num) + '</td><td>' + r.pts + '</td><td>' + r.days + '</td></tr>').join('')
+      + '</table>';
+  });
+  printShellOpen('Season Points', h || '<p>No points recorded yet.</p>');
+}
+
+function printPitBoard() {
+  let h = '';
+  S.classes.forEach(cls => {
+    const racers = classRacers(cls.id);
+    if (!racers.length) return;
+    h += '<h2>' + esc(cls.name) + '</h2><table><tr><th>Pill</th><th>Driver</th><th>Vehicle #</th></tr>'
+      + [...racers].sort((a, b) => a.pill - b.pill).map(r => '<tr><td>' + r.pill + '</td><td>' + esc(r.name) + '</td><td>#' + esc(r.num) + '</td></tr>').join('')
+      + '</table>';
+  });
+  printShellOpen('Pit Board', h || '<p>No entries yet.</p>');
+}
+
+function openPrint() {
+  const outputs = [
+    { fn:'printLineupSheet', ico:'▦', label:'Lineup sheets', hint:'Every class — heats, sets, grid spots' },
+    { fn:'printPitBoard',    ico:'📋', label:'Pit board',     hint:'Pill order per class, for the pit table' },
+    { fn:'printResultsSheet',ico:'🏁', label:'Results sheet', hint:"Tonight's feature finishes" },
+    { fn:'printPointsSheet', ico:'🏆', label:'Points standings', hint:'Season points by class' }
+  ];
+  openSheet('Print', '<div class="stack">' + outputs.map(o =>
+    '<button class="sec-btn" style="width:100%" onclick="closeSheet();' + o.fn + '()">'
+    + '<span class="ico">' + o.ico + '</span><span><span class="nm">' + esc(o.label) + '<small>' + esc(o.hint) + '</small></span></span></button>'
+  ).join('') + '</div>');
+}
+
+/* ============================================================================
+   §12  SPECTATOR / FAN VIEW
+   ========================================================================= */
+/* ============================================================================
+   §12  SPECTATOR / FAN VIEW
+   v1's `role=viewer` was a stripped Lineups tab: a class picker, five stage
+   tabs (Qualifying/Heats/B-Mains/Feature/Results), read-only. This is the
+   free wedge against MyRacePass — fans pay $8-55/yr there for exactly this.
+   v2 keeps the same security boundary (ROLE_PAGES.viewer is unchanged: grid +
+   help only, still enforced by adminOk()/canWrite()/nav()) and, within that
+   one allowed page, makes it worth opening:
+     - a "now on track" hero instead of a bare class picker
+     - follow a driver — their card and next race pin above the fold
+     - a Points stage added to the existing per-class stage tabs
+     - a shareable result-card image (canvas → PNG) fans can post themselves
+   Nothing here can write to S — every path is read-only, same as v1.
+   ========================================================================= */
+
+function followDriver(id) {
+  UI.followId = id;
+  try { localStorage.setItem('rd_follow', id ? String(id) : ''); } catch (e) {}
+  renderGrid();
+}
+function unfollowDriver() { followDriver(null); }
+
+function fanNowNext() {
+  const ph = nightPhase();
+  const withEntries = S.classes.filter(c => classRacers(c.id).length);
+  const cur = withEntries.find(c => !classComplete(c.id)) || withEntries.find(c => {
+    const fd = classComplete(c.id) ? featureData(c.id) : null;
+    return fd && !(fd.toFeatureSpots ? fd.transferred.length >= fd.toFeatureSpots : true);
+  });
+  return { phase: ph, cls: cur || withEntries[0] || null };
+}
+
+function fanHero() {
+  const t = S.track;
+  const { phase, cls } = fanNowNext();
+  return '<div class="fan-hero">'
+    + '<div class="eyebrow">' + esc(t.name || 'RaceDay') + (t.length || t.surface ? ' · ' + [t.surface, t.length].filter(Boolean).join(' · ') : '') + '</div>'
+    + '<h3>' + esc(phase.note) + '</h3>'
+    + (cls ? '<p class="sub" style="margin:0">Now up: <b style="color:var(--ink)">' + esc(cls.name) + '</b></p>' : '')
+    + '<div class="rowflex" style="margin-top:10px">'
+    +   '<button class="btn btn-sm" onclick="showTrackCard()">🏟 About this track</button>'
+    + '</div></div>';
+}
+
+function fanFollowStrip() {
+  if (!UI.followId) {
+    return '<button class="follow-strip" style="width:100%;background:none;border:1px dashed var(--line);cursor:pointer;text-align:left" onclick="openFollowPicker()">'
+      + '<span style="font-size:20px">⭐</span><span><b>Follow a driver</b><br><span class="tiny">Their card and next race pin to the top</span></span></button>';
+  }
+  const d = driverById(UI.followId);
+  if (!d) { UI.followId = null; return ''; }
+  const entries = S.raceDay.entries.filter(e => e.driverId === d.id);
+  const next = entries.map(e => classById(e.classId)).filter(Boolean).map(c => c.name);
+  return '<div class="follow-strip">' + discNum(d.num)
+    + '<div style="flex:1;min-width:0"><b>' + esc(d.name) + '</b>'
+    + '<div class="tiny">' + (next.length ? 'Racing: ' + esc(next.join(' · ')) : 'Not entered tonight') + '</div></div>'
+    + '<button class="btn btn-sm" onclick="openDriverCard(' + d.id + ')">Card</button>'
+    + '<button class="btn btn-sm btn-ghost" onclick="unfollowDriver()">✕</button></div>';
+}
+function openFollowPicker() {
+  const list = [...S.roster].sort((a, b) => a.name.localeCompare(b.name));
+  openSheet('Follow a driver',
+    '<input type="text" placeholder="Search name or car #" oninput="fanFilterFollow(this.value)" style="margin-bottom:10px">'
+    + '<div id="followList" class="stack">' + list.map(fanFollowRow).join('') + '</div>');
+}
+function fanFollowRow(d) {
+  return '<button class="tapcard" style="width:100%" onclick="followDriver(' + d.id + ');closeSheet()">'
+    + discNum(d.num) + '<span class="nm">' + esc(d.name) + '</span></button>';
+}
+function fanFilterFollow(q) {
+  q = q.trim().toLowerCase();
+  const list = [...S.roster].filter(d => !q || d.name.toLowerCase().includes(q) || String(d.num).toLowerCase().includes(q))
+    .sort((a, b) => a.name.localeCompare(b.name));
+  document.getElementById('followList').innerHTML = list.map(fanFollowRow).join('');
+}
+
+function renderFanView() {
+  const el = document.getElementById('gridWrap');
+  if (!S.classes.length) { el.innerHTML = fanHero() + emptyState('🏁', 'Lineups will appear here once the race day starts.'); return; }
+  if (!UI.viewClsId || !classById(UI.viewClsId)) UI.viewClsId = S.classes[0].id;
+  const cls = classById(UI.viewClsId);
+  const racers = classRacers(cls.id);
+  const single = S.settings.gridStyle === 'single';
+  const heats = classHeats(cls);
+  const toRow = heats === 0
+    ? s => ({ id:s.id, name:s.name, num:s.num, tag: s.qualTime ? '⏱ ' + s.qualTime : 'Seed P' + s.pill })
+    : s => ({ id:s.id, name:s.name, num:s.num, tag: 'Heat total ' + s.pts });
+
+  if (heats === 0 && UI.viewStage === 'heats') UI.viewStage = 'qual';
+  const stages = [['qual', 'Qualifying']]
+    .concat(heats === 0 ? [] : [['heats', 'Heats']])
+    .concat([['bmain', 'B-Mains'], ['feat', 'Feature'], ['results', 'Results'], ['points', 'Points']]);
+
+  let h = fanHero() + fanFollowStrip()
+    + '<div class="spread" style="margin:18px 0 4px">'
+    +   '<select onchange="setViewClass(this.value)" style="flex:1;min-width:160px">'
+    +     S.classes.map(c => '<option value="' + c.id + '"' + (c.id === UI.viewClsId ? ' selected' : '') + '>' + esc(c.name) + '</option>').join('')
+    +   '</select>'
+    +   '<button class="btn btn-sm" onclick="showClassCard(' + UI.viewClsId + ')">ℹ About</button></div>'
+    + '<div class="tabs">' + stages.map(([k, lbl]) => '<button class="tab' + (UI.viewStage === k ? ' on' : '') + '" onclick="setViewStage(\'' + k + '\')">' + lbl + '</button>').join('') + '</div>';
+
+  if (!racers.length && UI.viewStage !== 'points') {
+    h += emptyState('🏁', 'No drivers in this class yet.');
+  } else if (UI.viewStage === 'qual') {
+    h += heats === 0
+      ? '<div class="slbl">Qualifying order — seeds the mains directly, no heats</div>' + gridMarkup(racers, single)
+      : '<div class="slbl">Qualifying order</div>' + gridMarkup(invertField(racers, cls), single);
+  } else if (UI.viewStage === 'heats') {
+    const set1 = invertWithinHeats(heatArrays(racers, cls), cls);
+    h += '<div class="slbl">' + (heats === 1 ? 'Heat lineups' : 'Set 1 heats') + '</div>';
+    set1.forEach((heat, hi) => { h += '<p class="heat-cap"><b>Heat ' + (hi + 1) + '</b> · ' + plural(heat.length, 'car') + '</p>' + gridMarkup(heat, single); });
+    if (heats === 2) {
+      h += '<div class="slbl">Set 2 — inverted</div>';
+      set1.map(ht => [...ht].reverse()).forEach((heat, hi) => { h += '<p class="heat-cap"><b>Heat ' + (hi + 1) + '</b></p>' + gridMarkup(heat, single); });
+    }
+  } else if (UI.viewStage === 'bmain') {
+    if (!classComplete(cls.id)) h += emptyState('🏁', 'B-main lineups post once the heats are scored.');
+    else {
+      const fd = featureData(cls.id);
+      h += fd.mains.length
+        ? fd.mains.map(mn => '<div class="slbl">' + esc(mn.label) + '</div>' + gridMarkup(mn.drivers.map(toRow), single)).join('')
+        : emptyState('🏁', 'This class runs straight to the feature — no B-mains.');
+    }
+  } else if (UI.viewStage === 'feat') {
+    if (!classComplete(cls.id)) h += emptyState('🏁', 'The feature lineup posts once the heats are scored.');
+    else {
+      const fd = featureData(cls.id);
+      const complete = !fd.mains.length || (fd.toFeatureSpots > 0 && fd.transferred.length >= fd.toFeatureSpots);
+      h += complete ? '<div class="slbl">🏁 Feature lineup</div>' + gridMarkup(featureGridOrder(fd, cls.id).map(toRow), single)
+                    : emptyState('🏁', 'The feature lineup posts once the B-main finishes are entered.');
+    }
+  } else if (UI.viewStage === 'points') {
+    const rows = seriesStandings(cls.name);
+    h += !rows.length ? emptyState('🏆', 'No season points yet for this class.')
+      : '<div class="card card-flush"><div class="scroll-x"><table class="tbl"><thead><tr><th></th><th>Driver</th><th>#</th><th class="r">Points</th></tr></thead><tbody>'
+        + rows.map((r, i) => '<tr><td class="pos' + (i < 3 ? ' p' + (i + 1) : '') + '">' + (i + 1) + '</td><td style="font-weight:600">' + esc(r.name) + '</td><td class="muted">#' + esc(r.num) + '</td><td class="r"><span class="pts">' + r.pts + '</span></td></tr>').join('')
+        + '</tbody></table></div></div>';
+  } else {   // results
+    const ff = featureFinish(cls.id);
+    if (!ff.length) h += emptyState('🏆', 'Results will appear here once the feature is scored.');
+    else {
+      h += '<div class="slbl">🏆 ' + esc(cls.name) + ' results</div><div class="list">'
+        + ff.map((r, i) => '<div class="lrow"><div class="pos' + (i < 3 ? ' p' + (i + 1) : '') + '">' + (i + 1) + '</div>'
+            + discNum(r.num) + '<div class="nm" style="cursor:pointer" onclick="openDriverCard(' + r.id + ')">' + esc(r.name) + '</div>'
+            + '<button class="btn btn-sm btn-ghost" onclick="event.stopPropagation();shareResultCard(' + cls.id + ',' + (i + 1) + ',' + r.id + ')" title="Share">📤</button></div>').join('')
+        + '</div>';
+    }
+  }
+
+  /* Safe exit from the spectator view — a plain link out, not a role switch. Cannot
+     change rd_role, so it never re-opens the removed viewer→admin escape hatch. */
+  h += '<div style="text-align:center;margin-top:26px;padding-top:16px;border-top:1px solid var(--line)">'
+    + '<a href="/?home=1" class="tiny" style="text-decoration:underline">← Leave spectator view</a></div>';
+  el.innerHTML = h;
+}
+
+/* ---------------------------------------------------------- class/track cards */
+function showClassCard(id) {
+  if (deviceRole() !== 'viewer') return;
+  const c = classById(id); if (!c) return;
+  const entered = S.raceDay.entries.filter(e => e.classId === id).length;
+  const desc = (c.description || '').trim(), age = (c.ageGroup || '').trim(), specs = (c.specs || '').trim();
+  openSheet(c.name,
+    (age ? '<p class="tiny">👤 ' + esc(age) + '</p>' : '')
+    + (specs ? '<p class="tiny">⚙️ ' + esc(specs) + '</p>' : '')
+    + (entered ? '<p class="tiny">🏁 ' + plural(entered, 'driver') + ' entered today</p>' : '')
+    + (desc ? '<p style="margin-top:10px;line-height:1.6">' + esc(desc).replace(/\n/g, '<br>') + '</p>'
+            : '<p class="tiny" style="font-style:italic;margin-top:10px">No class description added yet.</p>'));
+}
+function showTrackCard() {
+  if (deviceRole() !== 'viewer') return;
+  const t = S.track;
+  const meta = [t.surface, t.configuration, t.length].map(x => (x || '').trim()).filter(Boolean).join(' · ');
+  const history = (t.history || '').trim();
+  openSheet(t.name || 'This track',
+    (meta ? '<p class="tiny">🏁 ' + esc(meta) + '</p>' : '')
+    + (history ? '<p style="margin-top:10px;line-height:1.6">' + esc(history).replace(/\n/g, '<br>') + '</p>'
+               : '<p class="tiny" style="font-style:italic;margin-top:10px">No track history added yet.</p>'));
+}
+function showViewerCard(id) { openDriverCard(id); }
+
+/* ---------------------------------------------------------------- share card */
+/* A shareable PNG for a result — free marketing in local racing Facebook groups.
+   Rendered on an off-screen canvas, no server round-trip. */
+function shareResultCard(clsId, pos, driverId) {
+  const cls = classById(clsId), d = driverById(driverId);
+  if (!cls || !d) return;
+  const W = 1080, H = 1080;
+  const c = document.createElement('canvas'); c.width = W; c.height = H;
+  const ctx = c.getContext('2d');
+  const grad = ctx.createLinearGradient(0, 0, W, H);
+  grad.addColorStop(0, '#1b1e24'); grad.addColorStop(1, '#0b0c0f');
+  ctx.fillStyle = grad; ctx.fillRect(0, 0, W, H);
+  ctx.fillStyle = 'rgba(255,212,73,.06)';
+  for (let i = -2; i < 30; i++) { ctx.fillRect(i * 76, 0, 38, H); }
+  ctx.fillStyle = '#ffd449'; ctx.font = '700 34px Arial'; ctx.fillText((S.track.name || 'RaceDay').toUpperCase(), 70, 110);
+  ctx.fillStyle = '#8b909b'; ctx.font = '600 28px Arial'; ctx.fillText(esc(cls.name) + ' · ' + fmtDate(S.raceDay.date), 70, 150);
+  ctx.fillStyle = '#ffd449'; ctx.font = '800 220px Arial'; ctx.fillText('P' + pos, 70, 460);
+  ctx.fillStyle = '#f2f2ee'; ctx.font = '800 78px Arial'; ctx.fillText(d.name, 70, 600);
+  ctx.fillStyle = '#8b909b'; ctx.font = '700 44px Arial'; ctx.fillText('#' + d.num, 70, 665);
+  ctx.strokeStyle = '#2e333c'; ctx.lineWidth = 2; ctx.strokeRect(60, 720, W - 120, 240);
+  ctx.fillStyle = '#f2f2ee'; ctx.font = '700 30px Arial'; ctx.fillText('🏁 raceday', 90, 800);
+  ctx.font = '400 26px Arial'; ctx.fillStyle = '#8b909b';
+  wrapText(ctx, 'Live lineups, results and points — free for fans.', 90, 850, W - 180, 34);
+  const url = c.toDataURL('image/png');
+  openSheet('Share this result',
+    '<img src="' + url + '" style="width:100%;border-radius:12px;margin-bottom:14px" alt="">',
+    '<a class="btn btn-primary btn-block" href="' + url + '" download="raceday-' + esc(cls.name).replace(/\W+/g, '-') + '-p' + pos + '.png">⬇ Save image</a>');
+}
+function wrapText(ctx, text, x, y, maxW, lh) {
+  const words = text.split(' ');
+  let line = '';
+  words.forEach(w => {
+    const test = line + w + ' ';
+    if (ctx.measureText(test).width > maxW && line) { ctx.fillText(line, x, y); line = w + ' '; y += lh; }
+    else line = test;
+  });
+  ctx.fillText(line, x, y);
+}
+
+/* ============================================================================
+   §13  DRIVER CARD — edit + Driven link pipeline (ported verbatim)
+   ========================================================================= */
+/* ============================================================================
+   §13  DRIVER CARD — edit + Driven link pipeline
+   Logic ported close to verbatim from v1 (linkProfile/refreshProfile/unlinkProfile/
+   photo downscale-to-128px-so-sync-stays-small); only the surrounding markup moved
+   from a fixed modal to the sheet the read-only card already uses (§4, 41-lineups.js).
+   ========================================================================= */
+
+function linkProfilePrompt() {
+  const d = driverById(driverCardId); if (!d || deviceRole() !== 'admin') return;
+  const code = prompt("Driver's Driven link code (from their Driven app):");
+  if (!code || !code.trim()) return;
+  linkProfile(d.id, code.trim())
+    .then(renderDriverCard)
+    .catch(err => {
+      renderDriverCard();
+      toast(err && err.pending ? 'Linked — the card loads when this device is online.'
+        : "That code didn't match a published card — check it and try again.", err && err.pending ? 'ok' : 'err');
+    });
+}
+function refreshProfile() {
+  const d = driverById(driverCardId); if (!d || !(d.profileId || d.profileCode)) return;
+  if (d.profile && d.profile.demoOnly) { toast('This is demo data — nothing to refresh.'); return; }
+  linkProfile(d.id, d.profileId || d.profileCode)
+    .then(renderDriverCard)
+    .catch(() => { renderDriverCard(); toast("Couldn't refresh — check the connection.", 'err'); });
+}
+function unlinkProfile() {
+  const d = driverById(driverCardId); if (!d) return;
+  if (!confirm("Unlink this driver's Driven card? The profile returns to local control.")) return;
+  delete d.profileId; delete d.profileCode;
+  if (d.profile) { delete d.profile.pendingFetch; delete d.profile.source; }
+  save();
+  renderDriverCard();
+}
+
+function editDriverCard() {
+  const d = driverById(driverCardId); if (!d) return;
+  const p = d.profile || {};
+  const linked = d.profileId || (d.profile && d.profile.source === 'profiles');
+  if (linked) { toast('This card is linked to Driven and managed there — unlink to edit it locally.'); return; }
+  const body = '<div class="field"><label>Age</label><input id="dcAge" type="text" value="' + esc(p.age || '') + '"></div>'
+    + '<div class="field"><label>Hometown</label><input id="dcHome" type="text" value="' + esc(p.hometown || '') + '"></div>'
+    + '<div class="field"><label>Sponsors</label><input id="dcSpon" type="text" placeholder="e.g. Smith Tire, NAPA" value="' + esc(p.sponsors || '') + '"></div>'
+    + '<label class="check" style="margin-bottom:16px"><input id="dcPrem" type="checkbox"' + (p.premium ? ' checked' : '') + '><b>Premium broadcast card</b></label>'
+    + '<div class="field"><label>Team color</label><input id="dcColor" type="color" value="' + esc(/^#[0-9a-fA-F]{6}$/.test(p.teamColor || '') ? p.teamColor : '#ffd449') + '" style="height:44px;padding:3px"></div>'
+    + '<div class="field"><label>Driver photo</label><div class="rowflex">'
+    + (profPhotoOK(p.photo) ? '<img src="' + p.photo + '" style="width:48px;height:48px;border-radius:50%;object-fit:cover">' : '')
+    + '<button class="btn btn-sm" type="button" onclick="document.getElementById(\'dcPhotoFile\').click()">📷 ' + (p.photo ? 'Replace' : 'Upload') + '</button>'
+    + (p.photo ? '<button class="btn btn-sm btn-danger" type="button" onclick="dcRemovePhoto()">Remove</button>' : '')
+    + '<input id="dcPhotoFile" type="file" accept="image/*" style="display:none" onchange="dcUploadPhoto(this)"></div></div>';
+  openSheet('Edit ' + d.name, body,
+    '<button class="btn" onclick="renderDriverCard()">Cancel</button><button class="btn btn-primary" onclick="saveDriverProfile()">Save</button>');
+}
+function saveDriverProfile() {
+  const d = driverById(driverCardId); if (!d) return;
+  if (d.profileId || (d.profile && d.profile.source === 'profiles')) { renderDriverCard(); return; }
+  const prev = d.profile || {};
+  d.profile = {
+    age: document.getElementById('dcAge').value.trim(),
+    hometown: document.getElementById('dcHome').value.trim(),
+    sponsors: document.getElementById('dcSpon').value.trim(),
+    premium: document.getElementById('dcPrem').checked,
+    teamColor: document.getElementById('dcColor').value,
+    photo: prev.photo || ''
+  };
+  save();
+  renderDriverCard();
+}
+/* Center-crop square, downscale to 128px — same cap as the track logo, so a roster
+   full of photos stays small enough to sync. */
+function dcUploadPhoto(input) {
+  const d = driverById(driverCardId);
+  const f = input.files && input.files[0];
+  input.value = '';
+  if (!f || !d) return;
+  const img = new Image();
+  const url = URL.createObjectURL(f);
+  img.onload = () => {
+    URL.revokeObjectURL(url);
+    const side = Math.min(img.width, img.height);
+    const scale = Math.min(1, 128 / side);
+    const c = document.createElement('canvas');
+    c.width = c.height = Math.max(1, Math.round(side * scale));
+    c.getContext('2d').drawImage(img, (img.width - side) / 2, (img.height - side) / 2, side, side, 0, 0, c.width, c.height);
+    const data = c.toDataURL('image/jpeg', 0.82);
+    if (data.length > 60000) { toast('That photo is too heavy to store — try a smaller or simpler image.', 'err'); return; }
+    d.profile = d.profile || {};
+    d.profile.photo = data;
+    save();
+    editDriverCard();
+  };
+  img.onerror = () => { URL.revokeObjectURL(url); toast("Couldn't read that file as an image.", 'err'); };
+  img.src = url;
+}
+function dcRemovePhoto() {
+  const d = driverById(driverCardId); if (!d || !d.profile) return;
+  d.profile.photo = '';
+  save();
+  editDriverCard();
+}
+
+/* ============================================================================
+   1i  ENGINE — timing import: parsing, matching, preview, apply (verbatim)
+   ========================================================================= */
+const IMP_SYN = {
+  trans: ['transponder','trans','tx','chip','decoder','tag','rfid','transponderid','transponder id','trans id','tran'],
+  num:   ['kart','car number','car no','vehicle no','kart no','plate','car#','kart#','no','no.','nbr','racer number','racer no','rider number','rider no'],
+  name:  ['driver name','driver','name','racer','rider','rider name','racer name','pilot','competitor','entry','entrant','firstname','first name','first'],
+  name2: ['lastname','last name','last','surname','family name'],
+  cls:   ['class','category','group','division'],
+  pos:   ['pos','position','finish','place','rank','result','qual pos','qualifying pos','finish pos'],
+  time:  ['best lap','best time','lap time','best tm','best laptime','best lap time','total time','total tm','bestlap','besttime','laptime','fast lap','qualifying time','q-time'],
+};
+const IMP_VENDORS = [
+  { name: 'MotoSponder', detect: h => {
+      const has = t => h.some(c => c === t);
+      const hasFirstLast = (has('first') || has('first name')) && (has('last') || has('last name'));
+      const hasTrans = h.some(c => c === 'transponder' || c === 'trans' || c === 'transponder id' || c === 'trans id');
+      const hasMotoTime = h.some(c => c === 'best tm' || c === 'total tm');
+      return (hasTrans && hasFirstLast) || hasMotoTime;
+  } },
+];
+/* impNormName/impParseLapTime/impTimeUnparsed already ported above (§1h, qualifying
+   times) — shared by both features, not repeated. */
+function impNormTrans(v) { return String(v || '').trim().toUpperCase().replace(/[\s\-]/g, ''); }
+function impNameSuspect(name, num) {
+  const n = String(name || '').trim();
+  if (!n) return false;
+  if (/\d{1,2}[:.]\d{2}/.test(n)) return true;           // contains a time like 00.12.264 or 1:02
+  if (/^\d+$/.test(n)) return true;                       // name is all digits
+  if (num && n === String(num).trim()) return true;       // name equals the car number
+  return false;
+}
+function impNamePlaceholder(name, num) {
+  const n = String(name || '').trim();
+  return !n || /^Car #/i.test(n) || /^Trans /i.test(n) || /^\d+$/.test(n) || (num && n === String(num).trim());
+}
+function impParseFinish(s) {
+  s = String(s || '').trim();
+  if (!s) return null;
+  const up = s.toUpperCase();
+  if (up === 'DNF' || up === 'DNS' || up === 'DQ') return up;
+  if (/^(dsq|ret|nc)$/i.test(s)) return 'DQ';
+  const n = parseInt(s);
+  return n > 0 ? n : null;
+}
+function impParseCSV(text) {
+  if (text.charCodeAt(0) === 0xFEFF) text = text.slice(1);
+  const rows = [];
+  let row = [], cell = '', inQ = false;
+  for (let i = 0; i <= text.length; i++) {
+    const c = i < text.length ? text[i] : '\n';
+    if (inQ) {
+      if (c === '"') { if (i + 1 < text.length && text[i + 1] === '"') { cell += '"'; i++; } else inQ = false; }
+      else cell += c;
+    } else if (c === '"') { inQ = true; }
+    else if (c === ',') { row.push(cell); cell = ''; }
+    else if (c === '\r' || c === '\n') {
+      row.push(cell); cell = '';
+      if (row.some(v => v.trim())) rows.push(row);
+      row = [];
+      if (c === '\r' && i + 1 < text.length && text[i + 1] === '\n') i++;
+    } else cell += c;
+  }
+  return rows;
+}
+function impGuessColumns(hdr) {
+  const h = hdr.map(v => v.trim().toLowerCase());
+  const out = { trans:-1, num:-1, name:-1, name2:-1, cls:-1, pos:-1, time:-1 };
+  // A measurement/time column ("Last Lap", "Best Lap", "Elapsed Time", "Gap"…) must never
+  // be read as a driver name — otherwise the lap time gets glued onto the name.
+  const timeish = c => /\b(lap|laps|time|elapsed|gap|diff|difference|clock|sector|split|interval)\b|best|laptime/.test(c);
+  for (const [key, syns] of Object.entries(IMP_SYN)) {
+    const nameKey = (key === 'name' || key === 'name2');
+    let idx = h.findIndex(c => syns.includes(c) && !(nameKey && timeish(c)));
+    if (idx < 0) idx = h.findIndex(c => syns.some(s => c.includes(s)) && !(nameKey && timeish(c)));
+    out[key] = idx;
+  }
+  if (out.num < 0) out.num = h.findIndex(c => c === 'no' || c === 'no.' || c === '#' || c === 'number' || c === 'car' || c === 'kart');
+  if (out.name < 0) out.name = h.findIndex(c => (c.includes('name') || c.includes('driver')) && !timeish(c));
+  if (out.time < 0) out.time = h.findIndex(c => c.includes('time') || c.includes('lap') || c.includes('best'));
+  if (out.pos < 0) out.pos = h.findIndex(c => c.includes('pos') || c.includes('place') || c.includes('rank') || c.includes('finish'));
+  return out;
+}
+function impDetectVendor(hdr) {
+  const h = hdr.map(v => v.trim().toLowerCase());
+  const v = IMP_VENDORS.find(v => v.detect(h));
+  return v ? { name: v.name } : null;
+}
+function impPickHeader(rows) {
+  const lim = Math.min(rows.length, 10);
+  let best = 0, bestScore = -1;
+  for (let i = 0; i < lim; i++) {
+    const cols = impGuessColumns(rows[i]);
+    const matched = Object.values(cols).filter(x => x >= 0).length;
+    const filled = rows[i].filter(c => String(c || '').trim()).length;
+    const score = matched + (filled >= 3 ? 1 : 0);
+    if (score > bestScore) { bestScore = score; best = i; }
+  }
+  return bestScore >= 2 ? best : 0;
+}
+function impCell(row, key) {
+  const i = Imp.cols[key];
+  return (i >= 0 && i < row.length) ? row[i].trim() : '';
+}
+function impMatchDriver(row) {
+  const trans = impCell(row, 'trans');
+  const num   = impCell(row, 'num');
+  const n1    = impCell(row, 'name');
+  const n2    = impCell(row, 'name2');
+  let name = n2 ? (n1 + ' ' + n2).trim() : n1;
+  if (!n2 && name.indexOf(',') >= 0) {
+    const parts = name.split(',');
+    name = (parts.slice(1).join(' ').trim() + ' ' + parts[0].trim()).trim();
+  }
+  const roster = S.roster || [];
+  let driver = null, matchedBy = '';
+  if (trans && impNormTrans(trans)) {
+    const nt = impNormTrans(trans);
+    const d = roster.find(d => d.trans && impNormTrans(d.trans) === nt);
+    if (d) { driver = d; matchedBy = 'transponder'; }
+  }
+  if (!driver && num) {
+    const numLc = num.toLowerCase();
+    const d = roster.find(d => String(d.num || '').toLowerCase() === numLc);
+    if (d) { driver = d; matchedBy = 'number'; }
+  }
+  if (!driver && name) {
+    const nn = impNormName(name);
+    const d = roster.find(d => impNormName(d.name) === nn);
+    if (d) { driver = d; matchedBy = 'name'; }
+  }
+  const transConflict = !!(driver && trans && driver.trans && impNormTrans(driver.trans) !== impNormTrans(trans));
+  const numConflict = !!(driver && num && driver.num && String(driver.num).trim().toLowerCase() !== num.trim().toLowerCase());
+  const nameConflict = !!(driver && name && driver.name && impNormName(driver.name) !== impNormName(name));
+  const nameSuspect = impNameSuspect(name, num);
+  const canCreate = !!(num || name || trans);
+  return { driver, matchedBy, num, name, trans, transConflict, numConflict, nameConflict, nameSuspect, canCreate };
+}
+function impClsResolve(row) {
+  if (!Imp.useClsCol) {
+    if (Imp.newCls) {
+      const nm = (Imp.newClsName || '').trim();
+      return nm ? { id: -2, newName: nm } : { id: null };
+    }
+    return { id: Imp.clsId || null };
+  }
+  const v = impCell(row, 'cls').trim();
+  if (!v) return { id: null };
+  const c = (S.classes || []).find(c => c.name.toLowerCase() === v.toLowerCase());
+  if (c) return { id: c.id };
+  if (Imp.makeClasses) {
+    const key = v.toLowerCase();
+    if (!Imp._tmpCls) Imp._tmpCls = {};
+    if (!(key in Imp._tmpCls)) Imp._tmpCls[key] = { id: -(100 + Object.keys(Imp._tmpCls).length), name: v };
+    return { id: Imp._tmpCls[key].id, newName: v };
+  }
+  return { id: -1 };   // unknown class name, not creating
+}
+function impClassFromFilename(fn) {
+  let s = String(fn || '').replace(/\.[^.]*$/, '').replace(/[_]+/g, ' ').replace(/\s+/g, ' ').trim();
+  // strip leading "... Results" event preamble
+  s = s.replace(/^.*\bresults\b/i, '').trim();
+  // strip trailing session / round / moto tokens and numbers
+  s = s.replace(/\b(qualifying|qualify|qual|heat|heats|main|mains|feature|features|final|finals|moto|round|race|set|session)\b\s*\d*/ig, ' ');
+  s = s.replace(/\b\d+\b/g, ' ').replace(/\s+/g, ' ').trim();
+  return s ? s.replace(/\b\w/g, m => m.toUpperCase()) : '';
+}
+function impHeatFromFilename(fn) {
+  // "…DIV__1__MOTO…" → heat 0. No \b before "div": underscores are word chars, so a
+  // boundary check fails on "_DIV". Require a non-letter (or start) before "div" instead.
+  const m = String(fn || '').match(/(?:^|[^a-z])div[\W_]*(\d+)/i);
+  return m ? Math.max(0, parseInt(m[1], 10) - 1) : null;
+}
+function impHeatOfMap(clsId) {
+  const map = {};
+  heatArrays(classRacers(clsId), classById(clsId)).forEach((heat, hi) => heat.forEach(r => { map[r.id] = hi; }));
+  return map;
+}
+function impComputePreview() {
+  impPreview = [];
+  const unknown = new Set();
+  let emptyCls = 0;
+  Imp && (Imp._tmpCls = {}, Imp.pendingCls = {});   // recompute pending new classes each pass
+  if (!Imp || !Imp.rows.length) { Imp && (Imp.unknownClasses = [], Imp.emptyClass = 0); return; }
+
+  if (Imp.target === 'qual') {
+    const groups = {};
+    Imp.rows.forEach(row => {
+      const cr = impClsResolve(row); const clsId = cr.id;
+      if (clsId === null) { if (Imp.useClsCol) emptyCls++; return; }
+      if (clsId === -1) unknown.add(impCell(row, 'cls'));
+      if (cr.newName && clsId <= -2) Imp.pendingCls[clsId] = cr.newName;
+      const m = impMatchDriver(row);
+      const rawPos  = Imp.cols.pos  >= 0 ? impParseFinish(impCell(row,'pos'))  : null;
+      const timeStr = Imp.cols.time >= 0 ? impCell(row,'time') : '';
+      const rawTime = timeStr ? impParseLapTime(timeStr) : Infinity;
+      (groups[clsId] = groups[clsId] || []).push({ m, rawPos, rawTime, timeStr, clsId });
+    });
+    for (const [clsId, items] of Object.entries(groups)) {
+      const hasPos = items.some(it => typeof it.rawPos === 'number');
+      if (hasPos) items.sort((a,b)=>(typeof a.rawPos==='number'?a.rawPos:9999)-(typeof b.rawPos==='number'?b.rawPos:9999));
+      else items.sort((a,b)=>a.rawTime-b.rawTime);
+      let rank = 0; const seen = new Set();
+      items.forEach(({ m, clsId, timeStr }) => {
+        let status = 'match', note = '';
+        const timeBad = impTimeUnparsed(timeStr);
+        const cid = parseInt(clsId);
+        const cobj = classById(cid);
+        const pendName = Imp.pendingCls[clsId];
+        if (cid === -1) { status = 'skip'; note = 'Unknown class'; }
+        else if (!m.driver && !m.canCreate) { status = 'skip'; note = 'No name, number, or transponder'; }
+        else if (!m.driver) status = 'new';
+        else if (m.transConflict) status = 'conflict';
+        if (pendName && status !== 'skip') note = (note ? note + ' · ' : '') + '+ new class “' + pendName + '”';
+        if (status !== 'skip') {
+          // Dedupe by transponder when present (so two same-numbered cars with different
+          // transponders both keep their grid spot); otherwise by number.
+          const numLc = (m.driver ? String(m.driver.num||'') : m.num).toLowerCase();
+          const tnorm = impNormTrans(m.trans || (m.driver && m.driver.trans) || '');
+          const dkey = tnorm ? 'T:' + tnorm : (numLc ? 'N:' + numLc : '');
+          if (dkey && seen.has(dkey)) { status = 'skip'; note = tnorm ? 'Duplicate transponder (keeping first)' : 'Duplicate number (keeping first)'; }
+          else if (dkey) seen.add(dkey);
+        }
+        const r = status !== 'skip' ? ++rank : null;
+        impPreview.push({ ...m, status, note, clsId: parseInt(clsId), rank: r, timeBad });
+      });
+    }
+  } else {
+    Imp.rows.forEach(row => {
+      const cr = impClsResolve(row); const clsId = cr.id;
+      if (clsId === null) { if (Imp.useClsCol) emptyCls++; return; }
+      if (clsId === -1) unknown.add(impCell(row, 'cls'));
+      // A heat file that names its division (DIV n) is self-contained — it can create the
+      // class, drivers and entries into that heat, just like a feature import.
+      const divKnown = (Imp.target === 'heat' && Imp.div != null);
+      if (cr.newName && clsId <= -2 && (Imp.target === 'feat' || divKnown)) Imp.pendingCls[clsId] = cr.newName;
+      const m = impMatchDriver(row);
+      const finish = Imp.cols.pos >= 0 ? impParseFinish(impCell(row,'pos')) : null;
+      const cid = parseInt(clsId);
+      const cobj = classById(cid);
+      const pendName = Imp.pendingCls[clsId];
+      let status = 'match', note = '';
+      if (cid === -1) { status = 'skip'; note = 'Unknown class'; }
+      else if (cid <= -2 && Imp.target === 'heat' && !divKnown) { status = 'skip'; note = 'New class — import qualifying/grid first'; }
+      else if (Imp.target === 'heat' && cobj && classHeats(cobj) === 0) { status = 'skip'; note = cobj.name + ' runs straight to mains — no heats'; }
+      else if (Imp.target === 'heat' && Imp.heatSet === 'h2' && cobj && classHeats(cobj) === 1) { status = 'skip'; note = cobj.name + ' runs a single qualifying heat — no Heat 2'; }
+      else if (!m.driver && !m.canCreate) { status = 'skip'; note = 'No name, number, or transponder'; }
+      else if (!m.driver) { if (Imp.target === 'heat' && !divKnown) { status = 'skip'; note = 'Not in driver book — import qualifying/grid first'; } else status = 'new'; }
+      else if (m.transConflict) status = 'conflict';
+      if (Imp.target === 'heat' && status !== 'skip' && m.driver && cid > 0 && !divKnown) {
+        const inClass = (S.raceDay.entries||[]).some(e => e.driverId === m.driver.id && e.classId === cid);
+        if (!inClass) { status = 'skip'; note = 'Not entered in this class (no pill yet)'; }
+      }
+      if (divKnown && status !== 'skip') note = (note ? note + ' · ' : '') + 'Heat ' + (Imp.div + 1);
+      if (pendName && status !== 'skip') note = (note ? note + ' · ' : '') + '+ new class “' + pendName + '”';
+      impPreview.push({ ...m, status, note, clsId: cid, finish });
+    });
+  }
+  Imp.unknownClasses = [...unknown].filter(Boolean);
+  Imp.emptyClass = emptyCls;
+}
+function impApply(opts) {
+  opts = opts || {};
+  const silent = !!opts.silent;                  // auto-apply: never show blocking dialogs
+  const keepOpen = !!(Imp && Imp.watchDir);      // a watch is active: stay open and keep watching
+  if (!Imp) return;
+  const toAct = impPreview.filter(r => r.status !== 'skip');
+  if (!toAct.length) { if (!silent) alert('Nothing to import.'); return; }
+  const target = Imp.target;
+
+  // New-class review gate — distinct pending classes (negative clsIds) among the rows.
+  const pendIds = [...new Set(toAct.map(r => r.clsId).filter(id => id <= -2 && Imp.pendingCls[id]))];
+  if (pendIds.length) {
+    if (silent) return;   // auto-apply never creates classes — pause for review
+    const cnames = pendIds.map(id => Imp.pendingCls[id]);
+    if (!confirm('This will create ' + pendIds.length + ' NEW class' + (pendIds.length>1?'es':'') + ':\n\n' + cnames.join('\n') + '\n\nContinue?')) return;
+  }
+
+  // New-driver review gate
+  const newRows = toAct.filter(r => !r.driver && r.status === 'new');
+  if (newRows.length) {
+    if (silent) return;   // auto-apply never creates new drivers (the clean-check guards this)
+    const names = newRows.map(r => r.name || (r.num ? 'Car #' + r.num : 'Trans ' + r.trans)).slice(0, 10);
+    const more = newRows.length > 10 ? '\n…and ' + (newRows.length - 10) + ' more' : '';
+    if (!confirm('This will create ' + newRows.length + ' NEW driver' + (newRows.length>1?'s':'') + ' in the book (not matched by transponder, number, or name):\n\n' + names.join('\n') + more + '\n\nContinue?')) return;
+  }
+
+  // License/trial gate for paths that create entries (mirrors register())
+  let willCreateEntries = target === 'qual' || pendIds.length > 0;
+  if (target === 'feat' || (target === 'heat' && Imp.div != null))
+    willCreateEntries = willCreateEntries || toAct.some(r => r.driver && !(S.raceDay.entries||[]).some(e => e.driverId === r.driver.id && e.classId === r.clsId)) || newRows.length > 0;
+  if (willCreateEntries && !canEnter()) {
+    if (silent) { impWatchSay('⚠ ' + esc(entryBlockedMsg())); return; }
+    alert(entryBlockedMsg());
+    return;
+  }
+
+  // Create the pending classes now and remap rows from temp ids to the real class ids.
+  // Classes made during a qualifying import are qualifying-format (one heat); otherwise
+  // they default to the pill-draw/two-heat format.
+  if (pendIds.length) {
+    const idMap = {};
+    pendIds.forEach(tid => {
+      const name = Imp.pendingCls[tid];
+      const cls = { id: Date.now() + Math.floor(Math.random() * 1000), name: name, maxPill: 200, heats: (target === 'feat' ? 2 : 1) };
+      S.classes.push(cls);
+      rememberClass(name, cls.maxPill);
+      idMap[tid] = cls.id;
+      logAudit('Class created from import', '', name, '');
+    });
+    toAct.forEach(r => { if (r.clsId in idMap) r.clsId = idMap[r.clsId]; });
+  }
+
+  // Resolve / create drivers
+  const resolved = toAct.map(r => {
+    let driver = r.driver;
+    if (!driver) {
+      const nameVal = r.name || (r.num ? 'Car #' + r.num : 'Trans ' + r.trans);
+      const numVal  = (r.num && /^[A-Za-z0-9]{1,5}$/.test(r.num)) ? r.num : '';
+      driver = { id: genDriverId(), name: nameVal, num: numVal, trans: impNormTrans(r.trans) };
+      S.roster.push(driver);
+    } else {
+      if (r.trans && !driver.trans) driver.trans = impNormTrans(r.trans);                       // learn
+      if (r.transConflict && Imp.updTrans && r.trans) driver.trans = impNormTrans(r.trans);     // update
+      if (r.numConflict && Imp.updNum && r.num && /^[A-Za-z0-9]{1,5}$/.test(r.num)) driver.num = r.num;
+      // Heal a placeholder/numeric book name from the file (self-corrects a prior bad import), or update on request.
+      if (r.name && (impNamePlaceholder(driver.name, driver.num) || (Imp.updName && r.nameConflict))) driver.name = r.name;
+    }
+    return { ...r, driver };
+  });
+
+  let done = 0, skipped = 0, createdEntry = false;
+
+  if (target === 'qual') {
+    const groups = {};
+    resolved.forEach(r => { (groups[r.clsId] = groups[r.clsId] || []).push(r); });
+    for (const [clsId, rows] of Object.entries(groups)) {
+      const cid = parseInt(clsId);
+      const cls = classById(cid);
+      S.raceDay.entries = S.raceDay.entries.filter(e => e.classId !== cid);
+      const k = resKey(cid);
+      if (S.raceDay.heatResults[k]) delete S.raceDay.heatResults[k];
+      if (cls && rows.length > cls.maxPill) cls.maxPill = rows.length;
+      const seenNums = new Set();
+      rows.forEach(r => {
+        if (r.rank == null) return;
+        const numLc = String(r.driver.num || '').toLowerCase();
+        if (numLc && seenNums.has(numLc)) { skipped++; return; }
+        if (numLc) seenNums.add(numLc);
+        S.raceDay.entries.push({ driverId: r.driver.id, classId: cid, pill: r.rank });
+        createdEntry = true; done++;
+      });
+    }
+  } else if (target === 'heat') {
+    const hof = {};
+    const divKnown = Imp.div != null;
+    resolved.forEach(r => {
+      const cid = r.clsId, k = resKey(cid);
+      if (!S.raceDay.heatResults[k]) S.raceDay.heatResults[k] = {};
+      let hi;
+      if (divKnown) {
+        // The file names its division: that IS the heat group. Enter the driver there
+        // (creating the entry if needed) and record the division on the entry so standings
+        // and the grid group exactly the way the track raced — not the app's pill split.
+        hi = Imp.div;
+        let e = S.raceDay.entries.find(x => x.driverId === r.driver.id && x.classId === cid);
+        if (!e) {
+          const used = new Set(S.raceDay.entries.filter(x => x.classId === cid).map(x => x.pill));
+          let pill = 1; while (used.has(pill)) pill++;
+          const cls = classById(cid); if (cls && pill > cls.maxPill) cls.maxPill = pill;
+          e = { driverId: r.driver.id, classId: cid, pill, heat: hi };
+          S.raceDay.entries.push(e); createdEntry = true;
+        } else { e.heat = hi; }
+      } else {
+        if (!hof[cid]) hof[cid] = impHeatOfMap(cid);
+        hi = hof[cid][r.driver.id];
+        if (hi === undefined) { skipped++; return; }
+      }
+      if (r.finish != null) { S.raceDay.heatResults[k][Imp.heatSet + '_' + r.driver.id] = r.finish; done++; }
+      else skipped++;
+    });
+  } else {
+    const groups = {};
+    resolved.forEach(r => { (groups[r.clsId] = groups[r.clsId] || []).push(r); });
+    for (const [clsId, rows] of Object.entries(groups)) {
+      const cid = parseInt(clsId);
+      const cls = classById(cid);
+      const k = resKey(cid);
+      if (!S.raceDay.heatResults[k]) S.raceDay.heatResults[k] = {};
+      const finishers = rows.filter(r => typeof r.finish === 'number').length;
+      if (cls && finishers > clsFeature(cls)) cls.maxFeature = finishers;
+      rows.forEach(r => {
+        const inClass = S.raceDay.entries.some(e => e.driverId === r.driver.id && e.classId === cid);
+        if (!inClass) {
+          const used = new Set(S.raceDay.entries.filter(e => e.classId === cid).map(e => e.pill));
+          let pill = 1; while (used.has(pill)) pill++;
+          if (cls && pill > cls.maxPill) cls.maxPill = pill;
+          S.raceDay.entries.push({ driverId: r.driver.id, classId: cid, pill });
+          createdEntry = true;
+        }
+        if (r.finish != null) { S.raceDay.heatResults[k]['ft_' + r.driver.id] = r.finish; done++; }
+        else skipped++;
+      });
+    }
+  }
+
+  if (createdEntry) consumeTrialDay();
+  save();
+  renderHeader();
+  render(curPage);
+  const what = { qual: done + ' drivers placed on the grid', heat: done + ' heat finishes', feat: done + ' feature finishes' }[target];
+  const skipMsg = skipped ? ' ' + skipped + ' rows skipped.' : '';
+  if (keepOpen) {
+    // Watch mode: keep the overlay open and the folder watch running; report inline.
+    impRenderPreview();
+    impWatchSay('✅ imported ' + esc(what) + '.' + esc(skipMsg) + ' Still watching…');
+  } else {
+    closeImport();
+    alert('✅ Imported ' + what + '.' + skipMsg);
+  }
+}
+function impPipeline() {
+  const hasH2 = S.classes.some(c => classHeats(c) === 2);
+  const steps = [{ key: 'qual', label: 'Qualifying', target: 'qual' }];
+  steps.push({ key: 'h1', label: hasH2 ? 'Heat 1' : 'Heat', target: 'heat', heatSet: 'h1' });
+  if (hasH2) steps.push({ key: 'h2', label: 'Heat 2', target: 'heat', heatSet: 'h2' });
+  steps.push({ key: 'ft', label: 'Feature', target: 'feat' });
+  return steps;
+}
+
+/* ============================================================================
+   §14  TIMING IMPORT — new sheet UI over the engine above
+   ========================================================================= */
+/* ============================================================================
+   §14  TIMING IMPORT
+   v1's importer was a full pipeline: folder-watch with auto-apply, a live
+   class-column-vs-filename detector with its own toggle UI, a dense preview
+   table. The matching/preview/apply engine above (impComputePreview, impApply,
+   impMatchDriver, impClsResolve, vendor/column detection) is copied verbatim —
+   it is the part that is actually hard to get right (transponder/number/name
+   matching, new-class and new-driver review gates, the license/trial guard on
+   paths that create entries) and a v2 rewrite would just reintroduce its bugs.
+   What's new is the surrounding flow: one CSV pick → a stepper (Qualifying /
+   Heat 1 / Heat 2 / Feature) → a scannable match-status list → Apply, in a
+   sheet instead of a fixed overlay. Folder-watch auto-apply (desktop-only,
+   the smallest slice of use) is dropped to keep the surface reviewable.
+   ========================================================================= */
+
+function openImport(target) {
+  Imp = { rows:[], header:[], cols:{trans:-1,num:-1,name:-1,name2:-1,cls:-1,pos:-1,time:-1},
+          target: target || 'heat', clsId: (S.classes[0] && S.classes[0].id) || null,
+          useClsCol:false, heatSet:'h1', step:0, vendor:null, preamble:0, unknownClasses:[], emptyClass:0,
+          newCls: !S.classes.length, newClsName:'', makeClasses:false, userPickedMode:false, lastFile:'',
+          div:null, pendingCls:{}, _tmpCls:{}, watchDir:null };
+  impPreview = [];
+  const steps = impPipeline();
+  const want = target || 'heat';
+  let startIdx = steps.findIndex(s => s.target === want);
+  if (startIdx < 0) startIdx = 0;
+  impSetStep(startIdx);
+  openSheet('Import from timing', impBodyMarkup(),
+    '<button class="btn" onclick="closeImport()">Cancel</button><button class="btn btn-primary push" onclick="impApplyClick()">Import ✓</button>',
+    { wide:true, onClose: () => { Imp = null; impPreview = []; } });
+  impRenderStepper();
+}
+function closeImport() { closeSheet(); }
+
+function impBodyMarkup() {
+  return '<div id="impStepper" class="tabs"></div>'
+    + '<div class="card">'
+    + '<div class="rowflex"><button class="btn btn-primary" onclick="document.getElementById(\'impFile\').click()">📄 Choose CSV file</button>'
+    + '<input id="impFile" type="file" accept=".csv,text/csv" style="display:none" onchange="impLoadCsv(this)">'
+    + '<span class="tiny" id="impCsvInfo" style="display:none"></span></div>'
+    + '<div id="impClsMode" style="display:none;margin-top:14px">'
+    +   '<div class="seg"><button class="on" id="impCmOne" onclick="impSetClsMode(false,true)">One class for this file</button>'
+    +   '<button id="impCmCol" onclick="impSetClsMode(true,true)">Use the file\'s Class column</button></div>'
+    +   '<div id="impClsPick" style="margin-top:10px"><label>Class</label>'
+    +     '<select id="impClsSel" onchange="impClsSelChange(this.value)"></select>'
+    +     '<div id="impNewClsRow" style="display:none;margin-top:8px"><label>New class name</label>'
+    +       '<input id="impNewClsName" type="text" oninput="if(Imp){Imp.newClsName=this.value;impRenderPreview()}"></div></div>'
+    +   '<label class="check" id="impMakeClsRow" style="display:none;margin-top:8px"><input id="impMakeClasses" type="checkbox" onchange="if(Imp){Imp.makeClasses=this.checked;impRenderPreview()}"><b>Create classes named in the file that don\'t exist yet</b></label>'
+    + '</div>'
+    + '</div>'
+    + '<div id="impPrevWrap" style="display:none">'
+    +   '<div class="spread" style="margin:4px 0 10px"><h3 style="margin:0">Preview</h3><span id="impPrevCount" class="tiny push"></span></div>'
+    +   '<div id="impPrevList" class="list"></div>'
+    + '</div>';
+}
+
+function impLoadCsv(input) {
+  const f = input.files && input.files[0];
+  input.value = '';
+  if (!f || !Imp) return;
+  const fr = new FileReader();
+  fr.onload = () => impIngestText(String(fr.result || ''), f.name);
+  fr.readAsText(f);
+}
+/* Rewritten for v2's markup (v1's version hard-coded fixed-overlay DOM ids);
+   the parsing/detection calls it makes are the same engine functions. */
+function impIngestText(text, filename) {
+  if (!Imp) return false;
+  const rows = impParseCSV(String(text || ''));
+  if (rows.length < 2) { toast("That file doesn't look like a results CSV (no data rows).", 'err'); return false; }
+  const hi = impPickHeader(rows);
+  Imp.preamble = hi;
+  Imp.header = rows[hi];
+  Imp.rows = rows.slice(hi + 1);
+  Imp.cols = impGuessColumns(Imp.header);
+  Imp.vendor = impDetectVendor(Imp.header);
+  Imp.lastFile = filename || '';
+  Imp.div = impHeatFromFilename(filename);
+
+  if (Imp.cols.cls >= 0 && !Imp.userPickedMode) {
+    Imp.useClsCol = true;
+    Imp.makeClasses = true;
+  }
+  if (!Imp.useClsCol) {
+    const guess = impClassFromFilename(Imp.lastFile);
+    if (guess) {
+      const match = (S.classes || []).find(c => c.name.toLowerCase() === guess.toLowerCase());
+      if (match) { Imp.newCls = false; Imp.clsId = match.id; }
+      else if (Imp.target !== 'heat') { Imp.newCls = true; Imp.newClsName = guess; }
+    }
+  }
+
+  const info = document.getElementById('impCsvInfo');
+  info.style.display = '';
+  info.innerHTML = plural(Imp.rows.length, 'row') + (filename ? ' from <b>' + esc(filename) + '</b>' : ' loaded')
+    + (Imp.vendor ? ' · <span style="color:var(--flag-green)">' + esc(Imp.vendor.name) + ' format detected</span>' : '')
+    + (hi > 0 ? ' · skipped ' + hi + ' title line' + (hi > 1 ? 's' : '') + ' above the header' : '') + '.';
+  document.getElementById('impClsMode').style.display = '';
+  impSetClsMode(Imp.useClsCol, false);
+  document.getElementById('impPrevWrap').style.display = '';
+  impRenderPreview();
+  return true;
+}
+function impSetClsMode(useCol, userPicked) {
+  if (!Imp) return;
+  if (userPicked) Imp.userPickedMode = true;
+  Imp.useClsCol = useCol;
+  if (useCol) Imp.makeClasses = true;
+  document.getElementById('impCmOne').classList.toggle('on', !useCol);
+  document.getElementById('impCmCol').classList.toggle('on', useCol);
+  document.getElementById('impClsPick').style.display = useCol ? 'none' : '';
+  document.getElementById('impMakeClsRow').style.display = useCol ? '' : 'none';
+  const mk = document.getElementById('impMakeClasses'); if (mk) mk.checked = !!Imp.makeClasses;
+  if (!useCol) {
+    impFillClsSel();
+    document.getElementById('impNewClsRow').style.display = Imp.newCls ? '' : 'none';
+  }
+  if (Imp.rows.length) impRenderPreview();
+}
+function impFillClsSel() {
+  const sel = document.getElementById('impClsSel');
+  if (!sel) return;
+  if (!S.classes.length) Imp.newCls = true;
+  sel.innerHTML = S.classes.map(c => '<option value="' + c.id + '">' + esc(c.name) + '</option>').join('')
+    + '<option value="__new__">➕ New class…</option>';
+  sel.value = (Imp.newCls || !S.classes.length) ? '__new__' : String(Imp.clsId || (S.classes[0] && S.classes[0].id) || '');
+}
+function impClsSelChange(val) {
+  if (!Imp) return;
+  if (val === '__new__') {
+    Imp.newCls = true;
+    if (!((Imp.newClsName || '').trim())) Imp.newClsName = impClassFromFilename(Imp.lastFile || '');
+  } else { Imp.newCls = false; Imp.clsId = parseInt(val) || null; }
+  const nameEl = document.getElementById('impNewClsName');
+  if (nameEl) nameEl.value = Imp.newClsName || '';
+  document.getElementById('impNewClsRow').style.display = Imp.newCls ? '' : 'none';
+  impRenderPreview();
+}
+
+/* Stepper — same pipeline (Qualifying → Heat 1 → [Heat 2] → Feature) as v1. */
+function impSetStep(i) {
+  if (!Imp) return;
+  const steps = impPipeline();
+  Imp.step = Math.max(0, Math.min(i, steps.length - 1));
+  const s = steps[Imp.step];
+  Imp.target = s.target;
+  if (s.heatSet) Imp.heatSet = s.heatSet;
+  impRenderStepper();
+  if (Imp.rows.length) impRenderPreview();
+}
+function impRenderStepper() {
+  if (!Imp) return;
+  const steps = impPipeline();
+  if (Imp.step >= steps.length) Imp.step = steps.length - 1;
+  const el = document.getElementById('impStepper');
+  if (el) el.innerHTML = steps.map((s, i) =>
+    '<button class="tab' + (i === Imp.step ? ' on' : '') + '" onclick="impSetStep(' + i + ')">'
+    + (i < Imp.step ? '✓ ' : '') + esc(s.label) + '</button>').join('');
+}
+
+const STATUS_BADGE = { match:['badge-green','✓ Matched'], new:['badge-plate','+ New'], conflict:['badge-amber','⚠ Conflict'], skip:['badge-dim','— Skip'] };
+function impRenderPreview() {
+  const wrap = document.getElementById('impPrevList'), count = document.getElementById('impPrevCount');
+  if (!wrap) return;
+  if (!Imp || !Imp.rows.length) { wrap.innerHTML = ''; if (count) count.textContent = ''; return; }
+  impComputePreview();
+  const acted = impPreview.filter(r => r.status !== 'skip').length;
+  if (count) count.textContent = acted + ' of ' + impPreview.length + ' rows will import';
+  wrap.innerHTML = impPreview.slice(0, 300).map(r => {
+    const badge = STATUS_BADGE[r.status] || STATUS_BADGE.skip;
+    const cls = classById(r.clsId) || { name: Imp.pendingCls[r.clsId] ? Imp.pendingCls[r.clsId] + ' (new)' : '?' };
+    const label = r.driver ? r.driver.name : (r.name || (r.num ? 'Car #' + r.num : 'Trans ' + r.trans));
+    return '<div class="lrow"><span class="badge ' + badge[0] + '" style="flex:none">' + badge[1] + '</span>'
+      + '<div class="nm">' + esc(label) + (r.num ? '<small>#' + esc(r.num) + ' · ' + esc(cls.name) + (r.note ? ' · ' + esc(r.note) : '') + '</small>' : (r.note ? '<small>' + esc(r.note) + '</small>' : '')) + '</div>'
+      + (typeof r.finish === 'number' ? '<span class="pts">P' + r.finish + '</span>' : (typeof r.rank === 'number' ? '<span class="pts">P' + r.rank + '</span>' : '')) + '</div>';
+  }).join('') + (impPreview.length > 300 ? '<div class="lrow"><span class="tiny">…and ' + (impPreview.length - 300) + ' more rows</span></div>' : '');
+}
+
+/* Dead in v2 (only reached when Imp.watchDir is set, and v2 never sets it) but kept
+   real rather than stubbed, since impApply() still references both by name. */
+function impWatchSay(html) { toast(html.replace(/<[^>]+>/g, ''), 'ok'); }
+
+function impApplyClick() {
+  if (!Imp) return;
+  impApply({});
+}
+
+/* ============================================================================
+   1j  ENGINE — legal doc text (verbatim)
+   ========================================================================= */
+function providerName() { return (S.provider && S.provider.legalName && S.provider.legalName.trim()) || 'the owner and developer of RaceDay'; }
+function operatorName() { return (S.provider && S.provider.operator && S.provider.operator.trim()) || 'the track, promoter, or sanctioning body that licenses this software'; }
+function docMeta() { return '<p class="doc-meta">Version ' + LEGAL_VERSION + ' · Last updated ' + LEGAL_VERSION + '. Please read carefully.</p>'; }
+function renderTermsDoc() {
+  const P = esc(providerName());
+  const el = document.getElementById('termsBody');
+  if (!el) return;
+  el.innerHTML =
+    '<h2>Terms of Service</h2>' + docMeta()
+    + '<p>This software and platform — "RaceDay" (the "Software") — is owned and provided by ' + P + ' (the "Provider"). By accessing or using the Software, you (the user, and the track, promoter, or sanctioning body on whose behalf you act, together the "Customer") agree to these Terms of Service. If you do not agree, do not use the Software.</p>'
+
+    + '<h3>1. Software provided "AS IS"</h3>'
+    + '<p>The Software is provided <b>"AS IS" and "AS AVAILABLE," without warranties of any kind</b>, whether express, implied, or statutory, including but not limited to any implied warranties of merchantability, fitness for a particular purpose, accuracy, or non-infringement.</p>'
+
+    + '<h3>2. No guarantees</h3>'
+    + '<ul>'
+    + '<li>The Provider does <b>not guarantee uninterrupted, timely, or available service</b>.</li>'
+    + '<li>The Provider does <b>not guarantee error-free scoring</b>, calculations, standings, or lineups.</li>'
+    + '<li>The Provider does not guarantee that the Software is free of bugs, defects, or interruptions.</li>'
+    + '</ul>'
+
+    + '<h3>3. Limitation of liability</h3>'
+    + '<p>To the maximum extent permitted by law, the Provider shall <b>not be liable</b> for any direct, indirect, incidental, special, consequential, or punitive damages, or for any of the following, however caused:</p>'
+    + '<ul>'
+    + '<li>Lost, corrupted, or unrecoverable <b>data</b>.</li>'
+    + '<li><b>Race outcome disputes</b>, protests, or scoring disagreements.</li>'
+    + '<li><b>Missed, late, duplicated, or incorrect registrations</b>.</li>'
+    + '<li><b>Internet, network, or connectivity outages</b>, or interruptions of any third-party service.</li>'
+    + '<li><b>Financial losses</b> of any kind arising from software issues, downtime, or errors.</li>'
+    + '<li><b>Incorrect lineups, grids, or results generated</b> from data entered, imported, or configured by users.</li>'
+    + '</ul>'
+
+    + '<h3>4. User responsibilities</h3>'
+    + '<ul>'
+    + '<li>Users are <b>responsible for verifying all race information</b> — entries, grids, finishes, standings, and points — <b>before publishing, posting, or acting on it</b>.</li>'
+    + '<li>The Software is intended as an <b>administrative and scoring aid only</b>. It does not replace the judgment of race officials.</li>'
+    + '<li>Users agree to <b>use the Software at their own risk</b>.</li>'
+    + '</ul>'
+
+    + '<h3>5. Official results</h3>'
+    + '<p><b>Official race results are determined solely by the race director, track management, or sanctioning body</b> — never by the Software. Any result, lineup, or standing displayed by the Software is provisional and unofficial until confirmed by the responsible official.</p>'
+
+    + '<h3>6. Intellectual property</h3>'
+    + '<p>All software, source code, databases, data structures, algorithms, branding, names, logos, designs, layouts, and features of the Software <b>are and remain the exclusive property of ' + P + '</b>. No ownership is transferred to the Customer.</p>'
+    + '<ul>'
+    + '<li>The Customer is granted a <b>limited, non-exclusive, non-transferable license to use</b> the Software for its own race-administration purposes for the duration of its authorized access.</li>'
+    + '<li>The Customer <b>may not copy, modify, reverse engineer, decompile, resell, lease, sublicense, redistribute, or create derivative works</b> of the Software or any part of it.</li>'
+    + '<li>Customer access may be <b>suspended or terminated</b>, with or without notice, for any violation of these Terms.</li>'
+    + '</ul>'
+
+    + '<h3>7. Changes</h3>'
+    + '<p>The Provider may update these Terms from time to time. Continued use of the Software after an update constitutes acceptance of the revised Terms.</p>'
+
+    + '<p class="muted-note">This document is a template provided for convenience and is not legal advice. Have it reviewed by a licensed attorney before relying on it.</p>';
+}
+function renderPrivacyDoc() {
+  const P = esc(providerName()), O = esc(operatorName());
+  const el = document.getElementById('privacyBody');
+  if (!el) return;
+  el.innerHTML =
+    '<h2>Privacy Policy</h2>' + docMeta()
+    + '<p>This Privacy Policy explains how information is handled within RaceDay (the "Software"), provided by ' + P + ' (the "Provider"). The track, promoter, or sanctioning body operating an event — ' + O + ' (the "Operator") — is responsible for the information it collects from participants using the Software.</p>'
+
+    + '<h3>1. Information collected</h3>'
+    + '<p>Depending on how the Operator uses the Software, information collected may include:</p>'
+    + '<ul>'
+    + '<li>Driver names</li><li>Email addresses</li><li>Phone numbers</li><li>Mailing or physical addresses</li>'
+    + '<li>Emergency contacts</li><li>Vehicle information (number, make, class, transponder)</li>'
+    + '<li>Race history and results</li><li>Team information</li>'
+    + '</ul>'
+    + '<p class="muted-note">The Software only stores the fields the Operator chooses to enter. It does not require contact or emergency information to run an event.</p>'
+
+    + '<h3>2. How information is stored</h3>'
+    + '<ul>'
+    + '<li>Information is <b>stored securely</b> on the Operator\'s device and, when multi-device sync is enabled, in the Operator\'s cloud database, transmitted over encrypted (HTTPS) connections.</li>'
+    + '<li>Information is <b>never sold</b> to third parties.</li>'
+    + '<li>Information is used only to administer events — registration, lineups, scoring, and standings.</li>'
+    + '</ul>'
+
+    + '<h3>3. Cloud backup (optional)</h3>'
+    + '<p>The Operator may switch on <b>cloud backup</b> in the Admin panel. This is <b>off by default</b> and only ever starts after the Operator turns it on. While it is on, a copy of the Operator\'s race data is sent to and held by ' + P + ' so that a lost, damaged, or wiped device does not mean a lost season.</p>'
+    + '<ul>'
+    + '<li><b>What is included:</b> track details, classes, the driver book (including any driver photos the Operator has added), sign-up entries, lineups, results, season history, and event settings.</li>'
+    + '<li><b>What is excluded:</b> admin and operator PINs, license codes, the administrative audit log, and participant acceptance records (including the IP addresses described in section 6). These are never transmitted to the Provider by this feature.</li>'
+    + '<li>Backups are transmitted over encrypted (HTTPS) connections and are <b>not publicly readable</b>. They are used only to restore that same Operator\'s data at that Operator\'s request, and are <b>never sold</b> or used for any other purpose.</li>'
+    + '<li>The Operator may switch cloud backup off at any time, and may ask the Provider to delete stored backups.</li>'
+    + '</ul>'
+    + '<p class="muted-note">Because this sends participant information — including information about minors, where the Operator runs junior classes — to the Provider, the Operator should confirm it has the authority to do so before turning it on.</p>'
+
+    + '<h3>4. Your choices</h3>'
+    + '<ul>'
+    + '<li><b>Participants may request deletion</b> of their information by contacting the Operator. The Operator can remove a driver from the driver book and erase stored data.</li>'
+    + '<li>Operators can export and permanently erase all stored data at any time from the Admin panel.</li>'
+    + '</ul>'
+
+    + '<h3>5. Payments</h3>'
+    + '<ul>'
+    + '<li>If payments are collected, the Operator should use a <b>reputable third-party payment processor</b> (for example, a PCI-compliant provider).</li>'
+    + '<li><b>Payment card information should never be entered into or stored directly by the Software.</b> RaceDay does not collect, process, or store card numbers.</li>'
+    + '</ul>'
+
+    + '<h3>6. Acceptance records</h3>'
+    + '<p>When participants accept these policies during registration, the Software records the acceptance (date, time, and — where available — the device\'s public IP address) for audit purposes. These records are kept by the Operator.</p>'
+
+    + '<p class="muted-note">This document is a template provided for convenience and is not legal advice. Have it reviewed by a licensed attorney before relying on it.</p>';
+}
+
+/* ============================================================================
+   §15  LEGAL DOCS
+   ========================================================================= */
+/* ============================================================================
+   §15  LEGAL DOCS — Terms, Privacy, and the admin-only business recommendations
+   renderTermsDoc/renderPrivacyDoc are ported verbatim (the legal text itself is
+   unchanged); only the page mechanism moved from a fixed 6th nav page to the
+   single view-doc page reached from openDoc(), matching v2's nav model.
+   ========================================================================= */
+function openDoc(id) {
+  if (id === 'bizrec' && !adminOk()) return;
+  UI._docFrom = curPage;
+  document.querySelectorAll('.view').forEach(v => v.classList.remove('on'));
+  document.getElementById('view-doc').classList.add('on');
+  document.getElementById('docWrap').innerHTML =
+    '<div style="margin-bottom:14px"><button class="btn btn-sm" onclick="closeDoc()">← Back</button></div>'
+    + '<div id="termsBody" style="display:none"></div>'
+    + '<div id="privacyBody" style="display:none"></div>'
+    + '<div id="bizrecBody" style="display:none"></div>';
+  if (id === 'terms') { document.getElementById('termsBody').style.display = ''; renderTermsDoc(); }
+  else if (id === 'privacy') { document.getElementById('privacyBody').style.display = ''; renderPrivacyDoc(); }
+  else if (id === 'bizrec') { document.getElementById('bizrecBody').style.display = ''; renderBizRecDoc(); }
+  window.scrollTo(0, 0);
+}
+function closeDoc() {
+  const back = (ROLE_PAGES[deviceRole()] || ROLE_PAGES.admin).indexOf(UI._docFrom) >= 0 ? UI._docFrom : 'signup';
+  nav(back);
+}
+function renderBizRecDoc() {
+  const el = document.getElementById('bizrecBody');
+  if (!el) return;
+  el.innerHTML = '<h2>Business recommendations</h2>'
+    + '<p class="tiny">Internal guidance for the platform owner — not shown to the public. Informational only; not legal, tax, or insurance advice. Consult licensed professionals.</p>'
+    + '<div class="note note-warn" style="margin:14px 0">Why this matters: RaceDay is licensed to tracks, promoters, and sanctioning bodies as administrative software. The protections below keep the business, its data, and its customer relationships defensible as it grows.</div>'
+    + '<h3>Entity &amp; insurance</h3><ul style="margin:8px 0 8px 20px;line-height:1.8">'
+    + '<li><b>Operate under an LLC</b> (or comparable entity) — the single biggest liability shield for a software business. Set the entity name in Admin → Legal &amp; business.</li>'
+    + '<li><b>Carry Technology Errors &amp; Omissions insurance</b>, ideally bundled with Cyber liability — the coverage that responds to a scoring error, an outage, or a data incident claim.</li>'
+    + '<li><b>Have every customer sign a written service agreement</b> that incorporates the Terms by reference and names the entity. Far stronger than click-through acceptance alone.</li></ul>'
+    + '<h3>Data &amp; operations</h3><ul style="margin:8px 0 8px 20px;line-height:1.8">'
+    + '<li><b>Maintain regular backups</b> — Admin → Backup &amp; export on a schedule, copies kept off the primary device. The cloud copy is convenience, not an archive.</li>'
+    + '<li><b>Serve only over HTTPS.</b> Never distribute over plain HTTP.</li>'
+    + '<li><b>Keep the software updated</b> — ship fixes promptly, review database security rules periodically.</li>'
+    + '<li><b>Restrict admin access</b> with the Admin PIN on shared devices; hand out role-locked links so stations can\'t change settings.</li></ul>'
+    + '<h3>Recommended platform hardening</h3><ul style="margin:8px 0 8px 20px;line-height:1.8">'
+    + '<li><b>Data security:</b> sync uses a code as a deterrent, not strong auth. For sensitive use, move to authenticated Firebase rules per track.</li>'
+    + '<li><b>Disaster recovery:</b> document a restore procedure and test it at least once a season.</li>'
+    + '<li><b>Backup strategy:</b> aim for 3-2-1 — 3 copies, 2 media, 1 off-site.</li>'
+    + '<li><b>Multi-track management:</b> namespace data by track ID if managing many tracks centrally; keep tracks isolated from each other.</li></ul>'
+    + '<p class="tiny">Review this list with your attorney, accountant, and insurance broker before relying on it.</p>';
+}
 
 function todoPanel(title, note) {
   return '<h2>' + esc(title) + '</h2><div class="card"><p class="muted">' + esc(note) + '</p></div>';
