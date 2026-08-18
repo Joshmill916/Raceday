@@ -1756,6 +1756,7 @@ function renderFooter() {
 // renderLicBanner() uses for an expired license.
 function checkDayBanner() {
   const b = document.getElementById('dayBanner');
+  if (deviceRole() === 'viewer') { b.style.display = 'none'; return; }
   const hasData = S.raceDay.entries.length || Object.keys(S.raceDay.heatResults).length;
   if (S.raceDay.date === today() || !hasData) { b.style.display = 'none'; b.style.cssText = ''; return; }
   const days = daysSince(S.raceDay.date);
@@ -2117,6 +2118,11 @@ function renderLicCard() {
 
 // ---------- Admin PIN ----------
 function adminOk() {
+  // Spectator + passive TV board: never gain admin-gated access, PIN or not. Mirrors
+  // changeDeviceRole()'s existing "viewer cannot escalate even with no PIN" guard —
+  // every other role reaches adminOk() only through pages ROLE_PAGES already grants it.
+  const role = deviceRole();
+  if (role === 'viewer' || role === 'tv') return false;
   if (!S.adminPin || sessionStorage.getItem('rd_admin_ok') === '1') return true;
   const t = prompt('Enter the admin PIN');
   if (t === null) return false;
@@ -2436,6 +2442,9 @@ function gridMarkup(racers, single) {
 
 function renderGrid() {
   if (deviceRole() === 'viewer') { renderViewerLineups(); return; }
+  // Passive TV board gets the same full grid layout, just no mutating controls —
+  // adminOk() also refuses tv, so this is belt-and-suspenders, not the only gate.
+  const isTv = deviceRole() === 'tv';
   document.getElementById('vtDouble').classList.toggle('on', S.settings.gridStyle !== 'single');
   document.getElementById('vtSingle').classList.toggle('on', S.settings.gridStyle === 'single');
   const el = document.getElementById('gridContent');
@@ -2446,7 +2455,7 @@ function renderGrid() {
     const racers = classRacers(cls.id);
     h += '<section class="gsec"><div style="display:flex;align-items:center;justify-content:space-between;gap:8px;flex-wrap:wrap">'
       + '<h3 style="margin:0">' + esc(cls.name) + ' <span class="count">· ' + racers.length + ' entered</span></h3>'
-      + (racers.length ? '<button class="btn btn-sm" onclick="openQualTimes(' + cls.id + ')">⏱ Qualifying times</button>' : '')
+      + (racers.length && !isTv ? '<button class="btn btn-sm" onclick="openQualTimes(' + cls.id + ')">⏱ Qualifying times</button>' : '')
       + '</div>';
     if (!racers.length) { h += '<p class="empty">No drivers yet — first to sign up takes the pole.</p></section>'; return; }
     const invN = classInvertN(cls);
@@ -5340,8 +5349,8 @@ function applyRole() {
   // instead (see changeDeviceRole()'s comment), not from an on-screen escape hatch.
   if (escBtn) escBtn.style.display = (role === 'admin' || role === 'operator' || role === 'viewer') ? 'none' : '';
   // Hide the Lineups operator controls (TV / print / import / file toggle) for the read-only viewer.
-  const ops = document.getElementById('gridOps'); if (ops) ops.style.display = role === 'viewer' ? 'none' : '';
-  const vt = document.getElementById('viewToggle'); if (vt) vt.style.display = role === 'viewer' ? 'none' : '';
+  const ops = document.getElementById('gridOps'); if (ops) ops.style.display = (role === 'viewer' || role === 'tv') ? 'none' : '';
+  const vt = document.getElementById('viewToggle'); if (vt) vt.style.display = (role === 'viewer' || role === 'tv') ? 'none' : '';
   const gs = document.getElementById('gridSub'); if (gs) gs.style.display = role === 'viewer' ? 'none' : '';
   // Spectators get a lineups-only guide, not the full operator walkthrough.
   const isV = role === 'viewer';

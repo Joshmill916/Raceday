@@ -468,6 +468,106 @@ const check = (name, ok, extra) => {
   answer = (m) => { if (/Enter the admin PIN/i.test(m)) return '4321'; return false; };
   check('the kept PIN still unlocks admin', await page.evaluate(() => { sessionStorage.removeItem('rd_admin_ok'); return adminOk(); }));
 
+  console.log('\n=== 14. dayBanner + adminOk() stay locked for viewer/tv with NO PIN set ===');
+  // (Live bug: checkDayBanner() was the one banner missing the viewer self-guard its three
+  //  siblings have, so the "Start a new race day" mutation button rendered for viewer. On a
+  //  track with NO admin PIN configured, adminOk() had no role check at all and returned
+  //  true unconditionally — so a spectator could tap it and archive/wipe the live race day.
+  //  No existing test combined "viewer role" + "no PIN set" + an adminOk()-gated call.)
+
+  // 14a. viewer, NO PIN set, real data sitting unarchived → dayBanner must stay hidden.
+  resetDlg();
+  await page.evaluate(() => {
+    localStorage.clear(); S = load(); S.track.name = 'T'; S.adminPin = '';   // explicitly NO PIN
+    S.raceDay = { date: '2020-01-01', entries: [{ driverId: 1, classId: 1, pill: 1 }], heatResults: {}, pointsRace: {}, resultGov: {}, resultVersions: {} };
+    save(); setDeviceRole('viewer');
+  });
+  await go(base);
+  await page.waitForTimeout(400);
+  check('viewer + no PIN + stale race day: #dayBanner is hidden', await page.evaluate(() => {
+    const b = document.getElementById('dayBanner');
+    return !b || getComputedStyle(b).display === 'none';
+  }));
+
+  // 14b. Same state, but forcing checkDayBanner() to run again — still hidden.
+  await page.evaluate(() => { checkDayBanner(); });
+  check('viewer + no PIN: re-running checkDayBanner() keeps #dayBanner hidden', await page.evaluate(() => {
+    const b = document.getElementById('dayBanner');
+    return !b || getComputedStyle(b).display === 'none';
+  }));
+
+  // 14c. adminOk() itself refuses outright for viewer, with NO PIN set — no prompt at all.
+  resetDlg();
+  answer = () => { throw new Error('adminOk() should not prompt for viewer'); };
+  check('adminOk() returns false for viewer with no PIN set (no prompt)', await page.evaluate(() => {
+    setDeviceRole('viewer'); sessionStorage.removeItem('rd_admin_ok');
+    return adminOk() === false;
+  }));
+  check('no PIN prompt was shown to the viewer', dlgSeen.length === 0, dlgSeen.join(' | '));
+
+  // 14d. newRaceDay() is a true no-op for viewer with no PIN set — S.raceDay is untouched.
+  // Accept every confirm here (rather than resetDlg()'s default dismiss-all) so this
+  // isolates adminOk() specifically: if adminOk() incorrectly let a viewer through, the
+  // archive confirm would be accepted and archiveDay() would actually run.
+  resetDlg();
+  answer = () => true;
+  const beforeAfter = await page.evaluate(() => {
+    setDeviceRole('viewer');
+    const before = JSON.parse(JSON.stringify(S.raceDay));
+    newRaceDay();
+    return { before, after: S.raceDay };
+  });
+  check('newRaceDay() does not archive/clear S.raceDay for viewer', JSON.stringify(beforeAfter.before) === JSON.stringify(beforeAfter.after));
+
+  // 14e. adminOk() also refuses outright for tv, with NO PIN set.
+  resetDlg();
+  answer = () => { throw new Error('adminOk() should not prompt for tv'); };
+  check('adminOk() returns false for tv with no PIN set (no prompt)', await page.evaluate(() => {
+    setDeviceRole('tv'); sessionStorage.removeItem('rd_admin_ok');
+    return adminOk() === false;
+  }));
+
+  // 14f. Sanity: admin/scoring/operator/register are UNCHANGED by the adminOk() hardening —
+  // still succeed with no PIN set (this is what would catch an over-broad fix).
+  resetDlg();
+  for (const r of ['admin', 'scoring', 'operator', 'register']) {
+    check('adminOk() still returns true for role=' + r + ' with no PIN set', await page.evaluate((rr) => {
+      setDeviceRole(rr); sessionStorage.removeItem('rd_admin_ok');
+      return adminOk() === true;
+    }, r));
+  }
+
+  // ============================================================================
+  console.log('\n=== 15. TV role cannot reach qualifying-time controls ===');
+  // (Secondary finding: renderGrid() only special-cased viewer; a tv-role device landing on
+  //  the same grid page fell through to the full operator-style render, including the
+  //  admin-gated "⏱ Qualifying times" button/openQualTimes/saveQualTimes/applyQualGrid.)
+  resetDlg();
+  await page.evaluate(() => {
+    localStorage.clear(); S = load(); S.track.name = 'T'; S.adminPin = '';
+    S.classes = [{ id: 1, name: 'Stocks', maxPill: 20 }];
+    S.roster = [{ id: 1, name: 'Driver A', num: '9', noPoints: false }];
+    S.raceDay.entries = [{ driverId: 1, classId: 1, pill: 1 }];
+    save(); setDeviceRole('tv');
+  });
+  await go(base);
+  await page.waitForTimeout(400);
+  await page.evaluate(() => { if (typeof closeTV === 'function') closeTV(); nav('grid'); });
+  await page.waitForTimeout(200);
+  check('tv role: no "Qualifying times" button rendered on the grid page', await page.evaluate(() => {
+    return !document.getElementById('gridContent').innerHTML.includes('openQualTimes');
+  }));
+  check('tv role: gridOps toolbar (TV/print/import) is hidden', await page.evaluate(() => {
+    const e = document.getElementById('gridOps'); return !e || getComputedStyle(e).display === 'none';
+  }));
+  resetDlg();
+  answer = () => { throw new Error('should not prompt'); };
+  check('tv role: openQualTimes() is a no-op with no PIN set (no prompt, no modal)', await page.evaluate(() => {
+    openQualTimes(1);
+    const m = document.getElementById('qualTimesModal');
+    return !m || getComputedStyle(m).display === 'none';
+  }));
+
   await browser.close();
   server.close();
   console.log(`\n==== ${pass} passed, ${fail} failed ====`);
