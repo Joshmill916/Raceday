@@ -2467,6 +2467,8 @@ function renderHeader() {
   if (!S.adminPin && deviceRole() === 'admin') bits.push('<span class="badge badge-dim">No PIN</span>');
   if (S.adminPin && sessionStorage.getItem('rd_admin_ok') === '1')
     bits.push('<button class="btn btn-sm btn-ghost" onclick="lockAdmin()">🔒 Lock</button>');
+  bits.push('<button class="btn btn-sm btn-ghost" onclick="toggleTheme()" id="themeBtnMob" title="Switch between the dark race-night look and the daylight sign-up look">'
+    + (themeName() === 'light' ? '◑ Race night' : '◐ Daylight') + '</button>');
   document.getElementById('topRight').innerHTML = bits.join('');
 
   const rs = document.getElementById('railState');
@@ -2658,8 +2660,10 @@ function applyTheme() {
   document.documentElement.setAttribute('data-theme', t);
   const m = document.querySelector('meta[name="theme-color"]');
   if (m) m.setAttribute('content', t === 'light' ? '#eeeeea' : '#0b0c0f');
-  const b = document.getElementById('themeBtn');
-  if (b) b.textContent = t === 'light' ? '◑ Race night' : '◐ Daylight';
+  ['themeBtn', 'themeBtnMob'].forEach(id => {
+    const b = document.getElementById(id);
+    if (b) b.textContent = t === 'light' ? '◑ Race night' : '◐ Daylight';
+  });
 }
 function toggleTheme() {
   /* Dark is the race-night identity; light exists for the daylight sign-up tablet. */
