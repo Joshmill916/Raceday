@@ -145,7 +145,7 @@ const TYPES = { '.html':'text/html', '.js':'application/javascript', '.json':'ap
     const p = await newPage(460, 950);
     await p.goto(`http://localhost:${PORT}/`);
     await p.evaluate(pl => localStorage.setItem('raceday_v1', pl), v1Payload);
-    await p.evaluate(() => localStorage.setItem('rd_role', 'viewer'));
+    await p.evaluate(() => localStorage.setItem('rd_role_v2', 'viewer'));
     await p.reload(); await p.waitForTimeout(400);
     const tabs = await p.$$eval('#tabbar button', bs => bs.map(b => b.textContent.trim()));
     check('spectator sees only Lineups + Guide', tabs.length === 2, JSON.stringify(tabs));
@@ -157,7 +157,7 @@ const TYPES = { '.html':'text/html', '.js':'application/javascript', '.json':'ap
       await p.evaluate(() => document.getElementById('raceControl').style.display === 'none'));
     check('canWrite() is false for a spectator', await p.evaluate(() => canWrite() === false));
 
-    await p.evaluate(() => { localStorage.setItem('rd_role', 'scoring'); });
+    await p.evaluate(() => { localStorage.setItem('rd_role_v2', 'scoring'); });
     await p.reload(); await p.waitForTimeout(400);
     const stabs = await p.$$eval('#tabbar button', bs => bs.map(b => b.textContent.trim()));
     check('scoring station sees Lineups/Score/Points/Guide', stabs.length === 4, JSON.stringify(stabs));

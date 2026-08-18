@@ -729,8 +729,11 @@ const ROLE_PAGES = {
   operator: ['signup', 'grid', 'results', 'points', 'admin', 'help']   // owner: sees everything, read-only until "Take control"
 };
 function syncOn() { return !!(S.sync && S.sync.enabled && FIREBASE_CONFIG.apiKey); }
-function deviceRole() { return localStorage.getItem('rd_role') || 'admin'; }
-function setDeviceRole(r) { try { localStorage.setItem('rd_role', r); } catch (e) {} }
+/* rd_role_v2 is a distinct key from v1's rd_role — localStorage is origin-scoped, not
+   path-scoped, so sharing v1's key would leak a spectator/admin role picked up under
+   /raceday/ into /raceday2/ (and back) on the same device. */
+function deviceRole() { return localStorage.getItem('rd_role_v2') || 'admin'; }
+function setDeviceRole(r) { try { localStorage.setItem('rd_role_v2', r); } catch (e) {} }
 function today() { const d = new Date(); return d.getFullYear()+'-'+String(d.getMonth()+1).padStart(2,'0')+'-'+String(d.getDate()).padStart(2,'0'); }
 function daysSince(dateStr) {
   const d = new Date(dateStr + 'T00:00:00');
