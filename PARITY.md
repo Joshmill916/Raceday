@@ -111,7 +111,14 @@ field. This is the load-bearing guarantee for cutover.
 | `tests/v2/test-v2-admin.js` | wizard, 2-door nav, search, 15 sections, History→View click-through | 46 |
 | `tests/v2/test-v2-outputs.js` | TV, print, fan view, driver cards, import, docs | 36 |
 | `tests/v2/test-v2-roles-security.js` | role/boot/wizard/sync invariants (the gate), viewer/tv admin lockdown | 80 |
-| **Total** | | **226** |
+| `tests/v2/test-v2-cloud-backup.js` | cloud backup payload scrubbing, restore-by-code, write-only vault rules | 35 |
+| `tests/v2/test-v2-points-repair.js` | "Fix season points" full add/edit/duplicate-guard flow (not just section-opens) | 15 |
+| `tests/v2/test-v2-qual-mains.js` | qualifying-straight-to-mains format — seeding, B-mains, points, viewer/TV, 2-heat regression guard | 31 |
+| `tests/v2/test-v2-main-invert.js` | feature/B-main starting-spot invert | 26 |
+| `tests/v2/test-v2-roster-match.js` | sign-up identity-merge — same-name-different-person confirm, explicit-pick zero-friction merge | 22 |
+| `tests/v2/test-v2-qual-times.js` | manual qualifying-times entry + set-grid-from-times | 23 |
+| `tests/v2/test-v2-shell.js` | the 900px responsive breakpoint (rail vs. tabbar), clean-boot zero-console-error check | 7 |
+| **Total** | | **385** |
 
 All counts above were re-run live (not taken on faith) as part of an August 2026
 audit pass. The two fixes noted inline above (`adminOk()`/qual-times tv lockdown,
@@ -119,35 +126,24 @@ audit pass. The two fixes noted inline above (`adminOk()`/qual-times tv lockdown
 first written — everything else in this checklist held up under spot-checking
 (engine-parity claims verified via byte-diff against v1).
 
+A second pass ported the six suites this document previously listed as "not yet
+ported" (see below), plus a new `test-v2-shell.js` for the responsive breakpoint. Engine
+logic in every one of them was confirmed byte-identical to v1 during the port; the real
+work was adapting to v2's different DOM — most notably its 3 score-entry modes (tap/pad/
+select), where the default tap UI omits information (transfer-origin tags, heat totals)
+that only renders in dropdown (`select`) mode, and the single-screen sign-up (no
+`step2()`/step-gating at all, unlike v1's 3-step wizard).
+
 Original v1 suites (`tests/test-*.js`) are untouched and still point at `/raceday/`,
 which this work never modifies.
 
 ## Not yet ported to `tests/v2/`
 
-These v1 suites cover ground already exercised indirectly (compat's byte-identical
-engine proof covers their underlying logic), but have not been ported as dedicated v2
-suites yet:
-
-- `test-qual-mains.js` (qualifying-straight-to-mains format) — engine copied verbatim,
-  covered indirectly by compat's engine-parity check; no dedicated v2 UI-flow test yet
-- `test-main-invert.js` (feature/B-main starting-spot invert) — same
-- `test-cloud-backup.js` (cloud backup payload scrubbing) — engine copied verbatim
-  (`CLOUD_BACKUP_FIELDS` allowlist unchanged); no dedicated v2 test yet
-- `test-points-repair.js` — UI exercised in `test-v2-admin.js`'s "repair" section-open
-  check only, not the full add/edit/duplicate-guard flow
-- `test-roster-match.js` — the identity-merge path is exercised in `test-v2-scoring.js`'s
-  "returning driver" case, not the full same-name-different-person matrix
-- `test-qual-times.js` — the sheet opens and renders in manual testing; no dedicated
-  automated v2 suite yet
 - `test-viewer-results.js` — covered by `test-v2-outputs.js`'s fan-view section, not a
   1:1 port
-- `test-smoke.js` — superseded in spirit by the four functional v2 suites together
-- `test-profiles.js` — targets `driven/index.html`, which this work does not touch
-
-**Recommendation before cutover:** port `test-cloud-backup.js` and `test-points-repair.js`
-next — both guard data-safety properties (no PIN/license/audit leakage in a cloud
-payload; no double-counting a repaired night) that are easy to regress silently and
-have no other test currently pinning them for v2.
+- `test-smoke.js` — superseded in spirit by the functional v2 suites together
+- `test-profiles.js` — targets `driven/index.html`, which this work does not touch (see
+  `tests/test-driven-*.js` for that app's own coverage)
 
 ## Scope boundaries (unchanged from the redesign plan)
 
