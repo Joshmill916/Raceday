@@ -595,6 +595,7 @@ body.kiosk .wrap-narrow { max-width:600px; width:100%; }
     <div class="rail-foot">
       <div id="railState"></div>
       <button class="btn btn-sm btn-ghost" onclick="toggleTheme()" id="themeBtn" title="Switch between the dark race-night look and the daylight sign-up look">◐ Daylight</button>
+      <a class="btn btn-sm btn-ghost" href="/?home=1" title="Back to victoryraceday.com">← victoryraceday.com</a>
     </div>
   </aside>
 
@@ -2470,6 +2471,7 @@ function renderHeader() {
     bits.push('<button class="btn btn-sm btn-ghost" onclick="lockAdmin()">🔒 Lock</button>');
   bits.push('<button class="btn btn-sm btn-ghost" onclick="toggleTheme()" id="themeBtnMob" title="Switch between the dark race-night look and the daylight sign-up look">'
     + (themeName() === 'light' ? '◑ Race night' : '◐ Daylight') + '</button>');
+  bits.push('<a class="btn btn-sm btn-ghost" href="/?home=1" title="Back to victoryraceday.com">← Site</a>');
   document.getElementById('topRight').innerHTML = bits.join('');
 
   const rs = document.getElementById('railState');
@@ -2845,7 +2847,7 @@ function renderSignup() {
     +     '<span>I agree to the <a onclick="openDoc(\'terms\')">Terms of Service</a> and <a onclick="openDoc(\'privacy\')">Privacy Policy</a>, and confirm my information is correct.</span></label></div>'
     +   '<div id="e1" class="note note-err" style="display:none;margin-bottom:10px"></div>'
     +   '<div id="e2" class="note note-err" style="display:none;margin-bottom:10px"></div>'
-    +   '<button class="btn btn-go btn-block" id="drawBtn" onclick="register()"' + (blocked ? ' disabled' : '') + '>🎱 Draw my pills</button>'
+    +   '<button class="btn btn-go btn-block" id="drawBtn" onclick="register()"' + (blocked ? ' disabled' : '') + '>Draw my pills</button>'
     + '</div>'
     + rosterPickMarkup();
 
