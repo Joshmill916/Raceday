@@ -1138,6 +1138,12 @@ function licBuyLinksHtml() {
     + '</div>';
 }
 function adminOk() {
+  // Spectator + passive TV board: never gain admin-gated access, PIN or not. Mirrors
+  // changeDeviceRole()'s "viewer cannot escalate even with no PIN" guard — every other
+  // role reaches adminOk() only through pages ROLE_PAGES already grants it. Ported from
+  // raceday/index.html (v1) after a real production bug there.
+  const role = deviceRole();
+  if (role === 'viewer' || role === 'tv') return false;
   if (!S.adminPin || sessionStorage.getItem('rd_admin_ok') === '1') return true;
   const t = prompt('Enter the admin PIN');
   if (t === null) return false;
@@ -3170,6 +3176,11 @@ function gridMarkup(racers, single) {
 
 function renderGrid() {
   if (deviceRole() === 'viewer') return renderFanView();
+  // Passive TV board: same full grid layout (it's what the board should show once the
+  // TV overlay is closed), just no mutating/operator controls. adminOk() also refuses
+  // tv now, so this is belt-and-suspenders, not the only gate — mirrors the same fix
+  // ported to raceday/index.html (v1) this session.
+  const isTv = deviceRole() === 'tv';
   const el = document.getElementById('gridWrap');
   if (!S.classes.length) { el.innerHTML = '<h2>Lineups</h2>' + emptyState('▦', 'No classes set up yet.', '⚙ Add a class', "nav('admin');admOpen('classes')"); return; }
 
@@ -3178,9 +3189,11 @@ function renderGrid() {
 
   let h = '<div class="spread" style="margin-bottom:4px"><h2 style="margin:0">Lineups</h2>'
     + '<span class="push"></span>'
-    + '<button class="btn btn-sm btn-primary" onclick="openTV()">📺 TV display</button>'
-    + '<button class="btn btn-sm" onclick="openPrint()">🖨 Print</button>'
-    + '<button class="btn btn-sm" onclick="openImport(\'qual\')">📥 Import timing</button></div>'
+    + (isTv ? '' :
+      '<button class="btn btn-sm btn-primary" onclick="openTV()">📺 TV display</button>'
+      + '<button class="btn btn-sm" onclick="openPrint()">🖨 Print</button>'
+      + '<button class="btn btn-sm" onclick="openImport(\'qual\')">📥 Import timing</button>')
+    + '</div>'
     + '<p class="sub">Lowest pill starts up front; set 2 runs inverted. Spots update live as drivers draw. '
     + 'Tap any driver for their card.</p>'
     + '<div class="spread" style="margin-bottom:14px">'
@@ -3193,16 +3206,16 @@ function renderGrid() {
     +   '<button class="' + (single ? 'on' : '') + '" onclick="setGridStyle(\'single\')">Single file</button></div>'
     + '</div>';
 
-  shown.forEach(cls => { h += classGridMarkup(cls, single); });
+  shown.forEach(cls => { h += classGridMarkup(cls, single, isTv); });
   el.innerHTML = h;
 }
 
-function classGridMarkup(cls, single) {
+function classGridMarkup(cls, single, isTv) {
   const racers = classRacers(cls.id);
   let h = '<section style="margin-bottom:30px"><div class="spread" style="margin-bottom:10px">'
     + '<h3 style="margin:0">' + esc(cls.name) + '</h3>'
     + '<span class="badge badge-dim">' + plural(racers.length, 'entered', 'entered') + '</span>'
-    + (racers.length ? '<button class="btn btn-sm push" onclick="openQualTimes(' + cls.id + ')">⏱ Qualifying times</button>' : '')
+    + (racers.length && !isTv ? '<button class="btn btn-sm push" onclick="openQualTimes(' + cls.id + ')">⏱ Qualifying times</button>' : '')
     + '</div>';
   if (!racers.length) return h + emptyState('🏁', 'No drivers yet — first to sign up takes the pole.') + '</section>';
 
@@ -6286,6 +6299,7 @@ function renderHistory() {
     return h;
   }).join('');
 }
+function toggleHist(i) { UI.histOpen = UI.histOpen === i ? null : i; renderHistory(); }
 
 /* --------------------------------------------------------------- audit ---- */
 function secAudit() {

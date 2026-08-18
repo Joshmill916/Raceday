@@ -88,10 +88,6 @@ const TYPES = { '.html':'text/html', '.js':'application/javascript', '.json':'ap
     await boot(p);
     await p.evaluate(() => nav('grid')); await p.waitForTimeout(200);
     await p.evaluate(() => openPrint()); await p.waitForTimeout(200);
-    check('print sheet lists all four output types',
-      ['Lineup sheets', 'Pit board', 'Results sheet', 'Points standings'].every(t => {
-        return true; // presence checked via popup below; label text asserted next
-      }));
     const bodyText = await p.textContent('#sheetBody');
     ['Lineup sheets', 'Pit board', 'Results sheet', 'Points standings'].forEach(t =>
       check('print sheet offers "' + t + '"', bodyText.includes(t)));

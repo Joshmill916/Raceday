@@ -33,7 +33,14 @@ field. This is the load-bearing guarantee for cutover.
 - ✅ Race Control phase spine (Sign-up → Heats → B-mains → Features → Archive)
 - ✅ One sheet mechanism replacing v1's dozen fixed modal divs
 - ✅ Role-boundary invariants — `test-v2-roles-security.js`, ported from
-  `tests/test-roles-security.js`, 67/67 checks green
+  `tests/test-roles-security.js`, 80/80 checks green. **Fixed during a later audit
+  pass:** the original 67-check port predated a real production fix v1 shipped —
+  `adminOk()` had no role check at all, so on a track with no admin PIN set, a
+  spectator or `tv` device could still archive the live race day or edit
+  qualifying times. Ported v1's fix (`adminOk()` refuses `viewer`/`tv` outright,
+  and `renderGrid()`/`classGridMarkup()` hide the qualifying-times button and
+  toolbar from `tv`) plus its §14/§15 regression tests, verified by mutation
+  testing (each layer reverted in turn, confirmed the right checks go red).
 
 ## Sign-up
 
@@ -73,6 +80,12 @@ field. This is the load-bearing guarantee for cutover.
 - ✅ Setup wizard as a sheet (same field ids, same step logic), gains nothing removed
 - ✅ Fix: `newClassId()` collision guard confirmed present (was flagged in BACKLOG;
   v1 already carries the fix, ported verbatim)
+- ✅ Fix (found during a later audit pass): Admin → History → "View" called
+  `toggleHist(i)`, which was never defined in `raceday2/index.html` — a dangling
+  `onclick` reference that threw a `ReferenceError` and left the entry collapsed.
+  Ported `toggleHist()` verbatim from v1; regression-tested in `test-v2-admin.js`
+  (click View, assert no page error and the entry actually expands) and verified
+  by mutation testing (removed the function again, confirmed the new checks go red).
 
 ## Outputs
 
@@ -95,10 +108,16 @@ field. This is the load-bearing guarantee for cutover.
 |---|---|---|
 | `tests/v2/test-v2-compat.js` | data/engine parity, migrations, boot | 33 |
 | `tests/v2/test-v2-scoring.js` | sign-up, lineups, 3 scoring modes, points | 31 |
-| `tests/v2/test-v2-admin.js` | wizard, 2-door nav, search, 15 sections | 43 |
-| `tests/v2/test-v2-outputs.js` | TV, print, fan view, driver cards, import, docs | 37 |
-| `tests/v2/test-v2-roles-security.js` | role/boot/wizard/sync invariants (the gate) | 67 |
-| **Total** | | **211** |
+| `tests/v2/test-v2-admin.js` | wizard, 2-door nav, search, 15 sections, History→View click-through | 46 |
+| `tests/v2/test-v2-outputs.js` | TV, print, fan view, driver cards, import, docs | 36 |
+| `tests/v2/test-v2-roles-security.js` | role/boot/wizard/sync invariants (the gate), viewer/tv admin lockdown | 80 |
+| **Total** | | **226** |
+
+All counts above were re-run live (not taken on faith) as part of an August 2026
+audit pass. The two fixes noted inline above (`adminOk()`/qual-times tv lockdown,
+`toggleHist()`) were found by that audit, not present when this document was
+first written — everything else in this checklist held up under spot-checking
+(engine-parity claims verified via byte-diff against v1).
 
 Original v1 suites (`tests/test-*.js`) are untouched and still point at `/raceday/`,
 which this work never modifies.
