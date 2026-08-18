@@ -3184,11 +3184,11 @@ function renderGrid() {
     + '<p class="sub">Lowest pill starts up front; set 2 runs inverted. Spots update live as drivers draw. '
     + 'Tap any driver for their card.</p>'
     + '<div class="spread" style="margin-bottom:14px">'
-    +   '<div class="tabs" style="padding-bottom:0;flex:1">'
-    +     '<button class="tab' + (UI.viewClsId == null ? ' on' : '') + '" onclick="setViewClass(null)">All classes</button>'
-    +     S.classes.map(c => '<button class="tab' + (UI.viewClsId === c.id ? ' on' : '')
-          + '" onclick="setViewClass(' + c.id + ')">' + esc(c.name) + '</button>').join('')
-    +   '</div>'
+    +   '<select onchange="setViewClass(this.value)" style="flex:1;min-width:160px" aria-label="Class">'
+    +     '<option value=""' + (UI.viewClsId == null ? ' selected' : '') + '>All classes</option>'
+    +     S.classes.map(c => '<option value="' + c.id + '"' + (UI.viewClsId === c.id ? ' selected' : '')
+          + '>' + esc(c.name) + '</option>').join('')
+    +   '</select>'
     +   '<div class="seg"><button class="' + (single ? '' : 'on') + '" onclick="setGridStyle(\'double\')">Double file</button>'
     +   '<button class="' + (single ? 'on' : '') + '" onclick="setGridStyle(\'single\')">Single file</button></div>'
     + '</div>';
