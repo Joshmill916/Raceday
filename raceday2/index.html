@@ -595,6 +595,7 @@ body.kiosk .wrap-narrow { max-width:600px; width:100%; }
     <div class="rail-foot">
       <div id="railState"></div>
       <button class="btn btn-sm btn-ghost" onclick="toggleTheme()" id="themeBtn" title="Switch between the dark race-night look and the daylight sign-up look">◐ Daylight</button>
+      <a class="btn btn-sm btn-ghost" href="/?home=1" title="Back to victoryraceday.com">← victoryraceday.com</a>
     </div>
   </aside>
 
@@ -2470,6 +2471,7 @@ function renderHeader() {
     bits.push('<button class="btn btn-sm btn-ghost" onclick="lockAdmin()">🔒 Lock</button>');
   bits.push('<button class="btn btn-sm btn-ghost" onclick="toggleTheme()" id="themeBtnMob" title="Switch between the dark race-night look and the daylight sign-up look">'
     + (themeName() === 'light' ? '◑ Race night' : '◐ Daylight') + '</button>');
+  bits.push('<a class="btn btn-sm btn-ghost" href="/?home=1" title="Back to victoryraceday.com">← Site</a>');
   document.getElementById('topRight').innerHTML = bits.join('');
 
   const rs = document.getElementById('railState');
