@@ -278,9 +278,10 @@ img { max-width:100%; }
 .seg button.on { background:var(--asphalt-0); color:var(--ink); box-shadow:var(--shadow-sm); }
 .seg-plate button.on { background:var(--plate); color:var(--plate-ink); font-weight:700; }
 
-/* Scrolling pill tabs — classes, points, results. */
-.tabs { display:flex; gap:7px; overflow-x:auto; padding:2px 0 12px; scrollbar-width:none; }
-.tabs::-webkit-scrollbar { display:none; }
+/* Pill tabs — classes, points, results. Wraps rather than hiding overflow behind a
+   scrollbar-less horizontal scroll, so a narrow phone never hides a class off-screen
+   with no visual cue that it's there. */
+.tabs { display:flex; flex-wrap:wrap; gap:7px; padding:2px 0 12px; }
 .tab {
   min-height:38px; padding:7px 15px; border:1px solid var(--line); border-radius:99px;
   background:var(--asphalt-1); color:var(--muted); font:inherit; font-size:13.5px; font-weight:600;
