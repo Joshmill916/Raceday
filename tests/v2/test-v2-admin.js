@@ -154,6 +154,26 @@ const ALL_SECTIONS = ['today','history','track','classes','format','points','leg
   await page.waitForTimeout(300);
   check('the day archived to history', await page.evaluate(h => S.history.length === h + 1, histBefore));
   check('the board cleared', await page.evaluate(() => S.raceDay.entries.length === 0));
+
+  console.log('— History entry actually expands on "View" (not just that the section renders) —');
+  // (Real bug found by audit: renderHistory() emits onclick="toggleHist(i)", but
+  //  toggleHist() was never defined in raceday2/index.html — a dangling reference. The
+  //  ALL_SECTIONS loop above only asserts the history section renders >200 chars; it
+  //  never actually clicks View, so this was never caught.)
+  errs.length = 0;
+  await page.evaluate(() => { admOpen('history'); });
+  await page.waitForTimeout(150);
+  const viewClicked = await page.evaluate(() => {
+    const btn = [...document.querySelectorAll('#historyList button')].find(b => /toggleHist\(/.test(b.getAttribute('onclick') || ''));
+    if (!btn) return false;
+    btn.click();
+    return true;
+  });
+  await page.waitForTimeout(150);
+  check('a "View" button exists on the archived entry', viewClicked);
+  check('clicking View threw no page error (toggleHist is defined)', errs.length === 0, errs.join(' | '));
+  check('clicking View actually expanded the entry (standings/points table rendered)',
+    await page.evaluate(() => /<table/.test(document.getElementById('historyList').innerHTML)));
   check('classes and driver book survived', await page.evaluate(() => S.classes.length > 0 && S.roster.length > 0));
 
   console.log('— PIN lock actually blocks admin —');

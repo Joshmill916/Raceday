@@ -33,7 +33,14 @@ field. This is the load-bearing guarantee for cutover.
 - ✅ Race Control phase spine (Sign-up → Heats → B-mains → Features → Archive)
 - ✅ One sheet mechanism replacing v1's dozen fixed modal divs
 - ✅ Role-boundary invariants — `test-v2-roles-security.js`, ported from
-  `tests/test-roles-security.js`, 67/67 checks green
+  `tests/test-roles-security.js`, 80/80 checks green. **Fixed during a later audit
+  pass:** the original 67-check port predated a real production fix v1 shipped —
+  `adminOk()` had no role check at all, so on a track with no admin PIN set, a
+  spectator or `tv` device could still archive the live race day or edit
+  qualifying times. Ported v1's fix (`adminOk()` refuses `viewer`/`tv` outright,
+  and `renderGrid()`/`classGridMarkup()` hide the qualifying-times button and
+  toolbar from `tv`) plus its §14/§15 regression tests, verified by mutation
+  testing (each layer reverted in turn, confirmed the right checks go red).
 
 ## Sign-up
 
@@ -73,6 +80,12 @@ field. This is the load-bearing guarantee for cutover.
 - ✅ Setup wizard as a sheet (same field ids, same step logic), gains nothing removed
 - ✅ Fix: `newClassId()` collision guard confirmed present (was flagged in BACKLOG;
   v1 already carries the fix, ported verbatim)
+- ✅ Fix (found during a later audit pass): Admin → History → "View" called
+  `toggleHist(i)`, which was never defined in `raceday2/index.html` — a dangling
+  `onclick` reference that threw a `ReferenceError` and left the entry collapsed.
+  Ported `toggleHist()` verbatim from v1; regression-tested in `test-v2-admin.js`
+  (click View, assert no page error and the entry actually expands) and verified
+  by mutation testing (removed the function again, confirmed the new checks go red).
 
 ## Outputs
 
@@ -95,40 +108,42 @@ field. This is the load-bearing guarantee for cutover.
 |---|---|---|
 | `tests/v2/test-v2-compat.js` | data/engine parity, migrations, boot | 33 |
 | `tests/v2/test-v2-scoring.js` | sign-up, lineups, 3 scoring modes, points | 31 |
-| `tests/v2/test-v2-admin.js` | wizard, 2-door nav, search, 15 sections | 43 |
-| `tests/v2/test-v2-outputs.js` | TV, print, fan view, driver cards, import, docs | 37 |
-| `tests/v2/test-v2-roles-security.js` | role/boot/wizard/sync invariants (the gate) | 67 |
-| **Total** | | **211** |
+| `tests/v2/test-v2-admin.js` | wizard, 2-door nav, search, 15 sections, History→View click-through | 46 |
+| `tests/v2/test-v2-outputs.js` | TV, print, fan view, driver cards, import, docs | 36 |
+| `tests/v2/test-v2-roles-security.js` | role/boot/wizard/sync invariants (the gate), viewer/tv admin lockdown | 80 |
+| `tests/v2/test-v2-cloud-backup.js` | cloud backup payload scrubbing, restore-by-code, write-only vault rules | 35 |
+| `tests/v2/test-v2-points-repair.js` | "Fix season points" full add/edit/duplicate-guard flow (not just section-opens) | 15 |
+| `tests/v2/test-v2-qual-mains.js` | qualifying-straight-to-mains format — seeding, B-mains, points, viewer/TV, 2-heat regression guard | 31 |
+| `tests/v2/test-v2-main-invert.js` | feature/B-main starting-spot invert | 26 |
+| `tests/v2/test-v2-roster-match.js` | sign-up identity-merge — same-name-different-person confirm, explicit-pick zero-friction merge | 22 |
+| `tests/v2/test-v2-qual-times.js` | manual qualifying-times entry + set-grid-from-times | 23 |
+| `tests/v2/test-v2-shell.js` | the 900px responsive breakpoint (rail vs. tabbar), clean-boot zero-console-error check | 7 |
+| **Total** | | **385** |
+
+All counts above were re-run live (not taken on faith) as part of an August 2026
+audit pass. The two fixes noted inline above (`adminOk()`/qual-times tv lockdown,
+`toggleHist()`) were found by that audit, not present when this document was
+first written — everything else in this checklist held up under spot-checking
+(engine-parity claims verified via byte-diff against v1).
+
+A second pass ported the six suites this document previously listed as "not yet
+ported" (see below), plus a new `test-v2-shell.js` for the responsive breakpoint. Engine
+logic in every one of them was confirmed byte-identical to v1 during the port; the real
+work was adapting to v2's different DOM — most notably its 3 score-entry modes (tap/pad/
+select), where the default tap UI omits information (transfer-origin tags, heat totals)
+that only renders in dropdown (`select`) mode, and the single-screen sign-up (no
+`step2()`/step-gating at all, unlike v1's 3-step wizard).
 
 Original v1 suites (`tests/test-*.js`) are untouched and still point at `/raceday/`,
 which this work never modifies.
 
 ## Not yet ported to `tests/v2/`
 
-These v1 suites cover ground already exercised indirectly (compat's byte-identical
-engine proof covers their underlying logic), but have not been ported as dedicated v2
-suites yet:
-
-- `test-qual-mains.js` (qualifying-straight-to-mains format) — engine copied verbatim,
-  covered indirectly by compat's engine-parity check; no dedicated v2 UI-flow test yet
-- `test-main-invert.js` (feature/B-main starting-spot invert) — same
-- `test-cloud-backup.js` (cloud backup payload scrubbing) — engine copied verbatim
-  (`CLOUD_BACKUP_FIELDS` allowlist unchanged); no dedicated v2 test yet
-- `test-points-repair.js` — UI exercised in `test-v2-admin.js`'s "repair" section-open
-  check only, not the full add/edit/duplicate-guard flow
-- `test-roster-match.js` — the identity-merge path is exercised in `test-v2-scoring.js`'s
-  "returning driver" case, not the full same-name-different-person matrix
-- `test-qual-times.js` — the sheet opens and renders in manual testing; no dedicated
-  automated v2 suite yet
 - `test-viewer-results.js` — covered by `test-v2-outputs.js`'s fan-view section, not a
   1:1 port
-- `test-smoke.js` — superseded in spirit by the four functional v2 suites together
-- `test-profiles.js` — targets `driven/index.html`, which this work does not touch
-
-**Recommendation before cutover:** port `test-cloud-backup.js` and `test-points-repair.js`
-next — both guard data-safety properties (no PIN/license/audit leakage in a cloud
-payload; no double-counting a repaired night) that are easy to regress silently and
-have no other test currently pinning them for v2.
+- `test-smoke.js` — superseded in spirit by the functional v2 suites together
+- `test-profiles.js` — targets `driven/index.html`, which this work does not touch (see
+  `tests/test-driven-*.js` for that app's own coverage)
 
 ## Scope boundaries (unchanged from the redesign plan)
 

@@ -1,9 +1,17 @@
 // Profiles app: onboarding, profileId + QR, import/dedupe, stats, edit, unlink, delete, persistence
 const { chromium } = require('/opt/node22/lib/node_modules/playwright');
-const http = require('http'); const fs = require('fs'); const path = require('path');
+const http = require('http'); const fs = require('fs'); const path = require('path'); const os = require('os');
 const ROOT = require('path').resolve(__dirname, '..'); const PORT = 8797;
 let pass = 0, fail = 0;
 const check = (n, ok, x) => { if (ok) { pass++; console.log('  ✅ ' + n); } else { fail++; console.log('  ❌ ' + n + (x ? ' — ' + x : '')); } };
+
+// A minimal valid 1x1 PNG, embedded so the photo-upload test is self-contained (no
+// dependency on a fixture file that might not exist in a future run/environment).
+const TEST_PNG_PATH = path.join(os.tmpdir(), 'driven-test-photo.png');
+fs.writeFileSync(TEST_PNG_PATH, Buffer.from(
+  'iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNk+M9QDwADhgGAWjR9awAAAABJRU5ErkJggg==',
+  'base64'
+));
 
 (async () => {
   const server = http.createServer((req, res) => {
@@ -15,7 +23,10 @@ const check = (n, ok, x) => { if (ok) { pass++; console.log('  ✅ ' + n); } els
   const browser = await chromium.launch({ executablePath: '/opt/pw-browsers/chromium' });
   const page = await browser.newPage({ viewport: { width: 420, height: 900 } });
   page.on('pageerror', e => { fail++; console.log('  ❌ PAGE ERROR: ' + e.message); });
-  page.on('dialog', d => d.accept());
+  const dlgSeen = [];   // still auto-accepts everything (unchanged behavior); later
+                        // sections read this to assert on alert/confirm TEXT too.
+  page.on('dialog', d => { dlgSeen.push(d.message()); d.accept(); });
+  const resetDlg = () => { dlgSeen.length = 0; };
   await page.goto(`http://localhost:${PORT}/driven/index.html`); await page.waitForTimeout(300);
 
   console.log('— Onboarding —');
@@ -197,6 +208,163 @@ const check = (n, ok, x) => { if (ok) { pass++; console.log('  ✅ ' + n); } els
   await page.click('button[onclick="restoreProfile()"]'); await page.waitForTimeout(300);
   check('a published card with an empty car number is NOT wrongly rejected', await page.evaluate(() => document.getElementById('onboardModal').style.display === 'none'));
   check('restored profile keeps the name, with an empty car number (not a lost card)', await page.evaluate(() => P.driver.name === 'Casey Nguyen' && P.driver.number === ''));
+
+  // ============================================================================
+  console.log('\n— activatePremium(): the direct UI path (not just via restore) —');
+  await page.evaluate(() => { P.tier = 'free'; P.premiumCode = ''; save(); nav('card'); });
+  await page.waitForTimeout(150);
+  resetDlg();
+  await page.fill('#premCode', '');
+  await page.click('button[onclick="activatePremium()"]');
+  await page.waitForTimeout(150);
+  check('an empty code is a silent no-op — no alert, no state change', dlgSeen.length === 0 && await page.evaluate(() => P.tier === 'free'), JSON.stringify(dlgSeen));
+
+  resetDlg();
+  await page.fill('#premCode', 'PREM-GARBAGE1-BADHASH1');
+  await page.click('button[onclick="activatePremium()"]');
+  await page.waitForTimeout(150);
+  check('an invalid code is rejected with a clear message, tier unchanged',
+    dlgSeen.some(m => /isn't valid for this profile/i.test(m)) && await page.evaluate(() => P.tier === 'free'), JSON.stringify(dlgSeen));
+
+  resetDlg();
+  const validCode = await page.evaluate(() => {
+    var short = premShort(P.profileId);
+    return 'PREM-' + short + '-' + pHash(P.profileId + '|PREM|' + PREM_SALT).slice(0, 8);
+  });
+  await page.fill('#premCode', validCode);
+  await page.click('button[onclick="activatePremium()"]');
+  await page.waitForTimeout(200);
+  check('a valid code unlocks pro, uppercased, with a success alert',
+    dlgSeen.some(m => /Pro unlocked/i.test(m)) && await page.evaluate((c) => P.tier === 'pro' && P.premiumCode === c.toUpperCase(), validCode), JSON.stringify(dlgSeen));
+  check('the upsell panel is gone from the card page after unlocking', !(await page.textContent('#page-card')).includes('id="premCode"'));
+
+  // ============================================================================
+  console.log('\n— migrate(): the three legacy-tier collapse rules —');
+  const tierMigrations = await page.evaluate(() => ({
+    premium: migrate({ tier: 'premium' }).tier,
+    basic: migrate({ tier: 'basic' }).tier,
+    upgrade: migrate({ tier: 'upgrade' }).tier,
+    unknownJunk: migrate({ tier: 'literally-anything-else' }).tier,
+    alreadyFree: migrate({ tier: 'free' }).tier,
+    alreadyPro: migrate({ tier: 'pro' }).tier,
+  }));
+  check('"premium" (the old paid tier) migrates to "pro"', tierMigrations.premium === 'pro', tierMigrations.premium);
+  check('"basic" (a free tier) migrates to "free"', tierMigrations.basic === 'free', tierMigrations.basic);
+  check('"upgrade" (an unpaid local toggle) migrates to "free"', tierMigrations.upgrade === 'free', tierMigrations.upgrade);
+  check('any unrecognized tier string falls back to "free"', tierMigrations.unknownJunk === 'free', tierMigrations.unknownJunk);
+  check('an already-valid "free" tier passes through unchanged', tierMigrations.alreadyFree === 'free', tierMigrations.alreadyFree);
+  check('an already-valid "pro" tier passes through unchanged', tierMigrations.alreadyPro === 'pro', tierMigrations.alreadyPro);
+
+  // ============================================================================
+  console.log('\n— Restore error paths —');
+  // publishedAt=0 keeps deleteProfile() on its synchronous local-only wipe path — the
+  // Firebase-cleanup branch (P.publishedAt truthy) is already covered in
+  // tests/test-driven-publish.js and needs its own mock to avoid hanging on a real
+  // network call here.
+  await page.evaluate(() => { P.tier = 'free'; P.premiumCode = ''; P.publishedAt = 0; save(); nav('settings'); });
+  await page.waitForTimeout(150);
+  // waitUntil: 'domcontentloaded', not the default 'load' — the page's external Google
+  // Fonts fetch fails in this sandboxed environment (a pre-existing, harmless, unrelated
+  // issue an earlier audit already flagged) and can leave the 'load' event never firing,
+  // hanging waitForNavigation() indefinitely. domcontentloaded is all that's needed here
+  // since it's the app's own inline script that matters, not the web font.
+  await Promise.all([page.waitForNavigation({ waitUntil: 'domcontentloaded' }), page.click('button[onclick="deleteProfile()"]')]);
+  await page.waitForSelector('#onboardModal');
+
+  resetDlg();
+  await page.click('a[onclick="toggleRestore(event)"]'); await page.waitForTimeout(100);
+  await page.fill('#restoreInput', '{not valid json at all');
+  await page.click('button[onclick="restoreProfile()"]'); await page.waitForTimeout(200);
+  check('garbage JSON gives a clear "couldn\'t read it" message, not a crash', dlgSeen.some(m => /couldn't read it/i.test(m)), JSON.stringify(dlgSeen));
+  check('onboarding stays open after a failed restore', await page.evaluate(() => document.getElementById('onboardModal').style.display === 'flex'));
+
+  resetDlg();
+  await page.fill('#restoreInput', JSON.stringify({ hello: 'world' }));
+  await page.click('button[onclick="restoreProfile()"]'); await page.waitForTimeout(200);
+  check('valid JSON that is not a Driven backup is rejected by name/shape, not silently accepted',
+    dlgSeen.some(m => /doesn't look like a Driven backup file/i.test(m)), JSON.stringify(dlgSeen));
+
+  resetDlg();
+  await page.evaluate(() => {
+    window.firebase = {
+      apps: [{}],
+      database: function () { return { ref: function () { return { once: function () { return Promise.resolve({ val: function () { return null; } }); } }; } }; },
+    };
+  });
+  await page.fill('#restoreInput', 'NOSUCHCODE');
+  await page.click('button[onclick="restoreProfile()"]'); await page.waitForTimeout(200);
+  check('an unknown link code gets a clear "doesn\'t match" message', dlgSeen.some(m => /doesn't match a published profile/i.test(m)), JSON.stringify(dlgSeen));
+
+  resetDlg();
+  await page.evaluate(() => {
+    window.firebase = {
+      apps: [{}],
+      database: function () { return { ref: function () { return { once: function () { return Promise.reject(new Error('offline')); } }; } }; },
+    };
+  });
+  await page.fill('#restoreInput', 'ANYCODE1');
+  await page.click('button[onclick="restoreProfile()"]'); await page.waitForTimeout(200);
+  check('a network failure during restore is caught with a clear message, not an unhandled rejection',
+    dlgSeen.some(m => /Couldn't reach the profile service/i.test(m)), JSON.stringify(dlgSeen));
+
+  // ============================================================================
+  console.log('\n— Photo pipeline —');
+  resetDlg();
+  await page.evaluate(() => {
+    P = newProfile('Photo Test', '', '', null);
+    P.profileId = 'prof_phototest00001';
+    save();
+    nav('settings');
+  });
+  await page.waitForTimeout(150);
+
+  const photoOKChecks = await page.evaluate(() => ({
+    validPng: photoOK('data:image/png;base64,aGVsbG8='),
+    validJpeg: photoOK('data:image/jpeg;base64,aGVsbG8='),
+    validJpgShort: photoOK('data:image/jpg;base64,aGVsbG8='),
+    wrongMime: photoOK('data:image/gif;base64,aGVsbG8='),
+    notDataUrl: photoOK('https://example.com/photo.png'),
+    notAString: photoOK(12345),
+    nullish: photoOK(null),
+  }));
+  check('photoOK() accepts png/jpeg/jpg data URLs', photoOKChecks.validPng && photoOKChecks.validJpeg && photoOKChecks.validJpgShort, JSON.stringify(photoOKChecks));
+  check('photoOK() rejects a disallowed mime type (gif)', !photoOKChecks.wrongMime);
+  check('photoOK() rejects a plain URL (not a data: URL)', !photoOKChecks.notDataUrl);
+  check('photoOK() rejects non-string input without throwing', !photoOKChecks.notAString && !photoOKChecks.nullish);
+
+  await page.setInputFiles('#stPhotoFile', TEST_PNG_PATH);
+  await page.waitForTimeout(200);
+  const uploaded = await page.evaluate(() => P.driver.photo);
+  check('a valid small image uploads and passes photoOK() after crop/resize/encode',
+    typeof uploaded === 'string' && uploaded.startsWith('data:image/jpeg;base64,'), typeof uploaded);
+
+  await page.evaluate(() => { removePhoto(); });
+  check('removePhoto() clears it', await page.evaluate(() => P.driver.photo === null));
+
+  console.log('\n— Photo pipeline: the 60KB size gate —');
+  // Monkeypatch canvas.toDataURL to return a deterministic oversized string — a real
+  // photo's actual encoded size depends on image content/compression, which isn't
+  // reliably controllable from a test; this exercises the exact >60000 branch directly.
+  await page.evaluate(() => {
+    HTMLCanvasElement.prototype.toDataURL = function () { return 'data:image/jpeg;base64,' + 'A'.repeat(61000); };
+  });
+  resetDlg();
+  await page.setInputFiles('#stPhotoFile', TEST_PNG_PATH);
+  await page.waitForTimeout(200);
+  check('an oversized encoded photo is rejected with a clear message', dlgSeen.some(m => /too heavy/i.test(m)), JSON.stringify(dlgSeen));
+  check('P.driver.photo is untouched by the rejected upload', await page.evaluate(() => P.driver.photo === null));
+
+  // ============================================================================
+  console.log('\n— QR payload content (not just canvas size) —');
+  const qrPayload = await page.evaluate(() => {
+    const calls = [];
+    const realDrawQR = drawQR;
+    window.drawQR = function (cv, text) { calls.push(text); return realDrawQR(cv, text); };
+    nav('link');
+    return calls;
+  });
+  check('the QR payload is exactly "RDPROFILE:" + profileId, not just a canvas of the right size',
+    qrPayload.length === 1 && qrPayload[0] === 'RDPROFILE:' + await page.evaluate(() => P.profileId), JSON.stringify(qrPayload));
 
   await browser.close(); server.close();
   console.log(`\n==== ${pass} passed, ${fail} failed ====`);
