@@ -2519,6 +2519,7 @@ function setViewStage(s) { UI.viewStage = s; renderGrid(); }
 function renderViewerLineups() {
   const el = document.getElementById('gridContent');
   if (!el) return;
+  if (Sync.joinFailed) { el.innerHTML = '<p class="empty">Couldn\'t connect to this track — the code on this QR code may be out of date. Check with track staff for a current one.</p>'; return; }
   const trackBtn = '<div style="text-align:center;margin-bottom:10px"><button class="btn btn-sm" onclick="showTrackCard()">🏟 About this track</button></div>';
   if (!S.classes.length) { el.innerHTML = trackBtn + '<p class="empty">Lineups will appear here once the race day starts.</p>'; return; }
   if (!UI.viewClsId || !classById(UI.viewClsId)) UI.viewClsId = S.classes[0].id;
@@ -3912,14 +3913,29 @@ function importBackup(input) {
 // the parts that matter: what counts as a valid backup, and what stays with the device.
 function applyRestoredState(s, label) {
   if (!s || !s.raceDay || !s.classes) { alert("That file isn't a RaceDay backup."); return false; }
-  if (!confirm('Restore ' + label + '? The race data (drivers, classes, lineups, results, history) will be replaced.\n\nThis device keeps its OWN license and trial — a backup never transfers a license.')) return false;
+  // A backup taken with a blank track name (an early test, a device mid-setup, a stray
+  // demo) silently erases a real track's identity on restore with nothing to warn about
+  // it — call that out specifically, since the generic confirm below doesn't mention
+  // track identity at all and this is the exact way a track has actually lost its name.
+  const incomingName = (s.track && s.track.name || '').trim();
+  const currentName = (S.track && S.track.name || '').trim();
+  if (currentName && !incomingName) {
+    if (!confirm('This backup has no track name saved in it. Restoring it will erase "' + currentName + '" and leave the track unnamed.\n\nContinue anyway?')) return false;
+  } else if (!confirm('Restore ' + label + '? The race data (drivers, classes, lineups, results, history) will be replaced.\n\nThis device keeps its OWN license and trial — a backup never transfers a license.')) return false;
   // License, trial days, and packet usage belong to THIS device, not the backup file.
   // A backup shared between people must never carry one track's license onto another's
   // device, so we preserve the importing device's own identity (mirrors resetAll's keep).
   // PINs come along the same way: a cloud payload has none, so keep the device's own.
   const keep = { license: S.license, trialDays: S.trialDays, licUse: S.licUse,
                  adminPin: S.adminPin, operatorPin: S.operatorPin };
-  S = migrate(s);
+  try {
+    S = migrate(s);
+  } catch (e) {
+    // A malformed/partial backup (e.g. missing settings) can throw mid-migration —
+    // fail cleanly rather than leaving S half-assigned from a broken restore.
+    alert("That backup couldn't be restored — it looks corrupted or incomplete.");
+    return false;
+  }
   S.license = keep.license;
   S.trialDays = keep.trialDays;
   S.licUse = keep.licUse;
@@ -4961,7 +4977,7 @@ window.addEventListener('unhandledrejection', e => { sendUsage('crash', { msg: S
 // ---------- Multi-device sync (Firebase) ----------
 // Dormant unless FIREBASE_CONFIG is filled in AND a track has activated sync.
 // Only the SYNC_FIELDS subtrees are mirrored; admin PIN / license / history stay local.
-const Sync = { db: null, timer: null, applying: false, activating: false, connected: false };
+const Sync = { db: null, timer: null, applying: false, activating: false, connected: false, joinFailed: false };
 let _operatorControl = false;   // operator mode: false = watching (read-only), true = controlling (writes live)
 const _syncLast = {};   // field -> last JSON string seen, so we only push real changes
 
@@ -5091,7 +5107,13 @@ function initSync() {
       SYNC_FIELDS.forEach(f => { _syncLast[f] = JSON.stringify(syncGet(f) === undefined ? null : syncGet(f)); });
       Sync.db.on('value', snap => {
         const v = snap.val();
-        if (!v || Sync.activating) { Sync.activating = false; syncPushFull(); return; }  // empty room or admin re-activating: push local state, don't pull stale Firebase data
+        if (!v || Sync.activating) {
+          // Empty room: for a viewer this means the code on the poster doesn't match
+          // anything live (typo, stale/reprinted QR, room pruned) — say so instead of
+          // silently sitting on a blank grid forever with no explanation.
+          if (!v && deviceRole() === 'viewer') { Sync.joinFailed = true; renderGrid(); }
+          Sync.activating = false; syncPushFull(); return;  // empty room or admin re-activating: push local state, don't pull stale Firebase data
+        }
         syncApplySnapshot(v);
       });
     } catch (e) { console.warn('RaceDay sync init:', e && e.message || e); }
@@ -5101,6 +5123,7 @@ function initSync() {
 // take-control / back-to-watching, which re-pull fresh to discard any local scratch).
 function syncApplySnapshot(v) {
   if (!v) return;
+  Sync.joinFailed = false;
   const wasViewer = deviceRole() === 'viewer';
   const prevFin = wasViewer ? JSON.stringify(S.classes.map(c => featureFinish(c.id))) : null;
   const prevTrackName = S.track && S.track.name;
@@ -5557,19 +5580,30 @@ function handleUrlParams() {
     }
     if (sk) {
       const incoming = normKey(sk);
-      // "Real local setup" = anything the track configured on THIS device that a blind
-      // cloud pull would wipe: entries, the driver book, or a named track. Checking only
-      // entries missed the case where classes/roster/track were set up but sign-up hadn't
-      // started yet — that state was being silently overwritten with no warning.
-      const hasLocal = (S.raceDay.entries && S.raceDay.entries.length > 0)
-        || (S.roster && S.roster.length > 0)
-        || !!(S.track && S.track.name);
       const diff = incoming !== normKey(S.sync.key || '');
-      // A QR / share link silently REPLACES this device's race with the cloud copy.
-      // Warn before clobbering real local data (the demo-test / stale-pull footgun).
-      if (hasLocal && diff && !confirm('This link connects this device to the shared race for code "' + incoming + '".\n\nThis device\'s current entries, driver book, classes and results will be REPLACED by the cloud copy. Continue?')) {
-        history.replaceState({}, '', location.pathname);
-        return;
+      // A public spectator link (the printed/scanned QR poster) must never show a fan
+      // stale data from whatever this phone last looked at, and a spectator has no
+      // "real local setup" of their own to protect — so a viewer join skips the
+      // clobber-warning entirely and always starts from a clean slate before syncing,
+      // rather than risk painting (or getting stuck on) a different track's race.
+      if (role === 'viewer' && diff) {
+        S.track = { id: genTrackId(), name: '', logo: '', length: '', surface: '', configuration: '', history: '' };
+        S.classes = []; S.roster = [];
+        S.raceDay = { date: today(), entries: [], heatResults: {}, pointsRace: {}, resultGov: {}, resultVersions: {} };
+      } else {
+        // "Real local setup" = anything the track configured on THIS device that a blind
+        // cloud pull would wipe: entries, the driver book, or a named track. Checking only
+        // entries missed the case where classes/roster/track were set up but sign-up hadn't
+        // started yet — that state was being silently overwritten with no warning.
+        const hasLocal = (S.raceDay.entries && S.raceDay.entries.length > 0)
+          || (S.roster && S.roster.length > 0)
+          || !!(S.track && S.track.name);
+        // A QR / share link silently REPLACES this device's race with the cloud copy.
+        // Warn before clobbering real local data (the demo-test / stale-pull footgun).
+        if (hasLocal && diff && !confirm('This link connects this device to the shared race for code "' + incoming + '".\n\nThis device\'s current entries, driver book, classes and results will be REPLACED by the cloud copy. Continue?')) {
+          history.replaceState({}, '', location.pathname);
+          return;
+        }
       }
       S.sync.key = incoming; S.sync.enabled = true;
     }

@@ -1,10 +1,15 @@
 // v2 data compatibility + boot invariants.
 //
-// The whole cutover story rests on one claim: a track can open RaceDay v2 and its
-// season is still there, and a v1 device and a v2 device can run the same race night.
-// That claim is only worth anything if it is tested against a payload v1 actually
-// wrote — so this suite boots the REAL v1 app, has it seed a full demo race night,
-// lifts the resulting localStorage verbatim, and hands it to v2.
+// The whole cutover story rests on one claim: a track's v1 season data is still
+// readable once it lands in v2, and a v1 device and a v2 device compute the same
+// answers from the same race night. That claim is only worth anything if it is
+// tested against a payload v1 actually wrote — so this suite boots the REAL v1 app,
+// has it seed a full demo race night, lifts the resulting localStorage verbatim, and
+// writes it under v2's OWN key ('raceday_v2', not v1's 'raceday_v1'). v1 and v2
+// deliberately do NOT share storage (a synced viewer's phone defaulting to admin the
+// moment it opened a v2 link, while still holding a live-synced v1 track, was a real
+// security bug) — so getting a v1 season into v2 today is an explicit copy, standing
+// in for whatever real migration path ships before cutover, not automatic inheritance.
 const { chromium } = require('/opt/node22/lib/node_modules/playwright');
 const http = require('http'); const fs = require('fs'); const path = require('path');
 const ROOT = path.resolve(__dirname, '..', '..'); const PORT = 8811;
@@ -55,7 +60,7 @@ const TYPES = { '.html':'text/html', '.js':'application/javascript', '.json':'ap
   {
     const p = await newPage();
     await p.goto(`http://localhost:${PORT}/`);
-    await p.evaluate(pl => localStorage.setItem('raceday_v1', pl), v1Payload);
+    await p.evaluate(pl => localStorage.setItem('raceday_v2', pl), v1Payload);
     await p.reload(); await p.waitForTimeout(500);
 
     const got = await p.evaluate(() => ({
@@ -74,7 +79,7 @@ const TYPES = { '.html':'text/html', '.js':'application/javascript', '.json':'ap
 
     // Round-trip: v2 writing must not corrupt or drop fields v1 depends on.
     await p.evaluate(() => save());
-    const after = await p.evaluate(() => JSON.parse(localStorage.getItem('raceday_v1')));
+    const after = await p.evaluate(() => JSON.parse(localStorage.getItem('raceday_v2')));
     const v1Keys = Object.keys(v1State).sort();
     const v2Keys = Object.keys(after).sort();
     check('v2 save() keeps every top-level field v1 wrote',
@@ -125,7 +130,7 @@ const TYPES = { '.html':'text/html', '.js':'application/javascript', '.json':'ap
       old.raceDay.heatResults[clsKey] = moved;
     }
     old.adminPin = '1234';   // pre-migration plaintext PIN
-    await p.evaluate(pl => localStorage.setItem('raceday_v1', pl), JSON.stringify(old));
+    await p.evaluate(pl => localStorage.setItem('raceday_v2', pl), JSON.stringify(old));
     await p.reload(); await p.waitForTimeout(400);
     const m = await p.evaluate(() => ({
       ver: S.schemaVersion,
@@ -144,7 +149,7 @@ const TYPES = { '.html':'text/html', '.js':'application/javascript', '.json':'ap
   {
     const p = await newPage(460, 950);
     await p.goto(`http://localhost:${PORT}/`);
-    await p.evaluate(pl => localStorage.setItem('raceday_v1', pl), v1Payload);
+    await p.evaluate(pl => localStorage.setItem('raceday_v2', pl), v1Payload);
     await p.evaluate(() => localStorage.setItem('rd_role_v2', 'viewer'));
     await p.reload(); await p.waitForTimeout(400);
     const tabs = await p.$$eval('#tabbar button', bs => bs.map(b => b.textContent.trim()));
@@ -170,7 +175,7 @@ const TYPES = { '.html':'text/html', '.js':'application/javascript', '.json':'ap
   {
     const p = await newPage();
     await p.goto(`http://localhost:${PORT}/`);
-    await p.evaluate(pl => localStorage.setItem('raceday_v1', pl), v1Payload);
+    await p.evaluate(pl => localStorage.setItem('raceday_v2', pl), v1Payload);
     await p.reload(); await p.waitForTimeout(400);
     check('a fully-scored demo night reads as complete',
       await p.evaluate(() => nightPhase().key === 'archive'), await p.evaluate(() => nightPhase().key));
@@ -194,11 +199,11 @@ const TYPES = { '.html':'text/html', '.js':'application/javascript', '.json':'ap
   {
     const p = await newPage();
     await p.goto(`http://localhost:${PORT}/`);
-    await p.evaluate(() => localStorage.setItem('raceday_v1', '{"classes":[ this is not json'));
+    await p.evaluate(() => localStorage.setItem('raceday_v2', '{"classes":[ this is not json'));
     await p.reload(); await p.waitForTimeout(400);
     check('recovery sheet opens', await p.evaluate(() => document.getElementById('sheetHost').classList.contains('on')));
     check('the corrupt bytes are still on the device',
-      await p.evaluate(() => localStorage.getItem('raceday_v1').includes('not json')));
+      await p.evaluate(() => localStorage.getItem('raceday_v2').includes('not json')));
     check('the setup wizard does NOT hijack a recovery device',
       await p.evaluate(() => (document.getElementById('sheetTitle').textContent || '').toLowerCase().includes('could not be read')));
     await p.close();

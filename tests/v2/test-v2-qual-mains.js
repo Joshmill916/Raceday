@@ -65,7 +65,7 @@ const TYPES = { '.html': 'text/html', '.js': 'application/javascript', '.json': 
   check('classes list offers "Qualifying · straight to mains"', dd.includes('Qualifying · straight to mains'));
   const fmt = await page.evaluate((id) => { setClassHeats(id, '0'); return classHeats(classById(id)); }, clsId);
   check('setClassHeats(id, "0") → classHeats() === 0', fmt === 0);
-  const persisted = await page.evaluate(() => JSON.parse(localStorage.getItem('raceday_v1')).classes[0].heats);
+  const persisted = await page.evaluate(() => JSON.parse(localStorage.getItem('raceday_v2')).classes[0].heats);
   check('format persists to localStorage as 0', persisted === 0);
 
   console.log('\n— drawPill: qualifying classes skip the random draw (sequential placeholder) —');

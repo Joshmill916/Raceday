@@ -322,6 +322,58 @@ const check = (name, ok, extra) => {
   check('cancelling the clobber keeps the original sync code', await page.evaluate(() => normKey(S.sync.key) === 'OLDCODE'), await page.evaluate(() => S.sync.key));
 
   // ============================================================================
+  console.log('\n=== 8b. A spectator (?role=viewer) joining a DIFFERENT track never sees the old one ===');
+  // (Live bug: a fan's phone that had ever seen ANY track kept re-showing that track's race
+  //  after scanning a different track's QR poster — the clobber confirm above fired for
+  //  spectators too, and cancelling it left the device silently attached to the OLD room.
+  //  A viewer has nothing of their own to protect, so the join must never ask and must
+  //  never let stale track/classes/roster/entries paint, even for a moment.)
+  resetDlg();
+  await page.evaluate(() => {
+    localStorage.clear(); S = load();
+    S.track.name = 'Old Track Speedway'; S.track.logo = 'data:image/png;base64,OLDLOGO';
+    S.classes = [{ id: 1, name: 'Old Class', maxPill: 200 }];
+    S.roster = [{ id: 1, name: 'Old Driver', num: '1', noPoints: false }];
+    S.raceDay.entries = [{ driverId: 1, classId: 1, pill: 5 }];
+    S.sync = { enabled: true, key: 'OLDTRACK' }; save(); setDeviceRole('viewer');
+  });
+  answer = () => false;   // dismiss anything shown — a viewer join must never need a dialog at all
+  await go(base + '?sync=NEWTRACK&role=viewer');
+  await page.waitForTimeout(500);
+  check('no confirm dialog is shown for a viewer joining a different track', dlgSeen.length === 0, JSON.stringify(dlgSeen));
+  check('the old track name is gone', await page.evaluate(() => S.track.name === ''));
+  check('the old classes are gone', await page.evaluate(() => S.classes.length === 0));
+  check('the old roster is gone', await page.evaluate(() => S.roster.length === 0));
+  check('the old race-day entries are gone', await page.evaluate(() => S.raceDay.entries.length === 0));
+  check('the device is now attached to the NEW track code', await page.evaluate(() => normKey(S.sync.key) === 'NEWTRACK'));
+  check('a non-viewer join to a different track still gets the clobber confirm', true);   // covered by §8 above; documenting the contrast here
+
+  console.log('\n=== 8c. An empty/misconfigured room tells a spectator, instead of staying silently blank ===');
+  // (Live bug: a poster printed before a code change, or a pruned room, left a viewer's
+  //  screen either blank or — worse — on whatever the last track was, with zero indication
+  //  anything was wrong. syncPushFull() is correctly a no-op for a viewer, but nothing used
+  //  to tell the FAN that.)
+  resetDlg();
+  await page.evaluate(() => {
+    // Mock Firebase so the room this device just joined ('NEWTRACK') resolves to an empty
+    // snapshot deterministically, without depending on real network access.
+    window.firebase = {
+      apps: [{}],
+      database: () => ({
+        ref: (path) => ({
+          on: (event, cb) => { cb({ val: () => (path.indexOf('tracks/') === 0 ? null : true) }); },
+          off: () => {},
+        }),
+      }),
+    };
+    initSync();
+  });
+  await page.waitForTimeout(300);
+  check('Sync.joinFailed is set on an empty room for a viewer', await page.evaluate(() => Sync.joinFailed === true));
+  const gridTxt = await page.textContent('#gridContent').catch(() => '');
+  check('the grid shows a "couldn\'t connect" message instead of a silent blank', /couldn.t connect/i.test(gridTxt), gridTxt.slice(0, 120));
+
+  // ============================================================================
   console.log('\n=== 9. Driver ids are collision-free across devices (multi-device sign-up) ===');
   // (The live bug: S.nextId was a PER-DEVICE counter, not synced, while roster IS synced —
   //  so two devices signing up at once minted the SAME id for different drivers, and

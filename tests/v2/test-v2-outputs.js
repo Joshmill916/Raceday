@@ -49,7 +49,7 @@ const TYPES = { '.html':'text/html', '.js':'application/javascript', '.json':'ap
   }
   const boot = async (p, role) => {
     await p.goto(`http://localhost:${PORT}/`);
-    await p.evaluate(([pl, r]) => { localStorage.setItem('raceday_v1', pl); localStorage.setItem('rd_role_v2', r || 'admin'); }, [payload, role]);
+    await p.evaluate(([pl, r]) => { localStorage.setItem('raceday_v2', pl); localStorage.setItem('rd_role_v2', r || 'admin'); }, [payload, role]);
     await p.reload(); await p.waitForTimeout(500);
     await p.evaluate(() => sessionStorage.setItem('rd_admin_ok', '1'));
   };
