@@ -320,6 +320,31 @@ const check = (name, ok, extra) => {
   check('the old race-day entries are gone', await page.evaluate(() => S.raceDay.entries.length === 0));
   check('the device is now attached to the NEW track code', await page.evaluate(() => normKey(S.sync.key) === 'NEWTRACK'));
 
+  console.log('\n=== 8b′. A track\'s OWN admin device scanning ANOTHER track\'s spectator QR is NOT silently wiped ===');
+  // (Ported from raceday/index.html — the dangerous regression the clean-reset fix could
+  //  have introduced: every printed spectator poster encodes role=viewer, so gating the
+  //  auto-clear on the INCOMING link's role alone would treat a track owner's own admin
+  //  device — visiting another track and scanning THEIR poster — exactly like a random
+  //  fan's phone, silently erasing the owner's real season. The auto-clear must only fire
+  //  for a device that is ALREADY nothing but a spectator.)
+  resetDlg();
+  await page.evaluate(() => {
+    localStorage.clear(); S = load();
+    S.track.name = 'My Real Track'; S.roster = [{ id: 1, name: 'My Driver', num: '1', noPoints: false }];
+    S.raceDay.entries = [{ driverId: 1, classId: 1, pill: 1 }];
+    S.sync = { enabled: true, key: 'MYOWNROOM' }; save(); setDeviceRole('admin');
+  });
+  let sawClobberWarning = false;
+  answer = (m) => { if (/REPLACED by the cloud copy/i.test(m)) { sawClobberWarning = true; } return false; };
+  await go(base + '?sync=SOMEONEELSESTRACK&role=viewer');
+  await page.waitForTimeout(500);
+  check('an admin device still gets the clobber confirm, even for a role=viewer link', sawClobberWarning);
+  check('declining it keeps the admin\'s own track name intact', await page.evaluate(() => S.track.name === 'My Real Track'));
+  check('declining it keeps the admin\'s own roster intact', await page.evaluate(() => S.roster.length === 1));
+  check('declining it keeps the admin\'s own entries intact', await page.evaluate(() => S.raceDay.entries.length === 1));
+  check('declining it keeps the admin attached to their OWN room', await page.evaluate(() => normKey(S.sync.key) === 'MYOWNROOM'));
+  check('the device is still admin, not demoted to viewer', await page.evaluate(() => deviceRole() === 'admin'));
+
   console.log('\n=== 8c. An empty/misconfigured room tells a spectator, instead of staying silently blank ===');
   resetDlg();
   await page.evaluate(() => {

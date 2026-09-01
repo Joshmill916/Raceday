@@ -2391,11 +2391,14 @@ function handleUrlParams() {
       const incoming = normKey(sk);
       const diff = incoming !== normKey(S.sync.key || '');
       // A public spectator link (the printed/scanned QR poster) must never show a fan
-      // stale data from whatever this phone last looked at, and a spectator has no
-      // "real local setup" of their own to protect — so a viewer join skips the
-      // clobber-warning entirely and always starts from a clean slate before syncing,
-      // rather than risk painting (or getting stuck on) a different track's race.
-      if (role === 'viewer' && diff) {
+      // stale data from whatever this phone last looked at, and a device that's ALREADY
+      // a spectator has no "real local setup" of their own to protect — so THAT join
+      // skips the clobber-warning entirely and starts from a clean slate before syncing.
+      // Gated on the device's OWN current role, not just the incoming link's role=viewer:
+      // a track's real admin device scanning a DIFFERENT track's spectator poster (e.g.
+      // visiting another track) must still get the clobber warning below — only a device
+      // that was already nothing but a spectator has nothing of its own to lose here.
+      if (role === 'viewer' && deviceRole() === 'viewer' && diff) {
         S.track = { id: genTrackId(), name: '', logo: '', length: '', surface: '', configuration: '', history: '' };
         S.classes = []; S.roster = [];
         S.raceDay = { date: today(), entries: [], heatResults: {}, pointsRace: {}, resultGov: {}, resultVersions: {} };
