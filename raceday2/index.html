@@ -741,8 +741,12 @@ function syncOn() { return !!(S.sync && S.sync.enabled && FIREBASE_CONFIG.apiKey
 /* rd_role_v2 is a distinct key from v1's rd_role — localStorage is origin-scoped, not
    path-scoped, so sharing v1's key would leak a spectator/admin role picked up under
    /raceday/ into /raceday2/ (and back) on the same device. */
-function deviceRole() { return localStorage.getItem('rd_role_v2') || 'admin'; }
-function setDeviceRole(r) { try { localStorage.setItem('rd_role_v2', r); } catch (e) {} }
+// A guest is a viewer for as long as the session lasts, but the stored role is left
+// alone — that is what keeps a track's own device from coming home demoted. Before
+// this, scanning another track's spectator poster wrote 'viewer' into rd_role_v2 and
+// the device stayed a viewer (no Admin, no scoring) until someone changed it by hand.
+function deviceRole() { return GUEST ? 'viewer' : (localStorage.getItem('rd_role_v2') || 'admin'); }
+function setDeviceRole(r) { if (GUEST) return; try { localStorage.setItem('rd_role_v2', r); } catch (e) {} }
 function today() { const d = new Date(); return d.getFullYear()+'-'+String(d.getMonth()+1).padStart(2,'0')+'-'+String(d.getDate()).padStart(2,'0'); }
 function daysSince(dateStr) {
   const d = new Date(dateStr + 'T00:00:00');
@@ -884,7 +888,59 @@ function migrate(s) {
   return s;
 }
 let LOAD_FAILURE = null;
+
+// ---------- Guest mode ----------
+// Looking at another track is a read-only SESSION, not a state change. A spectator
+// link (?role=viewer) opens a guest session: S starts from defaults(), lives only in
+// memory, and is never written anywhere — so a device that runs its OWN track can
+// look at another track's lineups with nothing at stake. Track operators race and
+// travel; before this, scanning a poster at another track replaced their season and
+// demoted their device to viewer permanently.
+// Deliberately an in-memory flag, NOT sessionStorage: sessionStorage is inherited by
+// a tab opened from another tab (the reason rd_admin_ok is cleared at every boot
+// below), and a flag that resets on every page load makes that whole class of
+// escalation question disappear by construction.
+let GUEST = false;
+// The room a guest is looking at, remembered so a fan who scans at the gate and
+// reopens the app twenty minutes later still lands on that track. A BOOKMARK, not a
+// copy: a room code and a label, never track data.
+const GUEST_ROOM_KEY = 'rd_guest_room_v2';
+function guestRoom() {
+  try { const v = JSON.parse(localStorage.getItem(GUEST_ROOM_KEY) || 'null'); return (v && v.code) ? v : null; } catch (e) { return null; }
+}
+function setGuestRoom(code, trackName) {
+  try { localStorage.setItem(GUEST_ROOM_KEY, JSON.stringify({ code, trackName: trackName || '', lastSeen: Date.now() })); } catch (e) {}
+}
+// Decided BEFORE the first load(), so a guest session never even reads this device's
+// own track into memory. That is what makes it impossible to write back, and what
+// stops a visited track's Points tab and driver cards from inheriting the home
+// track's season history (they read S.history, which never syncs).
+function guestBootRoom() {
+  try {
+    const q = new URLSearchParams(location.search);
+    const sk = q.get('sync');
+    if (sk && q.get('role') === 'viewer') return normKey(sk);
+    if (!sk && !q.get('role') && !q.get('demo')) {
+      // No link params: this device's OWN track always wins. Only a device with no
+      // track of its own falls back to the last room it visited as a guest.
+      let hasHome = false;
+      try { const s = JSON.parse(localStorage.getItem(KEY) || 'null'); hasHome = !!(s && s.track && s.track.name); } catch (e) {}
+      if (!hasHome) { const gr = guestRoom(); if (gr) return gr.code; }
+    }
+  } catch (e) {}
+  return null;
+}
+// Leaving is just a reload with no params: guest mode never loaded the real state,
+// so there is nothing to stash or restore — load() brings the home track back
+// untouched, and there is no restore path that could get it wrong.
+function leaveGuest() {
+  try { localStorage.removeItem(GUEST_ROOM_KEY); } catch (e) {}
+  location.href = location.pathname;
+}
+
 function load() {
+  // A guest session starts from a blank slate and never touches the device's slot.
+  if (GUEST) return defaults();
   let raw = null;
   try {
     raw = localStorage.getItem(KEY);
@@ -898,7 +954,19 @@ function load() {
   }
   return defaults();
 }
-function save() { try { localStorage.setItem(KEY, JSON.stringify(S)); } catch(e) {} if (syncOn()) syncPush(); }
+function save() {
+  if (GUEST) return;   // a guest session persists nothing, and never writes to the room
+  try { localStorage.setItem(KEY, JSON.stringify(S)); } catch(e) {}
+  if (syncOn()) syncPush();
+}
+// Persist to this device WITHOUT pushing to the shared room. Several call sites need
+// this (a local-only operator PIN, sync being switched off, applying a snapshot we
+// just received) and used to hand-roll the localStorage write to dodge save()'s
+// syncPush — which meant every one of them also had to remember the guest rule.
+function persistLocal() {
+  if (GUEST) return;
+  try { localStorage.setItem(KEY, JSON.stringify(S)); } catch (e) {}
+}
 function auditUser() {
   const role = deviceRole();
   const op = S.provider && S.provider.operator ? S.provider.operator : '';
@@ -1003,7 +1071,19 @@ const UI = {
   followId: null          /* v2: spectator's followed driver */
 };
 
+/* Guest mode is decided here, before the first load(), so a guest session never reads
+   this device's own track into memory at all. GUEST_CODE is the room to attach to. */
+const GUEST_CODE = guestBootRoom();
+GUEST = !!GUEST_CODE;
 let S = load();
+if (GUEST) {
+  // Start blank rather than showing defaults()' sample classes/track as though they were
+  // the visited track's — the room's real data lands a moment later via initSync().
+  S.track = { id: S.track.id, name: '', logo: '', length: '', surface: '', configuration: '', history: '' };
+  S.classes = []; S.roster = []; S.history = [];
+  S.raceDay = { date: today(), entries: [], heatResults: {}, pointsRace: {}, resultGov: {}, resultVersions: {} };
+  S.sync = { enabled: true, key: GUEST_CODE };
+}
 
 /* Clear the admin session flag on every page load, so a tab opened from an
    authenticated session cannot inherit admin (viewer→admin escalation). */
@@ -1020,7 +1100,10 @@ let driverCardId = null;
 
 /* v2: per-device preferences that are UI-only and must never sync. */
 try { UI.scoreMode = localStorage.getItem('rd_score_mode') || 'tap'; } catch (e) {}
-try { UI.followId = parseInt(localStorage.getItem('rd_follow') || '', 10) || null; } catch (e) {}
+/* Not restored for a guest: rd_follow holds a driver id, which only means anything
+   inside one track's roster — restoring it while visiting would "follow" whichever
+   unrelated driver happens to share that id. */
+if (!GUEST) { try { UI.followId = parseInt(localStorage.getItem('rd_follow') || '', 10) || null; } catch (e) {} }
 
 /* ============================================================================
    §1b  ENGINE — license, trial, PINs, premium codes (verbatim)
@@ -1308,7 +1391,19 @@ function driverStats(driverId) {
   return { starts, wins, podiums, top5, best, points, days: Object.keys(days).length };
 }
 function resKey(clsId) { return 'cls' + clsId; }
-function getRes(clsId) { const k = resKey(clsId); if (!S.raceDay.heatResults[k]) S.raceDay.heatResults[k] = {}; return S.raceDay.heatResults[k]; }
+/* Lazily materialises the class's result bag — which means the READ paths
+   (calcStandings/featureFinish/mainTopIds) mutate S just by rendering. Harmless for a
+   track scoring its own night, but it would make "a guest session never writes" only
+   approximately true, so a guest gets a throwaway instead. Non-guest behaviour is
+   unchanged: saveResult() still needs the real live object to write into. */
+function getRes(clsId) {
+  const k = resKey(clsId);
+  if (!S.raceDay.heatResults[k]) {
+    if (GUEST) return {};
+    S.raceDay.heatResults[k] = {};
+  }
+  return S.raceDay.heatResults[k];
+}
 function finPoints(v, heatSize) {
   if (v === 'DNF') return heatSize + 1;
   if (v === 'DNS') return heatSize + 2;
@@ -1649,14 +1744,17 @@ function syncApplySnapshot(v) {
     try { const parsed = JSON.parse(raw); syncSet(f, parsed); _syncLast[f] = raw; } catch (e) {}
   });
   Sync.applying = false;
-  try { localStorage.setItem(KEY, JSON.stringify(S)); } catch (e) {}  // intentional: bypasses save() to prevent sync echo loop
+  persistLocal();   // bypasses save() to prevent a sync echo loop; a guest session persists nothing
+  // Now that the room has told us the track's name, label the bookmark and the banner.
+  if (GUEST) { setGuestRoom(syncKey(), S.track && S.track.name); renderBanners(); }
   renderHeader(); render(curPage); if (TV.on) tvRender();
   if (wasViewer && prevFin !== null && JSON.stringify(S.classes.map(c => featureFinish(c.id))) !== prevFin) {
     showViewerToast();
   }
   // Only alert when a DISTINCT existing identity was silently replaced — skip a fresh
   // device's first join (prevTrackName empty), which is normal, not a surprise overwrite.
-  if (prevTrackName && (prevTrackName !== S.track.name || prevTrackLogo !== S.track.logo)) {
+  // A guest is looking at somebody else's race on purpose; nothing was replaced.
+  if (!GUEST && prevTrackName && (prevTrackName !== S.track.name || prevTrackLogo !== S.track.logo)) {
     showTrackSyncToast();
   }
 }
@@ -2058,6 +2156,10 @@ function maybePromptShareResults(idx) {
   }
 }
 function doFullReset() {
+  /* A guest session has no slot of its own and must never erase the device's real one.
+     adminOk() already refuses a viewer (and a guest is a viewer), so this is belt-and-
+     suspenders — but "erase everything" is not a place to rely on a single gate. */
+  if (GUEST) return;
   localStorage.removeItem(KEY);
   sessionStorage.removeItem('rd_admin_ok');
   const keep = { license: S.license, trialDays: S.trialDays, licUse: S.licUse };
@@ -2272,7 +2374,7 @@ function setOperatorPin() {
   if (!/^\d{4,8}$/.test(p1)) { alert('The PIN must be 4–8 digits.'); return; }
   const p2 = prompt('Type it again to confirm');
   if (p2 !== p1) { if (p2 !== null) alert("The PINs didn't match — nothing was changed."); return; }
-  S.operatorPin = pinHash(p1); try { localStorage.setItem(KEY, JSON.stringify(S)); } catch (e) {}  // intentional: operatorPin is local-only, must not go through syncPush
+  S.operatorPin = pinHash(p1); persistLocal();   // operatorPin is local-only, must not go through syncPush
   renderSyncCard();
   alert('Operator PIN set.');
 }
@@ -2280,7 +2382,7 @@ function delOperatorPin() {
   const entered = prompt('Enter the current Operator PIN to remove it');
   if (entered === null) return;
   if (pinHash(entered) !== S.operatorPin) { alert('Wrong Operator PIN.'); return; }
-  S.operatorPin = ''; try { localStorage.setItem(KEY, JSON.stringify(S)); } catch (e) {}  // intentional: operatorPin is local-only, must not go through syncPush
+  S.operatorPin = ''; persistLocal();   // operatorPin is local-only, must not go through syncPush
   renderSyncCard();
 }
 function opTakeControl() {
@@ -2305,7 +2407,7 @@ function opStop() {
   Sync.connected = false;
   S.sync.enabled = false;
   setDeviceRole('admin');
-  try { localStorage.setItem(KEY, JSON.stringify(S)); } catch (e) {}  // intentional: sync just turned off, must not trigger syncPush
+  persistLocal();   // sync just turned off, must not trigger syncPush
   applyRole();
   flashMsg('Stopped monitoring — back to your own device');
 }
@@ -2389,33 +2491,29 @@ function handleUrlParams() {
     }
     if (sk) {
       const incoming = normKey(sk);
+      // A spectator link is already running as a guest session (decided at boot, before
+      // load()) — nothing of this device's is in memory, so there is nothing to warn
+      // about and nothing to clobber. Just remember the room as a bookmark so the fan
+      // lands back here when they reopen the app, and skip the staff-join path entirely.
+      if (GUEST) {
+        setGuestRoom(incoming, '');
+        history.replaceState({}, '', location.pathname);
+        return;
+      }
       const diff = incoming !== normKey(S.sync.key || '');
-      // A public spectator link (the printed/scanned QR poster) must never show a fan
-      // stale data from whatever this phone last looked at, and a device that's ALREADY
-      // a spectator has no "real local setup" of their own to protect — so THAT join
-      // skips the clobber-warning entirely and starts from a clean slate before syncing.
-      // Gated on the device's OWN current role, not just the incoming link's role=viewer:
-      // a track's real admin device scanning a DIFFERENT track's spectator poster (e.g.
-      // visiting another track) must still get the clobber warning below — only a device
-      // that was already nothing but a spectator has nothing of its own to lose here.
-      if (role === 'viewer' && deviceRole() === 'viewer' && diff) {
-        S.track = { id: genTrackId(), name: '', logo: '', length: '', surface: '', configuration: '', history: '' };
-        S.classes = []; S.roster = [];
-        S.raceDay = { date: today(), entries: [], heatResults: {}, pointsRace: {}, resultGov: {}, resultVersions: {} };
-      } else {
-        // "Real local setup" = anything the track configured on THIS device that a blind
-        // cloud pull would wipe: entries, the driver book, or a named track. Checking only
-        // entries missed the case where classes/roster/track were set up but sign-up hadn't
-        // started yet — that state was being silently overwritten with no warning.
-        const hasLocal = (S.raceDay.entries && S.raceDay.entries.length > 0)
-          || (S.roster && S.roster.length > 0)
-          || !!(S.track && S.track.name);
-        // A QR / share link silently REPLACES this device's race with the cloud copy.
-        // Warn before clobbering real local data (the demo-test / stale-pull footgun).
-        if (hasLocal && diff && !confirm('This link connects this device to the shared race for code "' + incoming + '".\n\nThis device\'s current entries, driver book, classes and results will be REPLACED by the cloud copy. Continue?')) {
-          history.replaceState({}, '', location.pathname);
-          return;
-        }
+      // "Real local setup" = anything the track configured on THIS device that a blind
+      // cloud pull would wipe: entries, the driver book, or a named track. Checking only
+      // entries missed the case where classes/roster/track were set up but sign-up hadn't
+      // started yet — that state was being silently overwritten with no warning.
+      const hasLocal = (S.raceDay.entries && S.raceDay.entries.length > 0)
+        || (S.roster && S.roster.length > 0)
+        || !!(S.track && S.track.name);
+      // Provisioning a staff station (register/scoring/tv, or a hand-typed sync code)
+      // genuinely does replace this device's race with the cloud copy — that is the
+      // intent, so it still warns. Spectator links never reach here.
+      if (hasLocal && diff && !confirm('This link connects this device to the shared race for code "' + incoming + '".\n\nThis device\'s current entries, driver book, classes and results will be REPLACED by the cloud copy. Continue?')) {
+        history.replaceState({}, '', location.pathname);
+        return;
       }
       S.sync.key = incoming; S.sync.enabled = true;
     }
@@ -2622,10 +2720,21 @@ function renderRaceControl() {
 /* ------------------------------------------------------------------ banners */
 function renderBanners() {
   const out = [];
+  const gst = guestBannerHtml();    if (gst) out.push(gst);
   const lic = licBannerHtml();      if (lic) out.push(lic);
   const day = dayBannerHtml();      if (day) out.push(day);
   const bak = backupBannerHtml();   if (bak) out.push(bak);
   document.getElementById('banners').innerHTML = out.join('');
+}
+/* Says plainly that this is somebody else's race and that nothing here is being kept —
+   the whole point of guest mode is that an operator can look without risking their own
+   track, and they should be able to see that, not just be told it once. */
+function guestBannerHtml() {
+  if (!GUEST) return '';
+  const name = (S.track && S.track.name) || '';
+  return '<div class="banner note">👀 Guest view — ' + (name ? '<b>' + esc(name) + '</b>. ' : 'connecting to the track. ')
+    + 'Nothing here is saved to this device.'
+    + '<button class="btn btn-sm btn-primary" onclick="leaveGuest()">Leave guest view</button></div>';
 }
 /* The four v1 banner renderers keep their names so ported engine code can call
    them; each now just refreshes the whole strip. */
@@ -4135,7 +4244,9 @@ function openPrint() {
 
 function followDriver(id) {
   UI.followId = id;
-  try { localStorage.setItem('rd_follow', id ? String(id) : ''); } catch (e) {}
+  /* Follow still works for the session, it just isn't remembered: a guest's driver id
+     belongs to the visited track's roster, not this device's. */
+  if (!GUEST) { try { localStorage.setItem('rd_follow', id ? String(id) : ''); } catch (e) {} }
   renderGrid();
 }
 function unfollowDriver() { followDriver(null); }
@@ -4196,7 +4307,16 @@ function fanFilterFollow(q) {
 
 function renderFanView() {
   const el = document.getElementById('gridWrap');
-  if (Sync.joinFailed) { el.innerHTML = emptyState('🏁', 'Couldn\'t connect to this track — the code on this QR code may be out of date. Check with track staff for a current one.'); return; }
+  /* Keep the way out on screen: a fan who can't connect is exactly the person who most
+     needs the exit link, and returning early used to drop it. */
+  if (Sync.joinFailed) {
+    el.innerHTML = emptyState('🏁', 'Couldn\'t connect to this track — the code on this QR code may be out of date. Check with track staff for a current one.')
+      + '<div style="text-align:center;margin-top:26px;padding-top:16px;border-top:1px solid var(--line)">'
+      + (GUEST ? '<a href="#" onclick="leaveGuest();return false" class="tiny" style="text-decoration:underline">← Leave guest view</a>'
+               : '<a href="/?home=1" class="tiny" style="text-decoration:underline">← Leave spectator view</a>')
+      + '</div>';
+    return;
+  }
   if (!S.classes.length) { el.innerHTML = fanHero() + emptyState('🏁', 'Lineups will appear here once the race day starts.'); return; }
   if (!UI.viewClsId || !classById(UI.viewClsId)) UI.viewClsId = S.classes[0].id;
   const cls = classById(UI.viewClsId);
@@ -6701,8 +6821,11 @@ function confirmStartFresh() {
 /* -------------------------------------------------------------------- boot */
 /* Order matters and mirrors v1: URL params (which may set role + sync) before
    anything reads the role, sync last because it is async. */
+/* A guest session ignores this: another tab saving the device's OWN track must not
+   yank the visited track out from under the guest view (and load() would hand back
+   defaults() anyway, blanking the screen). */
 window.addEventListener('storage', e => {
-  if (e.key !== KEY) return;
+  if (e.key !== KEY || GUEST) return;
   S = load();
   renderAll();
   checkLoadFailure();
