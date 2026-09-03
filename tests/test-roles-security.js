@@ -470,6 +470,169 @@ const check = (name, ok, extra) => {
   check('a stranded fan still gets a way out', /leave (guest|spectator) view/i.test(gridTxt), gridTxt.slice(0, 160));
 
   // ============================================================================
+  console.log('\n=== 8d. THE GARAGE: one device, multiple tracks ===');
+  // (The write-capable counterpart to Guest Pass: an operator who genuinely runs a SECOND
+  //  track from this device — not just looks at it — adds it as its own local slot and
+  //  switches between them as full admin. Every check below mirrors §8b′'s byte-identical/
+  //  role-untouched technique, just in the other direction: does ADDING/SWITCHING leave the
+  //  slot NOT currently active completely alone?)
+  const seedOtherTrack = {
+    raceDay: { date: JSON.stringify('2026-01-01'), entries: JSON.stringify([]), heatResults: JSON.stringify({}), pointsRace: JSON.stringify({}), resultGov: JSON.stringify({}) },
+    classes: JSON.stringify([{ id: 1, name: 'Sprint', maxPill: 20 }]),
+    roster: JSON.stringify([{ id: 501, name: 'Other Driver', num: '5', noPoints: false }]),
+    settings: JSON.stringify({ maxHeat: 8, maxBMain: 12, maxFeature: 20, transfers: 2, gridStyle: 'double', heatFill: 'alternate', bmainMode: 'single', bmainCount: 2, points: { mode: 'fixed', table: [10, 8, 6, 5, 4, 3, 2, 1], beyond: 0 }, requireConsent: true, captureConsentIP: true, cloudBackup: false }),
+    track: JSON.stringify({ id: 'track_othertest', name: 'Other Speedway', logo: '', length: '', surface: '', configuration: '', history: '' }),
+  };
+  // Swap in a Firebase stub whose once('value') answers 'tracks/OTHERROOM' with the seed
+  // above and refuses everything else — same override-then-restore technique
+  // test-cloud-backup.js uses, just kept in place for this whole section instead of one call.
+  const stubGarageFirebase = (code, val) => page.evaluate(([c, v]) => {
+    window.firebase = {
+      apps: [{}],
+      database: () => ({
+        ref: (p) => ({
+          once: () => Promise.resolve({ val: () => (p === 'tracks/' + c ? v : null) }),
+          on: (ev, cb) => { cb({ val: () => null }); },
+          off: () => {}, update: () => Promise.resolve(), set: () => Promise.resolve(), remove: () => Promise.resolve(),
+        }),
+      }),
+    };
+  }, [code, val]);
+
+  resetDlg();
+  await page.evaluate(() => {
+    localStorage.clear(); S = load();
+    S.track.name = 'My Home Track';
+    S.roster = [{ id: 1, name: 'Home Driver', num: '1', noPoints: false }];
+    S.adminPin = pinHash('1111');
+    S.sync = { enabled: true, key: 'HOMEROOM' }; save(); setDeviceRole('admin');
+    sessionStorage.setItem('rd_admin_ok', '1');
+  });
+  await go(base);
+  await page.waitForTimeout(300);
+  await page.evaluate(() => { S.track.name = 'My Home Track'; S.adminPin = pinHash('1111'); save(); sessionStorage.setItem('rd_admin_ok', '1'); });
+  const primaryBefore = await page.evaluate(() => localStorage.getItem('raceday_v1'));
+  check('(guard) the primary track is really persisted before adding a second one',
+    !!primaryBefore && primaryBefore.indexOf('My Home Track') !== -1);
+  const garageHomeRoleBefore = await page.evaluate(() => localStorage.getItem('rd_role'));
+
+  // 1. Adding a track creates a correctly-keyed slot, without touching the primary.
+  await stubGarageFirebase('OTHERROOM', seedOtherTrack);
+  answer = (m) => { if (/sync code of the track/i.test(m)) return 'OTHERROOM'; return true; };
+  await Promise.all([
+    page.waitForNavigation({ waitUntil: 'domcontentloaded', timeout: 5000 }).catch(() => {}),
+    page.evaluate(() => garageAdd()),
+  ]);
+  await page.waitForTimeout(400);
+  check('a new slot exists at raceday_v1__OTHERROOM', await page.evaluate(() => {
+    const v = JSON.parse(localStorage.getItem('raceday_v1__OTHERROOM') || 'null');
+    return !!v && v.track && v.track.name === 'Other Speedway';
+  }));
+  check('the Garage index has one entry for the new track', await page.evaluate(() => {
+    const idx = JSON.parse(localStorage.getItem('rd_garage') || '[]');
+    return idx.length === 1 && idx[0].syncCode === 'OTHERROOM' && idx[0].name === 'Other Speedway';
+  }));
+  check('the primary slot is byte-identical after adding a second track',
+    await page.evaluate(() => localStorage.getItem('raceday_v1')) === primaryBefore);
+
+  // 2. Switching fully replaced S with the added track's data (garageAdd() ends by switching).
+  check('S now reflects the added track, not the primary', await page.evaluate(() => S.track.name === 'Other Speedway'), await page.evaluate(() => S.track.name));
+  check('activeKey() now points at the new slot', await page.evaluate(() => activeKey() === 'raceday_v1__OTHERROOM'), await page.evaluate(() => activeKey()));
+  check("the primary's driver never bled into the added track", await page.evaluate(() => !S.roster.some(d => d.name === 'Home Driver')));
+
+  // 3. While the added slot is active, edits to it never touch the (inactive) primary.
+  await page.evaluate(() => { S.track.length = '1/4 mile'; save(); });
+  check('editing + saving the active (non-primary) slot leaves the primary untouched',
+    await page.evaluate(() => localStorage.getItem('raceday_v1')) === primaryBefore);
+
+  // 4. Global rd_role is unaffected by switching tracks — same device role either way.
+  check('rd_role is unchanged after switching tracks', await page.evaluate(() => localStorage.getItem('rd_role')) === garageHomeRoleBefore);
+
+  // 5. Can't remove the primary or the currently-active slot.
+  const beforeRemoveIdx = await page.evaluate(() => localStorage.getItem('rd_garage'));
+  await page.evaluate(() => garageRemove('raceday_v1'));
+  check("garageRemove() refuses the primary slot — index unchanged", await page.evaluate(() => localStorage.getItem('rd_garage')) === beforeRemoveIdx);
+  check('the primary slot itself still exists after a refused removal', await page.evaluate(() => localStorage.getItem('raceday_v1') !== null));
+  await page.evaluate(() => garageRemove(activeKey()));
+  check('garageRemove() refuses the currently-active slot', await page.evaluate(() => localStorage.getItem('rd_garage')) === beforeRemoveIdx);
+
+  // 6. Each slot's admin PIN is independent, and switching back forces a fresh PIN check
+  //    (sessionStorage.rd_admin_ok is cleared on every boot, Garage or not — switching is a
+  //    reload, so this falls out for free; we assert it rather than just trust it).
+  // Setting a new PIN on the currently-active slot does NOT itself re-confirm
+  // sessionStorage — garageSwitch()'s own adminOk() gate genuinely re-challenges for it,
+  // so answer the prompt it triggers rather than leaving a stale answer from an earlier
+  // step (a stale non-string answer here would wrongly fall through PIN recovery into a
+  // destructive reset of whichever slot is still active at that moment).
+  resetDlg();
+  answer = (m) => { if (/Enter the admin PIN/i.test(m)) return '2222'; return true; };
+  await page.evaluate(() => { S.adminPin = pinHash('2222'); save(); });
+  await Promise.all([
+    page.waitForNavigation({ waitUntil: 'domcontentloaded', timeout: 5000 }).catch(() => {}),
+    page.evaluate(() => garageSwitch('raceday_v1')),
+  ]);
+  await page.waitForTimeout(400);
+  check('switching back to the primary restores its own PIN, not the added track\'s',
+    await page.evaluate(() => S.adminPin === pinHash('1111')));
+  check('sessionStorage rd_admin_ok does not carry across a Garage switch',
+    await page.evaluate(() => sessionStorage.getItem('rd_admin_ok')) === null);
+  resetDlg();
+  answer = (m) => { if (/Enter the admin PIN/i.test(m)) return '1111'; return true; };
+  await page.evaluate(() => { try { nav('admin'); } catch (e) {} });
+  await page.waitForTimeout(200);
+  check('a PIN prompt actually fired on the newly-active (primary) slot', dlgSeen.some(m => /Enter the admin PIN/i.test(m)), JSON.stringify(dlgSeen));
+
+  // 7. Adding a code with no matching room is refused, not silently claimed.
+  resetDlg();
+  await stubGarageFirebase('OTHERROOM', seedOtherTrack);   // only OTHERROOM resolves; NOWHERE below does not
+  answer = (m) => { if (/sync code of the track/i.test(m)) return 'NOWHERE'; return true; };
+  const idxBeforeBadAdd = await page.evaluate(() => localStorage.getItem('rd_garage'));
+  await page.evaluate(() => garageAdd());
+  await page.waitForTimeout(400);
+  check('no track found for a nonexistent code shows an alert', dlgSeen.some(m => /No track found/i.test(m)), JSON.stringify(dlgSeen));
+  check('the Garage index is unchanged after a refused add', await page.evaluate(() => localStorage.getItem('rd_garage')) === idxBeforeBadAdd);
+  check('no stray slot was created for the bad code', await page.evaluate(() => localStorage.getItem('raceday_v1__NOWHERE') === null));
+
+  // 8. Adding an already-added code offers "switch to it", not a duplicate.
+  resetDlg();
+  await stubGarageFirebase('OTHERROOM', seedOtherTrack);
+  answer = (m) => {
+    if (/sync code of the track/i.test(m)) return 'OTHERROOM';
+    if (/already in this device's Garage/i.test(m)) return true;   // accept the switch offer
+    return true;
+  };
+  await Promise.all([
+    page.waitForNavigation({ waitUntil: 'domcontentloaded', timeout: 5000 }).catch(() => {}),
+    page.evaluate(() => garageAdd()),
+  ]);
+  await page.waitForTimeout(400);
+  check('re-adding the same code offered a switch instead of duplicating', dlgSeen.some(m => /already in this device's Garage/i.test(m)), JSON.stringify(dlgSeen));
+  check('the Garage index still has exactly one entry', await page.evaluate(() => JSON.parse(localStorage.getItem('rd_garage') || '[]').length) === 1);
+  check('the device switched to the existing entry rather than creating a new one', await page.evaluate(() => activeKey() === 'raceday_v1__OTHERROOM'));
+
+  // 9. Guest Pass composes with an active Garage slot: visiting a THIRD track as a guest
+  //    touches neither the primary nor the active Garage slot, and leaving guest mode
+  //    returns to whichever Garage slot was active before the detour — not back to primary.
+  const garageSlotBefore = await page.evaluate(() => localStorage.getItem('raceday_v1__OTHERROOM'));
+  const primaryStillBefore = await page.evaluate(() => localStorage.getItem('raceday_v1'));
+  resetDlg();
+  await go(base + '?sync=THIRDTRACK&role=viewer');
+  await page.waitForTimeout(500);
+  check('visiting a third track as a guest activates GUEST mode', await page.evaluate(() => GUEST === true));
+  check("the active Garage slot's bytes are untouched by the guest detour",
+    await page.evaluate(() => localStorage.getItem('raceday_v1__OTHERROOM')) === garageSlotBefore);
+  check("the primary slot's bytes are also untouched by the guest detour",
+    await page.evaluate(() => localStorage.getItem('raceday_v1')) === primaryStillBefore);
+  await Promise.all([
+    page.waitForNavigation({ waitUntil: 'domcontentloaded' }).catch(() => {}),
+    page.evaluate(() => leaveGuest()),
+  ]);
+  await page.waitForTimeout(400);
+  check('leaving guest mode returns to the Garage slot that was active before, not the primary',
+    await page.evaluate(() => activeKey() === 'raceday_v1__OTHERROOM'), await page.evaluate(() => activeKey()));
+  check('S reflects the Garage track again after leaving guest mode', await page.evaluate(() => S.track.name === 'Other Speedway'));
+
+  // ============================================================================
   console.log('\n=== 9. Driver ids are collision-free across devices (multi-device sign-up) ===');
   // (The live bug: S.nextId was a PER-DEVICE counter, not synced, while roster IS synced —
   //  so two devices signing up at once minted the SAME id for different drivers, and
