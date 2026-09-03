@@ -372,6 +372,7 @@
         <div class="tag" id="hdrTag">Driver registration &amp; live starting lineups</div>
       </div>
       <span id="hdrSync" style="display:none;margin-left:auto;padding:5px 11px;border-radius:99px;background:#e4f3e9;color:#1f7a3d;font-size:12.5px;font-weight:700;white-space:nowrap"></span>
+      <button id="hdrGarage" style="display:none;margin-left:auto" class="btn btn-sm" onclick="nav('admin');adminOpen('adm-garage')"></button>
     </div>
   </div>
   <div class="checker"></div>
@@ -676,6 +677,11 @@
         <div class="slbl">Multi-device sync</div>
         <div class="card" id="syncCard"></div>
       </div>
+    </section>
+
+    <section class="adm-sec" id="adm-garage">
+      <div class="slbl">The Garage</div>
+      <div class="card" id="garageCard"></div>
     </section>
 
     <section class="adm-sec" id="adm-legal">
@@ -1151,6 +1157,11 @@
 <script>
 // ---------- State ----------
 const KEY = 'raceday_v1';
+// The Garage: this device can hold more than one track's data as separate slots,
+// sibling to KEY, and switch which one is "live" — see the functions grouped with
+// guestBootRoom()/load()/save() below for how a slot is resolved.
+const GARAGE_KEY = 'rd_garage';
+const ACTIVE_TRACK_KEY = 'rd_active_track';
 
 // ---------- Usage reporting ----------
 // Aggregate, anonymous beacons to the app owner: registration counts (no names,
@@ -1364,6 +1375,28 @@ function migrate(s) {
 // unread on the device.
 let LOAD_FAILURE = null;
 
+// ---------- The Garage: this device holds more than one track's data ----------
+// Every added track lives in its own localStorage slot, sibling to KEY, keyed by its
+// sync code (known immediately, before any data is fetched — see garageAdd()). The
+// primary slot (KEY itself) is never in this index; it's synthesized wherever needed.
+function garageIndex() {
+  try { const v = JSON.parse(localStorage.getItem(GARAGE_KEY) || '[]'); return Array.isArray(v) ? v : []; } catch (e) { return []; }
+}
+function garageSaveIndex(list) {
+  try { localStorage.setItem(GARAGE_KEY, JSON.stringify(list)); } catch (e) {}
+}
+// Which localStorage slot is "live" right now. Falls back to the primary slot (KEY)
+// if rd_active_track is missing, or points at a slot that's since been removed from
+// the Garage — so a device that never touches Garage, or whose active slot got
+// deleted out from under it, behaves exactly like a single-track device.
+function activeKey() {
+  try {
+    const a = localStorage.getItem(ACTIVE_TRACK_KEY);
+    if (a && a !== KEY && garageIndex().some(g => g.key === a)) return a;
+  } catch (e) {}
+  return KEY;
+}
+
 // ---------- Guest mode ----------
 // Looking at another track is a read-only SESSION, not a state change. A spectator
 // link (?role=viewer) opens a guest session: S starts from defaults(), lives only in
@@ -1399,7 +1432,7 @@ function guestBootRoom() {
       // No link params: this device's OWN track always wins. Only a device with no
       // track of its own falls back to the last room it visited as a guest.
       let hasHome = false;
-      try { const s = JSON.parse(localStorage.getItem(KEY) || 'null'); hasHome = !!(s && s.track && s.track.name); } catch (e) {}
+      try { const s = JSON.parse(localStorage.getItem(activeKey()) || 'null'); hasHome = !!(s && s.track && s.track.name); } catch (e) {}
       if (!hasHome) { const gr = guestRoom(); if (gr) return gr.code; }
     }
   } catch (e) {}
@@ -1418,7 +1451,7 @@ function load() {
   if (GUEST) return defaults();
   let raw = null;
   try {
-    raw = localStorage.getItem(KEY);
+    raw = localStorage.getItem(activeKey());
     if (raw) {
       const s = JSON.parse(raw);
       if (s && s.raceDay && s.classes) return migrate(s);
@@ -1431,7 +1464,7 @@ function load() {
 }
 function save() {
   if (GUEST) return;   // a guest session persists nothing, and never writes to the room
-  try { localStorage.setItem(KEY, JSON.stringify(S)); } catch(e) {}
+  try { localStorage.setItem(activeKey(), JSON.stringify(S)); } catch(e) {}
   if (syncOn()) syncPush();
 }
 // Persist to this device WITHOUT pushing to the shared room. Several call sites need
@@ -1440,7 +1473,7 @@ function save() {
 // syncPush — which meant every one of them also had to remember the guest rule.
 function persistLocal() {
   if (GUEST) return;
-  try { localStorage.setItem(KEY, JSON.stringify(S)); } catch (e) {}
+  try { localStorage.setItem(activeKey(), JSON.stringify(S)); } catch (e) {}
 }
 
 // ---------- Audit log ----------
@@ -1903,7 +1936,7 @@ function doFullReset() {
   // adminOk() already refuses a viewer (and a guest is a viewer), so this is belt-and-
   // suspenders — but "erase everything" is not a place to rely on a single gate.
   if (GUEST) return;
-  localStorage.removeItem(KEY);
+  localStorage.removeItem(activeKey());
   sessionStorage.removeItem('rd_admin_ok');
   const keep = { license: S.license, trialDays: S.trialDays, licUse: S.licUse };
   S = defaults();
@@ -4128,6 +4161,11 @@ function renderHeader() {
       sy.textContent = '🔗 ' + ((S.sync && S.sync.key) || 'synced') + (r && r !== 'admin' ? ' · ' + r : '');
     } else sy.style.display = 'none';
   }
+  const gb = document.getElementById('hdrGarage');
+  if (gb) {
+    const n = GUEST ? 0 : garageIndex().length;
+    if (n) { gb.style.display = ''; gb.textContent = '🅿️ ' + (n + 1) + ' tracks'; } else gb.style.display = 'none';
+  }
 }
 function saveTrack() {
   S.track.name = document.getElementById('trackName').value.trim();
@@ -4179,6 +4217,7 @@ const ADMIN_NAV = [
   { id:'adm-pin',      label:'Admin PIN',           icon:'🔐', group:'Account' },
   { id:'adm-license',  label:'License',             icon:'🪪', group:'Account' },
   { id:'adm-sync',     label:'Multi-device sync',   icon:'🔄', group:'Account' },
+  { id:'adm-garage',   label:'The Garage',          icon:'🅿️', group:'Account' },
   { id:'adm-roster',   label:'Driver book',         icon:'👥', group:'Records' },
   { id:'adm-backup',   label:'Backup & export',     icon:'💾', group:'Records' },
   { id:'adm-import',   label:'Fix season points',   icon:'📥', group:'Records' },
@@ -4221,7 +4260,7 @@ function adminOpen(secId) { UI.admOpen = secId; renderAdminNav(); }
 function adminHome() { UI.admOpen = null; renderAdminNav(); }
 
 function renderAdmin() {
-  renderClsList(); renderClsLib(); renderQuickAdd(); renderEntryList(); renderRosterList(); renderHistory(); renderImpForm(); renderPinCard(); renderLicCard(); renderSyncCard(); renderPointsInputs(); renderCloudBackupCard();
+  renderClsList(); renderClsLib(); renderQuickAdd(); renderEntryList(); renderRosterList(); renderHistory(); renderImpForm(); renderPinCard(); renderLicCard(); renderSyncCard(); renderGarageCard(); renderPointsInputs(); renderCloudBackupCard();
   renderLegalInputs(); renderConsentCard(); renderAuditCard();
   document.getElementById('trackName').value = S.track.name;
   document.getElementById('trackLength').value = S.track.length || '';
@@ -5342,6 +5381,100 @@ function syncDisable() {
   save();
   renderSyncCard();
 }
+
+// ---------- The Garage: adding, switching between, and removing tracks ----------
+// Raw peeks at ANOTHER slot's stored data without touching S — same pattern
+// guestBootRoom() already uses to check "does this device have a home track".
+function garagePeekName(slotKey) {
+  try { const v = JSON.parse(localStorage.getItem(slotKey) || 'null'); return (v && v.track && v.track.name) || ''; } catch (e) { return ''; }
+}
+function garagePeekSyncKey(slotKey) {
+  try { const v = JSON.parse(localStorage.getItem(slotKey) || 'null'); return (v && v.sync && v.sync.key) || ''; } catch (e) { return ''; }
+}
+// Full reload against a different slot — the simplest correct way to reboot every
+// dependent subsystem (Sync, TV, UI, the session PIN gate) against the newly active
+// track, mirroring leaveGuest()'s reload-based approach rather than trying to
+// live-swap S and everything downstream of it in place.
+function garageSwitch(slotKey) {
+  if (!adminOk()) return;
+  if (slotKey !== KEY && !garageIndex().some(g => g.key === slotKey)) return;
+  if (TV.on && !confirm('This screen is showing the TV display for ' + (S.track.name || 'this track') + '. Switching tracks will exit TV mode. Continue?')) return;
+  try {
+    if (slotKey === KEY) localStorage.removeItem(ACTIVE_TRACK_KEY);
+    else localStorage.setItem(ACTIVE_TRACK_KEY, slotKey);
+  } catch (e) {}
+  location.href = location.pathname;
+}
+function garageRemove(slotKey) {
+  if (!adminOk()) return;
+  if (slotKey === KEY) { alert("Can't remove this device's primary track."); return; }
+  if (slotKey === activeKey()) { alert('Switch to a different track before removing this one.'); return; }
+  const entry = garageIndex().find(g => g.key === slotKey);
+  if (!confirm('Remove "' + ((entry && entry.name) || 'this track') + '" from the Garage on this device?\n\nThis only forgets it locally — the track\'s own cloud data is untouched.')) return;
+  try { localStorage.removeItem(slotKey); } catch (e) {}
+  garageSaveIndex(garageIndex().filter(g => g.key !== slotKey));
+  renderGarageCard();
+}
+// Like syncSet() but writes into an arbitrary seed object rather than the global S —
+// needed because garageAdd() builds a new track's state before it's ever assigned to S.
+function syncSetIn(obj, p, val) {
+  const ks = p.split('/'); let o = obj;
+  for (let i = 0; i < ks.length - 1; i++) { if (o[ks[i]] == null) o[ks[i]] = {}; o = o[ks[i]]; }
+  o[ks[ks.length - 1]] = val;
+}
+function garageAdd() {
+  if (!adminOk()) return;
+  if (!FIREBASE_CONFIG.apiKey) { alert('Live sync is not set up on this build yet.'); return; }
+  const raw = prompt('Enter the sync code of the track you want to add to the Garage on this device:');
+  if (!raw) return;
+  const code = normKey(raw);
+  if (!code) return;
+  if (code === normKey(garagePeekSyncKey(KEY))) { alert('That is this device\'s own (primary) track.'); return; }
+  const idx = garageIndex();
+  const existing = idx.find(g => g.syncCode === code);
+  if (existing) {
+    if (confirm('"' + existing.name + '" is already in this device\'s Garage. Switch to it now?')) garageSwitch(existing.key);
+    return;
+  }
+  const slotKey = KEY + '__' + code;
+  flashMsg('Looking up that track…');
+  ensureFirebase()
+    .then(() => firebase.database().ref('tracks/' + code).once('value'))
+    .then(snap => {
+      const v = snap.val();
+      if (!v) { alert('No track found for code "' + code + '". Double-check it with that track\'s admin.'); return; }
+      const seed = defaults();
+      seed.sync = { enabled: true, key: code };
+      SYNC_FIELDS.forEach(f => {
+        const rawField = syncGetIn(v, f);
+        if (rawField == null) return;
+        try { syncSetIn(seed, f, JSON.parse(rawField)); } catch (e) {}
+      });
+      try { localStorage.setItem(slotKey, JSON.stringify(seed)); } catch (e) { alert("Couldn't save that track locally — this device may be low on storage."); return; }
+      garageSaveIndex(idx.concat([{ key: slotKey, syncCode: code, trackId: seed.track.id, name: seed.track.name || 'Unnamed track', addedAt: Date.now() }]));
+      garageSwitch(slotKey);
+    })
+    .catch(() => alert("Couldn't reach the sync service — check your connection and try again."));
+}
+function renderGarageCard() {
+  const el = document.getElementById('garageCard');
+  if (!el) return;
+  const idx = garageIndex();
+  const act = activeKey();
+  const rows = [{ key: KEY, name: (act === KEY ? S.track.name : garagePeekName(KEY)) || 'Unnamed track', primary: true }]
+    .concat(idx.map(g => Object.assign({ primary: false }, g)));
+  el.innerHTML = rows.map(r => {
+    const isActive = r.key === act;
+    return '<div style="display:flex;align-items:center;gap:10px;padding:8px 0;border-bottom:1px solid var(--line)">'
+      + '<div style="flex:1"><b>' + esc(r.name) + '</b>' + (r.primary ? ' <span style="font-size:11px;color:var(--muted)">(this device\'s primary)</span>' : '')
+      + (isActive ? ' <span style="font-size:11px;color:var(--accent);font-weight:700">● active</span>' : '') + '</div>'
+      + '<button class="btn btn-sm" ' + (isActive ? 'disabled' : '') + ' onclick="garageSwitch(\'' + r.key + '\')">Switch</button>'
+      + (!r.primary ? '<button class="btn btn-sm btn-danger" ' + (isActive ? 'disabled' : '') + ' onclick="garageRemove(\'' + r.key + '\')">Remove</button>' : '')
+      + '</div>';
+  }).join('') + '<p style="font-size:12.5px;color:var(--muted);margin:10px 0 8px">Add a second track this device helps run — each keeps its own PIN, license and season, and switching never touches the other track\'s data.</p>'
+    + '<button class="btn btn-primary" onclick="garageAdd()">+ Add another track</button>';
+}
+
 function setRolePrompt() {
   const r = prompt('Set this device\'s job — type one of:  admin  ·  register  ·  scoring  ·  tv  ·  operator', deviceRole());
   if (!r) return;
@@ -6704,7 +6837,7 @@ function wizRemoveLogo() {
 // A guest session ignores this: another tab saving the device's OWN track must not
 // yank the visited track out from under the guest view (and load() would hand back
 // defaults() anyway, blanking the screen).
-window.addEventListener('storage', e => { if (e.key === KEY && !GUEST) { S = load(); renderHeader(); render(curPage); checkLoadFailure(); if (TV.on) tvRender(); } });
+window.addEventListener('storage', e => { if (e.key === activeKey() && !GUEST) { S = load(); renderHeader(); render(curPage); checkLoadFailure(); if (TV.on) tvRender(); } });
 handleUrlParams();
 renderHeader();
 renderFooter();
