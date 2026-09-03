@@ -182,6 +182,51 @@ const check = (name, ok, extra) => {
   check('device keeps its own license', restored.lic === 'MY-OWN-LICENSE', String(restored.lic));
   check('device keeps its own trial days', restored.trial === 3, String(restored.trial));
 
+  console.log('\n=== 5b. A backup with a blank track name warns specifically, before erasing a real one ===');
+  // (Live bug: a track restored a backup — from an earlier test/reset iteration on the same
+  //  device — that had a blank track.name, and lost their real track's name with zero
+  //  warning that this was about to happen. The generic "race data will be replaced" confirm
+  //  never mentions track identity at all.)
+  resetDlg();
+  let sawBlankWarning = false;
+  answer = (m) => { if (/no track name saved in it/i.test(m)) { sawBlankWarning = true; return false; } return true; };
+  const declinedBlank = await page.evaluate(() => {
+    S.track.name = 'Thunder Ridge Speedway'; save();
+    const incoming = JSON.parse(JSON.stringify(cloudBackupPayload()));
+    incoming.track.name = '';   // exactly what an early/test backup looks like
+    const ok = applyRestoredState(incoming, 'a blank-track backup');
+    return { ok, trackName: S.track.name };
+  });
+  check('the blank-track-name warning fires (not the generic one)', sawBlankWarning, JSON.stringify(dlgSeen));
+  check('declining it leaves the restore unapplied', declinedBlank.ok === false, JSON.stringify(declinedBlank));
+  check('the real track name survives a declined blank-name restore', declinedBlank.trackName === 'Thunder Ridge Speedway', declinedBlank.trackName);
+
+  resetDlg();
+  answer = () => true;   // this time accept the blank-name warning — the owner's call to make
+  const acceptedBlank = await page.evaluate(() => {
+    S.track.name = 'Thunder Ridge Speedway'; save();
+    const incoming = JSON.parse(JSON.stringify(cloudBackupPayload()));
+    incoming.track.name = '';
+    const ok = applyRestoredState(incoming, 'a blank-track backup');
+    return { ok, trackName: S.track.name };
+  });
+  check('accepting the blank-name warning still applies the restore', acceptedBlank.ok === true, JSON.stringify(acceptedBlank));
+
+  console.log('\n=== 5c. A malformed backup fails cleanly instead of half-applying ===');
+  resetDlg();
+  answer = () => true;
+  const malformed = await page.evaluate(() => {
+    S.track.name = 'Thunder Ridge Speedway'; save();
+    // Missing settings entirely — migrate() dereferences s.settings.points and throws.
+    const incoming = JSON.parse(JSON.stringify(cloudBackupPayload()));
+    delete incoming.settings;
+    const ok = applyRestoredState(incoming, 'a corrupted backup');
+    return { ok, trackName: S.track.name };
+  });
+  check('a backup missing settings is rejected, not thrown', malformed.ok === false, JSON.stringify(malformed));
+  check('user is told the backup looks corrupted', dlgSeen.some(m => /corrupted or incomplete/i.test(m)), JSON.stringify(dlgSeen));
+  check('the device state survives a failed restore intact', malformed.trackName === 'Thunder Ridge Speedway', malformed.trackName);
+
   console.log('\n=== 6. A junk payload is refused ===');
   resetDlg();
   answer = () => true;

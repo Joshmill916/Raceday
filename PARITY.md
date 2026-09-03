@@ -33,7 +33,7 @@ field. This is the load-bearing guarantee for cutover.
 - ✅ Race Control phase spine (Sign-up → Heats → B-mains → Features → Archive)
 - ✅ One sheet mechanism replacing v1's dozen fixed modal divs
 - ✅ Role-boundary invariants — `test-v2-roles-security.js`, ported from
-  `tests/test-roles-security.js`, 80/80 checks green. **Fixed during a later audit
+  `tests/test-roles-security.js`, 112/112 checks green. **Fixed during a later audit
   pass:** the original 67-check port predated a real production fix v1 shipped —
   `adminOk()` had no role check at all, so on a track with no admin PIN set, a
   spectator or `tv` device could still archive the live race day or edit
@@ -41,6 +41,31 @@ field. This is the load-bearing guarantee for cutover.
   and `renderGrid()`/`classGridMarkup()` hide the qualifying-times button and
   toolbar from `tv`) plus its §14/§15 regression tests, verified by mutation
   testing (each layer reverted in turn, confirmed the right checks go red).
+- ✅ **Guest Pass** (§8b–§8c) — a `?role=viewer` link opens a read-only *session*
+  rather than changing the device's state: `GUEST` is decided before the first
+  `load()`, so `S` starts from `defaults()`, the device's own slot is never opened,
+  and nothing is written anywhere (`save()`, the four `persistLocal()` bypasses,
+  `doFullReset()` and the cross-tab storage listener all no-op). `deviceRole()`
+  reports `viewer` for the session without touching the stored role, so a device
+  no longer comes home permanently demoted. Leaving is a plain reload — nothing was
+  stashed, so nothing can be restored wrong. A room bookmark (`rd_guest_room_v2`,
+  code + label only, never track data) means a fan who scans at the gate still
+  lands on that track when they reopen the app. Staff-station joins keep the
+  "will be REPLACED" confirm, which is now the only place it appears. Ported from
+  `raceday/index.html`; supersedes the earlier clean-reset fix.
+  **Why it exists:** track operators race and travel. Scanning another track's
+  poster used to replace their season *and* demote their device; the visited
+  track's Points tab and driver cards also inherited the home track's `S.history`
+  (which never syncs), so an operator saw their own standings under the visited
+  track's class names.
+- ✅ v2 uses its own localStorage key (§8d) — `raceday_v2`, distinct from v1's
+  `raceday_v1`. **Fixed during the same audit pass:** v1 and v2 shared the same
+  state key while using *different* role keys (`rd_role` vs. `rd_role_v2`), so a
+  phone that scanned a v1 spectator QR — synced, `viewer` role, live track data —
+  would default to `admin` the moment it opened a v2 link (no `rd_role_v2` set),
+  while `S` still held that live-synced track. The viewer write-guard no longer
+  applied, so that phone could write to the live race. v2 wasn't live yet, so this
+  was the cheapest time to close it structurally rather than patch the default role.
 
 ## Sign-up
 
@@ -110,15 +135,15 @@ field. This is the load-bearing guarantee for cutover.
 | `tests/v2/test-v2-scoring.js` | sign-up, lineups, 3 scoring modes, points | 31 |
 | `tests/v2/test-v2-admin.js` | wizard, 2-door nav, search, 15 sections, History→View click-through | 46 |
 | `tests/v2/test-v2-outputs.js` | TV, print, fan view, driver cards, import, docs | 36 |
-| `tests/v2/test-v2-roles-security.js` | role/boot/wizard/sync invariants (the gate), viewer/tv admin lockdown | 80 |
-| `tests/v2/test-v2-cloud-backup.js` | cloud backup payload scrubbing, restore-by-code, write-only vault rules | 35 |
+| `tests/v2/test-v2-roles-security.js` | role/boot/wizard/sync invariants (the gate), viewer/tv admin lockdown, Guest Pass (a spectator link never touches the device's own track or stored role), v2's own storage key never inherits a v1-synced device | 112 |
+| `tests/v2/test-v2-cloud-backup.js` | cloud backup payload scrubbing, restore-by-code, write-only vault rules, blank-track-name restore warning, malformed-backup recovery | 42 |
 | `tests/v2/test-v2-points-repair.js` | "Fix season points" full add/edit/duplicate-guard flow (not just section-opens) | 15 |
 | `tests/v2/test-v2-qual-mains.js` | qualifying-straight-to-mains format — seeding, B-mains, points, viewer/TV, 2-heat regression guard | 31 |
 | `tests/v2/test-v2-main-invert.js` | feature/B-main starting-spot invert | 26 |
 | `tests/v2/test-v2-roster-match.js` | sign-up identity-merge — same-name-different-person confirm, explicit-pick zero-friction merge | 22 |
 | `tests/v2/test-v2-qual-times.js` | manual qualifying-times entry + set-grid-from-times | 23 |
 | `tests/v2/test-v2-shell.js` | the 900px responsive breakpoint (rail vs. tabbar), clean-boot zero-console-error check | 7 |
-| **Total** | | **385** |
+| **Total** | | **424** |
 
 All counts above were re-run live (not taken on faith) as part of an August 2026
 audit pass. The two fixes noted inline above (`adminOk()`/qual-times tv lockdown,

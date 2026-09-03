@@ -39,6 +39,35 @@ const check = (name, ok, extra) => {
   const page = await browser.newPage({ viewport: { width: 420, height: 850 } });
   page.on('pageerror', e => console.log('  ⚠️ page error:', e.message));
 
+  // Keep this suite hermetic. It drives ~40 navigations through one page, and every load
+  // also kicks off Chromium's own background chatter (fonts, autofill, connectivity
+  // checks). On a sandboxed/offline runner those are rejected rather than simply failing,
+  // and after enough of them the renderer dies — the whole suite then aborts mid-run with
+  // "Target page, context or browser has been closed", which reads like a product bug and
+  // is not one. Nothing here needs the network: serve localhost, refuse everything else.
+  await page.route('**/*', route => {
+    const u = route.request().url();
+    if (u.startsWith(`http://localhost:${PORT}`) || u.startsWith('data:') || u.startsWith('blob:')) return route.continue();
+    return route.abort();
+  });
+
+  // Stub Firebase before any page script runs. Several sections here enable sync, which
+  // makes initSync() inject the real SDK from gstatic.com. Nothing in this suite is
+  // testing Firebase itself, only local role/boot logic, so an empty-room stub keeps it
+  // deterministic. Same pattern as test-cloud-backup.js / the Driven suites.
+  await page.addInitScript(() => {
+    window.firebase = {
+      apps: [{}],
+      database: () => ({
+        ref: (p) => ({
+          on: (ev, cb) => { cb({ val: () => (String(p).indexOf('tracks/') === 0 ? null : true) }); },
+          off: () => {}, once: () => Promise.resolve({ val: () => null }),
+          update: () => Promise.resolve(), set: () => Promise.resolve(), remove: () => Promise.resolve(),
+        }),
+      }),
+    };
+  });
+
   // One dispatching dialog handler; each test sets `answer` to a function (message -> reply).
   // Return a string to accept a prompt with that value, true to accept a confirm, false to
   // dismiss. Default: dismiss everything (the safe/negative path).
@@ -320,6 +349,125 @@ const check = (name, ok, extra) => {
   await page.waitForTimeout(500);
   check('roster-but-no-entries device warns before a clobber', warned);
   check('cancelling the clobber keeps the original sync code', await page.evaluate(() => normKey(S.sync.key) === 'OLDCODE'), await page.evaluate(() => S.sync.key));
+
+  // ============================================================================
+  console.log('\n=== 8b. GUEST PASS: a spectator link is a session, not a state change ===');
+  // (Live bug: a fan's phone that had ever seen ANY track kept re-showing that track's race
+  //  after scanning a different track's QR poster. The first fix cleared the stale state
+  //  before syncing; this is the real one — a ?role=viewer link now opens a GUEST session
+  //  that starts from defaults(), lives only in memory, and is never written anywhere.
+  //  Track operators race and travel: the device that runs their own track has to be able
+  //  to look at somebody else's lineups with nothing at stake.)
+  resetDlg();
+  await page.evaluate(() => {
+    localStorage.clear(); S = load();
+    S.track.name = 'Old Track Speedway'; S.track.logo = 'data:image/png;base64,OLDLOGO';
+    S.classes = [{ id: 1, name: 'Old Class', maxPill: 200 }];
+    S.roster = [{ id: 1, name: 'Old Driver', num: '1', noPoints: false }];
+    S.raceDay.entries = [{ driverId: 1, classId: 1, pill: 5 }];
+    S.sync = { enabled: true, key: 'OLDTRACK' }; save(); setDeviceRole('viewer');
+  });
+  answer = () => false;   // dismiss anything shown — a guest join must never need a dialog at all
+  await go(base + '?sync=NEWTRACK&role=viewer');
+  await page.waitForTimeout(500);
+  check('no confirm dialog is shown for a spectator link', dlgSeen.length === 0, JSON.stringify(dlgSeen));
+  check('guest mode is active', await page.evaluate(() => GUEST === true));
+  check('the old track name is gone', await page.evaluate(() => S.track.name === ''));
+  check('the old class is gone', await page.evaluate(() => !S.classes.some(c => c.name === 'Old Class')));
+  check('the old roster is gone', await page.evaluate(() => S.roster.length === 0));
+  check('the old race-day entries are gone', await page.evaluate(() => S.raceDay.entries.length === 0));
+  check('the device is now attached to the NEW track code', await page.evaluate(() => normKey(S.sync.key) === 'NEWTRACK'));
+  check('the room is bookmarked so a fan lands back here', await page.evaluate(() => {
+    try { const g = JSON.parse(localStorage.getItem('rd_guest_room') || 'null'); return !!(g && g.code === 'NEWTRACK'); } catch (e) { return false; }
+  }));
+
+  console.log('\n=== 8b′. A track\'s OWN device is untouched by looking at another track ===');
+  // (The regression the earlier clean-reset fix could have introduced, and the reason
+  //  guest mode exists at all: every printed spectator poster encodes role=viewer, so a
+  //  track owner's own admin device scanning ANOTHER track's poster while visiting looked
+  //  exactly like a random fan's phone. It must neither be wiped nor demoted — and with
+  //  guest mode there is nothing to warn about, because its slot is never even opened.)
+  resetDlg();
+  // Seed from a NON-guest page: the previous section left this tab in a guest session,
+  // where save() is correctly a no-op — seeding there would persist nothing and every
+  // "your track survived" check below would pass vacuously against an empty slot.
+  // Clearing also drops §8b's guest bookmark, so the reload lands as a normal device.
+  await page.evaluate(() => localStorage.clear());
+  await go(base);
+  await page.waitForTimeout(300);
+  await page.evaluate(() => {
+    S = load();
+    S.track.name = 'My Real Track'; S.roster = [{ id: 1, name: 'My Driver', num: '1', noPoints: false }];
+    S.raceDay.entries = [{ driverId: 1, classId: 1, pill: 1 }];
+    S.history = [{ date: '2026-08-01', savedAt: 1, classes: [{ name: 'Sport Mod', pointsRace: true, points: [{ driverId: 1, name: 'My Driver', num: '1', pts: 99 }] }] }];
+    S.sync = { enabled: true, key: 'MYOWNROOM' }; save(); setDeviceRole('admin');
+  });
+  const homeBefore = await page.evaluate(() => localStorage.getItem('raceday_v1'));
+  check('(guard) the home track really is persisted before we go visiting',
+    !!homeBefore && homeBefore.indexOf('My Real Track') !== -1);
+  const homeRoleBefore = await page.evaluate(() => localStorage.getItem('rd_role'));
+  answer = () => false;
+  await go(base + '?sync=SOMEONEELSESTRACK&role=viewer');
+  await page.waitForTimeout(500);
+  check('no dialog: an operator can just look, with nothing at stake', dlgSeen.length === 0, JSON.stringify(dlgSeen));
+  check('the operator is a guest, viewing the other track', await page.evaluate(() => GUEST === true && normKey(S.sync.key) === 'SOMEONEELSESTRACK'));
+  check("the operator's OWN stored track is byte-identical", await page.evaluate(() => localStorage.getItem('raceday_v1')) === homeBefore);
+  check('the stored role key is untouched — no permanent demotion', await page.evaluate(() => localStorage.getItem('rd_role')) === homeRoleBefore);
+  check("the guest does NOT inherit the home track's season history",
+    await page.evaluate(() => S.history.length === 0), 'history leaked into the visited track');
+  // Exercise save() directly. Nothing a guest can *reach* calls it (the sync path uses
+  // persistLocal(), and every save() caller is admin-gated), so without this the guard
+  // in save() has no coverage at all and a later refactor could drop it unnoticed.
+  check('even calling save() outright during a guest session writes nothing',
+    await page.evaluate((k) => { const b = localStorage.getItem(k); save(); return localStorage.getItem(k) === b; }, 'raceday_v1'));
+  // Leaving is a plain reload with no params — nothing was stashed, so nothing can be
+  // restored wrong; load() simply reads the untouched slot again.
+  await Promise.all([
+    page.waitForNavigation({ waitUntil: 'domcontentloaded' }).catch(() => {}),
+    page.evaluate(() => leaveGuest()),
+  ]);
+  await page.waitForTimeout(400);
+  check('leaving guest view brings the operator\'s own track back', await page.evaluate(() => S.track.name === 'My Real Track'), await page.evaluate(() => S.track.name));
+  check('their roster survived', await page.evaluate(() => S.roster.length === 1));
+  check('their entries survived', await page.evaluate(() => S.raceDay.entries.length === 1));
+  check('their season history survived', await page.evaluate(() => S.history.length === 1));
+  check('they are admin again, not a viewer', await page.evaluate(() => deviceRole() === 'admin'));
+  check('guest mode is off', await page.evaluate(() => GUEST === false));
+
+  console.log('\n=== 8b″. Provisioning a real staff station still warns before replacing ===');
+  // (Guest mode must not swallow the warning where it belongs: a register/scoring/tv link
+  //  genuinely does replace this device's race, and that is the intent.)
+  resetDlg();
+  await page.evaluate(() => {
+    localStorage.clear(); S = load();
+    S.track.name = 'My Real Track'; S.roster = [{ id: 1, name: 'My Driver', num: '1', noPoints: false }];
+    S.sync = { enabled: true, key: 'MYOWNROOM' }; save(); setDeviceRole('admin');
+  });
+  let sawClobberWarning = false;
+  answer = (m) => { if (/REPLACED by the cloud copy/i.test(m)) { sawClobberWarning = true; } return false; };
+  await go(base + '?sync=SOMEONEELSESTRACK&role=scoring');
+  await page.waitForTimeout(500);
+  check('a scoring-station link still shows the replace warning', sawClobberWarning, JSON.stringify(dlgSeen));
+  check('declining it keeps the device on its own room', await page.evaluate(() => normKey(S.sync.key) === 'MYOWNROOM'));
+  check('declining it keeps the track name', await page.evaluate(() => S.track.name === 'My Real Track'));
+
+  console.log('\n=== 8c. An empty/misconfigured room tells a spectator, instead of staying silently blank ===');
+  // (Live bug: a poster printed before a code change, or a pruned room, left a viewer's
+  //  screen either blank or — worse — on whatever the last track was, with zero indication
+  //  anything was wrong. syncPushFull() is correctly a no-op for a viewer, but nothing used
+  //  to tell the FAN that.)
+  // Self-contained: scan a poster whose room is empty (the suite-wide Firebase stub
+  // resolves every tracks/* room to null), which is exactly what a fan gets from a
+  // poster printed before the track changed its sync code, or after a room is pruned.
+  resetDlg();
+  await page.evaluate(() => localStorage.clear());
+  await go(base + '?sync=EMPTYROOM&role=viewer');
+  await page.waitForTimeout(500);
+  check('the spectator is a guest on the empty room', await page.evaluate(() => GUEST === true));
+  check('Sync.joinFailed is set on an empty room for a viewer', await page.evaluate(() => Sync.joinFailed === true));
+  const gridTxt = await page.textContent('#gridContent').catch(() => '');
+  check('the grid shows a "couldn\'t connect" message instead of a silent blank', /couldn.t connect/i.test(gridTxt), gridTxt.slice(0, 120));
+  check('a stranded fan still gets a way out', /leave (guest|spectator) view/i.test(gridTxt), gridTxt.slice(0, 160));
 
   // ============================================================================
   console.log('\n=== 9. Driver ids are collision-free across devices (multi-device sign-up) ===');
