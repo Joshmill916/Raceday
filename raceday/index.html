@@ -5253,6 +5253,11 @@ function linkProfile(driverId, codeOrId) {
   });
 }
 function retryPendingProfiles() {
+  // A guest's roster is someone else's track, pulled in read-only via sync — a pending
+  // link on it isn't this device's to retry. Without this guard, linkProfile() still
+  // fires a real (if harmless) profileTracks/ write on the driver's behalf even though
+  // save() itself is correctly a no-op for a guest.
+  if (GUEST) return;
   (S.roster || []).forEach(d => {
     if (d.profile && d.profile.pendingFetch && (d.profileId || d.profileCode)) {
       linkProfile(d.id, d.profileId || d.profileCode)
