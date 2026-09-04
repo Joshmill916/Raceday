@@ -153,6 +153,7 @@ async function testAdminOkGatedOperations() {
   const adminGatedFunctions = [
     'newRaceDay',
     'resetAll',
+    'seedDemo',
     'setPin',
     'delPin',
     'toggleResLock',
@@ -185,6 +186,7 @@ async function testAuditCallSites() {
   const criticalFunctions = [
     { name: 'newRaceDay', shouldHave: 'adminOk' },
     { name: 'resetAll', shouldHave: 'adminOk' },
+    { name: 'seedDemo', shouldHave: 'adminOk' },
     { name: 'delPin', shouldHave: 'pinHash' }
   ];
 

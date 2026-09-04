@@ -252,6 +252,33 @@ const TYPES = { '.html': 'text/html', '.js': 'application/javascript', '.json': 
   check('entries grew by exactly 1 (merge, not duplicate)', await page.evaluate((n) => S.raceDay.entries.length === n + 1, entriesBefore));
   check('the new entry points at the ORIGINAL Jordan Kim driverId', await page.evaluate((jid) => S.raceDay.entries.some(e => e.driverId === jid), jordanId));
 
+  console.log('\n— Consent is recorded ONCE per driver per day, not once per class entered —');
+  if (cls2Id) {
+    resetDlg();
+    const consentsBefore = await page.evaluate(() => (S.consents || []).length);
+    await page.evaluate(() => nav('signup'));
+    await page.waitForTimeout(150);
+    await page.evaluate(() => resetReg());
+    await page.fill('#dName', 'Multi Class Driver');
+    await page.fill('#dNum', '88');
+    await page.waitForTimeout(150);
+    await page.click('#ch' + clsId);
+    await page.click('#ch' + cls2Id);
+    await page.waitForTimeout(100);
+    const consent4 = await page.$('#consentChk');
+    if (consent4 && !(await consent4.isChecked())) await consent4.check();
+    await page.click('button:has-text("Draw my pills")');
+    await page.waitForTimeout(200);
+    check('exactly ONE consent record was added, not one per selected class',
+      await page.evaluate((n) => (S.consents || []).length === n + 1, consentsBefore));
+    check('both classes were still entered', await page.evaluate(() => {
+      const d = S.roster.find(r => r.name === 'Multi Class Driver');
+      return d && S.raceDay.entries.filter(e => e.driverId === d.id).length === 2;
+    }));
+  } else {
+    console.log('  (skipped — only one class configured)');
+  }
+
   await browser.close();
   server.close();
   console.log(`\n==== ${pass} passed, ${fail} failed ====`);

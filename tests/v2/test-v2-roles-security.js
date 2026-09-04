@@ -679,6 +679,41 @@ const check = (name, ok, extra) => {
     await page.evaluate(() => S.roster[0].profile.pendingFetch !== true), await page.evaluate(() => JSON.stringify(S.roster[0].profile)));
 
   // ============================================================================
+  console.log('\n=== 8g. Danger-zone actions (seedDemo, resetAll) stay admin-gated ===');
+  // (v1 port — see tests/test-roles-security.js §8g for the full rationale.)
+  resetDlg();
+  await page.evaluate(() => {
+    localStorage.clear(); S = load();
+    S.track.name = 'Test Track'; S.classes = [{ id: 1, name: 'C1', maxPill: 20 }];
+    S.trialDays = []; S.raceDay = { date: today(), entries: [], heatResults: {}, pointsRace: {}, resultGov: {}, resultVersions: {} };
+    save(); setDeviceRole('viewer');
+  });
+  await page.evaluate(() => seedDemo());
+  check('a viewer cannot load demo data via seedDemo() (adminOk gate)',
+    await page.evaluate(() => S.raceDay.entries.length === 0 && S.trialDays.length === 0));
+  check('no dialog was shown to the viewer (adminOk fails before any confirm/alert)', dlgSeen.length === 0, JSON.stringify(dlgSeen));
+
+  await page.evaluate(() => {
+    S.roster = [{ id: 1, name: 'Keep Me', num: '1', noPoints: false }]; save();
+  });
+  await page.evaluate(() => resetAll());
+  check('a viewer cannot wipe the driver book via resetAll() (adminOk gate)',
+    await page.evaluate(() => S.roster.length === 1));
+
+  console.log('\n— seedDemo() also respects the trial gate once the trial is exhausted (admin, but no license) —');
+  resetDlg();
+  await page.evaluate(() => {
+    setDeviceRole('admin'); sessionStorage.setItem('rd_admin_ok', '1');
+    S.trialDays = [];
+    for (let i = 1; i <= TRIAL_DAYS; i++) S.trialDays.push('2020-01-' + String(i).padStart(2, '0'));
+    S.license = null;
+    save();
+  });
+  await page.evaluate(() => seedDemo());
+  check("an admin with an exhausted trial and no license can't load demo data (canEnter gate)",
+    await page.evaluate(() => S.raceDay.entries.length === 0), await page.evaluate(() => JSON.stringify({ entries: S.raceDay.entries.length, canEnter: canEnter() })));
+
+  // ============================================================================
   console.log('\n=== 9. Driver ids are collision-free across devices (multi-device sign-up) ===');
   resetDlg();
   await page.evaluate(() => { localStorage.clear(); S = load(); save(); });

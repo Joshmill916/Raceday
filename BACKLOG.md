@@ -95,16 +95,6 @@ properly needs the deferred backend/auth work:
 
 The High items + a few Mediums were fixed and are on the dev branch. These remain open:
 
-**Medium**
-- New class IDs use `Date.now()` → two classes added in the same millisecond collide; use
-  `S.nextId++` (`addClass`/`readdClass`).
-- `seedDemo` bypasses the trial/license gate (loads a full board with no `canEnter()` /
-  `consumeTrialDay()`).
-- "Recalculate" button is a no-op that flashes success (`recalcPoints`) — misleading.
-- `seedDemo`/`resetAll` skip the `adminOk()` re-check that sibling danger actions have.
-- Wizard step 3 can't add classes and silently ignores a blank rename (`wizSaveClasses`).
-- Consent re-recorded on every multi-class signup (`register`) — inflates the consent log.
-
 **Low**
 - Danger-zone tab bar shows a bare "← All" with no section title (single-item group).
 - `lockAdmin()` leaves `_admOpen` set (stale inline state, harmless).
