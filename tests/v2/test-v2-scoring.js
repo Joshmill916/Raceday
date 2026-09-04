@@ -99,11 +99,38 @@ const TYPES = { '.html':'text/html', '.js':'application/javascript', '.json':'ap
   check('the full field is back on the board', await page.evaluate(() => S.raceDay.entries.length === 8));
 
   console.log('— Sign-up guards still hold —');
+  // A car number only has to be unique per DRIVER within a class — two different
+  // people can legitimately share a number, so a different name reusing #47 is allowed.
   await page.fill('#dName', 'Brand New'); await page.fill('#dNum', '47');
   await page.click('#ch1'); await page.click('#drawBtn'); await page.waitForTimeout(200);
-  check('a duplicate car number in the same class is refused',
+  check('a different-named driver CAN reuse an existing car number',
+    await page.evaluate(() => S.raceDay.entries.length === 9), await page.evaluate(() => String(S.raceDay.entries.length)));
+  // Pull "Brand New" back out — proven the sign-up guard allows it; a second live #47 in
+  // the same class would make number-pad scoring below ambiguous (it identifies a driver
+  // BY car number), which is a separate, real UX wrinkle of two cars sharing a number, not
+  // what this section is testing.
+  await page.evaluate(() => {
+    const d = S.roster.find(r => r.name === 'Brand New');
+    S.raceDay.entries = S.raceDay.entries.filter(e => e.driverId !== d.id);
+    S.roster = S.roster.filter(r => r.id !== d.id);
+    save(); renderAll();
+  });
+  await page.evaluate(() => resetReg()); await page.waitForTimeout(150);
+
+  // An identical name+number IS still a genuine conflict (indistinguishable on the grid),
+  // reached here by declining the "is this the same person?" merge prompt — a different
+  // person who happens to share both the name and the number. Swap the suite-wide
+  // accept-everything dialog handler for a one-shot decline, then restore it.
+  page.removeAllListeners('dialog');
+  page.once('dialog', d => d.dismiss());
+  await page.fill('#dName', 'Alex Smith'); await page.fill('#dNum', '47');
+  await page.click('#ch1'); await page.click('#drawBtn'); await page.waitForTimeout(200);
+  check('an identical name+number IS still refused as a genuine conflict',
     await page.evaluate(() => S.raceDay.entries.length === 8 && document.getElementById('e2').style.display !== 'none'));
-  await page.fill('#dNum', '99!');
+  page.on('dialog', d => d.accept());
+  await page.evaluate(() => resetReg()); await page.waitForTimeout(150);
+
+  await page.fill('#dName', 'Brand New'); await page.fill('#dNum', '99!');
   await page.click('#drawBtn'); await page.waitForTimeout(200);
   check('an illegal vehicle number is refused',
     (await page.textContent('#e1')).includes('1–5 letters or numbers'));

@@ -100,6 +100,34 @@ const check = (name, ok, extra) => {
     return !!d1 && !!d2 && d1.driverId !== d2.driverId;
   }, { c1: clsId, c2: cls2Id }));
 
+  console.log('\n— A car number only has to be unique per DRIVER, not per class (customer report, 2026-09-03) —');
+  // Bug: two DIFFERENT drivers in the SAME class couldn't share a car number at all — the
+  // number-uniqueness guard blocked on the number alone, regardless of name, when it
+  // should only ever block a genuine identity conflict (same name AND same number).
+  resetDlg();
+  await signUpTyped('Robin Diaz', '9', clsId);
+  check('first Robin Diaz #9 registers with no prompt', dlgSeen.length === 0, JSON.stringify(dlgSeen));
+  const beforeSameNumber = await page.evaluate(() => ({ rosterLen: S.roster.length, entries: S.raceDay.entries.length }));
+  await signUpTyped('Morgan Price', '9', clsId);   // different name, SAME number, SAME class
+  check('a different-named driver reusing #9 in the SAME class is allowed, no confirm needed',
+    dlgSeen.length === 0, JSON.stringify(dlgSeen));
+  check('a distinct roster record was created (not merged)', await page.evaluate((n) => S.roster.length === n + 1, beforeSameNumber.rosterLen));
+  check('both #9 entries exist in the same class', await page.evaluate(({ cid, before }) => {
+    const nines = S.raceDay.entries.filter(e => e.classId === cid && String(driverById(e.driverId).num) === '9');
+    return nines.length === 2 && S.raceDay.entries.length === before + 1;
+  }, { cid: clsId, before: beforeSameNumber.entries }));
+
+  // An IDENTICAL name+number in the same class is still a genuine conflict — reached by
+  // declining "is this the same person?" (a coincidence: a different person, same name
+  // AND number). That's the one case still refused.
+  resetDlg();
+  answer = () => false;   // "no, different person" — but they still share Robin Diaz's exact name+number
+  const beforeIdentical = await page.evaluate(() => S.raceDay.entries.length);
+  await signUpTyped('Robin Diaz', '9', clsId);
+  check('an identical name+number IS still refused as a genuine conflict',
+    /already racing/i.test(await page.evaluate(() => document.getElementById('e2').textContent)));
+  check('no entry was created for the refused duplicate', await page.evaluate((n) => S.raceDay.entries.length === n, beforeIdentical));
+
   console.log('\n— Follow-up bug (found 2026-07-16): the "already entered" chip must stay clickable for an unconfirmed match —');
   // Customer report: a colliding name+number made a class chip permanently dead (no
   // id/onclick at all) even for someone who turned out to be a genuinely different

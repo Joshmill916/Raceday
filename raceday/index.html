@@ -2449,24 +2449,27 @@ function register() {
     if (!toEnter.length) { err.style.display = ''; err.textContent = match.name + ' is already entered in ' + (sel.length === 1 ? 'that class' : 'every class you selected') + '.'; return; }
   }
 
-  // vehicle number must be unique within each selected class
+  // A car number only has to be unique per DRIVER within a class — two different people
+  // can legitimately share a number (a common real-world occurrence). Only an exact
+  // name+number match is a genuine conflict (indistinguishable on the grid/scoresheet).
   for (const c of toEnter) {
     const clash = S.raceDay.entries.find(e => {
       if (e.classId !== c.id) return false;
       const d = driverById(e.driverId);
-      return d && String(d.num).toLowerCase() === cur.num.toLowerCase() && (!match || e.driverId !== match.id);
+      return d && String(d.num).toLowerCase() === cur.num.toLowerCase() && d.name.toLowerCase() === cur.name.toLowerCase() && (!match || e.driverId !== match.id);
     });
-    if (clash) { err.style.display = ''; err.textContent = 'Number #' + cur.num + ' is already racing in ' + classById(c.id).name + '. Pick a different number for that class.'; return; }
+    if (clash) { err.style.display = ''; err.textContent = cur.name + ' #' + cur.num + ' is already racing in ' + classById(c.id).name + '. Pick a different number for that class.'; return; }
   }
   // A returning driver changing their number rewrites it in EVERY class they already
   // race today — so validate the new number against those classes too, not just the
-  // newly-selected ones, or we'd silently create a duplicate car # elsewhere.
+  // newly-selected ones, or we'd silently create a duplicate name+number elsewhere.
   if (match && String(match.num).toLowerCase() !== cur.num.toLowerCase()) {
     const myClassIds = [...new Set(S.raceDay.entries.filter(e => e.driverId === match.id).map(e => e.classId))];
     for (const cid of myClassIds) {
       const clash = S.raceDay.entries.find(e => e.classId === cid && e.driverId !== match.id
-        && String((driverById(e.driverId) || {}).num).toLowerCase() === cur.num.toLowerCase());
-      if (clash) { err.style.display = ''; err.textContent = 'Number #' + cur.num + ' is already racing in ' + classById(cid).name + ', where you\'re also entered. Pick a different number.'; return; }
+        && String((driverById(e.driverId) || {}).num).toLowerCase() === cur.num.toLowerCase()
+        && String((driverById(e.driverId) || {}).name).toLowerCase() === cur.name.toLowerCase());
+      if (clash) { err.style.display = ''; err.textContent = cur.name + ' #' + cur.num + ' is already racing in ' + classById(cid).name + ', where you\'re also entered. Pick a different number.'; return; }
     }
   }
   // make sure every selected class still has pills left
@@ -4613,7 +4616,7 @@ function refillLastDay() {
     const clash = S.raceDay.entries.some(e => {
       if (e.classId !== c.id || e.driverId === d.id) return false;
       const o = driverById(e.driverId);
-      return o && String(o.num).toLowerCase() === String(d.num).toLowerCase();
+      return o && String(o.num).toLowerCase() === String(d.num).toLowerCase() && o.name.toLowerCase() === d.name.toLowerCase();
     });
     if (clash) { skipped++; return; }
     const pill = drawPill(c.id);
@@ -4649,9 +4652,9 @@ function quickAdd() {
   const clash = S.raceDay.entries.find(e => {
     if (e.classId !== c.id || e.driverId === d.id) return false;
     const o = driverById(e.driverId);
-    return o && String(o.num).toLowerCase() === String(d.num).toLowerCase();
+    return o && String(o.num).toLowerCase() === String(d.num).toLowerCase() && o.name.toLowerCase() === d.name.toLowerCase();
   });
-  if (clash) { alert('Number #' + d.num + ' is already racing in ' + c.name + ' — change one of the numbers first.'); return; }
+  if (clash) { alert(d.name + ' #' + d.num + ' is already racing in ' + c.name + ' — change one of the numbers first.'); return; }
   let pill = drawPill(c.id);
   if (pill === null) {                       // grid is full (e.g. set by a qualifying import) → add at the back
     pill = S.raceDay.entries.filter(e => e.classId === c.id).reduce((m, e) => Math.max(m, e.pill), 0) + 1;
@@ -4759,8 +4762,9 @@ function moveEntryClass(i, newClassId) {
     alert(d.name + ' is already entered in ' + to.name + '.'); renderEntryList(); return;
   }
   const numClash = S.raceDay.entries.some(x => x.classId === to.id && x.driverId !== e.driverId
-    && String((driverById(x.driverId) || {}).num).toLowerCase() === String(d.num).toLowerCase());
-  if (numClash) { alert('#' + d.num + ' is already racing in ' + to.name + '. Change the number first.'); renderEntryList(); return; }
+    && String((driverById(x.driverId) || {}).num).toLowerCase() === String(d.num).toLowerCase()
+    && String((driverById(x.driverId) || {}).name).toLowerCase() === d.name.toLowerCase());
+  if (numClash) { alert(d.name + ' #' + d.num + ' is already racing in ' + to.name + '. Change the number first.'); renderEntryList(); return; }
   const used = pillsUsed(to.id);
   const pillFree = !used.has(e.pill) && e.pill <= (to.maxPill || 200);
   const anyFree = drawPill(to.id) !== null;
@@ -4808,9 +4812,10 @@ function setEntryNum(i, val) {
   const myClasses = [...new Set(S.raceDay.entries.filter(x => x.driverId === d.id).map(x => x.classId))];
   for (const cid of myClasses) {
     const clash = S.raceDay.entries.find(x => x.classId === cid && x.driverId !== d.id
-      && String((driverById(x.driverId) || {}).num).toLowerCase() === num.toLowerCase());
+      && String((driverById(x.driverId) || {}).num).toLowerCase() === num.toLowerCase()
+      && String((driverById(x.driverId) || {}).name).toLowerCase() === d.name.toLowerCase());
     if (clash) {
-      alert('#' + num + ' is already racing in ' + ((classById(cid) || {}).name || 'that class') + '. Pick a different number.');
+      alert(d.name + ' #' + num + ' is already racing in ' + ((classById(cid) || {}).name || 'that class') + '. Pick a different number.');
       renderEntryList(); return;
     }
   }
