@@ -23,6 +23,14 @@ const check = (n, ok, x) => { if (ok) { pass++; console.log('  ✅ ' + n); } els
   await page.click('#wizNextBtn'); await page.waitForTimeout(150);
   await page.fill('#wizTrackName', 'Smoke Speedway');
   await page.click('#wizNextBtn'); await page.waitForTimeout(150);   // classes step
+  const classesBefore = await page.evaluate(() => S.classes.length);
+  await page.click('button:has-text("+ Add a class")'); await page.waitForTimeout(100);
+  check('wizard step 3 "+ Add a class" button actually adds one',
+    await page.evaluate((n) => S.classes.length === n + 1, classesBefore));
+  await page.fill('#wizCls0', '');   // blank an existing class's name
+  const blankRefused = await page.evaluate(() => !wizSaveClasses());
+  check('a blank class name in the wizard is refused, not silently ignored', blankRefused);
+  await page.fill('#wizCls0', 'Junior 80cc');   // restore it so the real wizNext() below succeeds
   await page.click('#wizNextBtn'); await page.waitForTimeout(150);   // pin step (skip)
   await page.click('#wizNextBtn'); await page.waitForTimeout(150);   // devices
   await page.click('#wizNextBtn'); await page.waitForTimeout(200);   // done

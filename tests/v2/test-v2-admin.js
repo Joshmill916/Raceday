@@ -51,8 +51,14 @@ const ALL_SECTIONS = ['today','history','track','classes','format','points','leg
   await page.evaluate(() => document.getElementById('wizTrackName').dispatchEvent(new Event('input')));
   check('a track name enables next', await page.evaluate(() => !document.getElementById('wizNextBtn').disabled));
   await page.click('#wizNextBtn'); await page.waitForTimeout(200);          // → classes
+  const wizClassesBefore = await page.evaluate(() => S.classes.length);
   await page.click('button:has-text("+ Add a class")'); await page.waitForTimeout(150);
-  await page.fill('#wizCls0', 'Wizard Class');
+  check('wizard step 3 "+ Add a class" button actually adds one',
+    await page.evaluate((n) => S.classes.length === n + 1, wizClassesBefore));
+  await page.fill('#wizCls0', '');
+  check('a blank class name in the wizard is refused, not silently ignored',
+    await page.evaluate(() => !wizSaveClasses()));
+  await page.fill('#wizCls0', 'Wizard Class');   // valid rename so the real wizNext() below succeeds
   await page.click('#wizNextBtn'); await page.waitForTimeout(200);          // → PIN
   await page.fill('#wizPin1', '4242'); await page.fill('#wizPin2', '4242');
   await page.click('#wizNextBtn'); await page.waitForTimeout(200);          // → done

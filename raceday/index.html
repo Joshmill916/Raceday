@@ -6484,7 +6484,7 @@ function impApply(opts) {
     const idMap = {};
     pendIds.forEach(tid => {
       const name = Imp.pendingCls[tid];
-      const cls = { id: Date.now() + Math.floor(Math.random() * 1000), name: name, maxPill: 200, heats: (target === 'feat' ? 2 : 1) };
+      const cls = { id: newClassId(), name: name, maxPill: 200, heats: (target === 'feat' ? 2 : 1) };
       S.classes.push(cls);
       rememberClass(name, cls.maxPill);
       idMap[tid] = cls.id;
