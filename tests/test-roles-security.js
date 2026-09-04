@@ -633,6 +633,71 @@ const check = (name, ok, extra) => {
   check('S reflects the Garage track again after leaving guest mode', await page.evaluate(() => S.track.name === 'Other Speedway'));
 
   // ============================================================================
+  console.log('\n=== 8e. Driven profile retry: guest-safe, and actually listens for reconnect ===');
+  // (Found auditing the Driven pipeline after Guest Pass/Garage shipped: retryPendingProfiles()
+  //  had no GUEST guard, so a guest who inherited a synced roster with a pending Driven link
+  //  could still trigger a real (if harmless) profileTracks/ write on that driver's behalf —
+  //  save() itself was correctly a no-op, but the network call wasn't gated at all.)
+  resetDlg();
+  await page.evaluate(() => localStorage.clear());
+  await go(base + '?sync=SOMEONEELSESTRACK&role=viewer');
+  await page.waitForTimeout(400);
+  // How a guest's S ends up with a pending link isn't this test's concern (Guest Pass'
+  // own suite covers the sync pull) — inject it directly in-memory to isolate exactly
+  // what's under test: does retryPendingProfiles() respect GUEST once such an entry exists.
+  await page.evaluate(() => {
+    S.roster = [{ id: 501, name: 'Pending Driver', num: '5', noPoints: false,
+      profileId: 'prof_pending01', profileCode: 'PROF_PENDING01',
+      profile: { age: '', hometown: '', sponsors: '', teamColor: '', photo: '', premium: false, pendingFetch: true, source: 'profiles' } }];
+  });
+  check('the visiting device is a guest with an in-memory pending-link roster entry',
+    await page.evaluate(() => GUEST === true && S.roster.some(d => d.profile && d.profile.pendingFetch)));
+  const guestWriteCalls = await page.evaluate(() => {
+    const calls = [];
+    const realFirebase = window.firebase;
+    window.firebase = {
+      apps: [{}],
+      database: () => ({ ref: (p) => ({
+        once: () => Promise.resolve({ val: () => ({ name: 'Pending Driver', num: '5', updatedAt: Date.now() }) }),
+        set: (v) => { calls.push(p); return Promise.resolve(); },
+        on: () => {}, off: () => {}, update: () => Promise.resolve(), remove: () => Promise.resolve(),
+      }) }),
+    };
+    retryPendingProfiles();   // a GUEST-session call should return immediately, before touching firebase at all
+    return new Promise(r => setTimeout(() => { window.firebase = realFirebase; r(calls); }, 300));
+  });
+  check("a guest session's retryPendingProfiles() makes NO Firebase write at all",
+    Array.isArray(guestWriteCalls) && guestWriteCalls.length === 0, JSON.stringify(guestWriteCalls));
+  check("the guest's in-memory pending flag is untouched (never resolved on someone else's behalf)",
+    await page.evaluate(() => S.roster[0].profile.pendingFetch === true));
+
+  console.log('\n— A real (non-guest) device DOES retry on reconnect, via the \'online\' event —');
+  resetDlg();
+  await page.evaluate(() => {
+    localStorage.clear(); S = load();
+    S.track.name = 'My Home Track'; save(); setDeviceRole('admin');
+  });
+  await go(base);
+  await page.waitForTimeout(300);
+  await page.evaluate(() => {
+    window.firebase = {
+      apps: [{}],
+      database: () => ({ ref: (p) => ({
+        once: () => Promise.resolve({ val: () => ({ name: 'Reconnect Driver', num: '6', updatedAt: Date.now() }) }),
+        set: () => Promise.resolve(), on: () => {}, off: () => {}, update: () => Promise.resolve(), remove: () => Promise.resolve(),
+      }) }),
+    };
+    S.roster = [{ id: 502, name: 'Reconnect Driver', num: '6', noPoints: false,
+      profileId: 'prof_reconnect01', profileCode: 'PROF_RECONNECT01',
+      profile: { age: '', hometown: '', sponsors: '', teamColor: '', photo: '', premium: false, pendingFetch: true, source: 'profiles' } }];
+    save();
+    window.dispatchEvent(new Event('online'));
+  });
+  await page.waitForTimeout(400);
+  check("dispatching 'online' resolves a pending Driven link (the listener is actually registered)",
+    await page.evaluate(() => S.roster[0].profile.pendingFetch !== true), await page.evaluate(() => JSON.stringify(S.roster[0].profile)));
+
+  // ============================================================================
   console.log('\n=== 9. Driver ids are collision-free across devices (multi-device sign-up) ===');
   // (The live bug: S.nextId was a PER-DEVICE counter, not synced, while roster IS synced —
   //  so two devices signing up at once minted the SAME id for different drivers, and
