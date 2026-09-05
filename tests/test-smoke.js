@@ -58,6 +58,21 @@ const check = (n, ok, x) => { if (ok) { pass++; console.log('  ✅ ' + n); } els
     const seen = {}; return S.raceDay.entries.every(e => { const k = e.classId + '_' + e.pill; if (seen[k]) return false; seen[k] = 1; return true; });
   }));
 
+  console.log('— Consent checkbox survives a Back/Next round trip mid-signup —');
+  await page.evaluate(() => nav('signup')); await page.waitForTimeout(150);
+  await page.evaluate(() => resetReg());
+  await page.fill('#dName', 'Chip Fixer'); await page.fill('#dNum', '99');
+  await page.evaluate(() => step2()); await page.waitForTimeout(150);
+  await page.check('#consentChk');
+  await page.click('button:has-text("← Back")'); await page.waitForTimeout(100);
+  await page.fill('#dNum', '9');   // fix a typo in the number, still the same driver
+  await page.evaluate(() => step2()); await page.waitForTimeout(150);
+  check('the consent tick survives going Back to fix a typo and Next again',
+    await page.evaluate(() => document.getElementById('consentChk').checked));
+  await page.evaluate(() => resetReg());
+  check('resetReg() (a genuinely new driver) DOES clear the tick',
+    await page.evaluate(() => document.getElementById('consentChk').checked === false));
+
   console.log('— Lineups —');
   await page.evaluate(() => nav('grid')); await page.waitForTimeout(250);
   const gtxt = await page.textContent('#gridContent');

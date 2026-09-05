@@ -2402,10 +2402,14 @@ function renderChips() {
     const title = (already && !trusted) ? ' title="A driver with this exact name and number is already entered today — you\'ll be asked to confirm at signup"' : '';
     return '<span class="chip"' + title + ' id="ch' + c.id + '" onclick="this.classList.toggle(\'on\')">' + esc(c.name) + '</span>';
   }).join('');
-  // Terms / Privacy acceptance: show the checkbox (unticked each driver) when required.
+  // Terms / Privacy acceptance: show the checkbox when required. Never touch its checked
+  // state here — this runs every time step2() re-renders, including a Back-to-fix-a-typo
+  // round trip within the SAME driver's signup, and resetting it there just makes the
+  // driver re-tick a box they already ticked seconds ago. resetReg() (a genuinely NEW
+  // driver) is where it actually gets unticked.
   const row = document.getElementById('consentRow'), chk = document.getElementById('consentChk');
   if (row && chk) {
-    if (S.settings && S.settings.requireConsent) { row.style.display = ''; chk.checked = false; }
+    if (S.settings && S.settings.requireConsent) row.style.display = '';
     else row.style.display = 'none';
   }
 }
@@ -2540,6 +2544,7 @@ function resetReg() {
   document.getElementById('suggBox').innerHTML = '';
   document.getElementById('e1').style.display = 'none';
   document.getElementById('e2').style.display = 'none';
+  const chk = document.getElementById('consentChk'); if (chk) chk.checked = false;   // a genuinely new driver — this IS the reset point
   renderRosterPick();
   showStep(1);
   if (curPage === 'signup') document.getElementById('dName').focus();

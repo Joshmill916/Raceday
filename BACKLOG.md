@@ -93,8 +93,6 @@ properly needs the deferred backend/auth work:
 
 ## Deferred audit findings (from the 2026-06-30 full-app audit)
 
-The High items + a few Mediums were fixed and are on the dev branch. These remain open:
-
-**Low**
-- `suggest()` re-renders the roster on every keystroke.
-- Consent checkbox unticks on Back/Next in sign-up.
+The High items and every tracked Medium/Low item have been fixed (or, for several
+Mediums, found already-fixed and just stale here) and are on the dev branch. Nothing
+open from this audit remains.

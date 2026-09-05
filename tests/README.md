@@ -10,7 +10,7 @@ contention across suites can wedge one when they're chained.
 
 | Suite | Covers |
 |---|---|
-| `test-smoke.js` | Full race night: wizard → signup UI → lineups/TV → scoring → points → lock/override → archive → reload persistence |
+| `test-smoke.js` | Full race night: wizard → signup UI → lineups/TV → scoring → points → lock/override → archive → reload persistence; also that the sign-up consent checkbox survives a Back/Next round trip mid-signup (only a genuinely new driver via `resetReg()` clears it) |
 | `test-viewer-results.js` | Spectator Results tab + "Results updated" toast |
 | `test-qual-times.js` | Manual qualifying times + set-grid-from-times |
 | `test-main-invert.js` | Feature/B-main starting-spot invert |
