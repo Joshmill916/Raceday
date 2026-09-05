@@ -154,6 +154,27 @@ const TYPES = { '.html': 'text/html', '.js': 'application/javascript', '.json': 
   await page.waitForTimeout(200);
   check('pending edit index cleared on delete', staleOk === true);
 
+  console.log('\n=== 5b. An all-zero entry warns before saving a likely-forgotten repair ===');
+  resetDlg();
+  answer = () => false;
+  const histBeforeZero = await histLen();
+  await fillAndSave('2026-05-15', [[101, 0], [102, 0]]);
+  await page.waitForTimeout(200);
+  check('an all-zero submission triggers a warning', dlgSeen.some(m => /0 points/i.test(m)), JSON.stringify(dlgSeen));
+  check('declining it leaves history unchanged', (await histLen()) === histBeforeZero);
+
+  resetDlg();
+  answer = () => true;
+  await fillAndSave('2026-05-15', [[101, 0], [102, 0]]);
+  await page.waitForTimeout(200);
+  check('accepting the warning still saves the entry', (await histLen()) === histBeforeZero + 1);
+
+  resetDlg();
+  const histBeforeMixed = await histLen();
+  await fillAndSave('2026-05-22', [[101, 5], [102, 0]]);
+  await page.waitForTimeout(200);
+  check('a MIXED entry (not everyone zero) saves with no warning at all', dlgSeen.length === 0 && (await histLen()) === histBeforeMixed + 1, JSON.stringify(dlgSeen));
+
   console.log('\n=== 6. Add-whole-class prefill ===');
   resetDlg();
   const whole = await page.evaluate(() => {

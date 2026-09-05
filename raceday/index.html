@@ -745,6 +745,7 @@
     </section>
 
     <section class="adm-sec" id="adm-danger">
+      <div class="slbl">Danger zone</div>
       <div class="card">
         <div style="display:flex;gap:10px;flex-wrap:wrap">
           <button class="btn" onclick="newRaceDay()">🏁 Start a new race day</button>
@@ -2295,6 +2296,7 @@ function forgotPin() {
 }
 function lockAdmin() {
   sessionStorage.removeItem('rd_admin_ok');
+  UI.admOpen = null;   // next entry into Admin starts at the section grid, not wherever this lock happened
   nav('signup');
 }
 function setPin() {
@@ -3333,8 +3335,20 @@ function seriesStandings(className) {
   const agg = {};
   const add = (driverId, name, num, pts) => {
     const k = driverId != null ? 'd' + driverId : 'n' + String(name).toLowerCase();
-    if (!agg[k]) agg[k] = { name, num, pts: 0, days: 0 };
+    if (!agg[k]) agg[k] = { name, num, pts: 0, days: 0, wins: 0, best: Infinity };
     agg[k].pts += pts; agg[k].days++; agg[k].name = name; agg[k].num = num;
+  };
+  // Tie-break countback (wins, then best-ever feature finish) — sourced from feature
+  // finish position, never points. Only updates a driver already scoring points that
+  // night; a hand-entered "Fix season points" repair night carries no finish data
+  // (featureFinish: []) and simply doesn't contribute to the countback, falling back
+  // to whatever countback the driver's real archived nights already established.
+  const addFinish = (driverId, name, fin) => {
+    const k = driverId != null ? 'd' + driverId : 'n' + String(name).toLowerCase();
+    const e = agg[k];
+    if (!e || typeof fin !== 'number') return;
+    if (fin === 1) e.wins++;
+    if (fin < e.best) e.best = fin;
   };
   S.history.forEach(hd => hd.classes.forEach(c => {
     if (c.name.toLowerCase() !== key || !c.points) return;
@@ -3342,13 +3356,17 @@ function seriesStandings(className) {
     // in c.points), so don't re-filter here on the *current* roster flag — doing so would
     // retroactively erase points a driver legitimately earned before being marked noPoints.
     c.points.forEach(p => add(p.driverId, p.name, p.num, p.pts));
+    (c.featureFinish || []).forEach(f => addFinish(f.driverId, f.name, f.fin));
   }));
   const cls = S.classes.find(c => c.name.toLowerCase() === key);
   if (cls) {
     const dp = dayPoints(cls.id);
-    if (dp) classRacers(cls.id).forEach(r => add(r.id, r.name, r.num, dp[r.id] || 0));
+    if (dp) {
+      classRacers(cls.id).forEach(r => add(r.id, r.name, r.num, dp[r.id] || 0));
+      featureFinish(cls.id).forEach(f => addFinish(f.id, f.name, f.fin));
+    }
   }
-  return Object.values(agg).sort((a, b) => b.pts - a.pts || a.name.localeCompare(b.name));
+  return Object.values(agg).sort((a, b) => b.pts - a.pts || b.wins - a.wins || a.best - b.best || a.name.localeCompare(b.name));
 }
 // Named starting points — picking one fills the inputs; the track can then tweak the
 // numbers (which switches it to "Custom"). 'linear' has no fixed list — see dayPoints.
@@ -3835,6 +3853,12 @@ function saveImportedRace() {
   const editing = _impEditIdx != null && S.history[_impEditIdx];
   const dup = S.history.some((hd, hi) => hi !== _impEditIdx && hd.date === date && hd.classes.some(c => c.name.toLowerCase() === cls.name.toLowerCase()));
   if (dup) { alert('A history entry for ' + cls.name + ' on ' + date + ' already exists.\n\nEdit or delete the existing entry instead.'); return; }
+  // Every added row defaults to 0 points until the admin types real values in — a
+  // submission where nobody's points ever got filled in is almost certainly that, not a
+  // genuine shutout night. Still counts as a race day for everyone in it either way
+  // (seriesStandings' day tally doesn't check pts), so silently saving it would quietly
+  // inflate every driver's race count with a phantom, zero-value night.
+  if (_impRows.every(r => !r.pts) && !confirm('Every driver in this entry has 0 points. If you haven\'t filled in their points yet, go back and do that first.\n\nSave anyway?')) return;
   const entry = {
     date: date,
     savedAt: Date.now(),
