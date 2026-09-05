@@ -136,6 +136,22 @@ const TYPES = { '.html':'text/html', '.js':'application/javascript', '.json':'ap
     (await page.textContent('#e1')).includes('1–5 letters or numbers'));
   await page.evaluate(() => resetReg()); await page.waitForTimeout(150);
 
+  console.log('— Consent checkbox survives editing a typo mid-signup —');
+  await page.evaluate(() => { S.settings.requireConsent = true; renderSignup(); });
+  await page.waitForTimeout(150);
+  await page.fill('#dName', 'Chip Fixer'); await page.fill('#dNum', '999');
+  await page.waitForTimeout(100);
+  await page.check('#consentChk');
+  await page.fill('#dNum', '99');   // fix a typo in the number, still the same driver
+  await page.waitForTimeout(100);
+  check('the consent tick survives editing a field mid-signup (no full re-render reset)',
+    await page.evaluate(() => document.getElementById('consentChk').checked));
+  await page.evaluate(() => resetReg());
+  await page.waitForTimeout(150);
+  check('resetReg() (a genuinely new driver) DOES clear the tick',
+    await page.evaluate(() => document.getElementById('consentChk').checked === false));
+  await page.evaluate(() => { S.settings.requireConsent = false; }); // restore this file's frictionless-signup default
+
   // ------------------------------------------------------------------ lineups
   console.log('— Lineups —');
   await page.evaluate(() => nav('grid')); await page.waitForTimeout(300);

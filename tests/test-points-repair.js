@@ -153,6 +153,31 @@ const check = (name, ok, extra) => {
   await page.waitForTimeout(200);
   check('pending edit index cleared on delete', staleOk === true);
 
+  console.log('\n=== 5b. An all-zero entry warns before saving a likely-forgotten repair ===');
+  // Every added row defaults to 0 points until the admin types real values in — a
+  // submission where nobody's points ever got filled in is almost certainly that
+  // mistake, not a genuine shutout night, and would otherwise silently inflate every
+  // driver's race-day count in seriesStandings() with a phantom, zero-value night.
+  resetDlg();
+  answer = () => false;   // decline the all-zero warning
+  const histBeforeZero = await histLen();
+  await fillAndSave('2026-05-15', [[101, 0], [102, 0]]);
+  await page.waitForTimeout(200);
+  check('an all-zero submission triggers a warning', dlgSeen.some(m => /0 points/i.test(m)), JSON.stringify(dlgSeen));
+  check('declining it leaves history unchanged', (await histLen()) === histBeforeZero);
+
+  resetDlg();
+  answer = () => true;   // accept the all-zero warning this time
+  await fillAndSave('2026-05-15', [[101, 0], [102, 0]]);
+  await page.waitForTimeout(200);
+  check('accepting the warning still saves the entry', (await histLen()) === histBeforeZero + 1);
+
+  resetDlg();
+  const histBeforeMixed = await histLen();
+  await fillAndSave('2026-05-22', [[101, 5], [102, 0]]);
+  await page.waitForTimeout(200);
+  check('a MIXED entry (not everyone zero) saves with no warning at all', dlgSeen.length === 0 && (await histLen()) === histBeforeMixed + 1, JSON.stringify(dlgSeen));
+
   console.log('\n=== 6. Add-whole-class prefill ===');
   resetDlg();
   const whole = await page.evaluate(() => {

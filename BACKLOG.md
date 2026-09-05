@@ -93,12 +93,6 @@ properly needs the deferred backend/auth work:
 
 ## Deferred audit findings (from the 2026-06-30 full-app audit)
 
-The High items + a few Mediums were fixed and are on the dev branch. These remain open:
-
-**Low**
-- Danger-zone tab bar shows a bare "← All" with no section title (single-item group).
-- `lockAdmin()` leaves `_admOpen` set (stale inline state, harmless).
-- All-zero imported race inflates everyone's race count.
-- Standings tie-break is alphabetical (no countback by wins/best finish).
-- `suggest()` re-renders the roster on every keystroke.
-- Consent checkbox unticks on Back/Next in sign-up.
+The High items and every tracked Medium/Low item have been fixed (or, for several
+Mediums, found already-fixed and just stale here) and are on the dev branch. Nothing
+open from this audit remains.
