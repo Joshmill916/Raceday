@@ -325,6 +325,9 @@ function migrate(p) {
   p.driver = p.driver || {};
   if (p.driver.number == null) p.driver.number = '';
   if (p.driver.teamColor == null) p.driver.teamColor = '';
+  if (p.driver.aliases == null) p.driver.aliases = '';
+  if (p.driver.highlights == null) p.driver.highlights = '';
+  if (!Array.isArray(p.crew)) p.crew = [];
   if (p.premiumCode == null) p.premiumCode = '';
   if (p.shortCode == null) p.shortCode = '';
   if (p.publishedAt == null) p.publishedAt = 0;
@@ -384,10 +387,11 @@ function tierAtLeast(key) { return currentTier().rank >= tierDef(key).rank; }
 function newProfile(name, email, hometown, age) {
   return {
     profileId: genId(),
-    driver: { name: name, email: email || '', photo: null, bio: '', hometown: hometown || '', age: age || null, joinedDate: Date.now(), number: '', teamColor: '' },
+    driver: { name: name, email: email || '', photo: null, bio: '', hometown: hometown || '', age: age || null, joinedDate: Date.now(), number: '', teamColor: '', aliases: '', highlights: '' },
     linkedTracks: [],
     raceResults: [],
     sponsors: [],
+    crew: [],
     tier: 'free',
     premiumCode: '',
     shortCode: '',      // published track-link code (derived from profileId at publish time)
@@ -744,7 +748,7 @@ function renderHome() {
     + (photoOK(d.photo) ? '<img class="hero-photo" src="' + d.photo + '" alt="">'
                         : '<div class="hero-disc">' + esc(d.number || initials) + '</div>')
     + '<div><div class="hero-name">' + esc(d.name) + '</div>'
-    + '<div class="hero-meta">' + [d.number ? '#' + esc(d.number) : '', d.hometown ? esc(d.hometown) : ''].filter(Boolean).join(' &nbsp;·&nbsp; ') + '</div></div>'
+    + '<div class="hero-meta">' + [d.number ? '#' + esc(d.number) : '', d.hometown ? esc(d.hometown) : '', d.aliases ? 'AKA ' + esc(d.aliases) : ''].filter(Boolean).join(' &nbsp;·&nbsp; ') + '</div></div>'
     + '</div>'
     + '<div class="hero-stats">'
     + '<div><b>' + stats.total.races + '</b><span>Races</span></div>'
@@ -795,7 +799,7 @@ function renderCard() {
       + (photoOK(d.photo) ? '<img class="pcard-photo" src="' + d.photo + '" alt="">'
                           : '<div class="pcard-disc">' + esc(d.number || '?') + '</div>')
       + '<div><div class="nm">' + esc(d.name) + '</div>'
-      + '<div class="meta">' + [d.number ? '#' + esc(d.number) : '', d.hometown ? esc(d.hometown) : ''].filter(Boolean).join(' &nbsp;·&nbsp; ') + '</div></div>'
+      + '<div class="meta">' + [d.number ? '#' + esc(d.number) : '', d.hometown ? esc(d.hometown) : '', d.aliases ? 'AKA ' + esc(d.aliases) : ''].filter(Boolean).join(' &nbsp;·&nbsp; ') + '</div></div>'
       + '</div><div class="pcard-checker"></div>'
       + '<div class="pcard-stats">'
       + '<div class="pcard-stat"><b>' + stats.total.races + '</b><span>Races</span></div>'
@@ -804,7 +808,9 @@ function renderCard() {
       + '</div>'
       + '<div class="pcard-body">'
       + (d.bio ? '<div style="line-height:1.6;margin-bottom:8px">' + esc(d.bio) + '</div>' : '')
+      + (d.highlights ? '<div style="line-height:1.6;margin-bottom:8px">' + esc(d.highlights) + '</div>' : '')
       + (P.sponsors.length ? P.sponsors.map(function (s) { return '<span class="sponsor-chip">' + esc(s.name) + '</span>'; }).join('') : '')
+      + (P.crew.length ? P.crew.map(function (c) { return '<span class="sponsor-chip">' + esc(c.name) + '</span>'; }).join('') : '')
       + '</div></div>';
   } else {
     h += '<div class="bcard">'
@@ -812,12 +818,16 @@ function renderCard() {
       + (photoOK(d.photo) ? '<img class="bcard-photo" src="' + d.photo + '" alt="">'
                           : '<div class="bcard-disc">' + esc(d.number || initials) + '</div>')
       + '<div><div class="bcard-name">' + esc(d.name) + '</div>'
-      + '<div class="bcard-meta">' + [d.number ? '#' + esc(d.number) : '', d.age ? 'Age ' + d.age : '', d.hometown ? esc(d.hometown) : ''].filter(Boolean).join(' &nbsp;·&nbsp; ') + '</div></div>'
+      + '<div class="bcard-meta">' + [d.number ? '#' + esc(d.number) : '', d.age ? 'Age ' + d.age : '', d.hometown ? esc(d.hometown) : '', d.aliases ? 'AKA ' + esc(d.aliases) : ''].filter(Boolean).join(' &nbsp;·&nbsp; ') + '</div></div>'
       + '</div>'
       + '<div class="bcard-body">'
       + (d.bio ? '<div class="prof-bio">' + esc(d.bio) + '</div>' : '<div class="prof-bio placeholder">No bio yet — add one in Settings.</div>')
+      + '<div class="slbl">Highlights</div>'
+      + (d.highlights ? '<div class="prof-bio">' + esc(d.highlights) + '</div>' : '<p class="empty" style="padding:4px 0 0">No highlights added yet.</p>')
       + '<div class="slbl">Sponsors</div>'
       + (P.sponsors.length ? P.sponsors.map(function (s) { return '<span class="sponsor-chip">' + esc(s.name) + '</span>'; }).join('') : '<p class="empty" style="padding:4px 0 0">No sponsors added yet.</p>')
+      + '<div class="slbl">Crew</div>'
+      + (P.crew.length ? P.crew.map(function (c) { return '<span class="sponsor-chip">' + esc(c.name) + '</span>'; }).join('') : '<p class="empty" style="padding:4px 0 0">No crew added yet.</p>')
       + '<button class="btn btn-block" onclick="nav(\'settings\')" style="margin-top:16px">Edit profile</button>'
       + '</div></div>';
   }
@@ -935,6 +945,7 @@ function renderSettings() {
   h += '<div class="card">'
     + '<div class="slbl">Profile</div>'
     + '<label>Name</label><input type="text" id="stName" value="' + esc(d.name) + '" maxlength="40">'
+    + '<label>Also known as (comma-separated)</label><input type="text" id="stAliases" value="' + esc(d.aliases || '') + '" maxlength="60" placeholder="Junior, J-Miller">'
     + '<label>Email</label><input type="email" id="stEmail" value="' + esc(d.email) + '" maxlength="80">'
     + '<label>Car number</label><input type="text" id="stNumber" value="' + esc(d.number || '') + '" maxlength="5" placeholder="e.g. 47 or 12A" autocapitalize="characters">'
     + '<label>Team color</label><input type="color" id="stTeamColor" value="' + esc(/^#[0-9a-fA-F]{6}$/.test(d.teamColor || '') ? d.teamColor : '#1f6fd6') + '" style="height:44px;padding:4px">'
@@ -948,7 +959,9 @@ function renderSettings() {
     + '<label>Hometown</label><input type="text" id="stHometown" value="' + esc(d.hometown) + '" maxlength="60">'
     + '<label>Age</label><input type="number" id="stAge" value="' + (d.age || '') + '" min="1" max="120">'
     + '<label>Bio (max 280 characters)</label><textarea id="stBio" maxlength="280">' + esc(d.bio) + '</textarea>'
+    + '<label>Career highlights (max 280 characters)</label><textarea id="stHighlights" maxlength="280" placeholder="2025 track champion, 3x feature winner...">' + esc(d.highlights || '') + '</textarea>'
     + '<label>Sponsors (comma-separated)</label><input type="text" id="stSponsors" maxlength="150" value="' + esc(P.sponsors.map(function (s) { return s.name; }).join(', ')) + '" placeholder="Smith Auto, Apex Racing">'
+    + '<label>Crew (comma-separated)</label><input type="text" id="stCrew" maxlength="150" value="' + esc(P.crew.map(function (c) { return c.name; }).join(', ')) + '" placeholder="Jamie Park (wrench), Alex Cho (spotter)">'
     + '<button class="btn btn-primary btn-block" onclick="saveProfileFields()" style="margin-top:16px">Save changes</button>'
     + '</div>';
 
@@ -985,6 +998,7 @@ function renderSettings() {
 
 function saveProfileFields() {
   P.driver.name = ($id('stName').value || '').trim() || P.driver.name;
+  P.driver.aliases = ($id('stAliases').value || '').trim();
   P.driver.email = ($id('stEmail').value || '').trim();
   P.driver.number = ($id('stNumber').value || '').trim().toUpperCase().slice(0, 5);
   var col = $id('stTeamColor').value;
@@ -993,8 +1007,11 @@ function saveProfileFields() {
   var ageVal = $id('stAge').value;
   P.driver.age = ageVal ? parseInt(ageVal, 10) : null;
   P.driver.bio = ($id('stBio').value || '').trim();
+  P.driver.highlights = ($id('stHighlights').value || '').trim();
   var sponsorsRaw = ($id('stSponsors').value || '').trim();
   P.sponsors = sponsorsRaw ? sponsorsRaw.split(',').map(function (s) { return { name: s.trim() }; }).filter(function (s) { return s.name; }) : [];
+  var crewRaw = ($id('stCrew').value || '').trim();
+  P.crew = crewRaw ? crewRaw.split(',').map(function (s) { return { name: s.trim() }; }).filter(function (s) { return s.name; }) : [];
   save();
   // Don't promise the published card updated if the new values exceed a field cap — the
   // auto-republish in save() would be silently rejected by the rules.
