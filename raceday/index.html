@@ -494,6 +494,20 @@
       <button class="btn btn-sm" id="lockBtn" onclick="lockAdmin()" style="margin-left:auto;display:none">🔒 Lock admin</button>
     </div>
 
+    <div id="upgradeNotice" class="card" style="margin:14px 0;border-color:var(--accent)">
+      <div style="display:flex;justify-content:space-between;align-items:flex-start;gap:10px">
+        <div>
+          <b>🆕 A new version of RaceDay is here.</b>
+          <p style="margin:6px 0 0;font-size:13.5px;color:var(--muted)">Modern rebuild, same data underneath. Move over anytime — nothing is forced. To bring your season: <b>1)</b> download a backup below, <b>2)</b> open the new version, <b>3)</b> restore that backup there.</p>
+          <div style="margin-top:10px;display:flex;gap:8px;flex-wrap:wrap">
+            <button class="btn btn-sm" onclick="exportBackup()">Download backup</button>
+            <a class="btn btn-sm" href="/raceday2/" target="_blank" rel="noopener">Open the new version →</a>
+          </div>
+        </div>
+        <button onclick="dismissUpgradeNotice()" style="background:none;border:none;font-size:16px;cursor:pointer;color:var(--muted);flex-shrink:0" title="Dismiss">✕</button>
+      </div>
+    </div>
+
     <div id="adminHome"></div>
     <div id="adminTabs" style="display:none"></div>
 
@@ -4291,7 +4305,16 @@ function renderAdminNav() {
 function adminOpen(secId) { UI.admOpen = secId; renderAdminNav(); }
 function adminHome() { UI.admOpen = null; renderAdminNav(); }
 
+function dismissUpgradeNotice() {
+  // Device-local UI preference, not track data — deliberately outside S/save() so
+  // dismissing it on one device doesn't sync it away on every other station.
+  localStorage.setItem('rd_upgrade_notice_dismissed', '1');
+  const el = document.getElementById('upgradeNotice');
+  if (el) el.style.display = 'none';
+}
 function renderAdmin() {
+  const notice = document.getElementById('upgradeNotice');
+  if (notice) notice.style.display = localStorage.getItem('rd_upgrade_notice_dismissed') ? 'none' : '';
   renderClsList(); renderClsLib(); renderQuickAdd(); renderEntryList(); renderRosterList(); renderHistory(); renderImpForm(); renderPinCard(); renderLicCard(); renderSyncCard(); renderGarageCard(); renderPointsInputs(); renderCloudBackupCard();
   renderLegalInputs(); renderConsentCard(); renderAuditCard();
   document.getElementById('trackName').value = S.track.name;
