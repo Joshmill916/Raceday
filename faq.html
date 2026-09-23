@@ -1,0 +1,313 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>FAQ — RaceDay</title>
+<meta name="description" content="Common RaceDay questions: the free trial, switching from the classic app to the new version, setting up heat races and features, Driven and Pro, backups, and how to request a feature.">
+<meta property="og:type" content="website">
+<meta property="og:url" content="https://victoryraceday.com/faq.html">
+<meta property="og:title" content="FAQ — RaceDay">
+<meta property="og:description" content="The free trial, switching to the new version, setting up heat races and features, Driven and Pro, backups — and how to ask for a feature.">
+<meta property="og:image" content="https://victoryraceday.com/raceday/icon-rd.png">
+<meta name="twitter:card" content="summary">
+<meta name="twitter:title" content="FAQ — RaceDay">
+<meta name="twitter:description" content="The free trial, switching to the new version, setting up heat races and features, Driven and Pro, backups — and how to ask for a feature.">
+<meta name="twitter:image" content="https://victoryraceday.com/raceday/icon-rd.png">
+<link rel="apple-touch-icon" href="raceday/icon-rd.png">
+<link rel="icon" type="image/png" sizes="512x512" href="raceday/icon-rd.png">
+<link rel="stylesheet" href="fonts.css">
+<style>
+:root{
+  --paper:#f4f4f1;
+  --ink:#17181c;
+  --asphalt:#101114;
+  --asphalt-2:#1c1e23;
+  --clay:#c1571f;
+  --clay-2:#8f3f15;
+  --clay-bright:#e0742f;
+  --line:#e3e3de;
+  --line-dark:rgba(255,255,255,.12);
+  --muted:#6b6d74;
+  --muted-dark:#9a9da6;
+  --display:'Big Shoulders Display',system-ui,sans-serif;
+  --body-f:'Overpass',system-ui,-apple-system,sans-serif;
+  --mono:'Overpass Mono',ui-monospace,'SF Mono',Consolas,monospace;
+}
+@media (prefers-color-scheme: dark){
+  :root{
+    --paper:#1b1c20;
+    --ink:#f2f1ec;
+    --asphalt:#0a0b0d;
+    --asphalt-2:#131418;
+    --clay:var(--clay-bright);
+    --line:rgba(255,255,255,.12);
+    --muted:#9a9da6;
+  }
+}
+:root[data-theme="dark"]{
+  --paper:#1b1c20;
+  --ink:#f2f1ec;
+  --asphalt:#0a0b0d;
+  --asphalt-2:#131418;
+  --clay:var(--clay-bright);
+  --line:rgba(255,255,255,.12);
+  --muted:#9a9da6;
+}
+:root[data-theme="light"]{
+  --paper:#f4f4f1;
+  --ink:#17181c;
+  --asphalt:#101114;
+  --asphalt-2:#1c1e23;
+  --clay:#c1571f;
+  --line:#e3e3de;
+  --muted:#6b6d74;
+}
+
+*{box-sizing:border-box}
+html{-webkit-text-size-adjust:100%}
+body{
+  margin:0;background:var(--paper);color:var(--ink);
+  font-family:var(--body-f);font-size:16px;line-height:1.6;
+  -webkit-font-smoothing:antialiased;
+}
+h1,h2,h3{font-family:var(--display);text-transform:uppercase;text-wrap:balance;margin:0;line-height:.96;letter-spacing:.002em}
+p{margin:0}
+a{color:inherit}
+
+.wrap{max-width:1140px;margin:0 auto;padding-inline:28px}
+@media (max-width:640px){.wrap{padding-inline:20px}}
+
+.band{padding:76px 0}
+.band.dark{background:var(--asphalt);color:#f2f1ec}
+
+.eyebrow{
+  display:flex;align-items:center;gap:10px;
+  font-family:var(--mono);font-size:.72rem;font-weight:700;
+  text-transform:uppercase;letter-spacing:.16em;color:var(--clay);margin-bottom:18px;
+}
+.eyebrow .flag{width:22px;height:11px;flex:none;background:repeating-conic-gradient(var(--ink) 0% 25%, transparent 0% 50%) 0 0 / 5.5px 5.5px}
+.band.dark .eyebrow .flag,.hero .eyebrow .flag{background:repeating-conic-gradient(#fff 0% 25%, transparent 0% 50%) 0 0 / 5.5px 5.5px}
+
+/* ---------- Top bar ---------- */
+.topbar{background:var(--asphalt);border-bottom:1px solid var(--line-dark)}
+.topbar-row{display:flex;align-items:center;justify-content:space-between;padding-block:14px;gap:16px}
+.topbar-brand{
+  font-family:var(--display);font-weight:800;font-size:1rem;letter-spacing:.04em;
+  color:#fff;text-transform:uppercase;text-decoration:none;
+}
+.topbar-link{
+  font-family:var(--mono);font-size:.82rem;font-weight:700;text-transform:uppercase;
+  letter-spacing:.06em;color:#c7c8cd;text-decoration:none;
+  display:inline-flex;align-items:center;gap:6px;
+}
+.topbar-link:hover{color:#fff}
+.topbar-link:focus-visible,.topbar-brand:focus-visible{outline:3px solid var(--clay-bright);outline-offset:3px;border-radius:2px}
+
+/* ---------- Hero ---------- */
+.hero{background:var(--asphalt);color:#f2f1ec;padding:64px 0 56px}
+.hero h1{font-size:clamp(2.4rem,6vw,4rem);font-weight:900;color:#fff}
+.hero .lede{font-size:clamp(1.05rem,1.6vw,1.2rem);color:#c7c8cd;max-width:56ch;margin:22px 0 0}
+
+.btn{
+  display:inline-flex;align-items:center;justify-content:center;gap:10px;
+  background:var(--clay);color:#fff;font-family:var(--body-f);font-weight:700;font-size:1rem;
+  padding:15px 26px;border-radius:8px;text-decoration:none;border:1.5px solid var(--clay);
+  transition:transform .12s ease, background .15s ease;
+}
+.btn:hover{background:var(--clay-2);border-color:var(--clay-2)}
+.btn:focus-visible{outline:3px solid var(--clay-bright);outline-offset:3px}
+.btn.ghost{background:transparent;color:var(--ink);border-color:var(--line)}
+.btn.ghost:hover{background:transparent;border-color:var(--clay);color:var(--clay)}
+.btn-arrow{transition:transform .15s ease}
+.btn:hover .btn-arrow{transform:translateX(3px)}
+.cta-row{display:flex;align-items:center;gap:22px;flex-wrap:wrap;margin-top:30px}
+
+.section-h{font-size:clamp(1.5rem,2.6vw,1.9rem);font-weight:800;margin-bottom:6px}
+.section-p{margin-top:10px;font-size:.98rem;color:var(--muted);max-width:60ch}
+
+/* ---------- FAQ list ---------- */
+.faq-group{margin-top:56px}
+.faq-group:first-of-type{margin-top:0}
+.faq-list{margin-top:22px;display:flex;flex-direction:column;gap:1px;background:var(--line);border:1px solid var(--line);border-radius:10px;overflow:hidden}
+.faq-item{background:var(--paper);padding:22px 24px}
+.faq-item .q{font-family:var(--display);font-weight:800;font-size:1.08rem;text-transform:none;letter-spacing:0}
+.faq-item .a{margin-top:8px;font-size:.98rem;color:var(--ink)}
+.faq-item .a a{color:var(--clay);text-decoration:underline;text-decoration-color:rgba(193,87,31,.35);text-underline-offset:2px}
+
+/* ---------- Callouts ---------- */
+.callout{
+  margin-top:56px;border:2px solid var(--clay);border-radius:12px;padding:30px 32px;background:var(--paper);
+}
+.callout h2{font-size:clamp(1.4rem,2.8vw,1.8rem)}
+.callout p{margin-top:12px;color:var(--muted);max-width:62ch;font-size:.98rem}
+.callout .cta-row{margin-top:22px}
+
+.contact-row{margin-top:32px;display:flex;gap:28px;flex-wrap:wrap;font-family:var(--mono);font-size:.9rem}
+.contact-row a{text-decoration:underline;text-decoration-color:rgba(255,255,255,.35);text-underline-offset:3px}
+.contact-row a:hover{text-decoration-color:#fff}
+.contact-row a:focus-visible{outline:3px solid var(--clay-bright);outline-offset:3px;border-radius:2px}
+.final-cta h2{font-size:clamp(2rem,4.6vw,2.7rem);font-weight:900;color:#fff}
+.final-cta .lede{color:#c7c8cd;font-size:1.05rem;max-width:54ch;margin:18px 0 0}
+
+footer{background:var(--asphalt);color:var(--muted-dark);padding:30px 0;font-family:var(--mono);font-size:.78rem}
+footer .wrap{display:flex;justify-content:space-between;gap:16px;flex-wrap:wrap}
+footer a{text-decoration:underline;text-decoration-color:rgba(255,255,255,.3);text-underline-offset:3px}
+footer a:hover{color:#fff}
+</style>
+</head>
+<body>
+<div class="topbar">
+  <div class="wrap topbar-row">
+    <a class="topbar-brand" href="/?home=1">RaceDay</a>
+    <span class="topbar-links" style="display:flex;gap:24px;align-items:center">
+      <a class="topbar-link" href="/pricing.html">Pricing</a>
+      <a class="topbar-link" href="/raceday2/">Open RaceDay <span class="btn-arrow">→</span></a>
+    </span>
+  </div>
+</div>
+
+<header class="hero">
+  <div class="wrap fade-up">
+    <div class="eyebrow"><span class="flag"></span>FAQ</div>
+    <h1>Questions, answered<br>straight.</h1>
+    <p class="lede">The stuff people actually ask — the free trial, switching to the new version, where race-night settings live, and what Driven costs (or doesn't).</p>
+    <div class="cta-row">
+      <a class="btn" href="/raceday2/?demo=1">Try the live demo <span class="btn-arrow">→</span></a>
+      <a class="btn ghost" href="/pricing.html" style="border-color:rgba(255,255,255,.3);color:#fff">See pricing</a>
+    </div>
+  </div>
+</header>
+<div class="checker" style="height:10px;background:repeating-conic-gradient(#000 0% 25%, var(--asphalt) 0% 50%) 0 0 / 20px 20px"></div>
+
+<section class="band">
+  <div class="wrap">
+
+    <div class="faq-group">
+      <div class="section-h">Getting started</div>
+      <p class="section-p">What RaceDay is, and what it costs to try it.</p>
+      <div class="faq-list">
+        <div class="faq-item">
+          <div class="q">Is there a free trial?</div>
+          <div class="a">Yes — one full race day, every feature unlocked, no card and no account. Days only count when you actually sign drivers in, so setting things up and poking around doesn't burn it.</div>
+        </div>
+        <div class="faq-item">
+          <div class="q">Do I need to install anything?</div>
+          <div class="a">No — it runs in the browser on whatever you already have (phone, tablet, laptop). You can add it to your home screen for an app-like icon, but there's nothing to download from a store.</div>
+        </div>
+        <div class="faq-item">
+          <div class="q">Do spectators or drivers ever pay?</div>
+          <div class="a">No, never. Fans watch live lineups and results free — just a QR code, no app, no signup. A driver's Driven profile is free to build too; the only optional cost is Driven Pro, covered below.</div>
+        </div>
+      </div>
+    </div>
+
+    <div class="faq-group">
+      <div class="section-h">Switching to the new version</div>
+      <p class="section-p">RaceDay was rebuilt from the ground up. New tracks start on it automatically — here's what that means if you're already running the classic app.</p>
+      <div class="faq-list">
+        <div class="faq-item">
+          <div class="q">I'm already using RaceDay — do I have to switch?</div>
+          <div class="a">No. The classic version keeps working exactly as it always has, for as long as you want to keep using it. Nothing about your setup changes on its own.</div>
+        </div>
+        <div class="faq-item">
+          <div class="q">If I want to move over, how do I bring my season with me?</div>
+          <div class="a">Open the classic app → Admin, and you'll see a "new version available" notice with a <b>Download backup</b> button. Grab that file, open the new version, then in its Admin → Backup &amp; export section use <b>Restore from backup</b> and pick the file. Your track, classes, roster, and history all come across.</div>
+        </div>
+        <div class="faq-item">
+          <div class="q">Will that erase my data on the old version?</div>
+          <div class="a">No — it's a copy, not a move. Your classic app keeps everything exactly as it was, so you can try the new version risk-free and keep racing on the old one until you're ready.</div>
+        </div>
+        <div class="faq-item">
+          <div class="q">My license didn't carry over — is that a bug?</div>
+          <div class="a">That's on purpose. A backup file never carries a license, so a device restoring someone else's backup can't inherit their paid access. Just re-enter your own access code in the new version's Admin → License and you're back to fully licensed.</div>
+        </div>
+      </div>
+    </div>
+
+    <div class="faq-group">
+      <div class="section-h">Running a race night</div>
+      <p class="section-p">Where the actual heat/B-main/feature settings live, versus where you run the night itself.</p>
+      <div class="faq-list">
+        <div class="faq-item">
+          <div class="q">Where do I set up heat races and the feature?</div>
+          <div class="a">That's a one-time setting, not something you touch every night: <b>Admin → Race format</b> (called "Format" in the classic app) is where heat size, B-main size, feature size, and transfer counts live. Set it once per class and it sticks.</div>
+        </div>
+        <div class="faq-item">
+          <div class="q">How do I actually run heats and the feature on race night?</div>
+          <div class="a">You don't set that up separately — use the <b>Lineups</b> and <b>Results</b> (classic) or <b>Score</b> (new version) tabs. The app walks you through Sign-up → Heats → B-mains → Features → Archive automatically as you enter finishes.</div>
+        </div>
+        <div class="faq-item">
+          <div class="q">Can more than one device work the same race night?</div>
+          <div class="a">Yes — a sign-up laptop, a scoring tablet, and a TV display can all stay in sync live. Admin → Multi-device sync has the join codes/QR for each role.</div>
+        </div>
+      </div>
+    </div>
+
+    <div class="faq-group">
+      <div class="section-h">Driven (the driver app)</div>
+      <p class="section-p">The companion app a driver's profile lives in, separate from the track's own app.</p>
+      <div class="faq-list">
+        <div class="faq-item">
+          <div class="q">What does Driven cost?</div>
+          <div class="a">Building a profile — name, car number, sponsors, photo, career stats, and now aliases, crew, and highlights — is free. The only paid tier is <b>Pro</b> ($3/mo or $30/yr), which unlocks the full broadcast-look card (photo, team color, checkered stripe) that tracks see. It's never required to sign up or race.</div>
+        </div>
+        <div class="faq-item">
+          <div class="q">I upgraded to Pro but my card still looks basic — what's wrong?</div>
+          <div class="a">Open Driven and let it fully load (it re-checks your subscription each time it opens), then have the track hit <b>Refresh</b> on your driver card in RaceDay — it only pulls your latest card on request, not automatically. Still stuck after that? Email us using the link at the bottom of this page.</div>
+        </div>
+        <div class="faq-item">
+          <div class="q">How does a driver link their profile to a track?</div>
+          <div class="a">They give the track their short link code at sign-up (or type it in directly on their Driven card's Link tab). The track pulls in the published card — no account needed on the track's side.</div>
+        </div>
+      </div>
+    </div>
+
+    <div class="faq-group">
+      <div class="section-h">Data &amp; backups</div>
+      <p class="section-p">What happens if a device is lost, dropped, or replaced.</p>
+      <div class="faq-list">
+        <div class="faq-item">
+          <div class="q">What happens if I lose my device or it breaks?</div>
+          <div class="a">Download a backup regularly from Admin — it's one file with your whole season. Restoring it on a new device brings everything back except the license/PIN, which stay device-specific on purpose. Turning on cloud backup in Admin does this automatically in the background.</div>
+        </div>
+        <div class="faq-item">
+          <div class="q">Can I run more than one track on the same device?</div>
+          <div class="a">Yes — The Garage lets one device hold more than one track's data and switch between them, each keeping its own PIN, license, and season completely separate.</div>
+        </div>
+      </div>
+    </div>
+
+    <div class="callout">
+      <div class="eyebrow" style="margin-bottom:10px"><span class="flag"></span>Every screen, step by step</div>
+      <h2>Read the Field Manual</h2>
+      <p>A full walkthrough of both RaceDay versions and Driven — every workflow, screen by screen, with real screenshots. If your question isn't above, it's almost certainly answered in here, including the one thing every track eventually gets wrong the first time: making combined or missed race nights add up correctly in the season points.</p>
+      <div class="cta-row">
+        <a class="btn" href="https://claude.ai/artifact/4G1yPfAZcHRWzYSSsfXjEG" target="_blank" rel="noopener">Open the Field Manual <span class="btn-arrow">→</span></a>
+      </div>
+    </div>
+
+  </div>
+</section>
+
+<section class="band dark final-cta">
+  <div class="wrap">
+    <div class="eyebrow"><span class="flag"></span>Don't see your question</div>
+    <h2>Got a question, a bug, or an idea for a feature?</h2>
+    <p class="lede">Tell me directly — whether it's something confusing, something broken, or something you wish RaceDay could do.</p>
+    <div class="contact-row">
+      <a href="mailto:josh@victoryraceday.com?subject=RaceDay%20question">Ask a question</a>
+      <a href="mailto:josh@victoryraceday.com?subject=RaceDay%20feature%20idea">Suggest a feature</a>
+      <a href="mailto:josh@victoryraceday.com?subject=RaceDay%20bug">Report a bug</a>
+    </div>
+  </div>
+</section>
+
+<footer>
+  <div class="wrap">
+    <span>RaceDay &amp; Driven — race night, one screen.</span>
+    <span><a href="/?home=1">Overview</a> &nbsp;·&nbsp; <a href="/pricing.html">Pricing</a> &nbsp;·&nbsp; <a href="/raceday2/">Open the app</a> &nbsp;·&nbsp; <a href="/driven/">Driven</a></span>
+  </div>
+</footer>
+</body>
+</html>
