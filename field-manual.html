@@ -1,0 +1,1027 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>RaceDay &amp; Driven Field Manual</title>
+<meta name="description" content="A step-by-step guide to RaceDay and the Driven driver app — every workflow, every screen, with real screenshots.">
+<meta property="og:type" content="website">
+<meta property="og:url" content="https://victoryraceday.com/field-manual.html">
+<meta property="og:title" content="RaceDay &amp; Driven Field Manual">
+<meta property="og:description" content="A step-by-step guide to RaceDay and the Driven driver app — every workflow, every screen, with real screenshots.">
+<meta property="og:image" content="https://victoryraceday.com/raceday/icon-rd.png">
+<meta name="twitter:card" content="summary">
+<meta name="twitter:title" content="RaceDay &amp; Driven Field Manual">
+<meta name="twitter:description" content="A step-by-step guide to RaceDay and the Driven driver app — every workflow, every screen, with real screenshots.">
+<meta name="twitter:image" content="https://victoryraceday.com/raceday/icon-rd.png">
+<link rel="apple-touch-icon" href="raceday/icon-rd.png">
+<link rel="icon" type="image/png" sizes="512x512" href="raceday/icon-rd.png">
+<link rel="stylesheet" href="fonts.css">
+<style>:root{color-scheme:light}body{margin:0;padding:0;font:14px -apple-system,BlinkMacSystemFont,sans-serif;background:#faf9f5;color:#141413}img{max-width:100%}</style>
+</head>
+<body>
+<style>
+  :root {
+    --bg: #f7f5f1;
+    --surface: #ffffff;
+    --surface-alt: #efeae0;
+    --border: #e2ddd0;
+    --text: #1c1a17;
+    --text-muted: #6b6459;
+    --accent: #a8690a;
+    --accent-ink: #ffffff;
+    --accent-soft: #f3e3c8;
+    --v2: #0e7c86;
+    --v2-soft: #dceff0;
+    --driven: #6d4fc4;
+    --driven-soft: #e8e2fa;
+    --warn: #a5391f;
+    --warn-soft: #f6ded5;
+    --shadow: 0 1px 2px rgba(28,26,23,.06), 0 8px 24px rgba(28,26,23,.06);
+    --radius: 10px;
+  }
+  :root:not([data-theme="light"]) {
+    @media (prefers-color-scheme: dark) {
+      --bg: #121110;
+      --surface: #1c1a17;
+      --surface-alt: #221f1b;
+      --border: #38342c;
+      --text: #ece7dd;
+      --text-muted: #a89b87;
+      --accent: #e3a53a;
+      --accent-ink: #1c1a17;
+      --accent-soft: #3a2f16;
+      --v2: #52c7cf;
+      --v2-soft: #123236;
+      --driven: #ab8ef2;
+      --driven-soft: #2a2440;
+      --warn: #e2795a;
+      --warn-soft: #3a2118;
+      --shadow: 0 1px 2px rgba(0,0,0,.4), 0 8px 24px rgba(0,0,0,.35);
+    }
+  }
+  :root[data-theme="dark"] {
+    --bg: #121110;
+    --surface: #1c1a17;
+    --surface-alt: #221f1b;
+    --border: #38342c;
+    --text: #ece7dd;
+    --text-muted: #a89b87;
+    --accent: #e3a53a;
+    --accent-ink: #1c1a17;
+    --accent-soft: #3a2f16;
+    --v2: #52c7cf;
+    --v2-soft: #123236;
+    --driven: #ab8ef2;
+    --driven-soft: #2a2440;
+    --warn: #e2795a;
+    --warn-soft: #3a2118;
+    --shadow: 0 1px 2px rgba(0,0,0,.4), 0 8px 24px rgba(0,0,0,.35);
+  }
+
+  * { box-sizing: border-box; }
+  html { scroll-behavior: smooth; }
+  body {
+    margin: 0; background: var(--bg); color: var(--text);
+    font-family: 'Overpass', system-ui, -apple-system, sans-serif;
+    font-size: 16px; line-height: 1.6;
+    -webkit-font-smoothing: antialiased;
+  }
+  h1, h2, h3, h4 {
+    font-family: 'Big Shoulders Display', "Arial Narrow", sans-serif;
+    font-weight: 700; text-transform: uppercase; letter-spacing: .01em;
+    text-wrap: balance; margin: 0 0 .4em;
+    color: var(--text);
+  }
+  p { margin: 0 0 1em; max-width: 68ch; }
+  a { color: var(--accent); }
+  code, .ui { font-family: 'Overpass Mono', ui-monospace, monospace; font-weight: 500; font-size: .88em; }
+  .ui {
+    background: var(--surface-alt); border: 1px solid var(--border);
+    border-radius: 5px; padding: .1em .45em; white-space: nowrap;
+  }
+
+  /* ---------- shell layout ---------- */
+  .shell { display: flex; min-height: 100vh; }
+  .toc {
+    width: 272px; flex: none; position: sticky; top: 0; align-self: flex-start;
+    height: 100vh; overflow-y: auto; padding: 28px 18px 60px;
+    border-right: 1px solid var(--border); background: var(--surface);
+  }
+  .toc-brand { display: flex; align-items: baseline; gap: 8px; margin-bottom: 4px; }
+  .toc-brand .flag { font-size: 20px; }
+  .toc-brand h1 { font-size: 20px; margin: 0; letter-spacing: .02em; }
+  .toc-sub { font-family: 'Overpass'; text-transform: none; font-size: 12.5px; color: var(--text-muted); margin: 0 0 22px; }
+  .toc nav { display: flex; flex-direction: column; gap: 22px; }
+  .toc-group-label {
+    font-family: 'Overpass Mono'; font-size: 10.5px; letter-spacing: .09em; text-transform: uppercase;
+    color: var(--text-muted); margin: 0 0 6px; display: flex; align-items: center; gap: 6px;
+  }
+  .toc-group-label .dot { width: 7px; height: 7px; border-radius: 50%; flex: none; }
+  .toc a.tocl {
+    display: block; font-size: 14px; color: var(--text); text-decoration: none;
+    padding: 4px 0 4px 15px; border-left: 2px solid transparent; opacity: .82;
+  }
+  .toc a.tocl:hover { opacity: 1; border-left-color: var(--border); }
+
+  .main { flex: 1; min-width: 0; }
+  .wrap { max-width: 800px; margin: 0 auto; padding: 54px 32px 120px; }
+
+  /* ---------- hero / intro ---------- */
+  .hero-kicker {
+    font-family: 'Overpass Mono'; font-size: 12.5px; letter-spacing: .1em; text-transform: uppercase;
+    color: var(--accent); margin: 0 0 10px;
+  }
+  .hero h1 { font-size: clamp(34px, 5vw, 50px); line-height: 1.02; margin-bottom: .3em; }
+  .hero .dek { font-size: 17.5px; color: var(--text-muted); max-width: 62ch; }
+  .stripe {
+    height: 8px; margin: 30px 0 40px; border-radius: 4px;
+    background: repeating-linear-gradient(45deg, var(--text) 0 10px, var(--surface) 10px 20px);
+    opacity: .85;
+  }
+
+  .roadmap { display: grid; grid-template-columns: repeat(auto-fit, minmax(170px,1fr)); gap: 14px; margin: 28px 0 8px; }
+  .roadmap a {
+    display: block; text-decoration: none; color: var(--text);
+    background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius);
+    padding: 16px 16px 15px; box-shadow: var(--shadow);
+  }
+  .roadmap .n { font-family: 'Overpass Mono'; font-size: 11px; color: var(--text-muted); }
+  .roadmap .t { font-family: 'Big Shoulders Display'; font-weight: 700; text-transform: uppercase; font-size: 18px; margin-top: 2px; }
+
+  /* ---------- part banding ---------- */
+  .part { padding: 64px 0 20px; border-top: 1px solid var(--border); margin-top: 20px; }
+  .part-head { display: flex; align-items: center; gap: 12px; margin-bottom: 6px; }
+  .part-num { font-family: 'Overpass Mono'; font-size: 13px; color: var(--text-muted); }
+  .part h2 { font-size: clamp(28px, 4vw, 38px); margin: 0; }
+  .part-dek { color: var(--text-muted); font-size: 16px; margin-top: 10px; }
+
+  .tag {
+    display: inline-flex; align-items: center; gap: 5px; font-family: 'Overpass Mono';
+    font-size: 11px; letter-spacing: .04em; text-transform: uppercase; font-weight: 500;
+    padding: 3px 9px 3px 8px; border-radius: 99px; white-space: nowrap;
+  }
+  .tag-v1 { background: var(--accent-soft); color: var(--accent); }
+  .tag-v2 { background: var(--v2-soft); color: var(--v2); }
+  .tag-driven { background: var(--driven-soft); color: var(--driven); }
+  .tag-warn { background: var(--warn-soft); color: var(--warn); }
+
+  section.scenario { margin: 50px 0; }
+  section.scenario h3 { font-size: 24px; display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
+  .scenario .lede { color: var(--text-muted); font-size: 15.5px; margin-top: -2px; }
+
+  ol.steps { padding-left: 0; list-style: none; counter-reset: step; margin: 18px 0; }
+  ol.steps > li {
+    counter-increment: step; position: relative; padding: 3px 0 3px 40px; margin-bottom: 14px;
+  }
+  ol.steps > li::before {
+    content: counter(step); position: absolute; left: 0; top: 1px;
+    width: 26px; height: 26px; border-radius: 7px; background: var(--surface-alt); border: 1px solid var(--border);
+    display: flex; align-items: center; justify-content: center;
+    font-family: 'Overpass Mono'; font-size: 12.5px; color: var(--text-muted);
+  }
+  ol.steps.v2 > li::before { background: var(--v2-soft); color: var(--v2); border-color: transparent; }
+  ol.steps.driven > li::before { background: var(--driven-soft); color: var(--driven); border-color: transparent; }
+  ol.steps > li b { font-weight: 600; }
+
+  figure.screen {
+    margin: 20px 0 26px; background: var(--surface); border: 1px solid var(--border);
+    border-radius: var(--radius); overflow: hidden; box-shadow: var(--shadow); max-width: 420px;
+  }
+  figure.screen.wide { max-width: 100%; }
+  figure.screen img { display: block; width: 100%; height: auto; }
+  figure.screen figcaption {
+    font-size: 12.5px; color: var(--text-muted); padding: 9px 14px; border-top: 1px solid var(--border);
+    font-family: 'Overpass Mono'; letter-spacing: .01em;
+  }
+  .shots { display: flex; flex-wrap: wrap; gap: 20px; }
+  .shots figure.screen { flex: 1 1 260px; }
+
+  .callout {
+    border: 1px solid var(--border); background: var(--surface-alt); border-radius: var(--radius);
+    padding: 16px 18px; margin: 18px 0; font-size: 14.8px;
+  }
+  .callout.warn { border-color: var(--warn); background: var(--warn-soft); }
+  .callout.warn strong { color: var(--warn); }
+  .callout p:last-child { margin-bottom: 0; }
+
+  table.ref { width: 100%; border-collapse: collapse; margin: 16px 0; font-size: 14.5px; }
+  table.ref th, table.ref td { text-align: left; padding: 8px 10px; border-bottom: 1px solid var(--border); vertical-align: top; }
+  table.ref th { font-family: 'Overpass Mono'; font-size: 11.5px; text-transform: uppercase; letter-spacing: .05em; color: var(--text-muted); font-weight: 500; }
+  .tblwrap { overflow-x: auto; }
+
+  .bigone {
+    margin: 70px 0 30px; border: 2px solid var(--warn); border-radius: 14px;
+    background: var(--surface); box-shadow: var(--shadow); overflow: hidden;
+  }
+  .bigone-head { background: var(--warn-soft); padding: 26px 30px 22px; border-bottom: 2px solid var(--warn); }
+  .bigone-head .part-num { color: var(--warn); }
+  .bigone-head h2 { color: var(--warn); }
+  .bigone-body { padding: 8px 30px 30px; }
+
+  .decision {
+    display: grid; grid-template-columns: 1fr 1fr; gap: 16px; margin: 20px 0;
+  }
+  .decision .opt {
+    border: 1px solid var(--border); border-radius: var(--radius); padding: 16px 18px; background: var(--surface);
+  }
+  .decision .opt h4 { font-size: 16px; margin-bottom: 6px; }
+  .decision .opt p { font-size: 14px; color: var(--text-muted); margin-bottom: 0; }
+
+  footer.pagefoot {
+    text-align: center; padding: 50px 20px 40px; color: var(--text-muted); font-size: 13px;
+    border-top: 1px solid var(--border); margin-top: 60px;
+  }
+
+  .toc-toggle { display: none; }
+  .sitenav { display: flex; justify-content: flex-end; gap: 22px; flex-wrap: wrap; margin-bottom: 34px;
+    font-family: 'Overpass Mono', ui-monospace, monospace; font-size: 12px; letter-spacing: .06em; text-transform: uppercase; }
+  .sitenav a { color: var(--text-muted); text-decoration: none; }
+  .sitenav a:hover { color: var(--accent); }
+  .pagefoot .sitenav { justify-content: center; margin: 14px 0 0; }
+
+  @media (max-width: 900px) {
+    .toc { position: fixed; inset: 0 auto 0 0; z-index: 40; transform: translateX(-100%); transition: transform .2s ease; box-shadow: var(--shadow); }
+    .toc.open { transform: translateX(0); }
+    .toc-toggle {
+      display: flex; position: fixed; top: 14px; left: 14px; z-index: 50; align-items: center; gap: 8px;
+      background: var(--surface); border: 1px solid var(--border); border-radius: 8px; padding: 8px 12px;
+      font-family: 'Overpass Mono'; font-size: 12px; letter-spacing: .04em; box-shadow: var(--shadow); color: var(--text);
+    }
+    .wrap { padding-top: 76px; }
+    .decision { grid-template-columns: 1fr; }
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    html { scroll-behavior: auto; }
+    .toc { transition: none; }
+  }
+</style>
+
+<div class="shell">
+  <button class="toc-toggle" onclick="document.querySelector('.toc').classList.toggle('open')">☰ Contents</button>
+  <aside class="toc">
+    <div class="toc-brand"><span class="flag">🏁</span><h1>Field Manual</h1></div>
+    <p class="toc-sub">RaceDay (new &amp; classic) · Driven — every workflow, screen by screen.</p>
+    <nav>
+      <div>
+        <p class="toc-group-label"><span class="dot" style="background:var(--text-muted)"></span>Start here</p>
+        <a class="tocl" href="#top">How to use this guide</a>
+      </div>
+      <div>
+        <p class="toc-group-label"><span class="dot" style="background:var(--accent)"></span>Part 1 · Classic RaceDay (v1)</p>
+        <a class="tocl" href="#v1-setup">Setting up a track</a>
+        <a class="tocl" href="#v1-drivers">Adding drivers</a>
+        <a class="tocl" href="#v1-raceday">Running a race night</a>
+        <a class="tocl" href="#v1-points">Points &amp; standings</a>
+        <a class="tocl" href="#v1-roles">Roles &amp; multi-device</a>
+        <a class="tocl" href="#v1-backup">Cloud backup</a>
+        <a class="tocl" href="#v1-other">Other admin tools</a>
+      </div>
+      <div>
+        <p class="toc-group-label"><span class="dot" style="background:var(--v2)"></span>Part 2 · New RaceDay (v2)</p>
+        <a class="tocl" href="#v2-setup">Setting up a track</a>
+        <a class="tocl" href="#v2-drivers">Adding drivers</a>
+        <a class="tocl" href="#v2-raceday">Running a race night</a>
+        <a class="tocl" href="#v2-points">Points &amp; standings</a>
+        <a class="tocl" href="#v2-roles">Roles &amp; the responsive shell</a>
+        <a class="tocl" href="#v2-backup">Cloud backup</a>
+        <a class="tocl" href="#v2-other">Other admin tools</a>
+      </div>
+      <div>
+        <p class="toc-group-label"><span class="dot" style="background:var(--driven)"></span>Part 3 · Driven</p>
+        <a class="tocl" href="#dr-profile">Creating a profile</a>
+        <a class="tocl" href="#dr-card">The driver card</a>
+        <a class="tocl" href="#dr-linking">Linking to a track</a>
+        <a class="tocl" href="#dr-publish">Publishing &amp; the link code</a>
+        <a class="tocl" href="#dr-premium">Pro</a>
+        <a class="tocl" href="#dr-stats">Career stats</a>
+        <a class="tocl" href="#dr-settings">Settings &amp; backup</a>
+      </div>
+      <div>
+        <p class="toc-group-label"><span class="dot" style="background:var(--warn)"></span>The big one</p>
+        <a class="tocl" href="#combine">Combining races &amp; fixing points</a>
+      </div>
+    </nav>
+  </aside>
+
+  <div class="main">
+    <div class="wrap">
+
+      <div id="top"></div>
+      <nav class="sitenav" aria-label="Site"><a href="/?home=1">Home</a><a href="/faq.html">FAQ</a><a href="/pricing.html">Pricing</a><a href="/raceday2/">Open RaceDay →</a></nav>
+      <p class="hero-kicker">User guide — every screen, every scenario</p>
+      <div class="hero">
+        <h1>The RaceDay &amp; Driven<br>Field Manual</h1>
+        <p class="dek">A step-by-step walkthrough of RaceDay and the Driven driver app, with a real
+        screenshot of every screen.</p>
+      </div>
+      <div class="stripe"></div>
+
+      <h2 style="font-size:22px">How to use this guide</h2>
+      <p>This guide covers three pieces of software, documented side by side:</p>
+      <table class="ref">
+        <tr><th style="width:110px">App</th><th>What it is</th><th style="width:120px">Status</th></tr>
+        <tr><td><span class="tag tag-v1">V1</span></td><td>The classic RaceDay app. Tracks that started on it can keep using it as long as they like.</td><td>Live at <code>/raceday/</code> (existing tracks)</td></tr>
+        <tr><td><span class="tag tag-v2">V2</span></td><td>A ground-up rewrite of the same app — same features, reworked navigation and screens (a single-screen sign-up, a "Race Control" status bar, three scoring styles instead of one).</td><td>Live at <code>/raceday2/</code> — the default for new tracks</td></tr>
+        <tr><td><span class="tag tag-driven">Driven</span></td><td>A separate, driver-owned companion app. A racer builds one profile that follows them across every track that runs RaceDay.</td><td>Live at <code>/driven/</code></td></tr>
+      </table>
+      <p><b>New to RaceDay? Start with <a href="#v2-setup">Part 2</a></b> — that's the version new tracks
+      get. Parts 1 and 2 mirror each other section-for-section, so if you're moving over from the classic
+      app, jump between <a href="#v1-drivers">V1 → Adding drivers</a> and
+      <a href="#v2-drivers">V2 → Adding drivers</a> and the steps line up. Part 4 is flagged separately
+      because it's the one workflow every track eventually needs and gets wrong the first time:
+      making sure points from a combined or missed race night add up correctly.</p>
+      <p>Every screenshot in this guide was captured from the real, running app with sample data — a
+      fictional "Thunder Ridge Speedway" / "Copper Valley Motorplex" — so what you see here is exactly
+      what appears on screen, not a mockup.</p>
+
+      <div class="roadmap">
+        <a href="#v1-setup"><span class="n">Part 1</span><span class="t">Classic (V1)</span></a>
+        <a href="#v2-setup"><span class="n">Part 2</span><span class="t">New RaceDay (V2)</span></a>
+        <a href="#dr-profile"><span class="n">Part 3</span><span class="t">Driven</span></a>
+        <a href="#combine"><span class="n">Part 4</span><span class="t">Combining points</span></a>
+      </div>
+
+      <!-- ================================================================ -->
+      <!-- PART 1 — V1                                                       -->
+      <!-- ================================================================ -->
+      <div class="part" id="v1-setup">
+        <div class="part-head"><span class="part-num">Part 1</span><span class="tag tag-v1">V1 · Classic</span></div>
+        <h2>Classic RaceDay (V1)</h2>
+        <p class="part-dek">The original app, still running at tracks that started on it. Covers the full sign-up-to-standings
+        loop, every device role, and the admin toolbox.</p>
+      </div>
+
+      <section class="scenario">
+        <h3>Setting up a new track <span class="tag tag-v1">V1</span></h3>
+        <p class="lede">A five-step wizard that only appears once — the very first time RaceDay is opened
+        on a brand-new admin device.</p>
+        <ol class="steps">
+          <li>Open RaceDay on a fresh device for the first time. The setup wizard opens automatically —
+          it never appears again on this device once a track name is saved, and it never appears on a
+          device that joins an existing track through a QR/link code.</li>
+          <li><b>Step 1 — Welcome.</b> A one-screen overview of the four tabs a track uses every night:
+          Sign up, Lineups, Results, Points. Tap <code class="ui">Next</code>.</li>
+          <li><b>Step 2 — Your track.</b> Type the track name (required — <code class="ui">Next</code> stays
+          disabled until this is filled in). Optionally upload a logo, and fill in the length, surface
+          (dirt/pavement), configuration (oval/road course), and a short history — these are cosmetic,
+          shown to spectators, and can be skipped.</li>
+          <li><b>Step 3 — Race classes.</b> Every class racing tonight gets a row here — rename the
+          defaults or tap <code class="ui">+ Add a class</code> for more. Each class can also carry
+          spectator-facing info (age group, specs, description) via an expandable panel. This list is
+          exactly what will show up as chips on the sign-up screen, so get the names right — renaming a
+          class later can split its season-points history, and the wizard warns before that happens.</li>
+          <li><b>Step 4 — Admin PIN (optional).</b> Set a 4–8 digit PIN to lock the Admin tab, or leave both
+          fields blank to leave Admin open to anyone on this device. This can be changed any time later
+          from <span class="tag tag-v1" style="vertical-align:1px">V1</span> Admin → Admin PIN.</li>
+          <li><b>Step 5 — Other devices.</b> An explainer for the three other device roles (registration
+          station, scoring station, spectator TV) and a pointer to Admin → Multi-device sync, where the
+          actual join links/QR codes live. Tap <code class="ui">Done</code> to close the wizard and land on
+          the live app.</li>
+        </ol>
+        <div class="shots">
+          <figure class="screen"><img src="field-manual/shot-01.jpg" loading="lazy" alt="V1 setup wizard step 1, welcome screen"><figcaption>Step 1 — Welcome</figcaption></figure>
+          <figure class="screen"><img src="field-manual/shot-02.jpg" loading="lazy" alt="V1 setup wizard step 2, track identity fields"><figcaption>Step 2 — Track name &amp; identity</figcaption></figure>
+          <figure class="screen"><img src="field-manual/shot-03.jpg" loading="lazy" alt="V1 setup wizard step 3, race classes list"><figcaption>Step 3 — Race classes</figcaption></figure>
+          <figure class="screen"><img src="field-manual/shot-04.jpg" loading="lazy" alt="V1 setup wizard step 4, admin PIN fields"><figcaption>Step 4 — Admin PIN</figcaption></figure>
+          <figure class="screen"><img src="field-manual/shot-05.jpg" loading="lazy" alt="V1 setup wizard step 5, other devices explainer"><figcaption>Step 5 — Other devices</figcaption></figure>
+        </div>
+      </section>
+
+      <section class="scenario" id="v1-drivers">
+        <h3>Adding drivers <span class="tag tag-v1">V1</span></h3>
+        <p class="lede">Three ways to get a driver on tonight's grid: they sign themselves up, an admin
+        quick-adds them, or the whole field carries over from last week.</p>
+
+        <h4 style="font-size:16px;margin-top:26px">The driver self-service flow (Sign up tab)</h4>
+        <ol class="steps">
+          <li>Driver opens the <span class="tag tag-v1">V1</span> <code class="ui">Sign up</code> tab and types
+          their name. As they type, a match list (<code class="ui">suggBox</code>) filters the returning-driver
+          roster — if their name is already in the system, tapping it fills both name and number for them.
+          When the name field is empty, the full alphabetical roster shows as a tap-list instead, so a
+          regular can find themselves with zero typing.</li>
+          <li>Type or confirm a vehicle number, then tap <code class="ui">Next</code>.</li>
+          <li>Tap a chip for every class they're racing tonight. A class they're already entered in shows
+          disabled ("— entered"). If the track requires consent, check the Terms/Privacy box.</li>
+          <li>Tap <code class="ui">Draw my pill</code>. A random, unused pill number is drawn per class and
+          the screen reveals their grid spot for each. Tap <code class="ui">Sign up the next driver</code>
+          to reset the form for the next person in line.</li>
+        </ol>
+        <div class="callout"><strong>Same name, different person?</strong> If the app finds a name match the
+        driver didn't explicitly tap, it asks to confirm: <em>"Is this the SAME person?"</em> — OK merges
+        into the existing record and history; Cancel creates a brand-new, separate driver. This is what
+        stops two different "Mike Chen"s from getting merged into one record by accident.</div>
+        <div class="shots">
+          <figure class="screen"><img src="field-manual/shot-06.jpg" loading="lazy" alt="V1 sign-up step 1, name and number with roster pick list"><figcaption>Step 1 — Name, number &amp; roster pick</figcaption></figure>
+          <figure class="screen"><img src="field-manual/shot-07.jpg" loading="lazy" alt="V1 sign-up step 2, class chips"><figcaption>Step 2 — Pick classes</figcaption></figure>
+          <figure class="screen"><img src="field-manual/shot-08.jpg" loading="lazy" alt="V1 sign-up step 3, pill reveal"><figcaption>Step 3 — Pill reveal</figcaption></figure>
+        </div>
+
+        <h4 style="font-size:16px;margin-top:30px">Admin adding drivers directly</h4>
+        <p>For a driver who isn't self-serving on a tablet — Admin → <code class="ui">Today's entries</code>:</p>
+        <ol class="steps">
+          <li><b>Quick add from the driver book</b> — pick a name and a class from two dropdowns, tap
+          <code class="ui">Add + draw pill</code>. Same duplicate-number and pill-exhaustion checks as the
+          self-service flow.</li>
+          <li><b>↻ Re-enter last race day's field</b> — one tap re-enters every driver from the previous
+          archived night into tonight's classes with fresh pills. The fastest way to start a normal
+          Tuesday-to-Tuesday club night.</li>
+          <li>The entry list itself is fully editable inline: fix a car number, move a driver to a
+          different class, nudge their grid spot with the ▲▼ arrows, or remove them (their pill returns
+          to the pool).</li>
+        </ol>
+
+        <h4 style="font-size:16px;margin-top:30px">Self-serve kiosk mode</h4>
+        <p>For a shared tablet at the sign-up table that only ever shows the sign-up screen — Admin →
+        Multi-device sync → check <b>"Self-serve kiosk mode on registration devices."</b> This hides the
+        whole navigation bar on any device set to the <code class="ui">register</code> role, so racers can
+        only reach sign-up, nothing else. (Requires multi-device sync to be turned on first — see
+        <a href="#v1-roles">Roles &amp; multi-device</a>.)</p>
+      </section>
+
+      <section class="scenario" id="v1-raceday">
+        <h3>Running a race night, start to finish <span class="tag tag-v1">V1</span></h3>
+
+        <h4 style="font-size:16px">Pick a race format — per class</h4>
+        <p>Admin → Race classes → each class has its own <b>Format</b> dropdown:</p>
+        <table class="ref">
+          <tr><th>Format</th><th>What happens</th></tr>
+          <tr><td>Pill draw · 2 heats</td><td>The default. Random pill draw, two heat sets (the second inverted within the class), heat finishes decide who locks into the feature versus who runs a B-main.</td></tr>
+          <tr><td>Qualifying · 1 heat</td><td>One qualifying round instead of two heat sets — same feature/B-main split downstream.</td></tr>
+          <tr><td>Qualifying · straight to mains</td><td>No heats at all. Standings come straight from the pill/qualifying order — top seeds lock into the feature, the rest split into B-main(s).</td></tr>
+        </table>
+        <p>Any class can also run a <b>qualifying-time-based grid</b> instead of a blind pill draw — on the
+        Lineups tab, tap <code class="ui">⏱ Qualifying times</code>, type each driver's best lap time, tap
+        <code class="ui">Save times</code>, then <code class="ui">Set grid from times →</code> to reorder
+        pills so the fastest lap starts on the pole.</p>
+        <figure class="screen"><img src="field-manual/shot-09.jpg" loading="lazy" alt="V1 qualifying times entry modal"><figcaption>Lineups → Qualifying times</figcaption></figure>
+
+        <h4 style="font-size:16px;margin-top:30px">Heat inverts, main inverts &amp; B-main modes</h4>
+        <p>Also on the class row: a <b>heat-start invert</b> (standard / invert top N whole-field / invert
+        top N per-heat) and separate <b>main-invert</b> counts that flip the front rows of the feature
+        and/or B-main after heats are scored — who qualified doesn't change, only where they line up.
+        B-main structure is a track-wide default (Admin → Race format): <b>single</b> (one B-main, the rest
+        are cut), <b>parallel</b> (several B-mains, everyone transfers, nobody's cut), or <b>cascade</b>
+        (tiered mains that climb toward the feature).</p>
+
+        <h4 style="font-size:16px;margin-top:30px">Lineups &amp; TV display</h4>
+        <p>The Lineups tab (<code class="ui">renderGrid</code>) shows the live grid for every class. Toolbar:
+        <code class="ui">📺 TV display</code>, <code class="ui">🖨 Print / save PDF</code>, and
+        <code class="ui">📥 Import from timing</code> for pulling in an external timing-vendor CSV. TV
+        display goes full-screen and auto-rotates through every heat/B-main/feature slide every 12
+        seconds — plug the device into a TV over HDMI, or cast it. Tap any driver's name anywhere to open
+        their spectator-facing card.</p>
+        <div class="shots">
+          <figure class="screen wide"><img src="field-manual/shot-10.jpg" loading="lazy" alt="V1 lineups grid showing two race classes"><figcaption>Lineups — full grid</figcaption></figure>
+          <figure class="screen"><img src="field-manual/shot-11.jpg" loading="lazy" alt="V1 TV display overlay"><figcaption>TV display overlay</figcaption></figure>
+        </div>
+
+        <h4 style="font-size:16px;margin-top:30px">Scoring &amp; the results governance bar</h4>
+        <ol class="steps">
+          <li>Results tab → per class: toggle whether tonight <b>counts for points</b>, then enter heat
+          finishes via the dropdown selects (1st, 2nd… or DNF/DNS/DQ). A live standings table totals heat
+          finishes as they're entered.</li>
+          <li>Once every heat finish is in, the B-main(s) and feature unlock in the order the class's
+          B-main mode determines.</li>
+          <li>Every class carries a <b>governance bar</b> above its results: <code class="ui">📝 Unofficial</code>
+          ↔ <code class="ui">✅ Official</code>, <code class="ui">🔒 Lock results</code> (blocks further
+          edits), <code class="ui">Override</code> (only appears once locked — lets an admin edit anyway,
+          logged separately in the audit trail as an override), <code class="ui">💾 Save version</code>
+          (snapshots the current finishes, up to 20 kept), and a <code class="ui">↺ Restore version…</code>
+          dropdown to roll back to any snapshot.</li>
+        </ol>
+        <div class="shots">
+          <figure class="screen"><img src="field-manual/shot-12.jpg" loading="lazy" alt="V1 results heat entry screen"><figcaption>Heat finishes entry</figcaption></figure>
+          <figure class="screen"><img src="field-manual/shot-13.jpg" loading="lazy" alt="V1 results with feature complete"><figcaption>Feature complete</figcaption></figure>
+          <figure class="screen"><img src="field-manual/shot-14.jpg" loading="lazy" alt="V1 governance bar showing locked state"><figcaption>Locked — governance bar</figcaption></figure>
+        </div>
+
+        <h4 style="font-size:16px;margin-top:30px">Ending the night</h4>
+        <p>Admin → Danger zone → <code class="ui">🏁 Start a new race day</code>. Confirms, offers a backup
+        download, then archives tonight into Race day history (immutable snapshot — standings, feature
+        results, points all frozen), clears the board for next time, fires an automatic cloud backup if
+        it's turned on, and — if any driver tonight has a linked Driven profile — offers to share results
+        with Driven. If a class's points aren't finished, the archive warns and lets you cancel rather than
+        losing anything.</p>
+      </section>
+
+      <section class="scenario" id="v1-points">
+        <h3>Points &amp; season standings <span class="tag tag-v1">V1</span></h3>
+        <p>Points calculate automatically from the feature finish once a class is marked as a points race
+        for the night. Pick a table under Admin → Points series: Standard (10-8-6-5-4-3-2-1), F1-style
+        (top 10, 25 down), Full-field linear (last place scores 1, first scores field size), Podium only
+        (5-3-1), or type a fully custom table.</p>
+        <p>The <b>Points</b> tab totals every night on record for a class — by <em>class name</em>, not
+        class ID, so a renamed or long-retired class still keeps its history. One tab per class, a status
+        line (🟢 tonight already counted / 🟡 tonight counts but isn't finished / ⚪ tonight doesn't
+        count), then the standings table sorted by total points.</p>
+        <figure class="screen wide"><img src="field-manual/shot-15.jpg" loading="lazy" alt="V1 points standings table"><figcaption>Points — season standings</figcaption></figure>
+      </section>
+
+      <section class="scenario" id="v1-roles">
+        <h3>Roles &amp; multi-device setup <span class="tag tag-v1">V1</span></h3>
+        <div class="tblwrap">
+        <table class="ref">
+          <tr><th>Role</th><th>Sees</th><th>Typical device</th></tr>
+          <tr><td>Admin</td><td>Everything</td><td>The track's main tablet/laptop</td></tr>
+          <tr><td>Register</td><td>Sign-up only (can be kiosk-locked)</td><td>Sign-up table tablet</td></tr>
+          <tr><td>Scoring</td><td>Lineups, Results, Points — no Admin or Sign-up</td><td>Scoring tower</td></tr>
+          <tr><td>TV</td><td>Lineups only, auto-opens the TV overlay on load</td><td>A screen bolted to the wall</td></tr>
+          <tr><td>Viewer (spectator)</td><td>Lineups only, strictly read-only — can never reach Admin, PIN or not</td><td>A fan's own phone, via QR poster</td></tr>
+          <tr><td>Operator</td><td>Everything, but starts read-only ("watching") until Take control — its own separate Operator PIN</td><td>Remote support</td></tr>
+        </table>
+        </div>
+        <p>A device gets its role from a join link generated at Admin → Multi-device sync — separate links
+        for Registration, Scoring, and TV, a private Operator link, and a printable Spectator QR poster.
+        A staff device already assigned a role can also switch roles in-app (PIN-gated if a PIN is set).</p>
+        <figure class="screen wide"><img src="field-manual/shot-16.jpg" loading="lazy" alt="V1 multi-device sync admin section"><figcaption>Admin → Multi-device sync</figcaption></figure>
+      </section>
+
+      <section class="scenario" id="v1-backup">
+        <h3>Cloud backup &amp; restore-by-code <span class="tag tag-v1">V1</span></h3>
+        <ol class="steps">
+          <li>Admin → Backup &amp; export → check <b>Cloud backup</b>. A confirm dialog spells out exactly
+          what's sent (classes, driver book, lineups, results, season history) and what's never sent
+          (admin PIN, license code, sign-up consent records).</li>
+          <li>Backups fire automatically every time a race day is archived, plus on demand via
+          <code class="ui">☁ Back up now</code>.</li>
+          <li>To restore onto a new or replacement device: enter the one-time restore code you were given
+          into the <b>Restore</b> field in the same section. The device keeps its <em>own</em> license and
+          PIN — a backup never transfers those.</li>
+        </ol>
+        <figure class="screen wide"><img src="field-manual/shot-17.jpg" loading="lazy" alt="V1 cloud backup admin section"><figcaption>Admin → Backup &amp; export → Cloud backup</figcaption></figure>
+      </section>
+
+      <section class="scenario" id="v1-other">
+        <h3>Other admin tools, at a glance <span class="tag tag-v1">V1</span></h3>
+        <div class="shots">
+          <figure class="screen"><img src="field-manual/shot-18.jpg" loading="lazy" alt="V1 admin home tile grid"><figcaption>Admin home — the full tile grid</figcaption></figure>
+          <figure class="screen"><img src="field-manual/shot-19.jpg" loading="lazy" alt="V1 today's entries section"><figcaption>Today's entries</figcaption></figure>
+          <figure class="screen"><img src="field-manual/shot-20.jpg" loading="lazy" alt="V1 race classes and format section"><figcaption>Race classes &amp; format</figcaption></figure>
+          <figure class="screen"><img src="field-manual/shot-21.jpg" loading="lazy" alt="V1 race day history section"><figcaption>Race day history</figcaption></figure>
+          <figure class="screen"><img src="field-manual/shot-22.jpg" loading="lazy" alt="V1 admin PIN section"><figcaption>Admin PIN</figcaption></figure>
+        </div>
+        <p>Also under Admin: Track identity (name/logo/length/surface), Driver book (the persistent
+        roster), Legal &amp; business (Terms/Privacy legal names, consent requirement), License
+        (activation/trial status), and Records &amp; audit (the acceptance log plus a full audit trail of
+        every override, lock, and imported-race edit).</p>
+      </section>
+
+      <!-- ================================================================ -->
+      <!-- PART 2 — V2                                                       -->
+      <!-- ================================================================ -->
+      <div class="part" id="v2-setup">
+        <div class="part-head"><span class="part-num">Part 2</span><span class="tag tag-v2">V2 · Live</span></div>
+        <h2>New RaceDay (V2)</h2>
+        <p class="part-dek">A ground-up rewrite — same engine under the hood (points math, heat logic,
+        cloud backup all byte-identical to V1), reworked navigation and three big changes worth
+        knowing about: a single-screen sign-up, an always-visible Race Control status bar, and a
+        choice of three scoring styles.</p>
+      </div>
+
+      <section class="scenario">
+        <h3>Setting up a new track <span class="tag tag-v2">V2</span></h3>
+        <p class="lede">Same five steps as V1, same field names — the only difference is where it lives:
+        V2 opens the wizard as a slide-up sheet instead of a full-page modal.</p>
+        <ol class="steps v2">
+          <li>Fresh admin device, first load — the wizard opens automatically, exactly like V1. It can also
+          be re-opened later from Admin → Danger zone → <code class="ui">Re-run the setup wizard</code>.</li>
+          <li><b>Step 1 — Welcome.</b> Same overview card as V1.</li>
+          <li><b>Step 2 — Your track.</b> Identical fields to V1: name (required), logo, length, surface,
+          configuration, history.</li>
+          <li><b>Step 3 — Race classes.</b> Same add/rename/reorder list, same rename-warning about
+          splitting points history, plus a quick-add chip row pulling from any previously deleted class
+          ("class library").</li>
+          <li><b>Step 4 — Admin PIN.</b> Same optional 4–8 digit PIN.</li>
+          <li><b>Step 5 — Done.</b> Tap <code class="ui">Done</code> to close the sheet and land on the app.</li>
+        </ol>
+        <div class="shots">
+          <figure class="screen"><img src="field-manual/shot-23.jpg" loading="lazy" alt="V2 setup wizard sheet, step 1"><figcaption>Step 1 — Welcome (sheet)</figcaption></figure>
+          <figure class="screen"><img src="field-manual/shot-24.jpg" loading="lazy" alt="V2 setup wizard sheet, step 2"><figcaption>Step 2 — Track identity</figcaption></figure>
+          <figure class="screen"><img src="field-manual/shot-25.jpg" loading="lazy" alt="V2 setup wizard sheet, step 3"><figcaption>Step 3 — Race classes</figcaption></figure>
+          <figure class="screen"><img src="field-manual/shot-26.jpg" loading="lazy" alt="V2 setup wizard sheet, step 4"><figcaption>Step 4 — Admin PIN</figcaption></figure>
+          <figure class="screen"><img src="field-manual/shot-27.jpg" loading="lazy" alt="V2 setup wizard sheet, step 5"><figcaption>Step 5 — Done</figcaption></figure>
+        </div>
+      </section>
+
+      <section class="scenario" id="v2-drivers">
+        <h3>Adding drivers <span class="tag tag-v2">V2</span></h3>
+        <p class="lede">This is the biggest real difference from V1. Sign-up is <b>one screen</b>, not
+        three.</p>
+        <ol class="steps v2">
+          <li>Type a name into the single sign-up card. A live match list filters the roster as you type,
+          and — while the name field is empty — the full alphabetical "raced here before?" list shows
+          instead, same as V1.</li>
+          <li>Type a vehicle number. There's no "Next" step: as soon as name and number are typed, the
+          class <b>chips render live below</b>, right on the same screen. Tapping a returning driver's
+          name also pre-ticks whichever classes they ran last time.</li>
+          <li>Tap the class chip(s), tap <code class="ui">Draw my pills</code>. The same card swaps in
+          place to show the pill reveal — still one screen the whole time.</li>
+        </ol>
+        <div class="callout">In V1, an admin only found out a name/number matched an existing driver after
+        stepping to the classes screen. In V2 that "already entered" state shows the moment enough is
+        typed to know who it is — one less step, one less place for it to go stale.</div>
+        <div class="shots">
+          <figure class="screen"><img src="field-manual/shot-28.jpg" loading="lazy" alt="V2 single-screen sign-up with name typed"><figcaption>Name typed — chips already live</figcaption></figure>
+          <figure class="screen"><img src="field-manual/shot-29.jpg" loading="lazy" alt="V2 single-screen sign-up with classes picked"><figcaption>Classes picked, same screen</figcaption></figure>
+          <figure class="screen"><img src="field-manual/shot-30.jpg" loading="lazy" alt="V2 sign-up pill reveal"><figcaption>Pill reveal</figcaption></figure>
+        </div>
+        <p>Admin-side quick-add, re-enter-last-night, and the editable entry list under Admin → Today's
+        entries all work identically to V1.</p>
+      </section>
+
+      <section class="scenario" id="v2-raceday">
+        <h3>Running a race night, start to finish <span class="tag tag-v2">V2</span></h3>
+
+        <h4 style="font-size:16px">The Race Control bar</h4>
+        <p>New in V2: a persistent status strip at the top of every screen (except spectator/TV views)
+        walking five phases — <b>Sign-up → Heats → B-mains → Features → Archive</b> — computed live from
+        what's actually been entered, with one context-right button to jump straight to the next thing
+        that needs doing. V1 has no equivalent always-on progress indicator; this is worth calling out on
+        camera as the "at a glance, what do I do next" feature.</p>
+        <figure class="screen wide"><img src="field-manual/shot-31.jpg" loading="lazy" alt="V2 Race Control status bar above the lineups grid"><figcaption>Race Control bar + Lineups</figcaption></figure>
+
+        <h4 style="font-size:16px;margin-top:30px">Race formats, inverts &amp; B-main modes</h4>
+        <p>Identical to V1 — same three per-class formats (Pill draw · 2 heats / Qualifying · 1 heat /
+        Qualifying · straight to mains), same heat/main invert controls, same single/parallel/cascade
+        B-main modes, all under Admin → Season setup → Race classes / Race format. Qualifying-time entry
+        works the same way too, just opens as a sheet instead of a modal:</p>
+        <figure class="screen"><img src="field-manual/shot-32.jpg" loading="lazy" alt="V2 qualifying times sheet"><figcaption>Lineups → Qualifying times (sheet)</figcaption></figure>
+
+        <h4 style="font-size:16px;margin-top:30px">Lineups &amp; TV display</h4>
+        <p>Same grid, same TV overlay (12-second auto-rotate, lock/prev/next controls) — plus one addition:
+        a per-class filter dropdown above the grid, so a device can show just one class instead of every
+        class stacked in one long scroll. TV slides also gained two new slide types once there's
+        something to show: a results slide and a season-points slide, so the screen doesn't sit on an
+        empty grid once racing is done for the night.</p>
+        <figure class="screen"><img src="field-manual/shot-33.jpg" loading="lazy" alt="V2 TV display overlay"><figcaption>TV display overlay</figcaption></figure>
+
+        <h4 style="font-size:16px;margin-top:30px">Scoring — three modes, your choice, per device</h4>
+        <p>The other headline V2 change. Every class's Score screen has a segmented control — pick a style
+        per device, any time, and it doesn't affect what anyone else sees:</p>
+        <div class="decision">
+          <div class="opt"><h4>Tap order</h4><p>A grid of driver cards. Tap in finishing order — each tap
+          fills the next open position. Long-press to flag a DNF/DNS/DQ. Fastest for a scorer calling
+          finishes out loud.</p></div>
+          <div class="opt"><h4>Number pad</h4><p>Type each car number and hit Enter — it takes the next
+          open slot, input refocuses automatically. Fastest for someone with a written running order in
+          hand.</p></div>
+          <div class="opt"><h4>Dropdowns</h4><p>One select per driver, like V1's only mode. The only style
+          that also shows transfer-origin tags and per-row heat totals inline — pick this one when you
+          need that extra detail visible while scoring.</p></div>
+        </div>
+        <p>All three write to the exact same underlying result — switch mid-night without losing anything.</p>
+        <div class="shots">
+          <figure class="screen"><img src="field-manual/shot-34.jpg" loading="lazy" alt="V2 scoring in tap-order mode"><figcaption>Tap order</figcaption></figure>
+          <figure class="screen"><img src="field-manual/shot-35.jpg" loading="lazy" alt="V2 scoring in number-pad mode"><figcaption>Number pad</figcaption></figure>
+          <figure class="screen"><img src="field-manual/shot-36.jpg" loading="lazy" alt="V2 scoring in dropdown mode"><figcaption>Dropdowns</figcaption></figure>
+        </div>
+
+        <h4 style="font-size:16px;margin-top:30px">Governance bar &amp; ending the night</h4>
+        <p>Same governance controls as V1 (Official/Unofficial, Lock, Override, Save/Restore version), and
+        the same archive flow — reachable from Admin → Danger zone or straight from the Race Control bar's
+        final <code class="ui">🏁 Archive &amp; start next race day</code> button once every feature is
+        scored.</p>
+        <div class="shots">
+          <figure class="screen"><img src="field-manual/shot-37.jpg" loading="lazy" alt="V2 scoring with feature complete"><figcaption>Feature complete</figcaption></figure>
+          <figure class="screen"><img src="field-manual/shot-38.jpg" loading="lazy" alt="V2 governance bar showing locked state"><figcaption>Locked — governance bar</figcaption></figure>
+        </div>
+      </section>
+
+      <section class="scenario" id="v2-points">
+        <h3>Points &amp; season standings <span class="tag tag-v2">V2</span></h3>
+        <p>The calculation engine is unchanged from V1 — same presets, same by-class-name season
+        aggregation. Just note there are <b>two</b> different screens that share the word "Points": the
+        main-nav <b>Points</b> tab (season standings, what most roles see) and Admin → Season setup →
+        <b>Points series</b> (the scoring-table configuration, admin only). They're easy to mix up —
+        "open Points" means different things depending which one you mean.</p>
+        <figure class="screen wide"><img src="field-manual/shot-39.jpg" loading="lazy" alt="V2 points standings table"><figcaption>Points — season standings</figcaption></figure>
+      </section>
+
+      <section class="scenario" id="v2-roles">
+        <h3>Roles &amp; the responsive shell <span class="tag tag-v2">V2</span></h3>
+        <p>Same six roles as V1 (admin, register, scoring, tv, viewer, operator), same join-link and
+        Spectator QR mechanism under Admin → Season setup → Multi-device sync. The visible difference is
+        the shell itself: V2 has a real breakpoint at 900px width — a left-hand navigation <b>rail</b> on
+        tablet/desktop, a bottom <b>tab bar</b> on phone, built from the same navigation data so the two
+        never drift out of sync.</p>
+        <div class="shots">
+          <figure class="screen"><img src="field-manual/shot-40.jpg" loading="lazy" alt="V2 mobile layout with bottom tab bar"><figcaption>Under 900px — bottom tab bar</figcaption></figure>
+          <figure class="screen wide"><img src="field-manual/shot-41.jpg" loading="lazy" alt="V2 desktop layout with left rail"><figcaption>900px and up — left rail</figcaption></figure>
+        </div>
+      </section>
+
+      <section class="scenario" id="v2-backup">
+        <h3>Cloud backup &amp; restore-by-code <span class="tag tag-v2">V2</span></h3>
+        <p>Identical mechanics and copy to V1 — the whole cloud-backup engine ported verbatim. Lives at
+        Admin → Account → Backup &amp; export.</p>
+        <figure class="screen wide"><img src="field-manual/shot-42.jpg" loading="lazy" alt="V2 cloud backup admin section"><figcaption>Admin → Account → Backup &amp; export</figcaption></figure>
+      </section>
+
+      <section class="scenario" id="v2-other">
+        <h3>Other admin tools, at a glance <span class="tag tag-v2">V2</span></h3>
+        <p>Admin is reorganized into <b>four doors</b> instead of V1's one flat tile grid — here's where everything moved:</p>
+        <div class="tblwrap">
+        <table class="ref">
+          <tr><th>Door</th><th>Sections</th></tr>
+          <tr><td>Race night</td><td>Today's entries · Race day history</td></tr>
+          <tr><td>Season setup</td><td>Track identity · Race classes · Race format · Points series · Legal &amp; business · Multi-device sync</td></tr>
+          <tr><td>Account</td><td>Admin PIN · License · Driver book · Backup &amp; export · Fix season points · Records &amp; audit</td></tr>
+          <tr><td>Danger zone</td><td>Start a new race day · Load demo · Set up for a new track · Erase everything</td></tr>
+        </table>
+        </div>
+        <p>Admin home also gained a search box that jumps straight to a section by keyword (typing
+        "invert" or "b-main" goes straight to the relevant control) — a genuinely new convenience, not a
+        V1 feature.</p>
+        <div class="shots">
+          <figure class="screen"><img src="field-manual/shot-43.jpg" loading="lazy" alt="V2 admin home with the four-door navigation"><figcaption>Admin home — four doors</figcaption></figure>
+          <figure class="screen"><img src="field-manual/shot-44.jpg" loading="lazy" alt="V2 today's entries section"><figcaption>Today's entries</figcaption></figure>
+          <figure class="screen"><img src="field-manual/shot-45.jpg" loading="lazy" alt="V2 race classes and format section"><figcaption>Race classes &amp; format</figcaption></figure>
+          <figure class="screen"><img src="field-manual/shot-46.jpg" loading="lazy" alt="V2 race day history section"><figcaption>Race day history</figcaption></figure>
+        </div>
+        <div class="callout"><strong>One dropped feature to know about:</strong> V1's desktop-only
+        folder-watch auto-import for timing-vendor files didn't carry over to V2 — manual file-pick import
+        still works fully, the automatic folder-watch just isn't there. If you relied on it in the classic app,
+        you'll pick each file by hand instead.</div>
+      </section>
+
+      <!-- ================================================================ -->
+      <!-- PART 3 — DRIVEN                                                   -->
+      <!-- ================================================================ -->
+      <div class="part" id="dr-profile">
+        <div class="part-head"><span class="part-num">Part 3</span><span class="tag tag-driven">Driven</span></div>
+        <h2>Driven</h2>
+        <p class="part-dek">A separate app, not a RaceDay tab. One profile a driver owns and carries
+        between every track that runs RaceDay — their identity, their photo and sponsors, their full
+        career history in one place.</p>
+      </div>
+
+      <section class="scenario">
+        <h3>Creating a profile <span class="tag tag-driven">Driven</span></h3>
+        <ol class="steps driven">
+          <li>First time a driver opens Driven, a "Welcome to Driven" screen appears automatically and
+          can't be dismissed without either creating a profile or restoring an existing one.</li>
+          <li>Type a name (the only required field). Email, hometown, and age are optional — email is
+          labeled specifically "for backup."</li>
+          <li>Tap <code class="ui">Create my profile</code>. A unique profile ID is generated behind the
+          scenes; the driver lands on the Home tab.</li>
+        </ol>
+        <div class="callout">Already have a profile — new phone, reinstalled the app? Tap
+        <b>"Already have a profile? Restore it"</b> on the same screen. Paste either a backup JSON file's
+        contents (full restore, including race history) or just a short link code (recovers identity,
+        car #, sponsors, photo, and Pro status — but <em>not</em> race history, which never syncs to the
+        code lookup).</div>
+        <div class="shots">
+          <figure class="screen"><img src="field-manual/shot-47.jpg" loading="lazy" alt="Driven onboarding welcome screen"><figcaption>Welcome to Driven</figcaption></figure>
+          <figure class="screen"><img src="field-manual/shot-48.jpg" loading="lazy" alt="Driven onboarding form filled in"><figcaption>Fields filled in</figcaption></figure>
+        </div>
+        <p>Home is where a driver lands every time after that: a hero band with photo/name/number/career
+        stats, a prompt to link their first track if none yet, and a feed of their most recent results.</p>
+        <div class="shots">
+          <figure class="screen"><img src="field-manual/shot-49.jpg" loading="lazy" alt="Driven home tab, empty state before any results"><figcaption>Home — before any results</figcaption></figure>
+          <figure class="screen"><img src="field-manual/shot-50.jpg" loading="lazy" alt="Driven home tab with recent races feed populated"><figcaption>Home — with recent races</figcaption></figure>
+        </div>
+      </section>
+
+      <section class="scenario" id="dr-card">
+        <h3>The driver card <span class="tag tag-driven">Driven</span></h3>
+        <p>The Card tab is a live preview of what a track admin and fans see — all editing happens in
+        <a href="#dr-settings">Settings</a>, not on this screen itself. Free tier gets a simple photo/
+        name/bio card; Pro gets a dark broadcast-style card with a ghost car-number watermark and a
+        stats strip built right in.</p>
+        <div class="shots">
+          <figure class="screen"><img src="field-manual/shot-51.jpg" loading="lazy" alt="Driven free-tier driver card"><figcaption>Free tier card</figcaption></figure>
+          <figure class="screen"><img src="field-manual/shot-52.jpg" loading="lazy" alt="Driven Pro-tier driver card"><figcaption>Pro tier card</figcaption></figure>
+        </div>
+        <h4 style="font-size:16px;margin-top:26px">Photo upload</h4>
+        <ol class="steps driven">
+          <li>From Settings, tap <code class="ui">Upload</code> — opens the device's photo picker.</li>
+          <li>The image is automatically center-cropped to a square and downscaled — no separate crop
+          step.</li>
+          <li>A 60KB size gate rejects anything too heavy with a plain "try a smaller image" message —
+          nothing partial gets saved.</li>
+          <li><code class="ui">Remove</code> clears the photo back to an initials disc.</li>
+        </ol>
+        <figure class="screen"><img src="field-manual/shot-53.jpg" loading="lazy" alt="Driven settings with photo uploaded, showing thumbnail and remove button"><figcaption>Settings — photo uploaded</figcaption></figure>
+      </section>
+
+      <section class="scenario" id="dr-linking">
+        <h3>Linking to a track &amp; getting results in <span class="tag tag-driven">Driven</span></h3>
+        <p class="lede">Two independent paths onto a driver's Home feed and Stats — plus the RaceDay-admin
+        side that actually makes the live path work.</p>
+
+        <h4 style="font-size:16px">Path A — the live pull (the normal way)</h4>
+        <ol class="steps driven">
+          <li>At the track, an admin links the driver's profile to their roster record (see below) and,
+          after archiving a night, shares that night's results with Driven — one confirm dialog, one tap.</li>
+          <li>In Driven, Settings → <code class="ui">Check for new results</code>. That's the entire driver
+          side of it — one button, no typing.</li>
+          <li>New results append to Home/Stats, tagged as verified since they came straight from RaceDay.</li>
+        </ol>
+        <figure class="screen"><img src="field-manual/shot-54.jpg" loading="lazy" alt="Driven settings, results-from-RaceDay and manual-import sections"><figcaption>Settings — results sections</figcaption></figure>
+
+        <h4 style="font-size:16px;margin-top:26px">Path B — manual JSON import (for a night that never touched Driven's live pipe)</h4>
+        <ol class="steps driven">
+          <li>Settings → paste a RaceDay results export into the text box → <code class="ui">Import</code>.</li>
+          <li>Results come in tagged unverified — the UI says so plainly.</li>
+          <li>A "Load demo results" button on the same screen seeds two fake tracks' worth of sample races,
+          purely so a brand-new driver can see what a populated Home/Stats looks like before racing
+          anywhere. Handy for trying the app out before you have a real race history.</li>
+        </ol>
+
+        <h4 style="font-size:16px;margin-top:26px">The RaceDay-admin side, for a "how tracks connect to Driven" segment</h4>
+        <ol class="steps">
+          <li>On a driver's card overlay (any race night, tap their name), an admin sees
+          <code class="ui">🔗 Link Driven</code> if not yet linked, or <code class="ui">↻ Refresh</code> /
+          <code class="ui">Unlink</code> once they are.</li>
+          <li>Tapping Link prompts for the driver's short link code (the driver reads it off their own
+          Driven → Link tab). The card is pulled, sanitized, and stored on the roster record — read-only
+          at the track, since editing always happens in Driven itself.</li>
+          <li>After archiving a race night, if any finisher has a linked profile, a banner offers
+          <code class="ui">Share now</code> — one tap writes that night's results where Driven's "Check for
+          new results" button will find them.</li>
+        </ol>
+        <div class="shots">
+          <figure class="screen"><img src="field-manual/shot-55.jpg" loading="lazy" alt="RaceDay driver card showing the Link Driven button" style="max-height:340px;object-fit:cover;object-position:top"><figcaption>Driver card — not yet linked</figcaption></figure>
+          <figure class="screen"><img src="field-manual/shot-56.jpg" loading="lazy" alt="RaceDay driver card showing a linked Driven profile" style="max-height:340px;object-fit:cover;object-position:top"><figcaption>Driver card — linked</figcaption></figure>
+          <figure class="screen"><img src="field-manual/shot-57.jpg" loading="lazy" alt="RaceDay share-results-with-Driven banner" style="max-height:340px;object-fit:cover;object-position:top"><figcaption>Share-results banner</figcaption></figure>
+        </div>
+      </section>
+
+      <section class="scenario" id="dr-publish">
+        <h3>Publishing your card &amp; the link code <span class="tag tag-driven">Driven</span></h3>
+        <ol class="steps driven">
+          <li>Card tab → <code class="ui">Publish my card</code> (or "Update published card" once already
+          published). Fields are checked against size limits client-side first, so a doomed upload shows a
+          clear "X is too long" message instead of silently failing.</li>
+          <li>First publish claims a short code — a handful of characters, extended automatically if
+          there's a collision.</li>
+          <li>Every later profile edit silently re-publishes, so the live card always matches what's on
+          the driver's device.</li>
+          <li>The <b>Link</b> tab is the dedicated share screen: the code in large type, a QR code, and the
+          list of tracks currently linked (with an Unlink per row — this only removes the track from the
+          driver's list, it never deletes results already pulled in).</li>
+        </ol>
+        <figure class="screen"><img src="field-manual/shot-58.jpg" loading="lazy" alt="Driven Link tab showing the short code and QR code"><figcaption>Link tab — code &amp; QR</figcaption></figure>
+        <p>A driver can hand over their code two ways at a track: type it themselves into the optional
+        Driven-code field on RaceDay's sign-up screen, or read it aloud for an admin to type into the
+        driver-card <code class="ui">🔗 Link Driven</code> prompt (see above).</p>
+      </section>
+
+      <section class="scenario" id="dr-premium">
+        <h3>Pro <span class="tag tag-driven">Driven</span></h3>
+        <ol class="steps driven">
+          <li>Card tab → "Upgrade to Pro" card → type a redeem code into <b>"Have a code?"</b> →
+          <code class="ui">Unlock Pro</code>.</li>
+          <li>A valid code instantly switches the card to the broadcast design and adds a gold "Pro" badge.</li>
+          <li>There's also a paid-subscription route (a Stripe checkout link) that verifies server-side
+          instead of a typed code, with a short "confirming your payment…" wait on return.</li>
+        </ol>
+      </section>
+
+      <section class="scenario" id="dr-stats">
+        <h3>Career stats <span class="tag tag-driven">Driven</span></h3>
+        <p>The Stats tab computes live from every result on file — no separate "refresh" step. Three
+        blocks: career totals, broken down by class, and broken down by track — races / wins / podiums
+        for each.</p>
+        <figure class="screen wide"><img src="field-manual/shot-59.jpg" loading="lazy" alt="Driven stats tab showing career record"><figcaption>Stats — career record</figcaption></figure>
+      </section>
+
+      <section class="scenario" id="dr-settings">
+        <h3>Settings &amp; backup <span class="tag tag-driven">Driven</span></h3>
+        <p>All profile editing lives here: name, email, car number, team color, photo, hometown, age, bio,
+        sponsors — one <code class="ui">Save changes</code> button for the lot.</p>
+        <figure class="screen"><img src="field-manual/shot-60.jpg" loading="lazy" alt="Driven settings profile fields"><figcaption>Settings — profile fields</figcaption></figure>
+        <p>Below that: <b>Download backup</b> (the entire profile as a JSON file — the only full-fidelity
+        way to move to a new phone, since race history never syncs anywhere else) and, in the danger zone,
+        <b>Delete my profile</b> — a double confirmation, then a best-effort cleanup of the published card
+        before wiping the device.</p>
+        <figure class="screen"><img src="field-manual/shot-61.jpg" loading="lazy" alt="Driven settings backup and danger zone"><figcaption>Settings — backup &amp; danger zone</figcaption></figure>
+      </section>
+
+      <!-- ================================================================ -->
+      <!-- PART 4 — THE BIG ONE                                              -->
+      <!-- ================================================================ -->
+      <div class="bigone" id="combine">
+        <div class="bigone-head">
+          <div class="part-head"><span class="part-num">Part 4 · The one every track needs eventually</span></div>
+          <h2>Combining races &amp; fixing season points</h2>
+          <p class="part-dek">Every track ends up here sooner or later: a night that never touched
+          RaceDay, a joint event at another track, or two entries that should really be one. This section
+          exists because getting it wrong means a driver's season total is silently off — and unlike most
+          mistakes in the app, this one doesn't announce itself.</p>
+        </div>
+        <div class="bigone-body">
+
+        <p style="margin-top:24px">Both versions use the same tool for this: <b>Admin → Fix season
+        points</b> (V1: under "Records." V2: under "Account," same name). The in-app copy states the rule
+        plainly, and it's the one thing to get right before touching anything else:</p>
+        <div class="callout warn"><strong>The one rule that matters:</strong> every saved entry in this
+        form <em>adds</em> to that class's season total. It never overwrites. So the question before you
+        touch this screen is always: <em>does a season-points entry for this class and this night already
+        exist?</em> If yes, edit it. If no, add it. Adding a new entry for a night that's already counted
+        double-counts every driver in it.</div>
+
+        <h3 style="font-size:24px;margin-top:44px">Which scenario am I in?</h3>
+        <div class="decision">
+          <div class="opt">
+            <h4>A — A missed or away night</h4>
+            <p>A real night of racing happened, but it never went through RaceDay — you started using the
+            app mid-season, ran a night on paper, or your drivers raced a joint/away event at another
+            track and you want it to count toward your season points.</p>
+          </div>
+          <div class="opt">
+            <h4>B — Two entries that should be one</h4>
+            <p>You already have two separate history entries for what should really be a single combined
+            night or event — maybe entered twice by mistake, or a night was split into two record
+            accidentally.</p>
+          </div>
+        </div>
+
+        <section class="scenario" style="margin-top:50px">
+          <h3 style="font-size:22px">Scenario A — backfilling a missed or away night</h3>
+          <p class="lede">The straightforward case. Both versions, same steps:</p>
+          <ol class="steps">
+            <li>Admin → <span class="tag tag-v1">V1</span>: Records → <b>Fix season points</b>. <span class="tag tag-v2" style="margin-left:6px">V2</span>: Account → <b>Fix season points</b>.</li>
+            <li>Set the <b>race date</b> — the actual date the night happened, not today.</li>
+            <li>Pick the <b>class</b> — this form only ever writes one class per saved entry. Running a
+            multi-class away night into your season points means repeating this whole flow once per
+            class.</li>
+            <li>Build the driver list one of two ways: search each name and tap to add them one at a time,
+            or tap <code class="ui">+ Add whole class</code> to bulk-seed everyone who's ever raced that
+            class name (today's field plus every past history entry) at 0 points, then delete anyone who
+            didn't actually race that night.</li>
+            <li>Type each driver's points for that night directly into their row.</li>
+            <li>Tap <code class="ui">Save race night</code>. If an entry for this exact class + date already
+            exists, the app blocks the save and tells you to edit the existing one instead — this is the
+            built-in guard against double-counting.</li>
+            <li>Done. The class's season total on the <a href="#v1-points">Points tab</a> updates
+            immediately — there's no separate "apply" or "publish" step.</li>
+          </ol>
+          <div class="shots">
+            <figure class="screen"><img src="field-manual/shot-62.jpg" loading="lazy" alt="V1 Fix season points form, empty"><figcaption>V1 — empty form</figcaption></figure>
+            <figure class="screen"><img src="field-manual/shot-63.jpg" loading="lazy" alt="V1 Fix season points form, filled with a whole class"><figcaption>V1 — whole class added</figcaption></figure>
+            <figure class="screen"><img src="field-manual/shot-64.jpg" loading="lazy" alt="V2 Fix season points form, filled with a whole class"><figcaption>V2 — same flow</figcaption></figure>
+          </div>
+          <p><b>Multiple missed/away nights for the same class</b> need no special handling at all — just
+          repeat this flow once per date. Season standings sum <em>every</em> history record that shares a
+          class name automatically, so three backfilled nights and real archived nights for "Junior 80cc"
+          all add together on their own. This is the normal, no-special-action way to fold a joint or
+          away-track event into your season — enter it as its own dated entry using the same class name
+          your home track uses.</p>
+        </section>
+
+        <section class="scenario">
+          <h3 style="font-size:22px">Scenario B — merging two existing entries into one</h3>
+          <p class="lede">There's no one-tap "merge" button for this — the form only ever adds or replaces
+          a single entry, so combining two means doing the addition by hand. Six steps:</p>
+          <ol class="steps">
+            <li>Admin → Race day history. Open both entries and note every driver's points on each — this
+            is the arithmetic you'll be doing by hand in a moment, so write it down or screenshot it.</li>
+            <li>Only a <b>single-class, hand-entered (imported)</b> history entry shows an
+            <code class="ui">Edit</code> button — a real, app-run archived race night never does. Tap
+            <b>Edit</b> on one of the two entries you're merging. This loads it back into the Fix
+            season points form.</li>
+            <li>The form now shows an edit banner: <em>"Editing the entry from &lt;date&gt;. Saving
+            replaces it — season points are recalculated, not added to."</em> Note the behavior just
+            changed — this save will <b>replace</b>, not add.</li>
+            <li>Manually add every driver row from the <em>other</em> entry (search-and-add or
+            <code class="ui">+ Add whole class</code>), then, by hand, sum each driver's points from both
+            original nights into that one Points field per row. The form does not add these for you.</li>
+            <li>Set the date to whichever makes sense for the combined record — the earlier night's date,
+            or a date that represents the combined event.</li>
+            <li>Tap <code class="ui">Save changes</code>. Back in Race day history, delete the second,
+            now-redundant entry. Check the <a href="#v1-points">Points tab</a> to confirm the class total
+            looks right — this is the step people skip and shouldn't.</li>
+          </ol>
+          <figure class="screen"><img src="field-manual/shot-65.jpg" loading="lazy" alt="V1 Fix season points edit banner shown when editing an existing entry"><figcaption>The edit banner — this save replaces, not adds</figcaption></figure>
+          <div class="callout warn"><strong>The constraint that trips people up:</strong> a real, app-run
+          race night (not hand-entered, or a hand-entered night spanning more than one class) has
+          <em>no</em> Edit button at all. To fold a real archived night into a merge, delete it from
+          history first and re-enter its numbers through Fix season points — that turns it into an
+          editable entry going forward, but the original night's automatic feature/standings detail is
+          gone for good once deleted. Think before deleting a real night; there's no undo beyond a backup
+          restore.</div>
+        </section>
+
+        <div class="callout" style="margin-top:10px"><strong>Every save here is logged.</strong> Both
+        adding and editing a Fix-season-points entry write to the audit trail — Admin → Records &amp;
+        audit (V1) / Account → Records &amp; audit (V2) — with the class, date, and driver count, so a
+        combined or corrected night is always traceable back to when and why it changed.</div>
+
+        </div>
+      </div>
+
+      <footer class="pagefoot">
+        Captured from RaceDay V1, RaceDay V2, and Driven running with sample data.
+        The apps keep improving, so a screen may look slightly different from
+        its picture here — the steps stay the same.
+        <nav class="sitenav" aria-label="Site footer"><a href="/?home=1">Home</a><a href="/faq.html">FAQ</a><a href="/pricing.html">Pricing</a><a href="/raceday2/">Open RaceDay</a><a href="/driven/">Driven</a></nav>
+      </footer>
+
+    </div>
+  </div>
+</div>
+
+</body></html>
