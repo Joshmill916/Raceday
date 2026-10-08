@@ -3681,7 +3681,8 @@ function archiveDay() {
   if (incomplete.length && !confirm('⚠ Feature not fully entered:\n' + incomplete.join('\n') + '\n\nPoints for those classes won\'t count in the series.\n\nOK = archive anyway · Cancel = go back and finish results')) return false;
   S.history.unshift(snap);
   if (S.history.length > 60) S.history.length = 60;
-  scheduleUsageBeacon();
+  // Report the night now, while S.raceDay still holds it — the caller clears the board next.
+  sendUsage('night', Object.assign(currentCounts(), { features: featuresUsed() }));
   return true;
 }
 // Firebase keys can't contain . # $ [ ] / — a free-typed class name easily could.
@@ -5010,6 +5011,7 @@ function tvRender() {
 
 function tvTick() { if (!TV.locked) TV.idx++; tvRender(); }
 function openTV() {
+  markFeature('tv');
   TV.on = true; TV.idx = 0; TV.locked = false;
   document.getElementById('tvLockBtn').textContent = '🔒 Lock screen';
   document.getElementById('tvOverlay').classList.add('on');
@@ -5161,7 +5163,6 @@ function seedFullDemoNight() {
 // ---------- Usage beacons ----------
 // Fire-and-forget, never blocks the app, silently no-ops when TELEMETRY_URL is
 // blank or the network is down. Only aggregate, anonymous data leaves the browser.
-let usageTimer = null;
 function currentCounts() {
   const classes = {};
   (S.raceDay.entries || []).forEach(e => {
@@ -5171,6 +5172,40 @@ function currentCounts() {
   });
   return { total: (S.raceDay.entries || []).length, classes };
 }
+// Random per-device id (not derived from the device or person) so tracks without a
+// license, which all report as 'unknown', can still be told apart in the usage sheet.
+function deviceId() {
+  try {
+    let id = localStorage.getItem('rd_device');
+    if (!id) { id = 'd' + Math.random().toString(36).slice(2, 10); localStorage.setItem('rd_device', id); }
+    return id;
+  } catch (e) { return 'nostore'; }
+}
+// Features used on a race day, reported with that night. Kept in localStorage rather
+// than S so it never syncs or lands in backups.
+function featKey() { return 'rd_feat_' + ((S.raceDay && S.raceDay.date) || today()); }
+function markFeature(f) {
+  try {
+    const list = JSON.parse(localStorage.getItem(featKey()) || '[]');
+    if (list.indexOf(f) < 0) { list.push(f); localStorage.setItem(featKey(), JSON.stringify(list)); }
+  } catch (e) {}
+}
+function featuresUsed() {
+  let list = [];
+  try { list = JSON.parse(localStorage.getItem(featKey()) || '[]'); } catch (e) {}
+  if (syncOn()) list.push('sync');
+  return list.join(',');
+}
+// One 'open' beacon per device per day: shows a track is active even on a night that
+// never gets archived.
+function pingOpen() {
+  if (!TELEMETRY_URL) return;
+  try {
+    if (localStorage.getItem('rd_open_ping') === today()) return;
+    localStorage.setItem('rd_open_ping', today());
+  } catch (e) { return; }
+  sendUsage('open', currentCounts());
+}
 function sendUsage(event, extra) {
   if (!TELEMETRY_URL) return;
   try {
@@ -5178,17 +5213,13 @@ function sendUsage(event, extra) {
       event: event,
       version: APP_VERSION,
       date: (S.raceDay && S.raceDay.date) || today(),
-      track: (S.license && S.license.name) || 'unknown'
+      track: (S.license && S.license.name) || 'unknown',
+      device: deviceId(),
+      demo: !!S.demo
     }, extra || {}));
     if (navigator.sendBeacon) navigator.sendBeacon(TELEMETRY_URL, body);
     else fetch(TELEMETRY_URL, { method: 'POST', body: body, mode: 'no-cors' }).catch(() => {});
   } catch (e) {}
-}
-// Debounce a registration beacon: one report per sign-up batch, 30s after the last add.
-function scheduleUsageBeacon() {
-  if (!TELEMETRY_URL) return;
-  clearTimeout(usageTimer);
-  usageTimer = setTimeout(() => sendUsage('registration', currentCounts()), 30000);
 }
 window.onerror = (msg, src, line) => { sendUsage('crash', { msg: String(msg).slice(0, 200), line: line }); };
 window.addEventListener('unhandledrejection', e => { sendUsage('crash', { msg: String(e.reason).slice(0, 200) }); });
@@ -6642,6 +6673,7 @@ function impApply(opts) {
   save();
   renderHeader();
   render(curPage);
+  markFeature('import');
   const what = { qual: done + ' drivers placed on the grid', heat: done + ' heat finishes', feat: done + ' feature finishes' }[target];
   const skipMsg = skipped ? ' ' + skipped + ' rows skipped.' : '';
   if (keepOpen) {
@@ -6912,6 +6944,7 @@ renderResultsShareBanner();
 renderBackupBanner();
 renderGrid();
 initSync();
+pingOpen();
 // Pick up any Profiles cards that were linked while offline (no-op when none are pending).
 if (navigator.onLine && (S.roster || []).some(d => d.profile && d.profile.pendingFetch)) retryPendingProfiles();
 // First-run setup ONLY for a genuinely new, standalone admin device — never for a device
