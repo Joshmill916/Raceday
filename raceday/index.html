@@ -5221,8 +5221,24 @@ function sendUsage(event, extra) {
     else fetch(TELEMETRY_URL, { method: 'POST', body: body, mode: 'no-cors' }).catch(() => {});
   } catch (e) {}
 }
-window.onerror = (msg, src, line) => { sendUsage('crash', { msg: String(msg).slice(0, 200), line: line }); };
-window.addEventListener('unhandledrejection', e => { sendUsage('crash', { msg: String(e.reason).slice(0, 200) }); });
+// Crash reports. Only errors from this page's own code are sent: errors from another
+// file (a browser extension, an in-app browser's injected script, a CDN) and the opaque
+// cross-origin "Script error." are ignored, since neither can be acted on. Capped per
+// page load so an error inside a timer or render loop can't flood the sheet.
+let crashCount = 0;
+function reportCrash(msg, src, line, col, err) {
+  if (crashCount >= 5 || /^Script error\.?$/.test(String(msg))) return;
+  const page = u => String(u || '').split(/[?#]/)[0];
+  if (src && page(src) !== page(location.href)) return;
+  crashCount++;
+  const stack = err && err.stack ? String(err.stack).split('\n').slice(1, 4).map(s => s.trim()).join(' | ') : '';
+  sendUsage('crash', { msg: String(msg).slice(0, 200), line: line || '', col: col || '', page: location.pathname, stack: stack.slice(0, 300) });
+}
+window.onerror = (msg, src, line, col, err) => { reportCrash(msg, src, line, col, err); };
+window.addEventListener('unhandledrejection', e => {
+  const r = e.reason;
+  reportCrash('Unhandled rejection: ' + String((r && r.message) || r), '', '', '', r instanceof Error ? r : null);
+});
 
 // ---------- Multi-device sync (Firebase) ----------
 // Dormant unless FIREBASE_CONFIG is filled in AND a track has activated sync.
