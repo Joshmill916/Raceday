@@ -74,6 +74,30 @@ const TYPES = { '.html': 'text/html', '.js': 'application/javascript', '.json': 
   check('900px fresh boot: zero page errors', w900.errs.length === 0, JSON.stringify(w900.errs));
   check('1280px fresh boot: zero page errors', w1280.errs.length === 0, JSON.stringify(w1280.errs));
 
+  // Kiosk mode hides the menu on a registration device. Its .views container is a flex box;
+  // as a row it put the legal footer in a squeezed column beside the sign-up form.
+  console.log('\n=== Kiosk mode: sign-up stacks above the footer, nothing beside it ===');
+  for (const width of [390, 820, 1180]) {
+    const page = await browser.newPage({ viewport: { width, height: 900 } });
+    await page.goto(base, { waitUntil: 'domcontentloaded' });
+    await page.evaluate(() => { localStorage.clear(); });
+    await page.reload();
+    await page.evaluate(() => {
+      S.track.name = 'T'; S.adminPin = ''; S.settings.kioskReg = true; save();
+      setDeviceRole('register'); applyRole(); nav('signup');
+    });
+    await page.waitForTimeout(300);
+    const k = await page.evaluate(() => {
+      const view = [...document.querySelectorAll('#views > .view')].find(v => getComputedStyle(v).display !== 'none');
+      const v = view.getBoundingClientRect(), f = document.getElementById('appFooter').getBoundingClientRect();
+      return { kiosk: document.body.classList.contains('kiosk'), viewBottom: v.bottom, footerTop: f.top,
+               viewW: v.width, overflow: document.documentElement.scrollWidth > innerWidth + 1 };
+    });
+    check(`${width}px kiosk: footer sits below the sign-up form, no sideways scroll`,
+      k.kiosk && k.footerTop >= k.viewBottom - 1 && !k.overflow && k.viewW > Math.min(width, 600) * 0.8, JSON.stringify(k));
+    await page.close();
+  }
+
   console.log('\n' + (fail === 0 ? '✅' : '❌') + ` v2 shell: ${pass} passed, ${fail} failed`);
   await browser.close();
   server.close();
