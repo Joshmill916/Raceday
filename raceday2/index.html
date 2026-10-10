@@ -461,7 +461,9 @@ table.tbl .r { text-align:right; }
 
 /* Kiosk — self-serve sign-up on a spare tablet */
 body.kiosk .rail,body.kiosk .tabbar,body.kiosk .rc { display:none !important; }
-body.kiosk .views { display:flex; align-items:flex-start; justify-content:center; padding-top:clamp(16px,4vh,54px); }
+body.kiosk .app { grid-template-columns:1fr; }
+body.kiosk .views { display:flex; flex-direction:column; align-items:center; padding-top:clamp(16px,4vh,54px); }
+body.kiosk .views > * { width:100%; max-width:600px; }
 body.kiosk .wrap-narrow { max-width:600px; width:100%; }
 
 /* ============================================================================
