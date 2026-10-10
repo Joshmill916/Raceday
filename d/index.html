@@ -7,87 +7,95 @@
 <meta name="description" content="A driver's racing profile on Driven — results posted by the tracks themselves.">
 <link href="https://fonts.googleapis.com/css2?family=Saira+Condensed:wght@600;700;800&display=swap" rel="stylesheet">
 <link rel="icon" type="image/png" sizes="512x512" href="../driven/icon-driven.png">
-<meta name="theme-color" content="#12141a">
+<link rel="apple-touch-icon" href="../driven/icon-driven.png">
+<meta name="theme-color" content="#0b0c10">
 <style>
   /* Public driver page — what a fan or sponsor sees from a shared link
      (victoryraceday.com/d/?CODE). Read-only: everything comes from the driver's
      PUBLISHED card (profiles/<id>/card) and track-published results, fetched over the
-     Firebase REST API (no SDK, no account). Tokens mirror driven/index.html. */
+     Firebase REST API (no SDK, no account). Broadcast look, tokens from driven/index.html. */
   :root {
     --ink-0: #0b0c10; --ink-1: #12141a; --ink-2: #1a1d25; --ink-3: #242834;
-    --line-d: rgba(255,255,255,.09); --td: #f5f6f8; --td-mute: #8f939d;
-    --bg: #eef0f3; --surface: #ffffff; --ink: #14161a; --muted: #666b74; --line: #e3e5e9;
-    --brand: #1f6fd6; --gold: #d9980f;
+    --line-d: rgba(255,255,255,.08); --td: #f5f6f8; --td-mute: #8f939d;
+    --brand: #1f6fd6; --plate: #ffc400;
     --display: 'Saira Condensed', 'Arial Narrow', sans-serif;
     --body: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
   }
   * { box-sizing: border-box; margin: 0; padding: 0; }
-  body { font-family: var(--body); background: var(--bg); color: var(--ink); min-height: 100vh; }
-  .wrap { max-width: 560px; margin: 0 auto; padding: 16px 16px 40px; }
-  .top { display: flex; align-items: center; justify-content: space-between; padding: 4px 2px 14px; }
-  .brand { font-family: var(--display); font-weight: 800; font-size: 19px; letter-spacing: .16em; text-transform: uppercase; color: var(--ink); text-decoration: none; border-bottom: 3px solid var(--brand); padding-bottom: 2px; }
-  .share-btn { font: 700 13px var(--display); letter-spacing: .08em; text-transform: uppercase; border: 1.5px solid var(--line); background: var(--surface); color: var(--ink); border-radius: 99px; padding: 7px 14px; cursor: pointer; }
+  body { font-family: var(--body); background: var(--ink-0); color: var(--td); min-height: 100vh; }
+  .wrap { max-width: 560px; margin: 0 auto; padding: 0 0 40px; }
+  .top { display: flex; align-items: center; justify-content: space-between; padding: 14px 16px; }
+  .brand { font: 800 18px var(--display); letter-spacing: .16em; text-transform: uppercase; color: var(--td); text-decoration: none; border-bottom: 3px solid var(--brand); padding-bottom: 2px; }
+  .cap { font: 700 11.5px var(--display); letter-spacing: .12em; text-transform: uppercase; color: var(--td-mute); }
+  .sec { margin: 22px 16px 0; }
+  .sec > .cap { margin-bottom: 8px; display: block; }
 
-  .card { background: var(--surface); border-radius: 16px; box-shadow: 0 1px 3px rgba(15,18,26,.07); overflow: hidden; margin-bottom: 14px; }
-  .slbl { font-family: var(--display); font-size: 12.5px; font-weight: 700; color: #5b606a; text-transform: uppercase; letter-spacing: .12em; margin: 22px 2px 10px; }
-  .body { padding: 16px 20px 18px; font-size: 14.5px; line-height: 1.6; }
-  .chip { display: inline-block; padding: 5px 12px; border-radius: 99px; border: 1.5px solid var(--line); font-size: 13px; font-weight: 600; margin: 4px 6px 0 0; }
-  .empty { color: var(--muted); font-size: 14px; padding: 18px 20px; }
+  /* Hero */
+  .banner { position: relative; height: 190px; overflow: hidden; background: var(--ink-2) center/cover no-repeat; }
+  .banner.gen { background: linear-gradient(115deg, var(--ink-2) 0 52%, var(--team) 52% 58%, var(--ink-2) 58% 62%, var(--team) 62% 64%, var(--ink-1) 64%); }
+  .banner .bignum { position: absolute; right: 10px; bottom: -28px; font: italic 800 190px/1 var(--display); color: transparent; -webkit-text-stroke: 2px rgba(255,255,255,.18); letter-spacing: -.03em; }
+  .banner .checker { position: absolute; left: 0; right: 0; bottom: 0; height: 8px; background: repeating-conic-gradient(#0b0c10 0% 25%, #e9eaee 0% 50%) 0 0/16px 16px; }
+  .banner::after { content: ''; position: absolute; inset: 0; background: linear-gradient(180deg, transparent 45%, rgba(11,12,16,.75)); }
+  .who { position: relative; display: flex; align-items: flex-end; gap: 14px; padding: 0 16px; margin-top: -44px; z-index: 1; }
+  .avatar { width: 92px; height: 92px; border-radius: 50%; flex: none; object-fit: cover; border: 4px solid var(--team); background: var(--ink-3); display: flex; align-items: center; justify-content: center; font: 800 34px var(--display); color: #fff; }
+  .name { font: 800 32px/0.95 var(--display); text-transform: uppercase; letter-spacing: .01em; }
+  .badge { display: inline-block; margin-left: 6px; padding: 2px 7px; border-radius: 5px; background: var(--team); color: #fff; font: 800 12px var(--display); letter-spacing: .12em; vertical-align: 5px; }
+  .meta { margin-top: 6px; }
+  .actions { display: flex; gap: 8px; padding: 14px 16px 0; }
+  .btn { flex: 1; text-align: center; padding: 11px; border-radius: 10px; font: 700 14px var(--display); letter-spacing: .1em; text-transform: uppercase; border: 1px solid rgba(255,255,255,.22); background: transparent; color: var(--td); cursor: pointer; text-decoration: none; }
+  .btn.primary { background: var(--team); border-color: var(--team); color: #fff; }
 
-  /* Basic (free) header */
-  .bhd { display: flex; align-items: center; gap: 15px; padding: 20px; }
-  .bphoto, .bdisc { width: 72px; height: 72px; border-radius: 50%; flex: none; object-fit: cover; background: #e7e9ee; }
-  .bdisc { background: var(--ink-1); color: #fff; display: flex; align-items: center; justify-content: center; font: 800 27px var(--display); }
-  .bname { font: 800 28px/0.98 var(--display); text-transform: uppercase; }
-  .bmeta { margin-top: 6px; font: 700 13px var(--display); text-transform: uppercase; letter-spacing: .07em; color: var(--muted); }
+  /* Latest result */
+  .latest { margin: 16px 16px 0; background: var(--ink-1); border-left: 4px solid var(--plate); padding: 12px 14px; }
+  .latest .row { display: flex; align-items: center; gap: 14px; margin-top: 4px; }
+  .latest .p { font: 800 46px/1 var(--display); color: var(--plate); }
+  .latest .t { font-size: 15px; font-weight: 600; }
+  .latest .s { font-size: 13px; color: var(--td-mute); margin-top: 2px; }
 
-  /* Pro broadcast header */
-  .pro { background: var(--ink-1); color: var(--td); box-shadow: 0 18px 44px rgba(8,10,16,.3); }
-  .banner { height: 150px; background: var(--ink-2) center/cover no-repeat; position: relative; }
-  .banner::after { content: ''; position: absolute; inset: 0; background: linear-gradient(180deg, transparent 40%, rgba(18,20,26,.85)); }
-  .phd { position: relative; overflow: hidden; display: flex; align-items: center; gap: 16px; padding: 22px 20px 22px; border-bottom: 3px solid var(--team, var(--brand));
-         background: linear-gradient(135deg, var(--ink-2), var(--ink-1)); }
-  .pro.has-banner .phd { margin-top: -46px; background: transparent; padding-top: 0; }
-  .pnum { position: absolute; top: -14px; right: -4px; font: italic 800 120px/1 var(--display); letter-spacing: -.02em; color: transparent;
-          -webkit-text-stroke: 2px color-mix(in srgb, var(--team, var(--brand)) 55%, transparent); opacity: .55; pointer-events: none; }
-  .pro.has-banner .pnum { display: none; }
-  .pphoto, .pdisc { position: relative; width: 84px; height: 84px; border-radius: 50%; flex: none; object-fit: cover; border: 3px solid var(--team, var(--brand)); background: #000; }
-  .pdisc { background: var(--ink-3); color: #fff; display: flex; align-items: center; justify-content: center; font: 800 32px var(--display); }
-  .pname { position: relative; font: 800 32px/0.96 var(--display); text-transform: uppercase; }
-  .pmeta { position: relative; margin-top: 7px; font: 700 13px var(--display); text-transform: uppercase; letter-spacing: .08em; color: var(--td-mute); }
-  .badge { display: inline-block; margin-left: 8px; padding: 2px 8px; border-radius: 6px; background: var(--team, var(--brand)); color: #fff; font: 800 11px var(--display); letter-spacing: .12em; vertical-align: 3px; }
-  .checker { height: 7px; background: repeating-conic-gradient(#0b0c10 0% 25%, #e9eaee 0% 50%) 0 0/14px 14px; }
-  .stats { display: grid; grid-template-columns: repeat(4, 1fr); border-bottom: 1px solid var(--line-d); }
-  .stat { padding: 14px 4px 15px; text-align: center; border-left: 1px solid var(--line-d); }
-  .stat:first-child { border-left: none; }
-  .stat b { display: block; font: 800 26px/1 var(--display); font-variant-numeric: tabular-nums; }
-  .stat span { font-size: 10px; text-transform: uppercase; letter-spacing: .12em; color: var(--td-mute); font-weight: 600; }
-  .pro .body { color: var(--td); }
-  .pro .chip { border-color: rgba(255,255,255,.22); color: var(--td); }
-  .pro .sub-h { font: 700 12px var(--display); letter-spacing: .12em; text-transform: uppercase; color: var(--td-mute); margin: 12px 0 2px; }
+  /* Stat tiles */
+  .tiles { display: grid; grid-template-columns: repeat(4, 1fr); gap: 8px; margin: 12px 16px 0; }
+  .tile { background: var(--ink-1); border-radius: 12px; padding: 12px 4px 10px; text-align: center; }
+  .tile b { display: block; font: 800 28px/1 var(--display); font-variant-numeric: tabular-nums; margin-bottom: 4px; }
+
+  /* Standings, form, badges */
+  .stand { display: flex; align-items: center; gap: 12px; background: var(--ink-1); border-radius: 12px; padding: 12px 14px; margin-bottom: 8px; }
+  .stand .rk { font: 800 30px/1 var(--display); min-width: 52px; color: var(--td); }
+  .stand .t { font-weight: 600; font-size: 14.5px; }
+  .stand .s { font-size: 12.5px; color: var(--td-mute); margin-top: 2px; }
+  .form { background: var(--ink-1); border-radius: 12px; padding: 12px 14px 8px; }
+  .form svg { display: block; width: 100%; height: 64px; }
+  .chips { display: flex; flex-wrap: wrap; gap: 8px; }
+  .chip { background: var(--ink-2); border: 1px solid var(--line-d); border-radius: 99px; padding: 7px 12px; font-size: 13px; font-weight: 600; }
+  .chip i { font-style: normal; color: var(--plate); margin-right: 5px; }
 
   /* Results */
-  .res { display: grid; grid-template-columns: 54px 1fr auto; gap: 12px; align-items: center; padding: 12px 18px; border-top: 1px solid var(--line); }
+  .list { background: var(--ink-1); border-radius: 12px; overflow: hidden; }
+  .res { display: grid; grid-template-columns: 50px 1fr auto; gap: 10px; align-items: center; padding: 11px 14px; border-top: 1px solid var(--line-d); }
   .res:first-child { border-top: none; }
-  .pos { font: 800 24px var(--display); text-align: center; }
-  .pos.p1 { color: var(--gold); }
-  .res .t { font-weight: 600; font-size: 14.5px; }
-  .res .s { font-size: 12.5px; color: var(--muted); margin-top: 2px; }
-  .res .pts { font: 700 14px var(--display); color: var(--muted); letter-spacing: .04em; }
-  .verified { font-size: 12px; color: var(--muted); padding: 0 2px; }
+  .pos { font: 800 22px var(--display); text-align: center; }
+  .pos.p1 { color: var(--plate); }
+  .res .t { font-weight: 600; font-size: 14px; }
+  .res .s { font-size: 12.5px; color: var(--td-mute); margin-top: 2px; }
+  .res .pts { font: 700 14px var(--display); color: var(--td-mute); letter-spacing: .04em; }
+  .empty { color: var(--td-mute); font-size: 14px; padding: 16px 14px; line-height: 1.5; }
+  .verified { font-size: 12px; color: var(--td-mute); margin: 8px 2px 0; }
 
-  .msg { text-align: center; padding: 60px 20px; color: var(--muted); }
-  .msg h1 { font: 800 28px var(--display); text-transform: uppercase; color: var(--ink); margin-bottom: 8px; }
-  .foot { text-align: center; margin-top: 26px; font-size: 13px; color: var(--muted); line-height: 1.7; }
-  .foot a { color: var(--brand); font-weight: 600; text-decoration: none; }
+  /* About + sponsors */
+  .about { background: var(--ink-1); border-radius: 12px; padding: 14px; font-size: 14.5px; line-height: 1.6; }
+  .about .cap { display: block; margin: 12px 0 4px; }
+  .about .cap:first-child { margin-top: 0; }
+  .sponsors { display: grid; grid-template-columns: repeat(auto-fill, minmax(140px, 1fr)); gap: 8px; }
+  .sponsor { background: var(--td); color: var(--ink-1); border-radius: 10px; padding: 16px 10px; text-align: center; font: 800 15px var(--display); letter-spacing: .06em; text-transform: uppercase; }
+
+  .msg { text-align: center; padding: 80px 20px; color: var(--td-mute); }
+  .msg h1 { font: 800 30px var(--display); text-transform: uppercase; color: var(--td); margin-bottom: 8px; }
+  .foot { text-align: center; margin: 30px 16px 0; font-size: 13px; color: var(--td-mute); line-height: 1.7; }
+  .foot a { color: #6aa5f0; font-weight: 600; text-decoration: none; }
 </style>
 </head>
 <body>
 <div class="wrap">
-  <div class="top">
-    <a class="brand" href="../driven/">Driven</a>
-    <button class="share-btn" id="shareBtn" onclick="shareLink()" style="display:none">Share</button>
-  </div>
+  <div class="top"><a class="brand" href="../driven/">Driven</a><span class="cap">Driver profile</span></div>
   <div id="app"><div class="msg">Loading profile…</div></div>
   <div class="foot">
     Results on Driven are posted by the tracks themselves — drivers can't type them in.<br>
@@ -116,7 +124,7 @@ function esc(s) { return String(s == null ? '' : s).replace(/[&<>"']/g, function
 function imgOK(src) { return typeof src === 'string' && /^data:image\/(png|jpe?g);base64,[A-Za-z0-9+/=]+$/.test(src); }
 function str(v, max) { return typeof v === 'string' ? v.slice(0, max) : ''; }
 // A REST read that resolves null on any failure (missing node, rules denial, offline) —
-// every section below is optional, so one unavailable path never blanks the page.
+// every section is optional, so one unavailable path never blanks the page.
 function get(path) {
   return fetch(DB + '/' + path + '.json').then(function (r) { return r.ok ? r.json() : null; }).catch(function () { return null; });
 }
@@ -126,110 +134,175 @@ function codeFromUrl() {
   return decodeURIComponent(raw).toUpperCase().replace(/[^A-Z0-9]/g, '').slice(0, 20);
 }
 function show(html) { document.getElementById('app').innerHTML = html; }
-function notFound(text) {
-  show('<div class="msg"><h1>Driver not found</h1>' + esc(text) + '</div>');
-}
-
-// Track-published results for this profile: profileTracks/<id> lists the tracks, then
-// results/<trackId>/<date>/<class>/<driverKey> rows tagged with profileId.
-function loadResults(profileId) {
-  return get('profileTracks/' + profileId).then(function (tracks) {
-    if (!tracks || typeof tracks !== 'object') return [];
-    var ids = Object.keys(tracks);
-    return Promise.all(ids.map(function (trackId) {
-      return get('results/' + encodeURIComponent(trackId)).then(function (byDate) {
-        var out = [];
-        Object.keys(byDate || {}).forEach(function (date) {
-          var byClass = byDate[date] || {};
-          Object.keys(byClass).forEach(function (cls) {
-            var byDriver = byClass[cls] || {};
-            Object.keys(byDriver).forEach(function (k) {
-              var row = byDriver[k];
-              if (!row || row.profileId !== profileId || typeof row.position !== 'number') return;
-              out.push({ date: date, cls: cls, pos: row.position, pts: typeof row.points === 'number' ? row.points : null,
-                         track: str(row.trackName, 60) || str(tracks[trackId] && tracks[trackId].trackName, 60) || 'RaceDay track' });
-            });
-          });
-        });
-        return out;
-      });
-    })).then(function (lists) {
-      return [].concat.apply([], lists).sort(function (a, b) { return a.date < b.date ? 1 : a.date > b.date ? -1 : 0; });
-    });
-  });
-}
-
+function notFound(text) { show('<div class="msg"><h1>Driver not found</h1>' + esc(text) + '</div>'); }
 function fmtDate(d) {
   var t = Date.parse(d + 'T12:00:00');
   return isNaN(t) ? d : new Date(t).toLocaleDateString(undefined, { month: 'short', day: 'numeric', year: 'numeric' });
 }
 function ord(n) { var s = ['th', 'st', 'nd', 'rd'], v = n % 100; return n + (s[(v - 20) % 10] || s[v] || s[0]); }
 
-function render(profileId, card, isPro, results) {
+// Track-published results: profileTracks/<id> lists the driver's tracks, then each
+// results/<trackId>/<date>/<class>/<driverKey> tree is read whole. The driver's own rows
+// become their results; everyone's rows at that track feed the season standings.
+function loadResults(profileId) {
+  return get('profileTracks/' + profileId).then(function (tracks) {
+    if (!tracks || typeof tracks !== 'object') return { mine: [], standings: [] };
+    return Promise.all(Object.keys(tracks).map(function (trackId) {
+      return get('results/' + encodeURIComponent(trackId)).then(function (byDate) {
+        var fallback = str(tracks[trackId] && tracks[trackId].trackName, 60) || 'RaceDay track';
+        var mine = [], totals = {};   // totals[season|class][driverKey] = points
+        Object.keys(byDate || {}).forEach(function (date) {
+          var season = date.slice(0, 4);
+          var byClass = byDate[date] || {};
+          Object.keys(byClass).forEach(function (cls) {
+            var byDriver = byClass[cls] || {};
+            Object.keys(byDriver).forEach(function (k) {
+              var row = byDriver[k];
+              if (!row || typeof row.position !== 'number') return;
+              var key = row.profileId || k, sc = season + '|' + cls;
+              if (typeof row.points === 'number') {
+                totals[sc] = totals[sc] || {};
+                totals[sc][key] = (totals[sc][key] || 0) + row.points;
+              }
+              if (row.profileId === profileId) {
+                mine.push({ date: date, cls: cls, pos: row.position, pts: typeof row.points === 'number' ? row.points : null,
+                            track: str(row.trackName, 60) || fallback });
+              }
+            });
+          });
+        });
+        var standings = Object.keys(totals).map(function (sc) {
+          var t = totals[sc]; if (!(profileId in t)) return null;
+          var ranked = Object.keys(t).sort(function (a, b) { return t[b] - t[a]; });
+          return { season: sc.split('|')[0], cls: sc.slice(5), track: fallback, rank: ranked.indexOf(profileId) + 1, of: ranked.length, pts: t[profileId] };
+        }).filter(Boolean);
+        return { mine: mine, standings: standings };
+      });
+    })).then(function (parts) {
+      var mine = [].concat.apply([], parts.map(function (p) { return p.mine; }));
+      var standings = [].concat.apply([], parts.map(function (p) { return p.standings; }));
+      mine.sort(function (a, b) { return a.date < b.date ? 1 : a.date > b.date ? -1 : 0; });
+      standings.sort(function (a, b) { return a.season < b.season ? 1 : a.season > b.season ? -1 : a.rank - b.rank; });
+      return { mine: mine, standings: standings };
+    });
+  });
+}
+
+// Milestones drivers want to show off — computed from verified results only.
+function milestones(results) {
+  var out = [], chrono = results.slice().reverse();
+  var wins = results.filter(function (r) { return r.pos === 1; }).length;
+  var podiums = results.filter(function (r) { return r.pos <= 3; }).length;
+  var tracks = {}; results.forEach(function (r) { tracks[r.track] = 1; });
+  var streak = 0, best = 0; chrono.forEach(function (r) { streak = r.pos === 1 ? streak + 1 : 0; best = Math.max(best, streak); });
+  if (wins >= 1) out.push('First win');
+  if (best >= 3) out.push('Hat trick');
+  [100, 50, 25, 10].some(function (n) { if (wins >= n) { out.push(n + ' wins'); return true; } });
+  [100, 50, 25, 10].some(function (n) { if (podiums >= n) { out.push(n + ' podiums'); return true; } });
+  [250, 100, 50, 25, 10].some(function (n) { if (results.length >= n) { out.push(n + ' starts'); return true; } });
+  if (Object.keys(tracks).length >= 2) out.push(Object.keys(tracks).length + ' tracks');
+  return out;
+}
+
+// Finishing positions over the last 12 results, oldest → newest; higher on the chart = better.
+function formChart(results) {
+  var pts = results.slice(0, 12).reverse();
+  if (pts.length < 2) return '';
+  var worst = Math.max.apply(null, pts.map(function (r) { return r.pos; }).concat([5]));
+  var W = 300, H = 64, pad = 6;
+  var xy = pts.map(function (r, i) {
+    return [pad + i * (W - pad * 2) / (pts.length - 1), pad + (r.pos - 1) * (H - pad * 2) / (worst - 1)];
+  });
+  var last = xy[xy.length - 1];
+  return '<div class="form"><svg viewBox="0 0 ' + W + ' ' + H + '" preserveAspectRatio="none">'
+    + '<polyline points="' + xy.map(function (p) { return p[0].toFixed(1) + ',' + p[1].toFixed(1); }).join(' ')
+    + '" fill="none" stroke="#ffc400" stroke-width="2.5" stroke-linejoin="round" vector-effect="non-scaling-stroke"/>'
+    + '<circle cx="' + last[0].toFixed(1) + '" cy="' + last[1].toFixed(1) + '" r="4" fill="#ffc400"/></svg>'
+    + '<div class="cap" style="display:flex;justify-content:space-between;margin-top:4px"><span>' + esc(fmtDate(pts[0].date)) + '</span><span>Latest: ' + ord(pts[pts.length - 1].pos) + '</span></div></div>';
+}
+
+function render(profileId, card, isPro, data) {
+  var results = data.mine, standings = data.standings;
   var name = str(card.name, 40), num = str(card.num, 8), home = str(card.hometown, 60), aka = str(card.aliases, 60);
   var team = /^#[0-9a-fA-F]{6}$/.test(card.teamColor || '') ? card.teamColor : '#1f6fd6';
   var initials = name.split(/\s+/).map(function (w) { return w[0] || ''; }).slice(0, 2).join('').toUpperCase();
   var sponsors = str(card.sponsors, 160).split(' · ').filter(Boolean);
   var crew = str(card.crew, 160).split(',').map(function (s) { return s.trim(); }).filter(Boolean);
   var bio = str(card.bio, 300), highlights = str(card.highlights, 300);
-  var meta = [num ? '#' + esc(num) : '', home ? esc(home) : '', aka ? 'AKA ' + esc(aka) : ''].filter(Boolean).join(' &nbsp;·&nbsp; ');
+  var meta = [num ? '#' + esc(num) : '', home ? esc(home) : '', aka ? 'AKA ' + esc(aka) : ''].filter(Boolean).join(' · ');
   document.title = name + (num ? ' #' + num : '') + ' — Driven';
+  document.documentElement.style.setProperty('--team', team);
 
   var wins = results.filter(function (r) { return r.pos === 1; }).length;
-  var podiums = results.filter(function (r) { return r.pos <= 3; }).length;
   var top5 = results.filter(function (r) { return r.pos <= 5; }).length;
+  var avg = results.length ? (results.reduce(function (s, r) { return s + r.pos; }, 0) / results.length) : 0;
 
-  var h = '';
-  if (isPro) {
-    var banner = imgOK(card.header);
-    h += '<div class="card pro' + (banner ? ' has-banner' : '') + '" style="--team:' + team + '">'
-      + (banner ? '<div class="banner" style="background-image:url(\'' + card.header + '\')"></div>' : '')
-      + '<div class="phd">'
-      + (num ? '<div class="pnum">' + esc(num) + '</div>' : '')
-      + (imgOK(card.photo) ? '<img class="pphoto" src="' + card.photo + '" alt="">' : '<div class="pdisc">' + esc(num || initials) + '</div>')
-      + '<div><div class="pname">' + esc(name) + '<span class="badge">PRO</span></div><div class="pmeta">' + meta + '</div></div>'
-      + '</div><div class="checker"></div>'
-      + '<div class="stats">'
-      + '<div class="stat"><b>' + results.length + '</b><span>Starts</span></div>'
-      + '<div class="stat"><b>' + wins + '</b><span>Wins</span></div>'
-      + '<div class="stat"><b>' + podiums + '</b><span>Podiums</span></div>'
-      + '<div class="stat"><b>' + top5 + '</b><span>Top 5</span></div>'
-      + '</div>';
-    var body = (bio ? '<div>' + esc(bio) + '</div>' : '')
-      + (highlights ? '<div class="sub-h">Highlights</div><div>' + esc(highlights) + '</div>' : '')
-      + (sponsors.length ? '<div class="sub-h">Sponsors</div>' + sponsors.map(function (s) { return '<span class="chip">' + esc(s) + '</span>'; }).join('') : '')
-      + (crew.length ? '<div class="sub-h">Crew</div>' + crew.map(function (c) { return '<span class="chip">' + esc(c) + '</span>'; }).join('') : '');
-    if (body) h += '<div class="body">' + body + '</div>';
-    h += '</div>';
-  } else {
-    h += '<div class="card"><div class="bhd">'
-      + (imgOK(card.photo) ? '<img class="bphoto" src="' + card.photo + '" alt="">' : '<div class="bdisc">' + esc(num || initials) + '</div>')
-      + '<div><div class="bname">' + esc(name) + '</div><div class="bmeta">' + meta + '</div></div></div>'
-      + ((bio || sponsors.length) ? '<div class="body" style="padding-top:0">' + (bio ? '<div>' + esc(bio) + '</div>' : '')
-          + sponsors.map(function (s) { return '<span class="chip">' + esc(s) + '</span>'; }).join('') + '</div>' : '')
-      + '</div>';
+  // Hero: the driver's header photo (Pro), else a generated team-color banner.
+  var banner = isPro && imgOK(card.header);
+  var h = '<div class="banner' + (banner ? '' : ' gen') + '"' + (banner ? ' style="background-image:url(\'' + card.header + '\')"' : '') + '>'
+    + (!banner && num ? '<div class="bignum">' + esc(num) + '</div>' : '') + '<div class="checker"></div></div>'
+    + '<div class="who">'
+    + (imgOK(card.photo) ? '<img class="avatar" src="' + card.photo + '" alt="">' : '<div class="avatar">' + esc(num || initials) + '</div>')
+    + '<div style="padding-bottom:6px;min-width:0"><div class="name">' + esc(name) + (isPro ? '<span class="badge">PRO</span>' : '') + '</div>'
+    + '<div class="cap meta">' + meta + '</div></div></div>'
+    + '<div class="actions"><button class="btn primary" onclick="shareLink()">Share profile</button></div>';
+
+  if (results.length) {
+    var r0 = results[0];
+    h += '<div class="latest"><span class="cap">Latest result · verified by the track</span>'
+      + '<div class="row"><div class="p">' + (r0.pos === 1 ? 'WIN' : 'P' + r0.pos) + '</div>'
+      + '<div><div class="t">' + esc(r0.cls) + ' · ' + esc(r0.track) + '</div>'
+      + '<div class="s">' + esc(fmtDate(r0.date)) + (r0.pts != null ? ' · +' + r0.pts + ' pts' : '') + '</div></div></div></div>';
   }
 
-  h += '<div class="slbl">Results</div><div class="card">';
+  h += '<div class="tiles">'
+    + '<div class="tile"><b>' + results.length + '</b><span class="cap">Starts</span></div>'
+    + '<div class="tile"><b>' + wins + '</b><span class="cap">Wins</span></div>'
+    + '<div class="tile"><b>' + top5 + '</b><span class="cap">Top 5</span></div>'
+    + '<div class="tile"><b>' + (results.length ? avg.toFixed(1) : '—') + '</b><span class="cap">Avg finish</span></div>'
+    + '</div>';
+
+  if (isPro && standings.length) {
+    h += '<div class="sec"><span class="cap">Points standings</span>' + standings.slice(0, 4).map(function (s) {
+      return '<div class="stand"><div class="rk">#' + s.rank + '</div><div><div class="t">' + esc(s.cls) + '</div>'
+        + '<div class="s">' + esc(s.track) + ' · ' + esc(s.season) + ' season · ' + s.pts + ' pts · of ' + s.of + ' drivers</div></div></div>';
+    }).join('') + '</div>';
+  }
+  if (isPro && results.length >= 2) h += '<div class="sec"><span class="cap">Season form</span>' + formChart(results) + '</div>';
+  var ms = isPro ? milestones(results) : [];
+  if (ms.length) h += '<div class="sec"><span class="cap">Milestones</span><div class="chips">' + ms.map(function (m) { return '<span class="chip"><i>★</i>' + esc(m) + '</span>'; }).join('') + '</div></div>';
+
+  h += '<div class="sec"><span class="cap">Results</span><div class="list">';
   if (!results.length) {
-    h += '<div class="empty">No results posted yet. Results appear here automatically when a RaceDay track publishes a race night.</div>';
+    h += '<div class="empty">No results posted yet. They appear here automatically when a RaceDay track publishes a race night.</div>';
   } else {
     h += results.slice(0, 50).map(function (r) {
       return '<div class="res"><div class="pos' + (r.pos === 1 ? ' p1' : '') + '">' + ord(r.pos) + '</div>'
-        + '<div><div class="t">' + esc(r.track) + '</div><div class="s">' + esc(r.cls) + ' · ' + esc(fmtDate(r.date)) + '</div></div>'
+        + '<div><div class="t">' + esc(r.cls) + '</div><div class="s">' + esc(r.track) + ' · ' + esc(fmtDate(r.date)) + '</div></div>'
         + '<div class="pts">' + (r.pts != null ? r.pts + ' pts' : '') + '</div></div>';
     }).join('');
   }
-  h += '</div>';
-  if (results.length) h += '<div class="verified">✓ Every result above was posted by the track\'s official RaceDay scoring.</div>';
+  h += '</div>' + (results.length ? '<div class="verified">✓ Every result was posted by the track\'s official RaceDay scoring.</div>' : '') + '</div>';
+
+  if (bio || highlights || crew.length) {
+    h += '<div class="sec"><span class="cap">About</span><div class="about">'
+      + (bio ? '<div>' + esc(bio) + '</div>' : '')
+      + (highlights ? '<span class="cap">Highlights</span><div>' + esc(highlights) + '</div>' : '')
+      + (crew.length ? '<span class="cap">Crew</span><div>' + crew.map(esc).join(' · ') + '</div>' : '')
+      + '</div></div>';
+  }
+  if (sponsors.length) {
+    h += '<div class="sec"><span class="cap">Sponsors</span><div class="sponsors">'
+      + sponsors.map(function (s) { return '<div class="sponsor">' + esc(s) + '</div>'; }).join('') + '</div></div>';
+  }
   show(h);
-  if (navigator.share || navigator.clipboard) document.getElementById('shareBtn').style.display = '';
 }
 
 function shareLink() {
   var url = location.href.split('#')[0];
   if (navigator.share) { navigator.share({ title: document.title, url: url }).catch(function () {}); return; }
-  navigator.clipboard.writeText(url).then(function () { alert('Link copied.'); }).catch(function () { prompt('Copy this link:', url); });
+  if (navigator.clipboard) navigator.clipboard.writeText(url).then(function () { alert('Link copied.'); }).catch(function () { prompt('Copy this link:', url); });
+  else prompt('Copy this link:', url);
 }
 
 (function init() {
@@ -239,13 +312,13 @@ function shareLink() {
     if (typeof profileId !== 'string' || !/^prof_[a-z0-9]{6,20}$/i.test(profileId)) { notFound('No driver uses the code ' + code + '.'); return; }
     return Promise.all([get('profiles/' + profileId + '/card'), get('profiles/' + profileId + '/entitlement'), loadResults(profileId)])
       .then(function (r) {
-        var card = r[0], ent = r[1], results = r[2] || [];
+        var card = r[0], ent = r[1], data = r[2] || { mine: [], standings: [] };
         if (!card || !card.name) { notFound("This driver hasn't published a profile yet."); return; }
         // Pro = a valid owner code on the card (recomputed here, never trusted as a flag)
         // OR an active server-written subscription entitlement.
         var isPro = premCheck(profileId, card.premiumCode)
           || !!(ent && ent.tier === 'pro' && (ent.status === 'active' || ent.status === 'trialing'));
-        render(profileId, card, isPro, results);
+        render(profileId, card, isPro, data);
       });
   }).catch(function () { show('<div class="msg"><h1>Couldn\'t load</h1>Check your connection and try again.</div>'); });
 })();
