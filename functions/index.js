@@ -275,6 +275,88 @@ exports.billingPortal = onRequest(
   }
 );
 
+// proCheckout — the ONLY way to start a Driven Pro subscription. Driven's "Get Pro"
+// buttons land here instead of on the raw Payment Links, because a Payment Link can be
+// opened (and paid) by anyone with the URL, with no profile attached — which is how a
+// real payment once ended up with no Pro to show for it. This endpoint refuses to start
+// a checkout unless the profileId is well-formed AND that profile has a published card,
+// sends an already-subscribed profile to the billing portal instead of a second
+// subscription, and creates the Checkout Session server-side with the profile baked in
+// (client_reference_id + subscription metadata). The old Payment Links are kept only as
+// the source of the Pro prices; deactivate them in Stripe so they can't be paid directly.
+const PRO_LINK_URLS = {
+  monthly: 'https://buy.stripe.com/00w3cxdwm3Nk1ATedIaMU04',
+  yearly: 'https://buy.stripe.com/aFa8wRfEu83A1DTglQaMU03',
+};
+let proPriceCache = null;
+async function proPriceId(stripe, period) {
+  if (!proPriceCache) {
+    const found = {};
+    for await (const link of stripe.paymentLinks.list({ limit: 100 })) {
+      for (const k of Object.keys(PRO_LINK_URLS)) {
+        if (link.url !== PRO_LINK_URLS[k]) continue;
+        const items = await stripe.paymentLinks.listLineItems(link.id, { limit: 1 });
+        const item = items.data[0];
+        if (item && item.price) found[k] = { price: item.price.id, managed: !!(link.managed_payments && link.managed_payments.enabled) };
+      }
+    }
+    proPriceCache = found;
+  }
+  return proPriceCache[period] || null;
+}
+function checkoutError(res, status, msg) {
+  res.status(status).set('Content-Type', 'text/html').send(
+    '<!doctype html><meta name="viewport" content="width=device-width,initial-scale=1">'
+    + '<body style="font-family:-apple-system,sans-serif;background:#0b0c10;color:#f5f6f8;padding:40px 20px;text-align:center">'
+    + '<h2>Can\'t start checkout</h2><p style="color:#8f939d">' + msg + '</p>'
+    + '<p><a style="color:#6aa5f0" href="https://victoryraceday.com/driven/">Back to Driven</a></p></body>');
+}
+exports.proCheckout = onRequest(
+  { secrets: [STRIPE_SECRET_KEY], cors: false },
+  async (req, res) => {
+    const profileId = String(req.query.profileId || '');
+    const period = String(req.query.period || '');
+    if (!/^prof_[a-z0-9]{6,20}$/i.test(profileId) || !PRO_LINK_URLS[period]) {
+      checkoutError(res, 400, 'Open Driven and tap Get Pro from your Card page.');
+      return;
+    }
+    const db = admin.database();
+    const [card, ent] = await Promise.all([
+      db.ref('profiles/' + profileId + '/card/name').once('value'),
+      db.ref('profiles/' + profileId + '/entitlement').once('value'),
+    ]);
+    if (!card.val()) {
+      checkoutError(res, 404, 'Publish your Driven card first (Card page → Publish my card), then try again.');
+      return;
+    }
+    const e = ent.val();
+    if (e && e.tier === 'pro' && (e.status === 'active' || e.status === 'trialing' || e.status === 'past_due')) {
+      res.redirect(303, 'https://us-central1-raceday-d32dd.cloudfunctions.net/billingPortal?profileId=' + encodeURIComponent(profileId));
+      return;
+    }
+    const stripe = new Stripe(STRIPE_SECRET_KEY.value());
+    const plan = await proPriceId(stripe, period);
+    if (!plan) {
+      logger.error('proCheckout: no price found for ' + period);
+      checkoutError(res, 503, 'Pro checkout is temporarily unavailable. Please try again later.');
+      return;
+    }
+    const params = {
+      mode: 'subscription',
+      line_items: [{ price: plan.price, quantity: 1 }],
+      client_reference_id: profileId,
+      subscription_data: { metadata: { profileId } },
+      success_url: 'https://victoryraceday.com/driven/?pro=1',
+      cancel_url: 'https://victoryraceday.com/driven/',
+    };
+    // Mirror the Payment Link's Managed Payments setting so tax/merchant handling matches.
+    if (plan.managed) params.managed_payments = { enabled: true };
+    const session = await stripe.checkout.sessions.create(params);
+    logger.info('proCheckout: session ' + session.id + ' for ' + profileId + ' (' + period + ')');
+    res.redirect(303, session.url);
+  }
+);
+
 const { cutoffDateStr } = require('./lib/pruneBackups');
 
 // Roughly two seasons of weekly backups. A starting default — no data is lost by
