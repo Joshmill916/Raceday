@@ -223,6 +223,63 @@
     .hero-num { font-size: 130px; }
     .hero-stats b { font-size: 27px; }
   }
+
+  /* ---- Broadcast screens (Home + Card) — same building blocks as the public driver
+     page (/d/index.html), so the app and the shared link read as one product. Applied
+     while body has .dp-dark (set by nav() on those two pages). ---- */
+  body.dp-dark { background: var(--ink-0); color: var(--td); }
+  body.dp-dark .page.active h2, body.dp-dark .page.active h3 { color: var(--td); }
+  body.dp-dark .page.active .sub, body.dp-dark .page.active .empty, body.dp-dark .page.active .pub-status { color: var(--td-mute); }
+  body.dp-dark .page.active .slbl { color: var(--td-mute); }
+  body.dp-dark .page.active .card { background: var(--ink-1); box-shadow: none; color: var(--td); }
+  body.dp-dark .page.active label { color: var(--td-mute); }
+  body.dp-dark .page.active input[type="text"] { background: var(--ink-2); border-color: var(--ink-3); color: var(--td); }
+  body.dp-dark .page.active .btn { background: transparent; color: var(--td); border-color: rgba(255,255,255,.22); text-decoration: none; }
+  body.dp-dark .page.active [style*="var(--muted)"] { color: var(--td-mute) !important; }
+  body.dp-dark .page.active .btn:hover { background: var(--ink-2); }
+  body.dp-dark .page.active .btn-primary, body.dp-dark .page.active .dp-team { background: var(--tc, var(--brand)); border-color: var(--tc, var(--brand)); color: #fff; }
+  body.dp-dark .page.active .btn-go { background: var(--brand); border-color: var(--brand); color: #fff; }
+  .dp-cap { font: 700 11.5px var(--display); letter-spacing: .12em; text-transform: uppercase; color: var(--td-mute); }
+  .dp-banner { position: relative; height: 180px; overflow: hidden; background: var(--ink-2) center/cover no-repeat; margin: -20px -20px 0; }
+  .dp-banner.gen { background: linear-gradient(115deg, var(--ink-2) 0 52%, var(--tc) 52% 58%, var(--ink-2) 58% 62%, var(--tc) 62% 64%, var(--ink-1) 64%); }
+  .dp-banner .bignum { position: absolute; right: 10px; bottom: -28px; font: italic 800 180px/1 var(--display); color: transparent; -webkit-text-stroke: 2px rgba(255,255,255,.18); letter-spacing: -.03em; }
+  .dp-banner .chk { position: absolute; left: 0; right: 0; bottom: 0; height: 8px; background: repeating-conic-gradient(#0b0c10 0% 25%, #e9eaee 0% 50%) 0 0/16px 16px; }
+  .dp-banner::after { content: ''; position: absolute; inset: 0; background: linear-gradient(180deg, transparent 45%, rgba(11,12,16,.75)); }
+  .dp-who { position: relative; display: flex; align-items: flex-end; gap: 14px; margin-top: -42px; z-index: 1; }
+  .dp-avatar { width: 88px; height: 88px; border-radius: 50%; flex: none; object-fit: cover; border: 4px solid var(--tc); background: var(--ink-3); display: flex; align-items: center; justify-content: center; font: 800 32px var(--display); color: #fff; }
+  .dp-name { font: 800 30px/0.95 var(--display); text-transform: uppercase; color: var(--td); }
+  .dp-badge { display: inline-block; margin-left: 6px; padding: 2px 7px; border-radius: 5px; background: var(--tc); color: #fff; font: 800 12px var(--display); letter-spacing: .12em; vertical-align: 5px; }
+  .dp-actions { display: flex; gap: 8px; margin-top: 14px; }
+  .dp-actions .btn { flex: 1; font: 700 14px var(--display); letter-spacing: .1em; text-transform: uppercase; }
+  .dp-latest { margin-top: 16px; background: var(--ink-1); border-left: 4px solid var(--plate-y, #ffc400); padding: 12px 14px; }
+  .dp-latest .row { display: flex; align-items: center; gap: 14px; margin-top: 4px; }
+  .dp-latest .p { font: 800 44px/1 var(--display); color: #ffc400; }
+  .dp-latest .t { font-size: 15px; font-weight: 600; color: var(--td); }
+  .dp-latest .s { font-size: 13px; color: var(--td-mute); margin-top: 2px; }
+  .dp-tiles { display: grid; grid-template-columns: repeat(4, 1fr); gap: 8px; margin-top: 12px; }
+  .dp-tile { background: var(--ink-1); border-radius: 12px; padding: 12px 4px 10px; text-align: center; color: var(--td); }
+  .dp-tile b { display: block; font: 800 27px/1 var(--display); font-variant-numeric: tabular-nums; margin-bottom: 4px; }
+  .dp-sec { margin-top: 22px; }
+  .dp-sec > .dp-cap { display: block; margin-bottom: 8px; }
+  .dp-form { background: var(--ink-1); border-radius: 12px; padding: 12px 14px 8px; }
+  .dp-form svg { display: block; width: 100%; height: 64px; }
+  .dp-chips { display: flex; flex-wrap: wrap; gap: 8px; }
+  .dp-chip { background: var(--ink-2); border: 1px solid var(--line-d); border-radius: 99px; padding: 7px 12px; font-size: 13px; font-weight: 600; color: var(--td); }
+  .dp-chip i { font-style: normal; color: #ffc400; margin-right: 5px; }
+  .dp-list { background: var(--ink-1); border-radius: 12px; overflow: hidden; }
+  .dp-res { display: grid; grid-template-columns: 50px 1fr auto; gap: 10px; align-items: center; padding: 11px 14px; border-top: 1px solid var(--line-d); color: var(--td); }
+  .dp-res:first-child { border-top: none; }
+  .dp-pos { font: 800 22px var(--display); text-align: center; }
+  .dp-pos.p1 { color: #ffc400; }
+  .dp-res .t { font-weight: 600; font-size: 14px; }
+  .dp-res .s { font-size: 12.5px; color: var(--td-mute); margin-top: 2px; }
+  .dp-res .pts { font: 700 14px var(--display); color: var(--td-mute); letter-spacing: .04em; }
+  .dp-about { background: var(--ink-1); border-radius: 12px; padding: 14px; font-size: 14.5px; line-height: 1.6; color: var(--td); }
+  .dp-about .dp-cap { display: block; margin: 12px 0 4px; }
+  .dp-about .dp-cap:first-child { margin-top: 0; }
+  .dp-sponsors { display: grid; grid-template-columns: repeat(auto-fill, minmax(140px, 1fr)); gap: 8px; }
+  .dp-sponsor { background: var(--td); color: var(--ink-1); border-radius: 10px; padding: 16px 10px; text-align: center; font: 800 15px var(--display); letter-spacing: .06em; text-transform: uppercase; }
+  .dp-empty { color: var(--td-mute); font-size: 14px; padding: 16px 14px; line-height: 1.5; }
 </style>
 </head>
 <body>
@@ -734,6 +791,7 @@ function nav(page) {
   document.querySelectorAll('.nav button').forEach(function (b) { b.classList.toggle('active', b.dataset.page === page); });
   document.querySelectorAll('.page').forEach(function (p) { p.classList.remove('active'); });
   $id('page-' + page).classList.add('active');
+  document.body.classList.toggle('dp-dark', page === 'home' || page === 'card');
   if (page === 'home') renderHome();
   if (page === 'card') renderCard();
   if (page === 'stats') renderStats();
@@ -759,38 +817,103 @@ function computeStats() {
 }
 
 /* ---------- Home ---------- */
-function renderHome() {
+/* ---------- Broadcast building blocks (Home + Card) ----------
+   Mirrors /d/index.html's sections so the app shows drivers exactly what the public
+   page shows fans. Works from local P (raceResults), not the published card. */
+function dpResults() {
+  return P.raceResults.filter(function (r) { return typeof r.position === 'number'; })
+    .map(function (r) { return { date: r.date || '', cls: r.class || '', pos: r.position, pts: typeof r.points === 'number' ? r.points : null, track: r.trackName || '' }; })
+    .sort(function (a, b) { return a.date < b.date ? 1 : a.date > b.date ? -1 : 0; });
+}
+function dpOrd(n) { var s = ['th', 'st', 'nd', 'rd'], v = n % 100; return n + (s[(v - 20) % 10] || s[v] || s[0]); }
+function dpDate(d) { var t = Date.parse(d + 'T12:00:00'); return isNaN(t) ? d : new Date(t).toLocaleDateString(undefined, { month: 'short', day: 'numeric', year: 'numeric' }); }
+function dpTeam() { var d = P.driver; return /^#[0-9a-fA-F]{6}$/.test(d.teamColor || '') ? d.teamColor : '#1f6fd6'; }
+function dpHero(isPro) {
   var d = P.driver;
-  var stats = computeStats();
-  var tc = /^#[0-9a-fA-F]{6}$/.test(d.teamColor || '') ? d.teamColor : '#1f6fd6';
   var initials = d.name.split(/\s+/).map(function (w) { return w[0] || ''; }).slice(0, 2).join('').toUpperCase();
-  var h = '<div class="hero bleed" style="--tc:' + tc + '">'
-    + (d.number ? '<div class="hero-num">' + esc(d.number) + '</div>' : '')
-    + '<div class="hero-main">'
-    + (photoOK(d.photo) ? '<img class="hero-photo" src="' + d.photo + '" alt="">'
-                        : '<div class="hero-disc">' + esc(d.number || initials) + '</div>')
-    + '<div><div class="hero-name">' + esc(d.name) + '</div>'
-    + '<div class="hero-meta">' + [d.number ? '#' + esc(d.number) : '', d.hometown ? esc(d.hometown) : '', d.aliases ? 'AKA ' + esc(d.aliases) : ''].filter(Boolean).join(' &nbsp;·&nbsp; ') + '</div></div>'
-    + '</div>'
-    + '<div class="hero-stats">'
-    + '<div><b>' + stats.total.races + '</b><span>Races</span></div>'
-    + '<div><b>' + stats.total.wins + '</b><span>Wins</span></div>'
-    + '<div><b>' + stats.total.podiums + '</b><span>Podiums</span></div>'
-    + '</div></div>';
+  var banner = isPro && photoOK(d.header);
+  var meta = [d.number ? '#' + esc(d.number) : '', d.hometown ? esc(d.hometown) : '', d.aliases ? 'AKA ' + esc(d.aliases) : ''].filter(Boolean).join(' · ');
+  return '<div class="dp-banner' + (banner ? '' : ' gen') + '"' + (banner ? ' style="background-image:url(\'' + d.header + '\')"' : '') + '>'
+    + (!banner && d.number ? '<div class="bignum">' + esc(d.number) + '</div>' : '') + '<div class="chk"></div></div>'
+    + '<div class="dp-who">'
+    + (photoOK(d.photo) ? '<img class="dp-avatar" src="' + d.photo + '" alt="">' : '<div class="dp-avatar">' + esc(d.number || initials) + '</div>')
+    + '<div style="padding-bottom:6px;min-width:0"><div class="dp-name">' + esc(d.name) + (isPro ? '<span class="dp-badge">PRO</span>' : '') + '</div>'
+    + '<div class="dp-cap" style="margin-top:6px">' + meta + '</div></div></div>';
+}
+function dpSummary(results, isPro) {
+  var h = '';
+  if (results.length) {
+    var r0 = results[0];
+    h += '<div class="dp-latest"><span class="dp-cap">Latest result' + (P.raceResults.some(function (r) { return r.source === 'raceday'; }) ? ' · verified by the track' : '') + '</span>'
+      + '<div class="row"><div class="p">' + (r0.pos === 1 ? 'WIN' : 'P' + r0.pos) + '</div>'
+      + '<div><div class="t">' + esc(r0.cls) + (r0.track ? ' · ' + esc(r0.track) : '') + '</div>'
+      + '<div class="s">' + esc(dpDate(r0.date)) + (r0.pts != null ? ' · +' + r0.pts + ' pts' : '') + '</div></div></div></div>';
+  }
+  var wins = results.filter(function (r) { return r.pos === 1; }).length;
+  var top5 = results.filter(function (r) { return r.pos <= 5; }).length;
+  var avg = results.length ? results.reduce(function (s, r) { return s + r.pos; }, 0) / results.length : 0;
+  h += '<div class="dp-tiles">'
+    + '<div class="dp-tile"><b>' + results.length + '</b><span class="dp-cap">Starts</span></div>'
+    + '<div class="dp-tile"><b>' + wins + '</b><span class="dp-cap">Wins</span></div>'
+    + '<div class="dp-tile"><b>' + top5 + '</b><span class="dp-cap">Top 5</span></div>'
+    + '<div class="dp-tile"><b>' + (results.length ? avg.toFixed(1) : '—') + '</b><span class="dp-cap">Avg finish</span></div></div>';
+  if (isPro && results.length >= 2) h += '<div class="dp-sec"><span class="dp-cap">Season form</span>' + dpForm(results) + '</div>';
+  var ms = isPro ? dpMilestones(results) : [];
+  if (ms.length) h += '<div class="dp-sec"><span class="dp-cap">Milestones</span><div class="dp-chips">' + ms.map(function (m) { return '<span class="dp-chip"><i>★</i>' + esc(m) + '</span>'; }).join('') + '</div></div>';
+  return h;
+}
+function dpMilestones(results) {
+  var out = [], chrono = results.slice().reverse();
+  var wins = results.filter(function (r) { return r.pos === 1; }).length;
+  var podiums = results.filter(function (r) { return r.pos <= 3; }).length;
+  var tracks = {}; results.forEach(function (r) { if (r.track) tracks[r.track] = 1; });
+  var streak = 0, best = 0; chrono.forEach(function (r) { streak = r.pos === 1 ? streak + 1 : 0; best = Math.max(best, streak); });
+  if (wins >= 1) out.push('First win');
+  if (best >= 3) out.push('Hat trick');
+  [100, 50, 25, 10].some(function (n) { if (wins >= n) { out.push(n + ' wins'); return true; } });
+  [100, 50, 25, 10].some(function (n) { if (podiums >= n) { out.push(n + ' podiums'); return true; } });
+  [250, 100, 50, 25, 10].some(function (n) { if (results.length >= n) { out.push(n + ' starts'); return true; } });
+  if (Object.keys(tracks).length >= 2) out.push(Object.keys(tracks).length + ' tracks');
+  return out;
+}
+function dpForm(results) {
+  var pts = results.slice(0, 12).reverse();
+  var worst = Math.max.apply(null, pts.map(function (r) { return r.pos; }).concat([5]));
+  var W = 300, H = 64, pad = 6;
+  var xy = pts.map(function (r, i) { return [pad + i * (W - pad * 2) / (pts.length - 1), pad + (r.pos - 1) * (H - pad * 2) / (worst - 1)]; });
+  var last = xy[xy.length - 1];
+  return '<div class="dp-form"><svg viewBox="0 0 ' + W + ' ' + H + '" preserveAspectRatio="none">'
+    + '<polyline points="' + xy.map(function (p) { return p[0].toFixed(1) + ',' + p[1].toFixed(1); }).join(' ') + '" fill="none" stroke="#ffc400" stroke-width="2.5" stroke-linejoin="round" vector-effect="non-scaling-stroke"/>'
+    + '<circle cx="' + last[0].toFixed(1) + '" cy="' + last[1].toFixed(1) + '" r="4" fill="#ffc400"/></svg>'
+    + '<div class="dp-cap" style="display:flex;justify-content:space-between;margin-top:4px"><span>' + esc(dpDate(pts[0].date)) + '</span><span>Latest: ' + dpOrd(pts[pts.length - 1].pos) + '</span></div></div>';
+}
+function dpResultsList(results, limit) {
+  if (!results.length) return '<div class="dp-list"><div class="dp-empty">No results yet. Once a track shares results with your profile, they show up here.</div></div>';
+  return '<div class="dp-list">' + results.slice(0, limit).map(function (r) {
+    return '<div class="dp-res"><div class="dp-pos' + (r.pos === 1 ? ' p1' : '') + '">' + dpOrd(r.pos) + '</div>'
+      + '<div><div class="t">' + esc(r.cls) + '</div><div class="s">' + esc([r.track, dpDate(r.date)].filter(Boolean).join(' · ')) + '</div></div>'
+      + '<div class="pts">' + (r.pts != null ? r.pts + ' pts' : '') + '</div></div>';
+  }).join('') + '</div>';
+}
 
+function renderHome() {
+  document.body.classList.add('dp-dark');
+  var isPro = tierAtLeast('pro'), results = dpResults();
+  var page = $id('page-home');
+  page.style.setProperty('--tc', dpTeam());
+  var h = dpHero(isPro)
+    + '<div class="dp-actions">'
+    + (P.publishedAt && P.shortCode
+        ? '<button class="btn btn-primary" onclick="sharePublicPage()">Share my page</button><a class="btn" href="' + esc(publicPageUrl()) + '" target="_blank" rel="noopener">View</a>'
+        : '<button class="btn btn-primary" onclick="publishNow()">Publish my card</button>')
+    + '</div>';
   if (!P.linkedTracks.length) {
-    h += '<div class="card"><h3>Link your first track</h3><p class="empty">Scan the QR code at RaceDay sign-up (or import results below) to start tracking your record.</p>'
-      + '<button class="btn btn-primary" onclick="nav(\'link\')">' + icon('link') + ' Go to Link page</button></div>';
+    h += '<div class="card" style="margin-top:16px"><h3>Link your first track</h3><p class="empty">Give your link code at RaceDay sign-up (or import results) to start building your record.</p>'
+      + '<button class="btn btn-go btn-block" onclick="nav(\'link\')">' + icon('link') + ' Go to Link page</button></div>';
   }
-
-  var sorted = P.raceResults.slice().sort(function (a, b) { return (b.date || '').localeCompare(a.date || ''); });
-  h += '<div class="slbl">Recent races</div>';
-  if (!sorted.length) {
-    h += '<p class="empty">No results yet. Once a track shares results with your profile, they\'ll show up here.</p>';
-  } else {
-    h += '<div class="hb">' + sorted.slice(0, 15).map(feedRow).join('') + '</div>';
-  }
-  $id('page-home').innerHTML = h;
+  h += dpSummary(results, isPro)
+    + '<div class="dp-sec"><span class="dp-cap">Recent races</span>' + dpResultsList(results, 15) + '</div>';
+  page.innerHTML = h;
 }
 
 function feedRow(r) {
@@ -806,53 +929,28 @@ function feedRow(r) {
 /* ---------- Card ---------- */
 function photoOK(src) { return typeof src === 'string' && /^data:image\/(png|jpe?g);base64,[A-Za-z0-9+/=]+$/.test(src); }
 function renderCard() {
+  document.body.classList.add('dp-dark');
   var d = P.driver;
-  var initials = d.name.split(/\s+/).map(function (w) { return w[0] || ''; }).slice(0, 2).join('').toUpperCase();
-  var stats = computeStats();
-  var isPro = tierAtLeast('pro');
-  var h = '<h2>Your Card</h2><p class="sub">This is what tracks and fans see'
-    + (currentTier().paid ? ' — <span class="prem-badge">' + esc(currentTier().label) + '</span>' : '') + '.</p>';
-
-  if (isPro) {
-    var team = /^#[0-9a-fA-F]{6}$/.test(d.teamColor || '') ? d.teamColor : '#1f6fd6';
-    h += '<div class="pcard" style="--pc-team:' + team + '">'
-      + '<div class="pcard-hd">'
-      + (d.number ? '<div class="pcard-num">' + esc(d.number) + '</div>' : '')
-      + (photoOK(d.photo) ? '<img class="pcard-photo" src="' + d.photo + '" alt="">'
-                          : '<div class="pcard-disc">' + esc(d.number || '?') + '</div>')
-      + '<div><div class="nm">' + esc(d.name) + '</div>'
-      + '<div class="meta">' + [d.number ? '#' + esc(d.number) : '', d.hometown ? esc(d.hometown) : '', d.aliases ? 'AKA ' + esc(d.aliases) : ''].filter(Boolean).join(' &nbsp;·&nbsp; ') + '</div></div>'
-      + '</div><div class="pcard-checker"></div>'
-      + '<div class="pcard-stats">'
-      + '<div class="pcard-stat"><b>' + stats.total.races + '</b><span>Races</span></div>'
-      + '<div class="pcard-stat"><b>' + stats.total.wins + '</b><span>Wins</span></div>'
-      + '<div class="pcard-stat"><b>' + stats.total.podiums + '</b><span>Podiums</span></div>'
-      + '</div>'
-      + '<div class="pcard-body">'
-      + (d.bio ? '<div style="line-height:1.6;margin-bottom:8px">' + esc(d.bio) + '</div>' : '')
-      + (d.highlights ? '<div style="line-height:1.6;margin-bottom:8px">' + esc(d.highlights) + '</div>' : '')
-      + (P.sponsors.length ? P.sponsors.map(function (s) { return '<span class="sponsor-chip">' + esc(s.name) + '</span>'; }).join('') : '')
-      + (P.crew.length ? P.crew.map(function (c) { return '<span class="sponsor-chip">' + esc(c.name) + '</span>'; }).join('') : '')
-      + '</div></div>';
-  } else {
-    h += '<div class="bcard">'
-      + '<div class="bcard-hd">'
-      + (photoOK(d.photo) ? '<img class="bcard-photo" src="' + d.photo + '" alt="">'
-                          : '<div class="bcard-disc">' + esc(d.number || initials) + '</div>')
-      + '<div><div class="bcard-name">' + esc(d.name) + '</div>'
-      + '<div class="bcard-meta">' + [d.number ? '#' + esc(d.number) : '', d.age ? 'Age ' + d.age : '', d.hometown ? esc(d.hometown) : '', d.aliases ? 'AKA ' + esc(d.aliases) : ''].filter(Boolean).join(' &nbsp;·&nbsp; ') + '</div></div>'
-      + '</div>'
-      + '<div class="bcard-body">'
-      + (d.bio ? '<div class="prof-bio">' + esc(d.bio) + '</div>' : '<div class="prof-bio placeholder">No bio yet — add one in Settings.</div>')
-      + '<div class="slbl">Highlights</div>'
-      + (d.highlights ? '<div class="prof-bio">' + esc(d.highlights) + '</div>' : '<p class="empty" style="padding:4px 0 0">No highlights added yet.</p>')
-      + '<div class="slbl">Sponsors</div>'
-      + (P.sponsors.length ? P.sponsors.map(function (s) { return '<span class="sponsor-chip">' + esc(s.name) + '</span>'; }).join('') : '<p class="empty" style="padding:4px 0 0">No sponsors added yet.</p>')
-      + '<div class="slbl">Crew</div>'
-      + (P.crew.length ? P.crew.map(function (c) { return '<span class="sponsor-chip">' + esc(c.name) + '</span>'; }).join('') : '<p class="empty" style="padding:4px 0 0">No crew added yet.</p>')
-      + '<button class="btn btn-block" onclick="nav(\'settings\')" style="margin-top:16px">Edit profile</button>'
+  var isPro = tierAtLeast('pro'), results = dpResults();
+  $id('page-card').style.setProperty('--tc', dpTeam());
+  var crew = P.crew.map(function (c) { return c.name; });
+  // Preview of the public page — what fans and sponsors see from the shared link.
+  var h = dpHero(isPro)
+    + '<p class="sub" style="margin:14px 0 0">This is what fans see on your public page'
+    + (currentTier().paid ? ' — <span class="prem-badge">' + esc(currentTier().label) + '</span>' : '') + '.</p>'
+    + dpSummary(results, isPro);
+  if (d.bio || d.highlights || crew.length) {
+    h += '<div class="dp-sec"><span class="dp-cap">About</span><div class="dp-about">'
+      + (d.bio ? '<div>' + esc(d.bio) + '</div>' : '')
+      + (d.highlights ? '<span class="dp-cap">Highlights</span><div>' + esc(d.highlights) + '</div>' : '')
+      + (crew.length ? '<span class="dp-cap">Crew</span><div>' + crew.map(esc).join(' · ') + '</div>' : '')
       + '</div></div>';
   }
+  if (P.sponsors.length) {
+    h += '<div class="dp-sec"><span class="dp-cap">Sponsors</span><div class="dp-sponsors">'
+      + P.sponsors.map(function (s) { return '<div class="dp-sponsor">' + esc(s.name) + '</div>'; }).join('') + '</div></div>';
+  }
+  h += '<button class="btn btn-block" onclick="nav(\'settings\')" style="margin:16px 0 22px">Edit profile</button>';
 
   // Publish to tracks
   h += '<div class="card"><div class="slbl">Share with tracks</div>'
