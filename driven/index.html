@@ -241,17 +241,17 @@
   body.dp-dark .page.active .btn-go { background: var(--brand); border-color: var(--brand); color: #fff; }
   .dp-cap { font: 700 11.5px var(--display); letter-spacing: .12em; text-transform: uppercase; color: var(--td-mute); }
   .dp-banner { position: relative; height: 180px; overflow: hidden; background: var(--ink-2) center/cover no-repeat; margin: -20px -20px 0; }
-  .dp-banner.gen { background: linear-gradient(115deg, var(--ink-2) 0 52%, var(--tc) 52% 58%, var(--ink-2) 58% 62%, var(--tc) 62% 64%, var(--ink-1) 64%); }
+  .dp-banner.gen { background: linear-gradient(115deg, var(--ink-2) 0 50%, var(--tc) 50% 57%, var(--ink-2) 57% 59%, var(--tc2, var(--tc)) 59% 62.5%, var(--ink-2) 62.5% 64%, var(--tc3, var(--tc)) 64% 65.5%, var(--ink-1) 65.5%); }
   .dp-banner .bignum { position: absolute; right: 10px; bottom: -28px; font: italic 800 180px/1 var(--display); color: transparent; -webkit-text-stroke: 2px rgba(255,255,255,.18); letter-spacing: -.03em; }
   .dp-banner .chk { position: absolute; left: 0; right: 0; bottom: 0; height: 8px; background: repeating-conic-gradient(#0b0c10 0% 25%, #e9eaee 0% 50%) 0 0/16px 16px; }
   .dp-banner::after { content: ''; position: absolute; inset: 0; background: linear-gradient(180deg, transparent 45%, rgba(11,12,16,.75)); }
   .dp-who { position: relative; display: flex; align-items: flex-end; gap: 14px; margin-top: -42px; z-index: 1; }
-  .dp-avatar { width: 88px; height: 88px; border-radius: 50%; flex: none; object-fit: cover; border: 4px solid var(--tc); background: var(--ink-3); display: flex; align-items: center; justify-content: center; font: 800 32px var(--display); color: #fff; }
+  .dp-avatar { width: 88px; height: 88px; border-radius: 50%; flex: none; object-fit: cover; border: 4px solid var(--tc); box-shadow: 0 0 0 3px var(--tc2, var(--tc)); background: var(--ink-3); display: flex; align-items: center; justify-content: center; font: 800 32px var(--display); color: #fff; }
   .dp-name { font: 800 30px/0.95 var(--display); text-transform: uppercase; color: var(--td); }
   .dp-badge { display: inline-block; margin-left: 6px; padding: 2px 7px; border-radius: 5px; background: var(--tc); color: #fff; font: 800 12px var(--display); letter-spacing: .12em; vertical-align: 5px; }
   .dp-actions { display: flex; gap: 8px; margin-top: 14px; }
   .dp-actions .btn { flex: 1; font: 700 14px var(--display); letter-spacing: .1em; text-transform: uppercase; }
-  .dp-latest { margin-top: 16px; background: var(--ink-1); border-left: 4px solid var(--plate-y, #ffc400); padding: 12px 14px; }
+  .dp-latest { margin-top: 16px; background: var(--ink-1); border-left: 4px solid var(--tc2, #ffc400); padding: 12px 14px; }
   .dp-latest .row { display: flex; align-items: center; gap: 14px; margin-top: 4px; }
   .dp-latest .p { font: 800 44px/1 var(--display); color: #ffc400; }
   .dp-latest .t { font-size: 15px; font-weight: 600; color: var(--td); }
@@ -382,6 +382,8 @@ function migrate(p) {
   p.driver = p.driver || {};
   if (p.driver.number == null) p.driver.number = '';
   if (p.driver.teamColor == null) p.driver.teamColor = '';
+  if (p.driver.teamColor2 == null) p.driver.teamColor2 = '';
+  if (p.driver.teamColor3 == null) p.driver.teamColor3 = '';
   if (p.driver.aliases == null) p.driver.aliases = '';
   if (p.driver.highlights == null) p.driver.highlights = '';
   if (!Array.isArray(p.crew)) p.crew = [];
@@ -583,6 +585,10 @@ function cardPayload() {
     hometown: d.hometown || '',
     sponsors: P.sponsors.map(function (s) { return s.name; }).join(' · '),
     teamColor: /^#[0-9a-fA-F]{6}$/.test(d.teamColor || '') ? d.teamColor : '',
+    // Pro accent colors (primary stays teamColor). Free cards send '' so a lapsed Pro
+    // profile drops back to the single-color look on the public page.
+    teamColor2: tierAtLeast('pro') && /^#[0-9a-fA-F]{6}$/.test(d.teamColor2 || '') ? d.teamColor2 : '',
+    teamColor3: tierAtLeast('pro') && /^#[0-9a-fA-F]{6}$/.test(d.teamColor3 || '') ? d.teamColor3 : '',
     photo: d.photo || '',
     premiumCode: tierAtLeast('pro') ? (P.premiumCode || localPremiumCode(P.profileId)) : '',
     // Public driver page (/d/?CODE) fields. RaceDay's sanitizeProfileCard() whitelists
@@ -602,7 +608,7 @@ function cardPayload() {
 // Mirrors cardPayload()'s string fields WITHOUT the firebase timestamp sentinel, so it
 // can run before the SDK loads. updatedAt is numeric (no length cap) so it's not checked.
 var CARD_CAPS = { name: 40, num: 8, age: 8, hometown: 60, sponsors: 160, photo: 80000, premiumCode: 40,
-                  aliases: 60, bio: 300, highlights: 300, crew: 160, header: 140000 };
+                  aliases: 60, bio: 300, highlights: 300, crew: 160, header: 140000, teamColor2: 7, teamColor3: 7 };
 function cardStrings() {
   if (!P || !P.driver) return {};
   var d = P.driver;
@@ -611,12 +617,14 @@ function cardStrings() {
     hometown: d.hometown || '', sponsors: P.sponsors.map(function (s) { return s.name; }).join(' · '),
     photo: d.photo || '', premiumCode: tierAtLeast('pro') ? (P.premiumCode || localPremiumCode(P.profileId)) : '',
     aliases: d.aliases || '', bio: d.bio || '', highlights: d.highlights || '',
-    crew: P.crew.map(function (c) { return c.name; }).join(', '), header: tierAtLeast('pro') ? (d.header || '') : ''
+    crew: P.crew.map(function (c) { return c.name; }).join(', '), header: tierAtLeast('pro') ? (d.header || '') : '',
+    teamColor2: tierAtLeast('pro') ? (d.teamColor2 || '') : '', teamColor3: tierAtLeast('pro') ? (d.teamColor3 || '') : ''
   };
 }
 function cardTooLong() {
   var c = cardStrings(), labels = { name: 'Name', num: 'Number', age: 'Age', hometown: 'Hometown', sponsors: 'Sponsors', photo: 'Photo', premiumCode: 'Premium code',
-                                      aliases: 'Also known as', bio: 'Bio', highlights: 'Highlights', crew: 'Crew', header: 'Header photo' };
+                                      aliases: 'Also known as', bio: 'Bio', highlights: 'Highlights', crew: 'Crew', header: 'Header photo',
+                                      teamColor2: 'Accent color 1', teamColor3: 'Accent color 2' };
   for (var k in CARD_CAPS) {
     if (typeof c[k] === 'string' && c[k].length > CARD_CAPS[k]) {
       return labels[k] + ' is too long (' + c[k].length + '/' + CARD_CAPS[k] + ' characters) — shorten it so your card can publish.';
@@ -828,6 +836,14 @@ function dpResults() {
 function dpOrd(n) { var s = ['th', 'st', 'nd', 'rd'], v = n % 100; return n + (s[(v - 20) % 10] || s[v] || s[0]); }
 function dpDate(d) { var t = Date.parse(d + 'T12:00:00'); return isNaN(t) ? d : new Date(t).toLocaleDateString(undefined, { month: 'short', day: 'numeric', year: 'numeric' }); }
 function dpTeam() { var d = P.driver; return /^#[0-9a-fA-F]{6}$/.test(d.teamColor || '') ? d.teamColor : '#1f6fd6'; }
+// Primary + two accent colors. Accents are Pro-only; free (or unset) falls back to the
+// primary, which renders the original single-color look.
+function dpApplyColors(el, isPro) {
+  var d = P.driver, c1 = dpTeam(), ok = function (c) { return /^#[0-9a-fA-F]{6}$/.test(c || ''); };
+  el.style.setProperty('--tc', c1);
+  el.style.setProperty('--tc2', isPro && ok(d.teamColor2) ? d.teamColor2 : c1);
+  el.style.setProperty('--tc3', isPro && ok(d.teamColor3) ? d.teamColor3 : c1);
+}
 function dpHero(isPro) {
   var d = P.driver;
   var initials = d.name.split(/\s+/).map(function (w) { return w[0] || ''; }).slice(0, 2).join('').toUpperCase();
@@ -900,7 +916,7 @@ function renderHome() {
   document.body.classList.add('dp-dark');
   var isPro = tierAtLeast('pro'), results = dpResults();
   var page = $id('page-home');
-  page.style.setProperty('--tc', dpTeam());
+  dpApplyColors(page, isPro);
   var h = dpHero(isPro)
     + '<div class="dp-actions">'
     + (P.publishedAt && P.shortCode
@@ -932,7 +948,7 @@ function renderCard() {
   document.body.classList.add('dp-dark');
   var d = P.driver;
   var isPro = tierAtLeast('pro'), results = dpResults();
-  $id('page-card').style.setProperty('--tc', dpTeam());
+  dpApplyColors($id('page-card'), isPro);
   var crew = P.crew.map(function (c) { return c.name; });
   // Preview of the public page — what fans and sponsors see from the shared link.
   var h = dpHero(isPro)
@@ -1081,7 +1097,15 @@ function renderSettings() {
     + '<label>Also known as (comma-separated)</label><input type="text" id="stAliases" value="' + esc(d.aliases || '') + '" maxlength="60" placeholder="Junior, J-Miller">'
     + '<label>Email</label><input type="email" id="stEmail" value="' + esc(d.email) + '" maxlength="80">'
     + '<label>Car number</label><input type="text" id="stNumber" value="' + esc(d.number || '') + '" maxlength="5" placeholder="e.g. 47 or 12A" autocapitalize="characters">'
-    + '<label>Team color</label><input type="color" id="stTeamColor" value="' + esc(/^#[0-9a-fA-F]{6}$/.test(d.teamColor || '') ? d.teamColor : '#1f6fd6') + '" style="height:44px;padding:4px">'
+    + (tierAtLeast('pro')
+        ? '<label>Team colors — primary, then two accents (Pro)</label><div style="display:flex;gap:8px">'
+          + ['stTeamColor', 'stTeamColor2', 'stTeamColor3'].map(function (id, i) {
+              var v = [d.teamColor, d.teamColor2, d.teamColor3][i];
+              var fallback = ['#1f6fd6', '#ffc400', '#f5f6f8'][i];
+              return '<input type="color" id="' + id + '" value="' + esc(/^#[0-9a-fA-F]{6}$/.test(v || '') ? v : fallback) + '" style="height:44px;padding:4px;flex:1">';
+            }).join('') + '</div>'
+        : '<label>Team color</label><input type="color" id="stTeamColor" value="' + esc(/^#[0-9a-fA-F]{6}$/.test(d.teamColor || '') ? d.teamColor : '#1f6fd6') + '" style="height:44px;padding:4px">'
+          + '<p class="sub" style="margin:6px 0 0">Pro adds two accent colors to your banner and card.</p>')
     + '<label>Driver photo</label>'
     + '<div style="display:flex;gap:10px;align-items:center">'
     + (photoOK(d.photo) ? '<img src="' + d.photo + '" style="width:44px;height:44px;border-radius:50%;object-fit:cover">' : '')
@@ -1145,6 +1169,11 @@ function saveProfileFields() {
   P.driver.number = ($id('stNumber').value || '').trim().toUpperCase().slice(0, 5);
   var col = $id('stTeamColor').value;
   P.driver.teamColor = /^#[0-9a-fA-F]{6}$/.test(col) ? col : '';
+  // Accent pickers only render for Pro; leave stored accents untouched otherwise.
+  ['teamColor2', 'teamColor3'].forEach(function (k, i) {
+    var el = $id(i ? 'stTeamColor3' : 'stTeamColor2');
+    if (el) P.driver[k] = /^#[0-9a-fA-F]{6}$/.test(el.value) ? el.value : '';
+  });
   P.driver.hometown = ($id('stHometown').value || '').trim();
   var ageVal = $id('stAge').value;
   P.driver.age = ageVal ? parseInt(ageVal, 10) : null;
