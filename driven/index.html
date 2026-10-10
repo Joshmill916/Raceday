@@ -586,6 +586,13 @@ function publishCard(silent) {
   });
 }
 function publishNow() { publishCard(false).catch(function () {}); }
+function publicPageUrl() { return new URL('../d/?' + encodeURIComponent(P.shortCode), location.href).href; }
+function sharePublicPage() {
+  var url = publicPageUrl();
+  if (navigator.share) { navigator.share({ title: P.driver.name + ' — Driven', url: url }).catch(function () {}); return; }
+  if (navigator.clipboard) navigator.clipboard.writeText(url).then(function () { alert('Link copied.'); }).catch(function () { prompt('Copy this link:', url); });
+  else prompt('Copy this link:', url);
+}
 
 /* ---------- Onboarding ---------- */
 function openOnboarding() { $id('onboardModal').style.display = 'flex'; }
@@ -838,6 +845,19 @@ function renderCard() {
     + '<button class="btn btn-primary btn-block" onclick="publishNow()">' + (P.publishedAt ? icon('refresh') + ' Update published card' : icon('broadcast') + ' Publish my card') + '</button>'
     + (P.publishedAt ? '<div class="pub-status">Published · link code <b>' + esc(P.shortCode) + '</b> · updated ' + new Date(P.publishedAt).toLocaleString() + '</div>' : '')
     + '</div>';
+
+  // Public driver page (/d/?CODE) — the shareable link for fans and sponsors. Reads the
+  // published card, so it only exists once the card has been published.
+  if (P.publishedAt && P.shortCode) {
+    h += '<div class="card"><div class="slbl">Your public page</div>'
+      + '<p class="sub" style="margin-bottom:10px">Share this link on Facebook or with sponsors — anyone can open it, no app needed.'
+      + (isPro ? '' : ' Pro adds the broadcast look, header photo and full stats.') + '</p>'
+      + '<div class="pub-status" style="word-break:break-all;margin:0 0 10px">' + esc(publicPageUrl()) + '</div>'
+      + '<div style="display:flex;gap:8px">'
+      + '<a class="btn" style="flex:1;text-align:center" href="' + esc(publicPageUrl()) + '" target="_blank" rel="noopener">View</a>'
+      + '<button class="btn btn-primary" style="flex:1" onclick="sharePublicPage()">' + (navigator.share ? 'Share' : 'Copy link') + '</button>'
+      + '</div></div>';
+  }
 
   // Tier upsell / status. Driven by the TIERS registry, so adding a tier later means
   // adding a registry entry (and its copy below), not restructuring this.

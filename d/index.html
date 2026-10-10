@@ -1,0 +1,254 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Driver Profile — Driven</title>
+<meta name="description" content="A driver's racing profile on Driven — results posted by the tracks themselves.">
+<link href="https://fonts.googleapis.com/css2?family=Saira+Condensed:wght@600;700;800&display=swap" rel="stylesheet">
+<link rel="icon" type="image/png" sizes="512x512" href="../driven/icon-driven.png">
+<meta name="theme-color" content="#12141a">
+<style>
+  /* Public driver page — what a fan or sponsor sees from a shared link
+     (victoryraceday.com/d/?CODE). Read-only: everything comes from the driver's
+     PUBLISHED card (profiles/<id>/card) and track-published results, fetched over the
+     Firebase REST API (no SDK, no account). Tokens mirror driven/index.html. */
+  :root {
+    --ink-0: #0b0c10; --ink-1: #12141a; --ink-2: #1a1d25; --ink-3: #242834;
+    --line-d: rgba(255,255,255,.09); --td: #f5f6f8; --td-mute: #8f939d;
+    --bg: #eef0f3; --surface: #ffffff; --ink: #14161a; --muted: #666b74; --line: #e3e5e9;
+    --brand: #1f6fd6; --gold: #d9980f;
+    --display: 'Saira Condensed', 'Arial Narrow', sans-serif;
+    --body: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+  }
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body { font-family: var(--body); background: var(--bg); color: var(--ink); min-height: 100vh; }
+  .wrap { max-width: 560px; margin: 0 auto; padding: 16px 16px 40px; }
+  .top { display: flex; align-items: center; justify-content: space-between; padding: 4px 2px 14px; }
+  .brand { font-family: var(--display); font-weight: 800; font-size: 19px; letter-spacing: .16em; text-transform: uppercase; color: var(--ink); text-decoration: none; border-bottom: 3px solid var(--brand); padding-bottom: 2px; }
+  .share-btn { font: 700 13px var(--display); letter-spacing: .08em; text-transform: uppercase; border: 1.5px solid var(--line); background: var(--surface); color: var(--ink); border-radius: 99px; padding: 7px 14px; cursor: pointer; }
+
+  .card { background: var(--surface); border-radius: 16px; box-shadow: 0 1px 3px rgba(15,18,26,.07); overflow: hidden; margin-bottom: 14px; }
+  .slbl { font-family: var(--display); font-size: 12.5px; font-weight: 700; color: #5b606a; text-transform: uppercase; letter-spacing: .12em; margin: 22px 2px 10px; }
+  .body { padding: 16px 20px 18px; font-size: 14.5px; line-height: 1.6; }
+  .chip { display: inline-block; padding: 5px 12px; border-radius: 99px; border: 1.5px solid var(--line); font-size: 13px; font-weight: 600; margin: 4px 6px 0 0; }
+  .empty { color: var(--muted); font-size: 14px; padding: 18px 20px; }
+
+  /* Basic (free) header */
+  .bhd { display: flex; align-items: center; gap: 15px; padding: 20px; }
+  .bphoto, .bdisc { width: 72px; height: 72px; border-radius: 50%; flex: none; object-fit: cover; background: #e7e9ee; }
+  .bdisc { background: var(--ink-1); color: #fff; display: flex; align-items: center; justify-content: center; font: 800 27px var(--display); }
+  .bname { font: 800 28px/0.98 var(--display); text-transform: uppercase; }
+  .bmeta { margin-top: 6px; font: 700 13px var(--display); text-transform: uppercase; letter-spacing: .07em; color: var(--muted); }
+
+  /* Pro broadcast header */
+  .pro { background: var(--ink-1); color: var(--td); box-shadow: 0 18px 44px rgba(8,10,16,.3); }
+  .banner { height: 150px; background: var(--ink-2) center/cover no-repeat; position: relative; }
+  .banner::after { content: ''; position: absolute; inset: 0; background: linear-gradient(180deg, transparent 40%, rgba(18,20,26,.85)); }
+  .phd { position: relative; overflow: hidden; display: flex; align-items: center; gap: 16px; padding: 22px 20px 22px; border-bottom: 3px solid var(--team, var(--brand));
+         background: linear-gradient(135deg, var(--ink-2), var(--ink-1)); }
+  .pro.has-banner .phd { margin-top: -46px; background: transparent; padding-top: 0; }
+  .pnum { position: absolute; top: -14px; right: -4px; font: italic 800 120px/1 var(--display); letter-spacing: -.02em; color: transparent;
+          -webkit-text-stroke: 2px color-mix(in srgb, var(--team, var(--brand)) 55%, transparent); opacity: .55; pointer-events: none; }
+  .pro.has-banner .pnum { display: none; }
+  .pphoto, .pdisc { position: relative; width: 84px; height: 84px; border-radius: 50%; flex: none; object-fit: cover; border: 3px solid var(--team, var(--brand)); background: #000; }
+  .pdisc { background: var(--ink-3); color: #fff; display: flex; align-items: center; justify-content: center; font: 800 32px var(--display); }
+  .pname { position: relative; font: 800 32px/0.96 var(--display); text-transform: uppercase; }
+  .pmeta { position: relative; margin-top: 7px; font: 700 13px var(--display); text-transform: uppercase; letter-spacing: .08em; color: var(--td-mute); }
+  .badge { display: inline-block; margin-left: 8px; padding: 2px 8px; border-radius: 6px; background: var(--team, var(--brand)); color: #fff; font: 800 11px var(--display); letter-spacing: .12em; vertical-align: 3px; }
+  .checker { height: 7px; background: repeating-conic-gradient(#0b0c10 0% 25%, #e9eaee 0% 50%) 0 0/14px 14px; }
+  .stats { display: grid; grid-template-columns: repeat(4, 1fr); border-bottom: 1px solid var(--line-d); }
+  .stat { padding: 14px 4px 15px; text-align: center; border-left: 1px solid var(--line-d); }
+  .stat:first-child { border-left: none; }
+  .stat b { display: block; font: 800 26px/1 var(--display); font-variant-numeric: tabular-nums; }
+  .stat span { font-size: 10px; text-transform: uppercase; letter-spacing: .12em; color: var(--td-mute); font-weight: 600; }
+  .pro .body { color: var(--td); }
+  .pro .chip { border-color: rgba(255,255,255,.22); color: var(--td); }
+  .pro .sub-h { font: 700 12px var(--display); letter-spacing: .12em; text-transform: uppercase; color: var(--td-mute); margin: 12px 0 2px; }
+
+  /* Results */
+  .res { display: grid; grid-template-columns: 54px 1fr auto; gap: 12px; align-items: center; padding: 12px 18px; border-top: 1px solid var(--line); }
+  .res:first-child { border-top: none; }
+  .pos { font: 800 24px var(--display); text-align: center; }
+  .pos.p1 { color: var(--gold); }
+  .res .t { font-weight: 600; font-size: 14.5px; }
+  .res .s { font-size: 12.5px; color: var(--muted); margin-top: 2px; }
+  .res .pts { font: 700 14px var(--display); color: var(--muted); letter-spacing: .04em; }
+  .verified { font-size: 12px; color: var(--muted); padding: 0 2px; }
+
+  .msg { text-align: center; padding: 60px 20px; color: var(--muted); }
+  .msg h1 { font: 800 28px var(--display); text-transform: uppercase; color: var(--ink); margin-bottom: 8px; }
+  .foot { text-align: center; margin-top: 26px; font-size: 13px; color: var(--muted); line-height: 1.7; }
+  .foot a { color: var(--brand); font-weight: 600; text-decoration: none; }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <div class="top">
+    <a class="brand" href="../driven/">Driven</a>
+    <button class="share-btn" id="shareBtn" onclick="shareLink()" style="display:none">Share</button>
+  </div>
+  <div id="app"><div class="msg">Loading profile…</div></div>
+  <div class="foot">
+    Results on Driven are posted by the tracks themselves — drivers can't type them in.<br>
+    <a href="../driven/">Make your own driver profile — free</a> · <a href="../">RaceDay for tracks</a>
+  </div>
+</div>
+<script>
+var DB = 'https://raceday-d32dd-default-rtdb.firebaseio.com';
+// Must match driven/index.html + raceday/index.html EXACTLY (see CLAUDE.md "Premium").
+var PREM_SALT = 'rd-prem-7t4mq2xz-2026';
+function pHash(str) {
+  function fnv(s, seed) {
+    var h = seed >>> 0;
+    for (var i = 0; i < s.length; i++) { h ^= s.charCodeAt(i); h = Math.imul(h, 16777619) >>> 0; }
+    return ('0000000' + h.toString(36).toUpperCase()).slice(-7);
+  }
+  return fnv(str, 2166136261) + fnv(str + '#2', 2166136261);
+}
+function premCheck(profileId, code) {
+  var parts = String(code || '').trim().toUpperCase().split('-');
+  if (parts.length !== 3 || parts[0] !== 'PREM') return false;
+  if (parts[1] !== profileId.slice(5, 13).toUpperCase()) return false;
+  return parts[2] === pHash(profileId + '|PREM|' + PREM_SALT).slice(0, 8);
+}
+function esc(s) { return String(s == null ? '' : s).replace(/[&<>"']/g, function (c) { return { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]; }); }
+function imgOK(src) { return typeof src === 'string' && /^data:image\/(png|jpe?g);base64,[A-Za-z0-9+/=]+$/.test(src); }
+function str(v, max) { return typeof v === 'string' ? v.slice(0, max) : ''; }
+// A REST read that resolves null on any failure (missing node, rules denial, offline) —
+// every section below is optional, so one unavailable path never blanks the page.
+function get(path) {
+  return fetch(DB + '/' + path + '.json').then(function (r) { return r.ok ? r.json() : null; }).catch(function () { return null; });
+}
+function codeFromUrl() {
+  var raw = (location.search.replace(/^\?/, '').split('&')[0] || location.hash.replace(/^#/, '') || '');
+  if (raw.indexOf('=') >= 0) raw = raw.split('=')[1] || '';
+  return decodeURIComponent(raw).toUpperCase().replace(/[^A-Z0-9]/g, '').slice(0, 20);
+}
+function show(html) { document.getElementById('app').innerHTML = html; }
+function notFound(text) {
+  show('<div class="msg"><h1>Driver not found</h1>' + esc(text) + '</div>');
+}
+
+// Track-published results for this profile: profileTracks/<id> lists the tracks, then
+// results/<trackId>/<date>/<class>/<driverKey> rows tagged with profileId.
+function loadResults(profileId) {
+  return get('profileTracks/' + profileId).then(function (tracks) {
+    if (!tracks || typeof tracks !== 'object') return [];
+    var ids = Object.keys(tracks);
+    return Promise.all(ids.map(function (trackId) {
+      return get('results/' + encodeURIComponent(trackId)).then(function (byDate) {
+        var out = [];
+        Object.keys(byDate || {}).forEach(function (date) {
+          var byClass = byDate[date] || {};
+          Object.keys(byClass).forEach(function (cls) {
+            var byDriver = byClass[cls] || {};
+            Object.keys(byDriver).forEach(function (k) {
+              var row = byDriver[k];
+              if (!row || row.profileId !== profileId || typeof row.position !== 'number') return;
+              out.push({ date: date, cls: cls, pos: row.position, pts: typeof row.points === 'number' ? row.points : null,
+                         track: str(row.trackName, 60) || str(tracks[trackId] && tracks[trackId].trackName, 60) || 'RaceDay track' });
+            });
+          });
+        });
+        return out;
+      });
+    })).then(function (lists) {
+      return [].concat.apply([], lists).sort(function (a, b) { return a.date < b.date ? 1 : a.date > b.date ? -1 : 0; });
+    });
+  });
+}
+
+function fmtDate(d) {
+  var t = Date.parse(d + 'T12:00:00');
+  return isNaN(t) ? d : new Date(t).toLocaleDateString(undefined, { month: 'short', day: 'numeric', year: 'numeric' });
+}
+function ord(n) { var s = ['th', 'st', 'nd', 'rd'], v = n % 100; return n + (s[(v - 20) % 10] || s[v] || s[0]); }
+
+function render(profileId, card, isPro, results) {
+  var name = str(card.name, 40), num = str(card.num, 8), home = str(card.hometown, 60), aka = str(card.aliases, 60);
+  var team = /^#[0-9a-fA-F]{6}$/.test(card.teamColor || '') ? card.teamColor : '#1f6fd6';
+  var initials = name.split(/\s+/).map(function (w) { return w[0] || ''; }).slice(0, 2).join('').toUpperCase();
+  var sponsors = str(card.sponsors, 160).split(' · ').filter(Boolean);
+  var crew = str(card.crew, 160).split(',').map(function (s) { return s.trim(); }).filter(Boolean);
+  var bio = str(card.bio, 300), highlights = str(card.highlights, 300);
+  var meta = [num ? '#' + esc(num) : '', home ? esc(home) : '', aka ? 'AKA ' + esc(aka) : ''].filter(Boolean).join(' &nbsp;·&nbsp; ');
+  document.title = name + (num ? ' #' + num : '') + ' — Driven';
+
+  var wins = results.filter(function (r) { return r.pos === 1; }).length;
+  var podiums = results.filter(function (r) { return r.pos <= 3; }).length;
+  var top5 = results.filter(function (r) { return r.pos <= 5; }).length;
+
+  var h = '';
+  if (isPro) {
+    var banner = imgOK(card.header);
+    h += '<div class="card pro' + (banner ? ' has-banner' : '') + '" style="--team:' + team + '">'
+      + (banner ? '<div class="banner" style="background-image:url(\'' + card.header + '\')"></div>' : '')
+      + '<div class="phd">'
+      + (num ? '<div class="pnum">' + esc(num) + '</div>' : '')
+      + (imgOK(card.photo) ? '<img class="pphoto" src="' + card.photo + '" alt="">' : '<div class="pdisc">' + esc(num || initials) + '</div>')
+      + '<div><div class="pname">' + esc(name) + '<span class="badge">PRO</span></div><div class="pmeta">' + meta + '</div></div>'
+      + '</div><div class="checker"></div>'
+      + '<div class="stats">'
+      + '<div class="stat"><b>' + results.length + '</b><span>Starts</span></div>'
+      + '<div class="stat"><b>' + wins + '</b><span>Wins</span></div>'
+      + '<div class="stat"><b>' + podiums + '</b><span>Podiums</span></div>'
+      + '<div class="stat"><b>' + top5 + '</b><span>Top 5</span></div>'
+      + '</div>';
+    var body = (bio ? '<div>' + esc(bio) + '</div>' : '')
+      + (highlights ? '<div class="sub-h">Highlights</div><div>' + esc(highlights) + '</div>' : '')
+      + (sponsors.length ? '<div class="sub-h">Sponsors</div>' + sponsors.map(function (s) { return '<span class="chip">' + esc(s) + '</span>'; }).join('') : '')
+      + (crew.length ? '<div class="sub-h">Crew</div>' + crew.map(function (c) { return '<span class="chip">' + esc(c) + '</span>'; }).join('') : '');
+    if (body) h += '<div class="body">' + body + '</div>';
+    h += '</div>';
+  } else {
+    h += '<div class="card"><div class="bhd">'
+      + (imgOK(card.photo) ? '<img class="bphoto" src="' + card.photo + '" alt="">' : '<div class="bdisc">' + esc(num || initials) + '</div>')
+      + '<div><div class="bname">' + esc(name) + '</div><div class="bmeta">' + meta + '</div></div></div>'
+      + ((bio || sponsors.length) ? '<div class="body" style="padding-top:0">' + (bio ? '<div>' + esc(bio) + '</div>' : '')
+          + sponsors.map(function (s) { return '<span class="chip">' + esc(s) + '</span>'; }).join('') + '</div>' : '')
+      + '</div>';
+  }
+
+  h += '<div class="slbl">Results</div><div class="card">';
+  if (!results.length) {
+    h += '<div class="empty">No results posted yet. Results appear here automatically when a RaceDay track publishes a race night.</div>';
+  } else {
+    h += results.slice(0, 50).map(function (r) {
+      return '<div class="res"><div class="pos' + (r.pos === 1 ? ' p1' : '') + '">' + ord(r.pos) + '</div>'
+        + '<div><div class="t">' + esc(r.track) + '</div><div class="s">' + esc(r.cls) + ' · ' + esc(fmtDate(r.date)) + '</div></div>'
+        + '<div class="pts">' + (r.pts != null ? r.pts + ' pts' : '') + '</div></div>';
+    }).join('');
+  }
+  h += '</div>';
+  if (results.length) h += '<div class="verified">✓ Every result above was posted by the track\'s official RaceDay scoring.</div>';
+  show(h);
+  if (navigator.share || navigator.clipboard) document.getElementById('shareBtn').style.display = '';
+}
+
+function shareLink() {
+  var url = location.href.split('#')[0];
+  if (navigator.share) { navigator.share({ title: document.title, url: url }).catch(function () {}); return; }
+  navigator.clipboard.writeText(url).then(function () { alert('Link copied.'); }).catch(function () { prompt('Copy this link:', url); });
+}
+
+(function init() {
+  var code = codeFromUrl();
+  if (!code) { notFound('This link is missing the driver code.'); return; }
+  get('profiles_short/' + code).then(function (profileId) {
+    if (typeof profileId !== 'string' || !/^prof_[a-z0-9]{6,20}$/i.test(profileId)) { notFound('No driver uses the code ' + code + '.'); return; }
+    return Promise.all([get('profiles/' + profileId + '/card'), get('profiles/' + profileId + '/entitlement'), loadResults(profileId)])
+      .then(function (r) {
+        var card = r[0], ent = r[1], results = r[2] || [];
+        if (!card || !card.name) { notFound("This driver hasn't published a profile yet."); return; }
+        // Pro = a valid owner code on the card (recomputed here, never trusted as a flag)
+        // OR an active server-written subscription entitlement.
+        var isPro = premCheck(profileId, card.premiumCode)
+          || !!(ent && ent.tier === 'pro' && (ent.status === 'active' || ent.status === 'trialing'));
+        render(profileId, card, isPro, results);
+      });
+  }).catch(function () { show('<div class="msg"><h1>Couldn\'t load</h1>Check your connection and try again.</div>'); });
+})();
+</script>
+</body>
+</html>
