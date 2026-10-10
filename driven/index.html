@@ -507,7 +507,11 @@ function refreshEntitlement() {
     P.entitlement = (v && typeof v === 'object' && TIERS[v.tier])
       ? { tier: v.tier, status: String(v.status || ''), currentPeriodEnd: Number(v.currentPeriodEnd) || 0, checkedAt: Date.now() }
       : { tier: 'free', status: 'none', currentPeriodEnd: 0, checkedAt: Date.now() };
-    save();
+    // Direct write, NOT save(): this runs on every app open, and save() republishes the
+    // card from THIS device's copy — so opening Driven on a second device (or a Safari
+    // tab vs the home-screen app) silently overwrote the published card with that copy,
+    // wiping a photo added elsewhere. The entitlement is server state; nothing to publish.
+    localStorage.setItem('profiles_v1', JSON.stringify(P));
     return P.entitlement;
   });
 }
