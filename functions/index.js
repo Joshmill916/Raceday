@@ -189,15 +189,31 @@ exports.stripeWebhook = onRequest(
     const session = event.data.object;
 
     if (session.mode === 'subscription') {
+      const errRef = db.ref('subscriptionErrors/' + session.id);
       try {
         await handleSubscriptionCheckout(session, stripe, db);
+        // A retry that finally succeeded clears the failure it left behind.
+        await errRef.remove().catch(() => {});
         res.status(200).send('ok');
       } catch (err) {
         // A malformed client_reference_id is unrecoverable — retrying changes nothing.
         // Everything else (a DB write or Stripe API call failing) is transient, so let
         // Stripe retry instead of losing the entitlement write silently.
         const unrecoverable = /Missing or malformed profileId/.test(err.message);
-        logger.error('Subscription checkout handling failed for session ' + session.id, err.message);
+        const email = (session.customer_details && session.customer_details.email) || '';
+        logger.error('Subscription checkout handling failed for session ' + session.id + ' (' + email + ')', err.message);
+        // A paid customer with no entitlement used to leave no trace outside Stripe. Record
+        // enough here (admin-only path — no client rule grants it) to match the payment to a
+        // Driven profile by hand: Stripe Dashboard → the subscription → metadata profileId.
+        await errRef.set({
+          reason: unrecoverable ? 'missing_profile_id' : 'transient',
+          message: String(err.message || '').slice(0, 300),
+          clientReferenceId: session.client_reference_id || '',
+          subscriptionId: session.subscription || '',
+          customerId: session.customer || '',
+          customerEmail: email,
+          createdAt: admin.database.ServerValue.TIMESTAMP,
+        }).catch(e => logger.error('Could not record subscription error for ' + session.id, e.message));
         res.status(unrecoverable ? 200 : 500).send(unrecoverable ? 'ignored' : 'retry');
       }
       return;
