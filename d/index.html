@@ -25,6 +25,8 @@
   body { font-family: var(--body); background: var(--ink-0); color: var(--td); min-height: 100vh; }
   .wrap { max-width: 560px; margin: 0 auto; padding: 0 0 40px; }
   .top { display: flex; align-items: center; justify-content: space-between; padding: 14px 16px; }
+  .back { display: inline-flex; align-items: center; gap: 8px; padding: 7px 14px 7px 8px; border-radius: 99px; background: var(--ink-2); border: 1px solid rgba(255,255,255,.14); color: var(--td); text-decoration: none; font: 700 14px var(--display); letter-spacing: .1em; text-transform: uppercase; }
+  .back img { width: 24px; height: 24px; border-radius: 6px; }
   .brand { font: 800 18px var(--display); letter-spacing: .16em; text-transform: uppercase; color: var(--td); text-decoration: none; border-bottom: 3px solid var(--brand); padding-bottom: 2px; }
   .cap { font: 700 11.5px var(--display); letter-spacing: .12em; text-transform: uppercase; color: var(--td-mute); }
   .sec { margin: 22px 16px 0; }
@@ -32,12 +34,12 @@
 
   /* Hero */
   .banner { position: relative; height: 190px; overflow: hidden; background: var(--ink-2) center/cover no-repeat; }
-  .banner.gen { background: linear-gradient(115deg, var(--ink-2) 0 52%, var(--team) 52% 58%, var(--ink-2) 58% 62%, var(--team) 62% 64%, var(--ink-1) 64%); }
+  .banner.gen { background: linear-gradient(115deg, var(--ink-2) 0 50%, var(--team) 50% 57%, var(--ink-2) 57% 59%, var(--team2, var(--team)) 59% 62.5%, var(--ink-2) 62.5% 64%, var(--team3, var(--team)) 64% 65.5%, var(--ink-1) 65.5%); }
   .banner .bignum { position: absolute; right: 10px; bottom: -28px; font: italic 800 190px/1 var(--display); color: transparent; -webkit-text-stroke: 2px rgba(255,255,255,.18); letter-spacing: -.03em; }
   .banner .checker { position: absolute; left: 0; right: 0; bottom: 0; height: 8px; background: repeating-conic-gradient(#0b0c10 0% 25%, #e9eaee 0% 50%) 0 0/16px 16px; }
   .banner::after { content: ''; position: absolute; inset: 0; background: linear-gradient(180deg, transparent 45%, rgba(11,12,16,.75)); }
   .who { position: relative; display: flex; align-items: flex-end; gap: 14px; padding: 0 16px; margin-top: -44px; z-index: 1; }
-  .avatar { width: 92px; height: 92px; border-radius: 50%; flex: none; object-fit: cover; border: 4px solid var(--team); background: var(--ink-3); display: flex; align-items: center; justify-content: center; font: 800 34px var(--display); color: #fff; }
+  .avatar { width: 92px; height: 92px; border-radius: 50%; flex: none; object-fit: cover; border: 4px solid var(--team); box-shadow: 0 0 0 3px var(--team2, var(--team)); background: var(--ink-3); display: flex; align-items: center; justify-content: center; font: 800 34px var(--display); color: #fff; }
   .name { font: 800 32px/0.95 var(--display); text-transform: uppercase; letter-spacing: .01em; }
   .badge { display: inline-block; margin-left: 6px; padding: 2px 7px; border-radius: 5px; background: var(--team); color: #fff; font: 800 12px var(--display); letter-spacing: .12em; vertical-align: 5px; }
   .meta { margin-top: 6px; }
@@ -46,7 +48,7 @@
   .btn.primary { background: var(--team); border-color: var(--team); color: #fff; }
 
   /* Latest result */
-  .latest { margin: 16px 16px 0; background: var(--ink-1); border-left: 4px solid var(--plate); padding: 12px 14px; }
+  .latest { margin: 16px 16px 0; background: var(--ink-1); border-left: 4px solid var(--team2, var(--plate)); padding: 12px 14px; }
   .latest .row { display: flex; align-items: center; gap: 14px; margin-top: 4px; }
   .latest .p { font: 800 46px/1 var(--display); color: var(--plate); }
   .latest .t { font-size: 15px; font-weight: 600; }
@@ -95,7 +97,10 @@
 </head>
 <body>
 <div class="wrap">
-  <div class="top"><a class="brand" href="../driven/">Driven</a><span class="cap">Driver profile</span></div>
+  <div class="top">
+    <a class="back" id="backBtn" href="../driven/"><img src="../driven/icon-driven.png" alt="">‹ <span id="backLbl">Driven</span></a>
+    <span class="cap">Driver profile</span>
+  </div>
   <div id="app"><div class="msg">Loading profile…</div></div>
   <div class="foot">
     Results on Driven are posted by the tracks themselves — drivers can't type them in.<br>
@@ -232,6 +237,11 @@ function render(profileId, card, isPro, data) {
   var meta = [num ? '#' + esc(num) : '', home ? esc(home) : '', aka ? 'AKA ' + esc(aka) : ''].filter(Boolean).join(' · ');
   document.title = name + (num ? ' #' + num : '') + ' — Driven';
   document.documentElement.style.setProperty('--team', team);
+  // Pro accent colors; without them the page keeps the single-color look.
+  ['teamColor2', 'teamColor3'].forEach(function (k, i) {
+    var c = isPro && /^#[0-9a-fA-F]{6}$/.test(card[k] || '') ? card[k] : team;
+    document.documentElement.style.setProperty(i ? '--team3' : '--team2', c);
+  });
 
   var wins = results.filter(function (r) { return r.pos === 1; }).length;
   var top5 = results.filter(function (r) { return r.pos <= 5; }).length;
@@ -304,6 +314,12 @@ function shareLink() {
   if (navigator.clipboard) navigator.clipboard.writeText(url).then(function () { alert('Link copied.'); }).catch(function () { prompt('Copy this link:', url); });
   else prompt('Copy this link:', url);
 }
+
+(function backLabel() {
+  var mine = false;
+  try { mine = !!localStorage.getItem('profiles_v1'); } catch (_) {}
+  document.getElementById('backLbl').textContent = mine ? 'Back to my Driven' : 'Get Driven — free';
+})();
 
 (function init() {
   var code = codeFromUrl();
