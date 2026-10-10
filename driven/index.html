@@ -528,6 +528,13 @@ function cardPayload() {
     teamColor: /^#[0-9a-fA-F]{6}$/.test(d.teamColor || '') ? d.teamColor : '',
     photo: d.photo || '',
     premiumCode: tierAtLeast('pro') ? (P.premiumCode || localPremiumCode(P.profileId)) : '',
+    // Public driver page (/d/?CODE) fields. RaceDay's sanitizeProfileCard() whitelists
+    // what it keeps, so these never reach a track's roster — only the public page reads them.
+    aliases: d.aliases || '',
+    bio: d.bio || '',
+    highlights: d.highlights || '',
+    crew: P.crew.map(function (c) { return c.name; }).join(', '),
+    header: tierAtLeast('pro') ? (d.header || '') : '',
     updatedAt: firebase.database.ServerValue.TIMESTAMP
   };
 }
@@ -537,18 +544,22 @@ function cardPayload() {
 // Caps MUST match the .validate rules in FIREBASE-SYNC.md exactly.
 // Mirrors cardPayload()'s string fields WITHOUT the firebase timestamp sentinel, so it
 // can run before the SDK loads. updatedAt is numeric (no length cap) so it's not checked.
-var CARD_CAPS = { name: 40, num: 8, age: 8, hometown: 60, sponsors: 160, photo: 80000, premiumCode: 40 };
+var CARD_CAPS = { name: 40, num: 8, age: 8, hometown: 60, sponsors: 160, photo: 80000, premiumCode: 40,
+                  aliases: 60, bio: 300, highlights: 300, crew: 160, header: 140000 };
 function cardStrings() {
   if (!P || !P.driver) return {};
   var d = P.driver;
   return {
     name: d.name || '', num: d.number || '', age: d.age != null ? String(d.age) : '',
     hometown: d.hometown || '', sponsors: P.sponsors.map(function (s) { return s.name; }).join(' · '),
-    photo: d.photo || '', premiumCode: tierAtLeast('pro') ? (P.premiumCode || localPremiumCode(P.profileId)) : ''
+    photo: d.photo || '', premiumCode: tierAtLeast('pro') ? (P.premiumCode || localPremiumCode(P.profileId)) : '',
+    aliases: d.aliases || '', bio: d.bio || '', highlights: d.highlights || '',
+    crew: P.crew.map(function (c) { return c.name; }).join(', '), header: tierAtLeast('pro') ? (d.header || '') : ''
   };
 }
 function cardTooLong() {
-  var c = cardStrings(), labels = { name: 'Name', num: 'Number', age: 'Age', hometown: 'Hometown', sponsors: 'Sponsors', photo: 'Photo', premiumCode: 'Premium code' };
+  var c = cardStrings(), labels = { name: 'Name', num: 'Number', age: 'Age', hometown: 'Hometown', sponsors: 'Sponsors', photo: 'Photo', premiumCode: 'Premium code',
+                                      aliases: 'Also known as', bio: 'Bio', highlights: 'Highlights', crew: 'Crew', header: 'Header photo' };
   for (var k in CARD_CAPS) {
     if (typeof c[k] === 'string' && c[k].length > CARD_CAPS[k]) {
       return labels[k] + ' is too long (' + c[k].length + '/' + CARD_CAPS[k] + ' characters) — shorten it so your card can publish.';
@@ -980,6 +991,15 @@ function renderSettings() {
     + (photoOK(d.photo) ? '<button class="btn btn-sm" type="button" onclick="removePhoto()">Remove</button>' : '')
     + '<input id="stPhotoFile" type="file" accept="image/*" style="display:none" onchange="uploadPhoto(this)">'
     + '</div>'
+    + (tierAtLeast('pro')
+        ? '<label>Header photo (Pro) — the wide banner on your public page</label>'
+          + '<div style="display:flex;gap:10px;align-items:center">'
+          + (photoOK(d.header) ? '<img src="' + d.header + '" style="width:96px;height:32px;border-radius:6px;object-fit:cover">' : '')
+          + '<button class="btn btn-sm" type="button" onclick="$id(\'stHeaderFile\').click()">' + icon('camera') + ' ' + (photoOK(d.header) ? 'Replace' : 'Upload') + '</button>'
+          + (photoOK(d.header) ? '<button class="btn btn-sm" type="button" onclick="removeHeader()">Remove</button>' : '')
+          + '<input id="stHeaderFile" type="file" accept="image/*" style="display:none" onchange="uploadHeader(this)">'
+          + '</div>'
+        : '')
     + '<label>Hometown</label><input type="text" id="stHometown" value="' + esc(d.hometown) + '" maxlength="60">'
     + '<label>Age</label><input type="number" id="stAge" value="' + (d.age || '') + '" min="1" max="120">'
     + '<label>Bio (max 280 characters)</label><textarea id="stBio" maxlength="280">' + esc(d.bio) + '</textarea>'
@@ -1068,6 +1088,33 @@ function uploadPhoto(input) {
   img.src = url;
 }
 function removePhoto() { P.driver.photo = null; save(); renderSettings(); }
+
+// Header photo (Pro): center-crop to a 3:1 banner, downscale to 900x300 JPEG. Stepping
+// quality down keeps it under the 140000-char card cap for busy photos.
+function uploadHeader(input) {
+  var f = input.files && input.files[0];
+  input.value = '';
+  if (!f) return;
+  var img = new Image();
+  var url = URL.createObjectURL(f);
+  img.onload = function () {
+    URL.revokeObjectURL(url);
+    var sw = img.width, sh = Math.round(img.width / 3);
+    if (sh > img.height) { sh = img.height; sw = sh * 3; }
+    var c = document.createElement('canvas');
+    c.width = Math.min(900, sw); c.height = Math.round(c.width / 3);
+    c.getContext('2d').drawImage(img, (img.width - sw) / 2, (img.height - sh) / 2, sw, sh, 0, 0, c.width, c.height);
+    var data = '', q = 0.82;
+    do { data = c.toDataURL('image/jpeg', q); q -= 0.1; } while (data.length > 130000 && q > 0.3);
+    if (data.length > 130000) { alert('That photo is too detailed — try a different one.'); return; }
+    P.driver.header = data;
+    save();
+    renderSettings();
+  };
+  img.onerror = function () { URL.revokeObjectURL(url); alert("Couldn't read that file as an image."); };
+  img.src = url;
+}
+function removeHeader() { P.driver.header = null; save(); renderSettings(); }
 
 /* ---------- Import / ingest ---------- */
 // Accepts a single export object or an array of them:
