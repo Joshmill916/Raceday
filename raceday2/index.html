@@ -1169,6 +1169,13 @@ function pHash(str) {
   return fnv(str, 2166136261) + fnv(str + '#2', 2166136261);
 }
 function premShort(profileId) { return profileId.slice(5, 13).toUpperCase(); }
+// Public /d/ page code: the code the driver gave us if it was a short code, else the
+// id-derived default (Driven only extends it on a rare collision).
+function publicCode(d) {
+  const c = String(d.profileCode || '').toUpperCase().replace(/[^A-Z0-9_]/g, '');
+  if (/^[A-Z0-9]{6,14}$/.test(c)) return c;
+  return d.profileId ? premShort(d.profileId) : '';
+}
 function premCheck(profileId, code) {
   const parts = String(code || '').trim().toUpperCase().split('-');
   if (parts.length !== 3 || parts[0] !== 'PREM') return false;
@@ -3698,6 +3705,10 @@ function openDriverCard(driverId) {
     +   dcStat(st.starts, 'Starts') + dcStat(st.wins, 'Wins') + dcStat(st.podiums, 'Podiums')
     +   dcStat(st.top5, 'Top 5') + dcStat(st.best ? ordinal(st.best) : '—', 'Best') + dcStat(st.points, 'Season pts')
     + '</div>';
+
+  // Demo drivers carry fake ids — their /d/ page wouldn't exist.
+  if (d.profileId && !S.demo) h += '<div style="text-align:center;margin:14px 0">'
+    + '<a class="btn btn-sm dc-public" href="/d/?' + encodeURIComponent(publicCode(d)) + '" target="_blank" rel="noopener">View driver page →</a></div>';
 
   const rows = [];
   if (card.hometown || (d.profile && d.profile.hometown)) rows.push(['Hometown', card.hometown || d.profile.hometown]);

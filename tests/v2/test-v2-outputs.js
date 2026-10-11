@@ -161,6 +161,18 @@ const TYPES = { '.html':'text/html', '.js':'application/javascript', '.json':'ap
     await pa.fill('#dcSpon', 'Acme Racing');
     await pa.click('button:has-text("Save")'); await pa.waitForTimeout(200);
     check('profile edits persist', await pa.evaluate(id => driverById(id).profile && driverById(id).profile.hometown === 'Testville', freeId));
+
+    // Public /d/ page link: only for Driven-linked drivers, and never on demo's fake ids.
+    const link = id => pa.evaluate(id => { closeSheet(); openDriverCard(id); const a = document.querySelector('#sheetBody a.dc-public'); return a ? a.getAttribute('href') : null; }, id);
+    check('unlinked driver has no driver-page link', (await link(freeId)) === null);
+    const linkedId = await pa.evaluate(() => S.roster.find(d => d.profileId).id);
+    check('demo-linked driver has no driver-page link', (await link(linkedId)) === null);
+    await pa.evaluate(id => { S.demo = false; const d = driverById(id); d.profileId = 'prof_oz0yws5pjmal'; d.profileCode = 'OZ0YWS5P'; }, linkedId);
+    check('linked by short code → /d/?CODE', (await link(linkedId)) === '/d/?OZ0YWS5P');
+    await pa.evaluate(id => { const d = driverById(id); d.profileCode = 'PROF_ABCDEFGH12'; d.profileId = 'prof_abcdefgh12'; }, linkedId);
+    check('linked by id → id-derived code', (await link(linkedId)) === '/d/?ABCDEFGH');
+    await pa.evaluate(id => { const d = driverById(id); d.profileCode = 'XY12ZZQQ9K'; }, linkedId);
+    check('collision-extended code is kept as given', (await link(linkedId)) === '/d/?XY12ZZQQ9K');
     await pa.close();
   }
 
