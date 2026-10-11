@@ -95,7 +95,9 @@ function entitlementFromSub(sub) {
     status: sub.status,
     subId: sub.id,
     customerId: sub.customer,
-    currentPeriodEnd: (sub.current_period_end || 0) * 1000,
+    // Newer Stripe API versions moved current_period_end onto the subscription items.
+    currentPeriodEnd: (sub.current_period_end
+      || (sub.items && sub.items.data && sub.items.data[0] && sub.items.data[0].current_period_end) || 0) * 1000,
     updatedAt: admin.database.ServerValue.TIMESTAMP,
   };
 }
@@ -123,7 +125,16 @@ async function handleSubscriptionCheckout(session, stripe, db) {
 // customer.subscription.updated / .deleted — renewals, cancellations, and payment
 // failures (a failed renewal surfaces as status:'past_due' on an .updated event, not a
 // separate event type, so both are handled identically here).
-async function handleSubscriptionEvent(sub, db) {
+async function handleSubscriptionEvent(eventSub, db, stripe) {
+  // Never trust the event's snapshot: Stripe retries failed deliveries for days, so an
+  // OLD "active" event can arrive after a cancellation (this happened — a retried 4pm
+  // update re-activated a subscription cancelled at 4:35). Re-read the subscription so
+  // the entitlement always reflects Stripe's current state, whatever order events land in.
+  let sub = eventSub;
+  if (stripe) {
+    try { sub = await stripe.subscriptions.retrieve(eventSub.id); }
+    catch (err) { if (!(err && err.statusCode === 404)) throw err; }   // 404: deleted — keep the event's (canceled) snapshot
+  }
   let profileId = sub.metadata && sub.metadata.profileId;
   if (!profileId) {
     const idxSnap = await db.ref('subscriptions/' + sub.id).once('value');
@@ -170,7 +181,7 @@ exports.stripeWebhook = onRequest(
     // can poll to notice a silent failure and complain, so retrying is the only safety net.
     if (event.type === 'customer.subscription.updated' || event.type === 'customer.subscription.deleted') {
       try {
-        await handleSubscriptionEvent(event.data.object, db);
+        await handleSubscriptionEvent(event.data.object, db, stripe);
         res.status(200).send('ok');
       } catch (err) {
         logger.error('Subscription event handling failed for ' + event.data.object.id, err.message);
