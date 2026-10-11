@@ -295,25 +295,28 @@ exports.billingPortal = onRequest(
 // subscription, and creates the Checkout Session server-side with the profile baked in
 // (client_reference_id + subscription metadata). The old Payment Links are kept only as
 // the source of the Pro prices; deactivate them in Stripe so they can't be paid directly.
-const PRO_LINK_URLS = {
-  monthly: 'https://buy.stripe.com/00w3cxdwm3Nk1ATedIaMU04',
-  yearly: 'https://buy.stripe.com/aFa8wRfEu83A1DTglQaMU03',
+// The Pro Payment Links, by their fixed Stripe IDs (not URLs — the yearly URL once had a
+// one-character typo in the app). Kept as the source of each plan's price and its
+// Managed Payments setting.
+const PRO_LINKS = {
+  monthly: 'plink_1TzofHRsg13B50voD5zrnr8i',
+  yearly: 'plink_1TzodzRsg13B50voCV4vL8Gj',
 };
-let proPriceCache = null;
+// Managed Payments needs API version 2025-03-31.basil or newer on these requests.
+const PRO_API = { apiVersion: '2025-03-31.basil' };
+const proPriceCache = {};
 async function proPriceId(stripe, period) {
-  if (!proPriceCache) {
-    const found = {};
-    for await (const link of stripe.paymentLinks.list({ limit: 100 })) {
-      for (const k of Object.keys(PRO_LINK_URLS)) {
-        if (link.url !== PRO_LINK_URLS[k]) continue;
-        const items = await stripe.paymentLinks.listLineItems(link.id, { limit: 1 });
-        const item = items.data[0];
-        if (item && item.price) found[k] = { price: item.price.id, managed: !!(link.managed_payments && link.managed_payments.enabled) };
-      }
-    }
-    proPriceCache = found;
+  if (!proPriceCache[period]) {
+    const id = PRO_LINKS[period];
+    const [link, items] = await Promise.all([
+      stripe.paymentLinks.retrieve(id, {}, PRO_API),
+      stripe.paymentLinks.listLineItems(id, { limit: 1 }, PRO_API),
+    ]);
+    const item = items.data[0];
+    if (!item || !item.price) return null;
+    proPriceCache[period] = { price: item.price.id, managed: !!(link.managed_payments && link.managed_payments.enabled) };
   }
-  return proPriceCache[period] || null;
+  return proPriceCache[period];
 }
 function checkoutError(res, status, msg) {
   res.status(status).set('Content-Type', 'text/html').send(
@@ -327,7 +330,7 @@ exports.proCheckout = onRequest(
   async (req, res) => {
     const profileId = String(req.query.profileId || '');
     const period = String(req.query.period || '');
-    if (!/^prof_[a-z0-9]{6,20}$/i.test(profileId) || !PRO_LINK_URLS[period]) {
+    if (!/^prof_[a-z0-9]{6,20}$/i.test(profileId) || !PRO_LINKS[period]) {
       checkoutError(res, 400, 'Open Driven and tap Get Pro from your Card page.');
       return;
     }
@@ -362,7 +365,7 @@ exports.proCheckout = onRequest(
     };
     // Mirror the Payment Link's Managed Payments setting so tax/merchant handling matches.
     if (plan.managed) params.managed_payments = { enabled: true };
-    const session = await stripe.checkout.sessions.create(params);
+    const session = await stripe.checkout.sessions.create(params, PRO_API);
     logger.info('proCheckout: session ' + session.id + ' for ' + profileId + ' (' + period + ')');
     res.redirect(303, session.url);
   }

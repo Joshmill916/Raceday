@@ -19,14 +19,10 @@ const stubs = {
   'stripe': function Stripe() {
     return {
       paymentLinks: {
-        list: () => (async function* () {
-          yield { id: 'plink_m', url: 'https://buy.stripe.com/00w3cxdwm3Nk1ATedIaMU04', managed_payments: { enabled: true } };
-          yield { id: 'plink_y', url: 'https://buy.stripe.com/aFa8wRfEu83A1DTglQaMU03' };
-          yield { id: 'plink_other', url: 'https://buy.stripe.com/other' };
-        })(),
-        listLineItems: async (id) => ({ data: [{ price: { id: id === 'plink_m' ? 'price_month' : 'price_year' } }] }),
+        retrieve: async (id) => ({ id, managed_payments: { enabled: id === 'plink_1TzofHRsg13B50voD5zrnr8i' } }),
+        listLineItems: async (id) => ({ data: [{ price: { id: id === 'plink_1TzofHRsg13B50voD5zrnr8i' ? 'price_month' : 'price_year' } }] }),
       },
-      checkout: { sessions: { create: async (p) => { created.push(p); return { id: 'cs_1', url: 'https://checkout.stripe.com/c/cs_1' }; } } },
+      checkout: { sessions: { create: async (p, opts) => { p._opts = opts; created.push(p); return { id: 'cs_1', url: 'https://checkout.stripe.com/c/cs_1' }; } } },
     };
   },
 };
@@ -58,6 +54,7 @@ const check = (n, ok, x) => { if (ok) { pass++; console.log('  ✅ ' + n); } els
   check('session uses the yearly price', s.line_items && s.line_items[0].price === 'price_year', s);
   check('session carries the profileId (client_reference_id + metadata)', s.client_reference_id === 'prof_abc123xy' && s.subscription_data.metadata.profileId === 'prof_abc123xy', s);
   check('yearly link without managed payments -> none on session', !s.managed_payments, s);
+  check('session requested on an API version that supports Managed Payments', s._opts && s._opts.apiVersion === '2025-03-31.basil', s._opts);
 
   r = await call({ profileId: 'prof_abc123xy', period: 'monthly' });
   check('monthly mirrors managed payments', created[1] && created[1].line_items[0].price === 'price_month' && created[1].managed_payments.enabled === true, created[1]);
