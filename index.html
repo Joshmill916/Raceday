@@ -17,12 +17,18 @@
 <script>
 /* Returning devices skip the pitch entirely — this must run before anything renders.
    A saved station link (?sync=/&role=) always means "go straight to the app", and so
-   does a browser that already has RaceDay data (raceday_v1) from a previous visit.
+   does a browser that already has RaceDay data from a previous visit — the new app
+   (raceday_v2) wins over the classic one, so a track that moved over lands on v2.
    location.replace so it doesn't leave a broken back-button entry. */
 (function () {
   var q = location.search;
   if (/[?&]home=1/.test(q)) return;
   if (/[?&](sync|role)=/.test(q)) { location.replace('/raceday/' + q); return; }
+  try {
+    // A real v2 track, not a prospect who only tried the demo or opened it once.
+    var v2 = JSON.parse(localStorage.getItem('raceday_v2') || 'null');
+    if (v2 && v2.track && v2.track.name && !v2.demo) { location.replace('/raceday2/'); return; }
+  } catch (e) {}
   try {
     var raw = localStorage.getItem('raceday_v1');
     if (raw) {
