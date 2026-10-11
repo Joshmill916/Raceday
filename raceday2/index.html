@@ -535,7 +535,9 @@ body.kiosk .wrap-narrow { max-width:600px; width:100%; }
 .dc-row { display:flex; gap:12px; padding:9px 0; border-bottom:1px solid var(--line-soft); font-size:13.5px; }
 .dc-row:last-child { border-bottom:none; }
 .dc-row b { color:var(--muted); font-weight:600; min-width:92px; }
-.dc.prem .dc-hero { background:linear-gradient(115deg,var(--dc-team,var(--plate)) -30%,var(--asphalt-1) 62%); position:relative; overflow:hidden; }
+.dc.prem .dc-hero, .dc.team .dc-hero { background:linear-gradient(115deg,var(--dc-team,var(--plate)) -30%,var(--asphalt-1) 62%); position:relative; overflow:hidden; }
+.dc.team .dc-hero { border-bottom:3px solid var(--dc-team2,var(--dc-team)); }
+.dc.team .dc-photo { border-color:var(--dc-team2,var(--dc-team)); }
 .dc.prem .dc-hero::after { content:''; position:absolute; inset:0; background:linear-gradient(105deg,transparent 38%,rgba(255,255,255,.22) 50%,transparent 62%); animation:shine 3.4s ease-in-out infinite; }
 @keyframes shine { 0%,72% { transform:translateX(-110%); } 100% { transform:translateX(110%); } }
 
@@ -1207,6 +1209,7 @@ function canEnter() {
   return !st.expired;
 }
 function consumeTrialDay() {   // counts a race day against the trial or an active packet (forever/season/month: no count)
+  if (S.raceDay && S.raceDay.demo) return;   // showing the app off never uses a trial or packet day
   const st = licStatus();
   if (!st.licensed) {
     if (!S.trialDays.includes(S.raceDay.date)) { S.trialDays.push(S.raceDay.date); renderLicBanner(); }
@@ -1700,6 +1703,8 @@ function sanitizeProfileCard(profileId, card) {
     hometown: profStr(card.hometown, 60),
     sponsors: profStr(card.sponsors, 160),
     teamColor: /^#[0-9a-fA-F]{6}$/.test(card.teamColor || '') ? card.teamColor : '',
+    teamColor2: /^#[0-9a-fA-F]{6}$/.test(card.teamColor2 || '') ? card.teamColor2 : '',   // Driven Pro accents
+    teamColor3: /^#[0-9a-fA-F]{6}$/.test(card.teamColor3 || '') ? card.teamColor3 : '',
     photo: profPhotoOK(card.photo) ? card.photo : '',
     premium: premCheck(profileId, card.premiumCode),
     // Keep the code so render can RE-verify premium — a profile object can be overwritten
@@ -2006,6 +2011,9 @@ function buildSnapshot() {
   return snap;
 }
 function archiveDay() {
+  // A demo day (seedDemo) is discarded, not archived: no history, no season points, and
+  // no 'night' usage report — the caller still clears the board as usual.
+  if (S.raceDay && S.raceDay.demo) return true;
   const snap = buildSnapshot();
   if (!snap.classes.length) return true;   // nothing to archive
   // Warn when a points class's feature isn't fully entered — those points silently never
@@ -2450,16 +2458,14 @@ function sendUsage(event, extra) {
 function seedDemo() {
   if (!adminOk()) return;
   if (!S.classes.length) { alert('Add at least one race class before loading a demo race day.'); return; }
-  if (!canEnter()) { alert(entryBlockedMsg() + ' — use a valid license to load a demo race day.'); return; }
   if (syncOn()) { alert('This device is on Multi-device sync — loading demo here would push demo data to every synced device and replace the real race.\n\nTurn off sync on this device first (Admin → Multi-device sync), then load the demo.'); return; }
-  if (!confirm('Load a demo race day with 25 sample drivers? Current entries are archived to history first (driver book is kept).')) return;
+  if (!confirm('Load a demo race day with 25 sample drivers? Current entries are archived to history first (driver book is kept).\n\nThe demo is just for showing how RaceDay works — it doesn\'t use a free-trial day, and it isn\'t saved to race history or season points.')) return;
   if (!archiveDay()) return;   // cancelled at the incomplete-points warning — keep the board
-  // A demo day counts against the free trial (otherwise the trial gate above never
-  // closes — demo forever). Licensed tracks demo free: never burn a paid packet day.
-  if (!licStatus().licensed) consumeTrialDay();
+  // A demo day is a showcase, not a race: it never uses a trial or packet day (see
+  // consumeTrialDay()), and archiveDay() discards it instead of saving it to history.
   resOverride = {};
   const demoNames = ['Ava Brooks','Ben Carter','Cody Diaz','Dana Evans','Eli Ford','Finn Gray','Gia Hall','Hank Irwin','Ivy James','Jax King','Kya Lane','Leo Moss','Mia Nash','Noah Otis','Opal Pratt','Quinn Reed','Rio Sands','Sky Tate','Tess Uri','Uma Vance','Vic Webb','Wes Xu','Yara York','Zane Zell','Pat Quick'];
-  S.raceDay = { date: today(), entries: [], heatResults: {}, pointsRace: {}, resultGov: {}, resultVersions: {} };
+  S.raceDay = { date: today(), entries: [], heatResults: {}, pointsRace: {}, resultGov: {}, resultVersions: {}, demo: true };
   demoNames.forEach((name, i) => {
     let d = findRosterMatch(name);
     if (!d) { d = { id: genDriverId(), name, num: String(i + 1) }; S.roster.push(d); }
@@ -3690,14 +3696,19 @@ function openDriverCard(driverId) {
   driverCardId = driverId;
   const st = driverStats(driverId);
   const prem = cardPremiumOK(d);
-  const card = (d.profile && d.profile.card) || {};
-  const teamColor = prem && card.teamColor ? card.teamColor : '';
+  // The linked Driven card is stored flat on d.profile (sanitizeProfileCard) — this used to
+  // read d.profile.card, which never exists, so every card fell back to the stock colors.
+  const card = d.profile || {};
+  const hex = c => /^#[0-9a-fA-F]{6}$/.test(c || '') ? c : '';
+  const teamColor = (d.profileId || card.source === 'profiles') ? hex(card.teamColor) : '';   // every linked driver gets their color
+  const accent = prem ? (hex(card.teamColor2) || teamColor) : teamColor;                       // Pro adds the accent stripe
+  const photo = prem && profPhotoOK(card.photo) ? card.photo : '';
 
   const myClasses = S.raceDay.entries.filter(e => e.driverId === driverId)
     .map(e => (classById(e.classId) || {}).name).filter(Boolean);
 
-  let h = '<div class="dc-hero" style="margin:-18px -20px 0' + (teamColor ? ';--dc-team:' + esc(teamColor) : '') + '">'
-    + (card.photo ? '<img class="dc-photo" src="' + esc(card.photo) + '" alt="">' : '<div class="disc big">' + esc(String(d.num)) + '</div>')
+  let h = '<div class="dc-hero" style="margin:-18px -20px 0' + (teamColor ? ';--dc-team:' + esc(teamColor) + ';--dc-team2:' + esc(accent) : '') + '">'
+    + (photo ? '<img class="dc-photo" src="' + esc(photo) + '" alt="">' : '<div class="disc big">' + esc(String(d.num)) + '</div>')
     + '<div style="min-width:0"><h3 style="margin:0 0 4px">' + esc(d.name) + '</h3>'
     + '<div class="tiny">#' + esc(d.num) + (myClasses.length ? ' · ' + esc(myClasses.join(' · ')) : '')
     + (prem ? ' · <span class="badge badge-plate">Driven Pro</span>' : '') + '</div></div></div>'
@@ -3725,7 +3736,8 @@ function openDriverCard(driverId) {
             ? '<button class="btn btn-sm" onclick="refreshProfile()">↻ Refresh from Driven</button>'
             : '<button class="btn btn-sm" onclick="linkProfilePrompt()">Link Driven card</button>')
       : '',
-    { cls: prem ? 'sheet dc prem' : 'sheet dc', onClose: () => { driverCardId = null; } });
+    { cls: 'sheet dc' + (prem ? ' prem' : '') + (teamColor ? ' team' : ''), onClose: () => { driverCardId = null; } });
+  autoRefreshProfile(d);
 }
 function closeDriverCard() { closeSheet(); }
 function dcStat(n, l) { return '<div class="dc-stat"><div class="n">' + esc(String(n)) + '</div><div class="l">' + esc(l) + '</div></div>'; }
@@ -4692,6 +4704,21 @@ function linkProfilePrompt() {
       toast(err && err.pending ? 'Linked — the card loads when this device is online.'
         : "That code didn't match a published card — check it and try again.", err && err.pending ? 'ok' : 'err');
     });
+}
+// Opening a linked driver's card quietly re-pulls their published Driven card (admin
+// device, online, at most once a minute per driver), so color/photo/sponsor changes made
+// in Driven show up without anyone remembering to tap Refresh.
+const _profAutoRefreshed = {};
+function autoRefreshProfile(d) {
+  if (!d || !d.profileId || deviceRole() !== 'admin' || S.demo || (d.profile && d.profile.demoOnly)) return;
+  if (typeof navigator !== 'undefined' && navigator.onLine === false) return;
+  const now = Date.now();
+  if (_profAutoRefreshed[d.id] && now - _profAutoRefreshed[d.id] < 60000) return;
+  _profAutoRefreshed[d.id] = now;
+  const before = JSON.stringify(d.profile || {});
+  linkProfile(d.id, d.profileId).then(() => {
+    if (driverCardId === d.id && JSON.stringify(d.profile || {}) !== before) renderDriverCard();
+  }).catch(() => {});
 }
 function refreshProfile() {
   const d = driverById(driverCardId); if (!d || !(d.profileId || d.profileCode)) return;
