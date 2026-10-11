@@ -14,6 +14,18 @@
 <meta name="apple-mobile-web-app-title" content="Driven">
 <link rel="apple-touch-icon" href="icon-driven.png">
 <link rel="icon" type="image/png" sizes="512x512" href="icon-driven.png">
+<script>
+// http://victoryraceday.com and https://victoryraceday.com are different origins with
+// separate localStorage, so an http bookmark opened an EMPTY Driven and forced a restore —
+// and that partial copy then republished over the real card. Send http visitors to https.
+// If this http origin already holds a profile, don't strand it: boot shows a one-tap
+// "move my profile" banner instead (see offerSecureMove()).
+(function () {
+  if (location.protocol !== 'http:' || !/(^|\.)victoryraceday\.com$/.test(location.hostname)) return;
+  var has = false; try { has = !!localStorage.getItem('profiles_v1'); } catch (e) {}
+  if (!has) location.replace('https://' + location.host + location.pathname + location.search + location.hash);
+})();
+</script>
 <script>if('serviceWorker' in navigator){addEventListener('load',function(){navigator.serviceWorker.register('sw.js').catch(function(){})})}</script>
 <style>
   :root {
@@ -734,10 +746,41 @@ function restoreFromBackupJson(raw) {
 // identity, car #, sponsors, and premium status, but NEVER race history: cardPayload()
 // only ever sends the lean card fields, so career stats/results only ever lived on the
 // original device and can't be pulled back this way.
-function restoreFromLinkCode(code) {
+// Every field the published card carries, mapped back onto a local profile. Used by
+// restore-by-code AND by syncFromPublished(), so a restored or second-device copy gets the
+// whole profile (accent colors, bio, header…) instead of a partial one that later
+// republishes over the real card. Only keys present on the card are applied.
+function applyCardToProfile(p, card) {
+  var d = p.driver, has = function (k) { return Object.prototype.hasOwnProperty.call(card, k); };
+  var str = function (v, n) { return typeof v === 'string' ? v.slice(0, n) : ''; };
+  var col = function (v) { return /^#[0-9a-fA-F]{6}$/.test(v || '') ? v : ''; };
+  if (card.name) d.name = str(card.name, 40);
+  if (has('num')) d.number = str(card.num, 8);
+  if (has('age')) d.age = card.age ? (parseInt(card.age, 10) || null) : null;
+  if (has('hometown')) d.hometown = str(card.hometown, 60);
+  if (has('teamColor')) d.teamColor = col(card.teamColor);
+  if (has('teamColor2')) d.teamColor2 = col(card.teamColor2);
+  if (has('teamColor3')) d.teamColor3 = col(card.teamColor3);
+  if (has('photo')) d.photo = photoOK(card.photo) ? card.photo : null;
+  if (has('header')) d.header = photoOK(card.header) ? card.header : null;
+  if (has('aliases')) d.aliases = str(card.aliases, 60);
+  if (has('bio')) d.bio = str(card.bio, 300);
+  if (has('highlights')) d.highlights = str(card.highlights, 300);
+  if (has('sponsors')) p.sponsors = str(card.sponsors, 160).split(' · ').map(function (n) { return { name: n.trim() }; }).filter(function (x) { return x.name; });
+  if (has('crew')) p.crew = str(card.crew, 160).split(',').map(function (n) { return { name: n.trim() }; }).filter(function (x) { return x.name; });
+  if (card.premiumCode && premCheck(p.profileId, card.premiumCode)) { p.tier = 'pro'; p.premiumCode = String(card.premiumCode).toUpperCase(); }
+  if (typeof card.updatedAt === 'number') p.publishedAt = card.updatedAt;
+  return p;
+}
+
+// Partial restore from the PUBLISHED card only — works even with no prior backup file,
+// since it just re-pulls whatever this profile already published to Firebase. Recovers the
+// whole published profile (identity, colors, photo, header, bio, sponsors, crew, Pro), then
+// re-pulls track-published results; only hand-imported results stay on the old device.
+function restoreFromLinkCode(code, quiet) {
   var short = code.trim().toUpperCase().replace(/[^A-Z0-9]/g, '').slice(0, 20);
-  if (!short) { alert('Enter a valid link code.'); return; }
-  ensureFirebase().then(function () {
+  if (!short) { alert('Enter a valid link code.'); return Promise.resolve(); }
+  return ensureFirebase().then(function () {
     return firebase.database().ref('profiles_short/' + short).once('value');
   }).then(function (snap) {
     var profileId = snap.val();
@@ -747,45 +790,73 @@ function restoreFromLinkCode(code) {
     });
   }).then(function (result) {
     if (!result) return;
-    var profileId = result.profileId, card = result.card;
+    var card = result.card;
     // Only a name is guaranteed — onboarding never asks for a car number, and
     // "Publish my card" is available immediately, so a real, live card can easily have
     // an empty num. Rejecting on a missing num would wrongly treat a genuinely
     // published card as if it didn't exist.
     if (!card || !card.name) { alert("That code doesn't have a published card to restore from yet."); return; }
-    var restored = {
-      profileId: profileId,
-      driver: {
-        name: String(card.name).slice(0, 40),
-        email: '', bio: '', joinedDate: Date.now(),
-        hometown: typeof card.hometown === 'string' ? card.hometown.slice(0, 60) : '',
-        age: card.age ? (parseInt(card.age, 10) || null) : null,
-        number: typeof card.num === 'string' ? card.num.slice(0, 8) : '',
-        teamColor: /^#[0-9a-fA-F]{6}$/.test(card.teamColor || '') ? card.teamColor : '',
-        photo: photoOK(card.photo) ? card.photo : null
-      },
-      linkedTracks: [],
-      raceResults: [],   // NOT recoverable — never synced anywhere but the original device
-      sponsors: (typeof card.sponsors === 'string' && card.sponsors)
-        ? card.sponsors.split(' · ').map(function (n) { return { name: n.trim() }; }).filter(function (s) { return s.name; })
-        : [],
-      tier: 'free',
-      premiumCode: '',
-      shortCode: short,
-      publishedAt: typeof card.updatedAt === 'number' ? card.updatedAt : Date.now()
-    };
-    if (card.premiumCode && premCheck(profileId, card.premiumCode)) {
-      restored.tier = 'pro';
-      restored.premiumCode = String(card.premiumCode).toUpperCase();
-    }
+    var restored = newProfile(String(card.name).slice(0, 40), '', '', null);
+    restored.profileId = result.profileId;
+    restored.shortCode = short;
+    restored.publishedAt = Date.now();
+    applyCardToProfile(restored, card);
     P = migrate(restored);
-    save();
+    localStorage.setItem('profiles_v1', JSON.stringify(P));   // direct write: nothing new to publish
     $id('onboardModal').style.display = 'none';
     nav('home');
-    alert('✅ Card restored for ' + P.driver.name + '.\n\nYour identity, car #, and premium status are back — but your race history isn\'t included. It only ever lived on your original device. If you still have access to it, use "Back up my profile" there and restore that file here instead for full history.');
+    // Track-published results are readable now, so bring the verified history back too.
+    pullRaceDayResults().then(function (n) { if (n) nav('home'); }).catch(function () {});
+    if (!quiet) alert('✅ Profile restored for ' + P.driver.name + ' — your card, colors, photo and Pro status are back, and results posted by tracks will reload. Results you imported by hand stay on your original device; use "Back up my profile" there to bring those over.');
   }).catch(function () {
     alert("Couldn't reach the profile service — check your connection and try again.");
   });
+}
+
+// Keeps several copies of one profile (phone app, browser tab, second phone) from
+// overwriting each other with stale settings: on open, if the published card is newer than
+// this device's last publish, pull its fields in here — locally only, no republish.
+function syncFromPublished() {
+  if (!P || !P.profileId || !P.publishedAt) return Promise.resolve(false);
+  return ensureFirebase().then(function () {
+    return firebase.database().ref('profiles/' + P.profileId + '/card').once('value');
+  }).then(function (snap) {
+    var card = snap.val();
+    if (!card || !card.name || typeof card.updatedAt !== 'number') return false;
+    if (card.updatedAt <= P.publishedAt + 5000) return false;   // this device published last (5s slack for clock/server-timestamp drift)
+    applyCardToProfile(P, card);
+    localStorage.setItem('profiles_v1', JSON.stringify(P));
+    var cur = document.querySelector('.nav button.active');
+    nav(cur ? cur.dataset.page : 'home');
+    return true;
+  }).catch(function () { return false; });
+}
+
+// On the insecure http origin with a profile already stored: reopen on https with
+// ?restore=CODE. It deliberately does NOT republish this copy first — a stale copy
+// republishing is exactly how settings got overwritten. Every edit here already
+// auto-published, so the card is this copy's latest state anyway; only a never-published
+// copy publishes once to claim its link code.
+function offerSecureMove() {
+  if (location.protocol !== 'http:' || !P || !/(^|\.)victoryraceday\.com$/.test(location.hostname)) return;
+  var bar = document.createElement('div');
+  bar.style.cssText = 'position:sticky;top:0;z-index:50;background:#ffc400;color:#161408;padding:12px 16px;font:600 14px/1.4 -apple-system,sans-serif;display:flex;gap:10px;align-items:center';
+  bar.innerHTML = '<span style="flex:1">You\'re on an old, insecure address for Driven. Move your profile to the secure one so every device stays in sync.</span>'
+    + '<button class="btn btn-sm" style="background:#161408;color:#fff;border-color:#161408" onclick="moveToSecure()">Move my profile</button>';
+  document.body.insertBefore(bar, document.body.firstChild);
+}
+function moveToSecure() {
+  var go = function () { location.href = 'https://' + location.host + '/driven/?restore=' + encodeURIComponent(P.shortCode); };
+  if (P.publishedAt && P.shortCode) { go(); return; }
+  publishCard(true).then(go).catch(function () { alert("Couldn't publish your card first — check your connection and try again."); });
+}
+// ?restore=CODE (from moveToSecure, or a shared restore link): restore if this device has
+// no profile yet; if it already has this profile, the open-time sync brings it current.
+function handleRestoreParam() {
+  var m = location.search.match(/[?&]restore=([A-Za-z0-9]{4,20})/);
+  if (!m) return;
+  history.replaceState(null, '', location.pathname + location.hash);
+  if (!P) restoreFromLinkCode(m[1]);
 }
 
 // Full local backup — the only path that preserves race history, since it serializes
@@ -1417,6 +1488,9 @@ function handleBootParams() {
 P = load();
 if (!P) { openOnboarding(); } else { nav('home'); }
 handleBootParams();
+handleRestoreParam();
+syncFromPublished();
+offerSecureMove();
 </script>
 <!-- Cloudflare Web Analytics --><script type='module' src='https://static.cloudflareinsights.com/beacon.min.js' data-cf-beacon='{"token": "07e858325a984890a4f60c1cec1942bc"}'></script><!-- End Cloudflare Web Analytics -->
 </body>
