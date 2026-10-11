@@ -7075,6 +7075,10 @@ if (!LOAD_FAILURE && !S.track.name && deviceRole() === 'admin' && !(S.sync && S.
 checkLoadFailure();
 
 </script>
-<!-- Cloudflare Web Analytics --><script type='module' src='https://static.cloudflareinsights.com/beacon.min.js' data-cf-beacon='{"token": "07e858325a984890a4f60c1cec1942bc"}'></script><!-- End Cloudflare Web Analytics -->
+<!-- Cloudflare Web Analytics — injected only when online, so the shell keeps zero external
+     <script src> dependencies and still boots offline (tests/v2/test-v2-compat.js §7). -->
+<script>if (navigator.onLine) { var cfb = document.createElement('script'); cfb.defer = true;
+  cfb.src = 'https://static.cloudflareinsights.com/beacon.min.js';
+  cfb.setAttribute('data-cf-beacon', '{"token": "07e858325a984890a4f60c1cec1942bc"}'); document.body.appendChild(cfb); }</script>
 </body>
 </html>
