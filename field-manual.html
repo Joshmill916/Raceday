@@ -294,6 +294,7 @@
         <a class="tocl" href="#dr-card">The driver card</a>
         <a class="tocl" href="#dr-linking">Linking to a track</a>
         <a class="tocl" href="#dr-publish">Publishing &amp; the link code</a>
+        <a class="tocl" href="#dr-public">Your public page</a>
         <a class="tocl" href="#dr-premium">Pro</a>
         <a class="tocl" href="#dr-stats">Career stats</a>
         <a class="tocl" href="#dr-settings">Settings &amp; backup</a>
@@ -776,23 +777,29 @@
           <figure class="screen"><img src="field-manual/shot-47.jpg" loading="lazy" alt="Driven onboarding welcome screen"><figcaption>Welcome to Driven</figcaption></figure>
           <figure class="screen"><img src="field-manual/shot-48.jpg" loading="lazy" alt="Driven onboarding form filled in"><figcaption>Fields filled in</figcaption></figure>
         </div>
-        <p>Home is where a driver lands every time after that: a hero band with photo/name/number/career
-        stats, a prompt to link their first track if none yet, and a feed of their most recent results.</p>
+        <p>Home is where a driver lands every time after that, in the same broadcast look as their
+        public page: a banner in their team colors with the giant car number (or their header photo on
+        Pro), their photo in a team-color ring, <code class="ui">Share my page</code> /
+        <code class="ui">View</code> (or <code class="ui">Publish my card</code> before the first
+        publish), a prompt to link their first track if none yet, the latest result, stat tiles
+        (starts, wins, top 5, average finish), and their recent races. Pro adds a season-form line and
+        milestone badges.</p>
         <div class="shots">
           <figure class="screen"><img src="field-manual/shot-49.jpg" loading="lazy" alt="Driven home tab, empty state before any results"><figcaption>Home — before any results</figcaption></figure>
-          <figure class="screen"><img src="field-manual/shot-50.jpg" loading="lazy" alt="Driven home tab with recent races feed populated"><figcaption>Home — with recent races</figcaption></figure>
+          <figure class="screen"><img src="field-manual/shot-50.jpg" loading="lazy" alt="Driven Pro home tab with header photo, three team colors, latest result, stat tiles and season form"><figcaption>Home — Pro, with results</figcaption></figure>
         </div>
       </section>
 
       <section class="scenario" id="dr-card">
         <h3>The driver card <span class="tag tag-driven">Driven</span></h3>
-        <p>The Card tab is a live preview of what a track admin and fans see — all editing happens in
-        <a href="#dr-settings">Settings</a>, not on this screen itself. Free tier gets a simple photo/
-        name/bio card; Pro gets a dark broadcast-style card with a ghost car-number watermark and a
-        stats strip built right in.</p>
+        <p>The Card tab is a live preview of the driver's <a href="#dr-public">public page</a> — exactly
+        what fans and sponsors see — followed by the Share with tracks, Your public page and plan boxes.
+        All editing happens in <a href="#dr-settings">Settings</a>, not on this screen itself. Free tier
+        gets the banner in the driver's team color, stat tiles and results; Pro adds the
+        <b>PRO</b> badge, a header photo, two accent colors, a season-form line and milestone badges.</p>
         <div class="shots">
-          <figure class="screen"><img src="field-manual/shot-51.jpg" loading="lazy" alt="Driven free-tier driver card"><figcaption>Free tier card</figcaption></figure>
-          <figure class="screen"><img src="field-manual/shot-52.jpg" loading="lazy" alt="Driven Pro-tier driver card"><figcaption>Pro tier card</figcaption></figure>
+          <figure class="screen"><img src="field-manual/shot-51.jpg" loading="lazy" alt="Driven free-tier Card tab: team-color banner, stats, results, publish box and Upgrade to Pro"><figcaption>Free tier card</figcaption></figure>
+          <figure class="screen"><img src="field-manual/shot-52.jpg" loading="lazy" alt="Driven Pro Card tab: header photo, PRO badge, latest result, stat tiles and season form"><figcaption>Pro tier card</figcaption></figure>
         </div>
         <h4 style="font-size:16px;margin-top:26px">Photo upload</h4>
         <ol class="steps driven">
@@ -803,7 +810,16 @@
           nothing partial gets saved.</li>
           <li><code class="ui">Remove</code> clears the photo back to an initials disc.</li>
         </ol>
-        <figure class="screen"><img src="field-manual/shot-53.jpg" loading="lazy" alt="Driven settings with photo uploaded, showing thumbnail and remove button"><figcaption>Settings — photo uploaded</figcaption></figure>
+        <h4 style="font-size:16px;margin-top:26px">Header photo &amp; team colors (Pro)</h4>
+        <ol class="steps driven">
+          <li>Settings → <b>Header photo (Pro)</b> → <code class="ui">Upload</code>. The photo is
+          center-cropped to a wide 3:1 banner automatically — a car-on-track shot works best. It replaces
+          the striped banner on Home, Card and the public page.</li>
+          <li>Settings → <b>Team colors</b>: Pro gets three pickers — a primary and two accents. They drive
+          the banner's three stripes, the double ring around the photo, and the latest-result stripe. Free
+          keeps one team color.</li>
+        </ol>
+        <figure class="screen"><img src="field-manual/shot-53.jpg" loading="lazy" alt="Driven Pro settings with photo and header photo uploaded and three team-color pickers"><figcaption>Settings — Pro photo, header &amp; colors</figcaption></figure>
       </section>
 
       <section class="scenario" id="dr-linking">
@@ -858,7 +874,8 @@
           <li>First publish claims a short code — a handful of characters, extended automatically if
           there's a collision.</li>
           <li>Every later profile edit silently re-publishes, so the live card always matches what's on
-          the driver's device.</li>
+          the driver's device. Just opening the app never re-publishes — so a second phone or browser
+          with an older copy can't overwrite the card.</li>
           <li>The <b>Link</b> tab is the dedicated share screen: the code in large type, a QR code, and the
           list of tracks currently linked (with an Unlink per row — this only removes the track from the
           driver's list, it never deletes results already pulled in).</li>
@@ -869,14 +886,32 @@
         driver-card <code class="ui">🔗 Link Driven</code> prompt (see above).</p>
       </section>
 
+      <section class="scenario" id="dr-public">
+        <h3>Your public page <span class="tag tag-driven">Driven</span></h3>
+        <p>Every published driver gets a shareable page at <code>victoryraceday.com/d/?CODE</code> (their
+        link code) — no app or account needed to open it. Share it from Home
+        (<code class="ui">Share my page</code>) or the Card tab's <b>Your public page</b> box. It shows the
+        latest result, starts / wins / top 5 / average finish, the full results list, bio, highlights,
+        crew and a sponsor wall — and every result on it was posted by a track's own RaceDay scoring,
+        never typed in by the driver.</p>
+        <p>Pro pages add the header photo, three team colors, the <b>PRO</b> badge, points standings worked
+        out from each track's posted results, a season-form line and milestone badges (first win, hat
+        trick, 10 starts…). A <code class="ui">‹ Back to my Driven</code> button at the top takes the driver
+        back to the app (visitors without a profile see <code class="ui">Get Driven — free</code>).</p>
+        <figure class="screen"><img src="field-manual/shot-66.jpg" loading="lazy" alt="Public Driven driver page with header photo, PRO badge, latest result, stats, points standings, season form, milestones, results and sponsors"><figcaption>Public driver page — Pro</figcaption></figure>
+      </section>
+
       <section class="scenario" id="dr-premium">
         <h3>Pro <span class="tag tag-driven">Driven</span></h3>
         <ol class="steps driven">
           <li>Card tab → "Upgrade to Pro" card → type a redeem code into <b>"Have a code?"</b> →
           <code class="ui">Unlock Pro</code>.</li>
           <li>A valid code instantly switches the card to the broadcast design and adds a gold "Pro" badge.</li>
-          <li>There's also a paid-subscription route (a Stripe checkout link) that verifies server-side
-          instead of a typed code, with a short "confirming your payment…" wait on return.</li>
+          <li>Or subscribe: <code class="ui">Get Pro — $3/mo</code> / <code class="ui">Get Pro — $30/yr</code>
+          on the same card. Checkout only opens from inside Driven, tied to the driver's published profile
+          (Driven publishes the card first if needed), so a payment always lands on the right profile. On
+          return there's a short "confirming your payment…" wait while the server switches the card to
+          Pro.</li>
         </ol>
       </section>
 
@@ -890,8 +925,9 @@
 
       <section class="scenario" id="dr-settings">
         <h3>Settings &amp; backup <span class="tag tag-driven">Driven</span></h3>
-        <p>All profile editing lives here: name, email, car number, team color, photo, hometown, age, bio,
-        sponsors — one <code class="ui">Save changes</code> button for the lot.</p>
+        <p>All profile editing lives here: name, nickname, email, car number, team color (three on Pro),
+        photo, header photo (Pro), hometown, age, bio, highlights, sponsors and crew — one
+        <code class="ui">Save changes</code> button for the lot.</p>
         <figure class="screen"><img src="field-manual/shot-60.jpg" loading="lazy" alt="Driven settings profile fields"><figcaption>Settings — profile fields</figcaption></figure>
         <p>Below that: <b>Download backup</b> (the entire profile as a JSON file — the only full-fidelity
         way to move to a new phone, since race history never syncs anywhere else) and, in the danger zone,

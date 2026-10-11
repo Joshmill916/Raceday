@@ -95,7 +95,9 @@ function entitlementFromSub(sub) {
     status: sub.status,
     subId: sub.id,
     customerId: sub.customer,
-    currentPeriodEnd: (sub.current_period_end || 0) * 1000,
+    // Newer Stripe API versions moved current_period_end onto the subscription items.
+    currentPeriodEnd: (sub.current_period_end
+      || (sub.items && sub.items.data && sub.items.data[0] && sub.items.data[0].current_period_end) || 0) * 1000,
     updatedAt: admin.database.ServerValue.TIMESTAMP,
   };
 }
@@ -123,7 +125,16 @@ async function handleSubscriptionCheckout(session, stripe, db) {
 // customer.subscription.updated / .deleted — renewals, cancellations, and payment
 // failures (a failed renewal surfaces as status:'past_due' on an .updated event, not a
 // separate event type, so both are handled identically here).
-async function handleSubscriptionEvent(sub, db) {
+async function handleSubscriptionEvent(eventSub, db, stripe) {
+  // Never trust the event's snapshot: Stripe retries failed deliveries for days, so an
+  // OLD "active" event can arrive after a cancellation (this happened — a retried 4pm
+  // update re-activated a subscription cancelled at 4:35). Re-read the subscription so
+  // the entitlement always reflects Stripe's current state, whatever order events land in.
+  let sub = eventSub;
+  if (stripe) {
+    try { sub = await stripe.subscriptions.retrieve(eventSub.id); }
+    catch (err) { if (!(err && err.statusCode === 404)) throw err; }   // 404: deleted — keep the event's (canceled) snapshot
+  }
   let profileId = sub.metadata && sub.metadata.profileId;
   if (!profileId) {
     const idxSnap = await db.ref('subscriptions/' + sub.id).once('value');
@@ -170,7 +181,7 @@ exports.stripeWebhook = onRequest(
     // can poll to notice a silent failure and complain, so retrying is the only safety net.
     if (event.type === 'customer.subscription.updated' || event.type === 'customer.subscription.deleted') {
       try {
-        await handleSubscriptionEvent(event.data.object, db);
+        await handleSubscriptionEvent(event.data.object, db, stripe);
         res.status(200).send('ok');
       } catch (err) {
         logger.error('Subscription event handling failed for ' + event.data.object.id, err.message);
@@ -272,6 +283,91 @@ exports.billingPortal = onRequest(
       return_url: 'https://victoryraceday.com/driven/?pro=1',
     });
     res.redirect(303, portal.url);
+  }
+);
+
+// proCheckout — the ONLY way to start a Driven Pro subscription. Driven's "Get Pro"
+// buttons land here instead of on the raw Payment Links, because a Payment Link can be
+// opened (and paid) by anyone with the URL, with no profile attached — which is how a
+// real payment once ended up with no Pro to show for it. This endpoint refuses to start
+// a checkout unless the profileId is well-formed AND that profile has a published card,
+// sends an already-subscribed profile to the billing portal instead of a second
+// subscription, and creates the Checkout Session server-side with the profile baked in
+// (client_reference_id + subscription metadata). The old Payment Links are kept only as
+// the source of the Pro prices; deactivate them in Stripe so they can't be paid directly.
+// The Pro Payment Links, by their fixed Stripe IDs (not URLs — the yearly URL once had a
+// one-character typo in the app). Kept as the source of each plan's price and its
+// Managed Payments setting.
+const PRO_LINKS = {
+  monthly: 'plink_1TzofHRsg13B50voD5zrnr8i',
+  yearly: 'plink_1TzodzRsg13B50voCV4vL8Gj',
+};
+// Managed Payments needs API version 2025-03-31.basil or newer on these requests.
+const PRO_API = { apiVersion: '2025-03-31.basil' };
+const proPriceCache = {};
+async function proPriceId(stripe, period) {
+  if (!proPriceCache[period]) {
+    const id = PRO_LINKS[period];
+    const [link, items] = await Promise.all([
+      stripe.paymentLinks.retrieve(id, {}, PRO_API),
+      stripe.paymentLinks.listLineItems(id, { limit: 1 }, PRO_API),
+    ]);
+    const item = items.data[0];
+    if (!item || !item.price) return null;
+    proPriceCache[period] = { price: item.price.id, managed: !!(link.managed_payments && link.managed_payments.enabled) };
+  }
+  return proPriceCache[period];
+}
+function checkoutError(res, status, msg) {
+  res.status(status).set('Content-Type', 'text/html').send(
+    '<!doctype html><meta name="viewport" content="width=device-width,initial-scale=1">'
+    + '<body style="font-family:-apple-system,sans-serif;background:#0b0c10;color:#f5f6f8;padding:40px 20px;text-align:center">'
+    + '<h2>Can\'t start checkout</h2><p style="color:#8f939d">' + msg + '</p>'
+    + '<p><a style="color:#6aa5f0" href="https://victoryraceday.com/driven/">Back to Driven</a></p></body>');
+}
+exports.proCheckout = onRequest(
+  { secrets: [STRIPE_SECRET_KEY], cors: false },
+  async (req, res) => {
+    const profileId = String(req.query.profileId || '');
+    const period = String(req.query.period || '');
+    if (!/^prof_[a-z0-9]{6,20}$/i.test(profileId) || !PRO_LINKS[period]) {
+      checkoutError(res, 400, 'Open Driven and tap Get Pro from your Card page.');
+      return;
+    }
+    const db = admin.database();
+    const [card, ent] = await Promise.all([
+      db.ref('profiles/' + profileId + '/card/name').once('value'),
+      db.ref('profiles/' + profileId + '/entitlement').once('value'),
+    ]);
+    if (!card.val()) {
+      checkoutError(res, 404, 'Publish your Driven card first (Card page → Publish my card), then try again.');
+      return;
+    }
+    const e = ent.val();
+    if (e && e.tier === 'pro' && (e.status === 'active' || e.status === 'trialing' || e.status === 'past_due')) {
+      res.redirect(303, 'https://us-central1-raceday-d32dd.cloudfunctions.net/billingPortal?profileId=' + encodeURIComponent(profileId));
+      return;
+    }
+    const stripe = new Stripe(STRIPE_SECRET_KEY.value());
+    const plan = await proPriceId(stripe, period);
+    if (!plan) {
+      logger.error('proCheckout: no price found for ' + period);
+      checkoutError(res, 503, 'Pro checkout is temporarily unavailable. Please try again later.');
+      return;
+    }
+    const params = {
+      mode: 'subscription',
+      line_items: [{ price: plan.price, quantity: 1 }],
+      client_reference_id: profileId,
+      subscription_data: { metadata: { profileId } },
+      success_url: 'https://victoryraceday.com/driven/?pro=1',
+      cancel_url: 'https://victoryraceday.com/driven/',
+    };
+    // Mirror the Payment Link's Managed Payments setting so tax/merchant handling matches.
+    if (plan.managed) params.managed_payments = { enabled: true };
+    const session = await stripe.checkout.sessions.create(params, PRO_API);
+    logger.info('proCheckout: session ' + session.id + ' for ' + profileId + ' (' + period + ')');
+    res.redirect(303, session.url);
   }
 );
 

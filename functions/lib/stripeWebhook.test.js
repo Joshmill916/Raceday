@@ -19,7 +19,7 @@ const stubs = {
     return {
       webhooks: { constructEvent: (body) => JSON.parse(body) },
       subscriptions: {
-        retrieve: async (id) => { if (stripeBehavior.retrieveFails) throw new Error('Stripe API down'); return { id, status: 'active', customer: 'cus_1', current_period_end: 2000000000 }; },
+        retrieve: async (id) => { if (stripeBehavior.retrieveFails) throw new Error('Stripe API down'); return { id, status: stripeBehavior.status || 'active', customer: 'cus_1', metadata: { profileId: 'prof_abc123xy' }, items: { data: [{ current_period_end: 2000000000 }] } }; },
         update: async () => ({}),
       },
     };
@@ -57,6 +57,16 @@ const base = { mode: 'subscription', subscription: 'sub_1', customer: 'cus_1', c
   check('retry success -> 200 ok', r.code === 200 && r.body === 'ok', r);
   check('retry success -> entitlement is pro', store['profiles/prof_abc123xy/entitlement'] && store['profiles/prof_abc123xy/entitlement'].tier === 'pro', store['profiles/prof_abc123xy/entitlement']);
   check('retry success -> error record removed', !('subscriptionErrors/cs_flaky' in store), Object.keys(store));
+
+  // 4. A stale retried "active" event after cancellation must not resurrect Pro: the
+  //    handler re-reads the subscription, which Stripe now reports as canceled.
+  stripeBehavior.status = 'canceled';
+  const stale = { type: 'customer.subscription.updated', data: { object: { id: 'sub_1', status: 'active', customer: 'cus_1', metadata: { profileId: 'prof_abc123xy' } } } };
+  const res4 = { code: 0, body: '', status(c) { this.code = c; return this; }, send(b) { this.body = b; return this; } };
+  await fns.stripeWebhook({ rawBody: JSON.stringify(stale), headers: {} }, res4);
+  const ent = store['profiles/prof_abc123xy/entitlement'];
+  check('stale active event after cancel -> entitlement stays canceled/free', res4.code === 200 && ent && ent.status === 'canceled' && ent.tier !== 'pro', ent);
+  check('renewal date read from subscription items', ent && ent.currentPeriodEnd === 2000000000000, ent);
 
   console.log(`\nwebhook: ${pass} passed, ${fail} failed`);
   process.exit(fail ? 1 : 0);
