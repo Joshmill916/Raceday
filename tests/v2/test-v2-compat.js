@@ -212,7 +212,9 @@ const TYPES = { '.html':'text/html', '.js':'application/javascript', '.json':'ap
   // ---------------------------------------------------------------- 7. offline shell
   console.log('— Offline / no-network assets —');
   {
-    const html = fs.readFileSync(path.join(ROOT, 'raceday2/index.html'), 'utf8');
+    // The Cloudflare analytics beacon is fire-and-forget — the app runs fine without it offline.
+    const html = fs.readFileSync(path.join(ROOT, 'raceday2/index.html'), 'utf8')
+      .replace(/<script[^>]+src=["']https:\/\/static\.cloudflareinsights\.com\/beacon\.min\.js["'][^>]*><\/script>/g, '');
     check('no external font/stylesheet/script link in the shell',
       !/<link[^>]+href=["']https?:/i.test(html) && !/<script[^>]+src=["']https?:/i.test(html));
     check('the display face is embedded, not fetched',
