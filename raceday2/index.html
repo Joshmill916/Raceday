@@ -238,6 +238,7 @@ img { max-width:100%; }
 .note-warn  { background:var(--flag-amber-bg); border-color:#4a3a15; color:var(--flag-amber-ink); }
 .note-err   { background:var(--pit-red-bg);    border-color:#4d2320; color:var(--pit-red-ink); }
 .note-ok    { background:var(--flag-green-bg); border-color:#1d4630; color:var(--flag-green-ink); }
+.scan-filled { box-shadow:0 0 0 3px var(--plate) !important; transition:box-shadow .3s; }   /* name/number just filled from a Driven scan */
 .banner { display:flex; align-items:center; gap:12px; flex-wrap:wrap; margin:0 0 14px; }
 .banner .btn { margin-left:auto; }
 
@@ -1805,8 +1806,7 @@ async function openDrivenScan() {
       const id = parseDrivenCode(text);
       if (id) {
         stopDrivenScan(); hideModal('scanHost');
-        const el = document.getElementById('dProfCode');
-        if (el) { el.value = id; if (el.closest('details')) el.closest('details').open = true; }
+        applyScannedDriven(id);
         return;
       }
       scanMsg("That isn't a Driven code. Keep pointing at the driver's Driven QR, or type the code instead.");
@@ -1814,6 +1814,38 @@ async function openDrivenScan() {
     _scanRaf = requestAnimationFrame(tick);
   };
   _scanRaf = requestAnimationFrame(tick);
+}
+// A scanned Driven code fills the link box AND the driver's name + kart number from their
+// published card, then asks them to check both — a driver can run a different number (or
+// name spelling) tonight, so the fields stay editable and only tonight's entry changes.
+// A returning driver already linked to this profile is picked from the driver book instead,
+// so their usual classes come with them.
+function applyScannedDriven(code) {
+  const box = document.getElementById('dProfCode');
+  if (box) { box.value = code; if (box.closest('details')) box.closest('details').open = true; }
+  const note = document.getElementById('scanNote');
+  const say = (html, cls) => { if (note) { note.className = 'note ' + (cls || ''); note.innerHTML = html; note.style.display = ''; } };
+  say('📷 Driven code scanned — loading the driver\'s card…');
+  return ensureFirebase().then(() => resolveProfileId(code)).then(id =>
+    firebase.database().ref('profiles/' + id + '/card').once('value').then(snap => ({ id, card: snap.val() }))
+  ).then(({ id, card }) => {
+    if (!card || !card.name) { say('Code scanned. This driver hasn\'t published a Driven card yet — type the name and kart number.', 'note-warn'); return; }
+    const known = (S.roster || []).find(d => d.profileId === id);
+    if (known) pickRoster(known.id);
+    else {
+      const nm = document.getElementById('dName'), nu = document.getElementById('dNum');
+      if (nm) nm.value = String(card.name).slice(0, 60);
+      if (nu) nu.value = String(card.num || '').toUpperCase().replace(/[^A-Z0-9]/g, '').slice(0, 5);
+      signupTyped();
+    }
+    const nm = document.getElementById('dName'), nu = document.getElementById('dNum');
+    say('✅ <b>' + esc(nm ? nm.value : card.name) + (nu && nu.value ? ' #' + esc(nu.value) : '') + '</b> from Driven. '
+      + 'Check the name and kart number below — change either one if it\'s different tonight. It only changes tonight\'s entry, not the Driven profile.', 'note-ok');
+    [nm, nu].forEach(el => { if (el) { el.classList.add('scan-filled'); setTimeout(() => el.classList.remove('scan-filled'), 2600); } });
+    if (nu && !nu.value) nu.focus();
+  }).catch(() => {
+    say('Code scanned. Couldn\'t load the driver\'s name right now — type the name and kart number; the Driven card still links when they\'re drawn.', 'note-warn');
+  });
 }
 function stopDrivenScan() {
   cancelAnimationFrame(_scanRaf); _scanRaf = 0;
@@ -3291,6 +3323,7 @@ function renderSignup() {
     + '<p class="sub">Type your name. If you\'ve raced here before, tap it when it appears — your number and classes come with it.</p>'
     + (blocked ? '<div class="note note-err" style="margin-bottom:14px">' + esc(entryBlockedMsg()) + '</div>' : '')
     + '<div class="card">'
+    +   '<div id="scanNote" style="display:none;margin-bottom:12px"></div>'
     +   '<div class="field"><label for="dName">Driver name</label>'
     +     '<input id="dName" class="input-lg" type="text" placeholder="Full name" autocomplete="off" '
     +     'oninput="suggest()" onkeydown="if(event.key===\'Enter\')document.getElementById(\'dNum\').focus()">'

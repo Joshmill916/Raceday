@@ -333,13 +333,39 @@ fs.writeFileSync(TEST_PNG_PATH, Buffer.from(
   check('photoOK() rejects non-string input without throwing', !photoOKChecks.notAString && !photoOKChecks.nullish);
 
   await page.setInputFiles('#stPhotoFile', TEST_PNG_PATH);
-  await page.waitForTimeout(200);
+  await page.waitForTimeout(250);
+  check('picking a photo opens the position/zoom step first', await page.evaluate(() => !!document.getElementById('cropHost')));
+  check('nothing is saved until the driver taps Use photo', await page.evaluate(() => P.driver.photo == null));
+  await page.click('#cropUse'); await page.waitForTimeout(150);
   const uploaded = await page.evaluate(() => P.driver.photo);
   check('a valid small image uploads and passes photoOK() after crop/resize/encode',
     typeof uploaded === 'string' && uploaded.startsWith('data:image/jpeg;base64,'), typeof uploaded);
 
   await page.evaluate(() => { removePhoto(); });
   check('removePhoto() clears it', await page.evaluate(() => P.driver.photo === null));
+
+  // Cancel keeps the old photo; dragging changes which part of the picture is kept.
+  await page.setInputFiles('#stPhotoFile', TEST_PNG_PATH); await page.waitForTimeout(250);
+  await page.click('#cropCancel'); await page.waitForTimeout(100);
+  check('Cancel closes the step and saves nothing', await page.evaluate(() => !document.getElementById('cropHost') && P.driver.photo === null));
+  const dragDiff = await page.evaluate(async () => {
+    // a 400x200 image: left half red, right half blue — the centered square crop straddles both
+    const c = document.createElement('canvas'); c.width = 400; c.height = 200; const g = c.getContext('2d');
+    g.fillStyle = '#ff0000'; g.fillRect(0, 0, 200, 200); g.fillStyle = '#0000ff'; g.fillRect(200, 0, 200, 200);
+    const img = new Image(); img.src = c.toDataURL('image/png'); await img.decode();
+    const sample = (url) => new Promise(r => { const i = new Image(); i.onload = () => { const k = document.createElement('canvas'); k.width = k.height = 256; const x = k.getContext('2d'); x.drawImage(i, 0, 0); r(Array.from(x.getImageData(128, 128, 1, 1).data.slice(0, 3))); }; i.src = url; });
+    const run = (dx) => new Promise(res => {
+      const ov = openPhotoCropper(img, { title: 't', aspect: 1, outW: 256, outH: 256, round: true, maxLen: 999999 }, res);
+      const fr = ov.querySelector('#cropFrame'); const b = fr.getBoundingClientRect();
+      const ev = (type, x) => fr.dispatchEvent(new PointerEvent(type, { clientX: x, clientY: b.top + 10, pointerId: 1, bubbles: true }));
+      if (dx) { ev('pointerdown', b.left + 10); ev('pointermove', b.left + 10 + dx); ev('pointerup', b.left + 10 + dx); }
+      ov.querySelector('#cropUse').click();
+    });
+    const right = await sample(await run(-2000));   // dragged all the way left → shows the blue side
+    const left = await sample(await run(2000));     // dragged all the way right → shows the red side
+    return { right, left };
+  });
+  check('dragging moves the kept area (one side red, the other blue)', dragDiff.left[0] > 200 && dragDiff.left[2] < 60 && dragDiff.right[2] > 200 && dragDiff.right[0] < 60, JSON.stringify(dragDiff));
 
   console.log('\n— Photo pipeline: the 60KB size gate —');
   // Monkeypatch canvas.toDataURL to return a deterministic oversized string — a real
@@ -350,7 +376,8 @@ fs.writeFileSync(TEST_PNG_PATH, Buffer.from(
   });
   resetDlg();
   await page.setInputFiles('#stPhotoFile', TEST_PNG_PATH);
-  await page.waitForTimeout(200);
+  await page.waitForTimeout(250);
+  await page.click('#cropUse'); await page.waitForTimeout(150);
   check('an oversized encoded photo is rejected with a clear message', dlgSeen.some(m => /too heavy/i.test(m)), JSON.stringify(dlgSeen));
   check('P.driver.photo is untouched by the rejected upload', await page.evaluate(() => P.driver.photo === null));
 
