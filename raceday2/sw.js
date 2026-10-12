@@ -5,8 +5,8 @@
    icons/manifest. Firebase / CDN / Apps Script always hit the network.
    The display font is embedded in index.html, so a cold offline load renders
    in the real typeface rather than a fallback. */
-const CACHE = 'raceday2-v1';
-const SHELL = ['./', './index.html', './manifest.webmanifest', './icon-rd.png'];
+const CACHE = 'raceday2-v2';
+const SHELL = ['./', './index.html', './manifest.webmanifest', './icon-rd.png', './vendor/jsqr.min.js'];
 
 self.addEventListener('install', e => {
   self.skipWaiting();

@@ -682,6 +682,21 @@ body.kiosk .wrap-narrow { max-width:600px; width:100%; }
   </div>
 </div>
 
+<div class="ovl" id="scanHost">
+  <div class="sheet" role="dialog" aria-modal="true" aria-labelledby="scanTitle">
+    <div class="sheet-hd">
+      <h3 id="scanTitle">Scan Driven QR</h3>
+      <button class="x" onclick="cancelDrivenScan()" aria-label="Close">×</button>
+    </div>
+    <div class="sheet-bd">
+      <video id="scanVideo" playsinline muted style="width:100%;border-radius:10px;background:#000;display:block"></video>
+      <canvas id="scanCanvas" style="display:none"></canvas>
+      <p class="sub" id="scanMsg" style="margin-top:12px;text-align:center" aria-live="polite"></p>
+    </div>
+    <div class="sheet-ft"><button class="btn btn-block" onclick="cancelDrivenScan()">Cancel</button></div>
+  </div>
+</div>
+
 <div id="toastHost"></div>
 
 <!-- ===== TV DISPLAY ========================================================== -->
@@ -1729,6 +1744,84 @@ function resolveProfileId(codeOrId) {
     return id;
   });
 }
+/* ---- Scan a driver's Driven QR at sign-up -------------------------------------------
+   The Driven Link page shows RDPROFILE:<profileId>. jsQR (vendor/jsqr.min.js, Apache-2.0)
+   ships with the app and loads only the first time the button is tapped. The scan fills
+   #dProfCode; the existing link path runs when the driver is drawn, same as typing it. */
+let _scanStream = null, _scanRaf = 0, _scanLib = null;
+function loadScanner() {
+  if (window.jsQR) return Promise.resolve(window.jsQR);
+  if (!_scanLib) _scanLib = new Promise((res, rej) => {
+    const s = document.createElement('script');
+    s.src = 'vendor/jsqr.min.js';
+    s.onload = () => window.jsQR ? res(window.jsQR) : rej(new Error('scanner'));
+    s.onerror = () => { _scanLib = null; rej(new Error('scanner')); };
+    document.head.appendChild(s);
+  });
+  return _scanLib;
+}
+function parseDrivenCode(text) {
+  const t = String(text || '').trim();
+  const m = t.match(/^RDPROFILE:(prof_[a-z0-9]{6,20})$/i);
+  if (m) return m[1].toLowerCase();
+  if (/^[A-Z0-9]{6,14}$/i.test(t)) return t.toUpperCase();   // a printed short link code
+  return null;
+}
+function scanMsg(t) { const el = document.getElementById('scanMsg'); if (el) el.textContent = t; }
+function scanFailMsg(e) {
+  if (!window.isSecureContext || !navigator.mediaDevices) return 'The camera needs a secure (https) page. Type the code instead.';
+  if (e && e.name === 'NotAllowedError') return 'Camera permission was blocked. Allow the camera in the browser settings, or type the code instead.';
+  if (e && (e.name === 'NotFoundError' || e.name === 'OverconstrainedError')) return 'No camera was found on this device. Type the code instead.';
+  if (e && e.message === 'scanner') return "Couldn't load the scanner. Check the connection, or type the code instead.";
+  return 'The camera could not start. Type the code instead.';
+}
+async function openDrivenScan() {
+  showModal('scanHost');
+  scanMsg('Starting the camera…');
+  try {
+    await loadScanner();
+    _scanStream = await navigator.mediaDevices.getUserMedia({ video: { facingMode: { ideal: 'environment' } }, audio: false });
+  } catch (e) { scanMsg(scanFailMsg(e)); stopDrivenScan(); return; }
+  const v = document.getElementById('scanVideo');
+  v.srcObject = _scanStream;
+  await v.play().catch(() => {});
+  scanMsg("Point the camera at the driver's Driven QR code.");
+  const cv = document.getElementById('scanCanvas'), ctx = cv.getContext('2d', { willReadFrequently: true });
+  const det = 'BarcodeDetector' in window ? new BarcodeDetector({ formats: ['qr_code'] }) : null;
+  const tick = async () => {
+    if (!_scanStream) return;
+    let text = null;
+    if (v.readyState >= 2 && v.videoWidth) {
+      if (det) { try { const hits = await det.detect(v); if (hits.length) text = hits[0].rawValue; } catch (_) {} }
+      if (!text && _scanStream) {
+        cv.width = v.videoWidth; cv.height = v.videoHeight;
+        ctx.drawImage(v, 0, 0, cv.width, cv.height);
+        const img = ctx.getImageData(0, 0, cv.width, cv.height);
+        const hit = window.jsQR(img.data, img.width, img.height, { inversionAttempts: 'dontInvert' });
+        if (hit) text = hit.data;
+      }
+    }
+    if (text && _scanStream) {
+      const id = parseDrivenCode(text);
+      if (id) {
+        stopDrivenScan(); hideModal('scanHost');
+        const el = document.getElementById('dProfCode');
+        if (el) { el.value = id; if (el.closest('details')) el.closest('details').open = true; }
+        return;
+      }
+      scanMsg("That isn't a Driven code. Keep pointing at the driver's Driven QR, or type the code instead.");
+    }
+    _scanRaf = requestAnimationFrame(tick);
+  };
+  _scanRaf = requestAnimationFrame(tick);
+}
+function stopDrivenScan() {
+  cancelAnimationFrame(_scanRaf); _scanRaf = 0;
+  if (_scanStream) { _scanStream.getTracks().forEach(t => t.stop()); _scanStream = null; }
+  const v = document.getElementById('scanVideo'); if (v) v.srcObject = null;
+}
+function cancelDrivenScan() { stopDrivenScan(); hideModal('scanHost'); }
+
 function linkProfile(driverId, codeOrId) {
   const d = driverById(driverId);
   if (!d) return Promise.reject(new Error('no driver'));
@@ -3209,7 +3302,8 @@ function renderSignup() {
     +   '<details style="margin-bottom:14px"><summary class="tiny" style="cursor:pointer;padding:6px 0">＋ Driven link code (optional)</summary>'
     +     '<div style="margin-top:8px"><input id="dProfCode" type="text" placeholder="e.g. K7Q2M4XN" maxlength="24" '
     +     'autocomplete="off" autocapitalize="characters">'
-    +     '<p class="tiny" style="margin-top:5px">From your <a href="' + DRIVEN_URL + '" target="_blank" rel="noopener">Driven app</a> — pulls your card and career stats onto the lineup.</p></div></details>'
+    +     '<p class="tiny" style="margin-top:5px">From your <a href="' + DRIVEN_URL + '" target="_blank" rel="noopener">Driven app</a> — pulls your card and career stats onto the lineup.</p>'
+    +     '<button class="btn btn-sm" type="button" onclick="openDrivenScan()" style="margin-top:8px">📷 Scan Driven QR</button></div></details>'
     +   '<div id="consentRow" style="display:none;margin:4px 0 12px">'
     +     '<label class="check"><input type="checkbox" id="consentChk" onchange="document.getElementById(\'e2\').style.display=\'none\'">'
     +     '<span>I agree to the <a onclick="openDoc(\'terms\')">Terms of Service</a> and <a onclick="openDoc(\'privacy\')">Privacy Policy</a>, and confirm my information is correct.</span></label></div>'
