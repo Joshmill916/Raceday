@@ -1281,55 +1281,97 @@ function saveProfileFields() {
   else alert('Saved.' + (P.publishedAt ? ' Your published card updates automatically.' : ''));
 }
 
-// Photo: center-crop square, downscale to 128px JPEG (~≤60KB) so published cards stay light.
-function uploadPhoto(input) {
+// Photo position/zoom step. Opens a sheet where the driver drags the picture to center it and
+// zooms with the slider, previewing exactly what will be kept (a circle for the profile photo,
+// the wide banner for the header). done(dataURL) gets the cropped JPEG; Cancel keeps the old one.
+// opts: { title, aspect (w/h), outW, outH, round, maxLen }
+function openPhotoCropper(img, opts, done) {
+  var ov = document.createElement('div');
+  ov.id = 'cropHost';
+  ov.style.cssText = 'position:fixed;inset:0;z-index:10000;background:rgba(5,6,9,.88);display:flex;align-items:center;justify-content:center;padding:16px';
+  // Fit inside the sheet on any phone (16px page gutter + 18px sheet padding each side), and keep
+  // the round photo frame a sensible size; the frame is fixed-size so a circle stays a circle.
+  var maxW = Math.max(160, Math.min(window.innerWidth - 32 - 36, 460));
+  var fw = opts.round ? Math.min(maxW, 300) : maxW;
+  var fh = Math.round(fw / opts.aspect);
+  ov.innerHTML = '<div style="background:var(--ink-1);color:var(--td);border-radius:16px;padding:18px;width:' + (fw + 36) + 'px;max-width:100%">'
+    + '<div style="font:800 20px var(--display);text-transform:uppercase;letter-spacing:.04em;margin-bottom:4px">' + esc(opts.title) + '</div>'
+    + '<div style="font-size:13px;color:var(--td-mute);margin-bottom:12px">Drag to center it. Use the slider to zoom.</div>'
+    + '<div id="cropFrame" style="position:relative;width:' + fw + 'px;height:' + fh + 'px;overflow:hidden;border-radius:' + (opts.round ? '50%' : '10px') + ';background:#000;touch-action:none;cursor:grab;margin:0 auto">'
+    +   '<img id="cropImg" alt="" draggable="false" style="position:absolute;left:0;top:0;transform-origin:0 0;user-select:none;-webkit-user-drag:none;max-width:none">'
+    + '</div>'
+    + '<input id="cropZoom" type="range" min="1" max="3" step="0.01" value="1" aria-label="Zoom" style="width:100%;margin:16px 0 4px">'
+    + '<div style="display:flex;gap:8px;margin-top:10px"><button class="btn" style="flex:1" id="cropCancel" type="button">Cancel</button>'
+    + '<button class="btn btn-go" style="flex:1" id="cropUse" type="button">Use photo</button></div></div>';
+  document.body.appendChild(ov);
+  var frame = ov.querySelector('#cropFrame'), im = ov.querySelector('#cropImg'), zoom = ov.querySelector('#cropZoom');
+  im.src = img.src;
+  // Frame can shrink on narrow screens (max-width:100%) — measure the real size.
+  fw = frame.clientWidth; fh = frame.clientHeight;
+  var base = Math.max(fw / img.width, fh / img.height);   // "cover" scale: the picture always fills the frame
+  var z = 1, ox = (fw - img.width * base) / 2, oy = (fh - img.height * base) / 2;   // start centered
+  function clamp() {
+    var w = img.width * base * z, h = img.height * base * z;
+    ox = Math.min(0, Math.max(fw - w, ox)); oy = Math.min(0, Math.max(fh - h, oy));
+  }
+  function draw() { clamp(); im.style.transform = 'translate(' + ox + 'px,' + oy + 'px) scale(' + (base * z) + ')'; }
+  draw();
+  zoom.oninput = function () {
+    // zoom around the frame centre so the part being looked at stays put
+    var cx = (fw / 2 - ox) / (base * z), cy = (fh / 2 - oy) / (base * z);
+    z = parseFloat(zoom.value) || 1;
+    ox = fw / 2 - cx * base * z; oy = fh / 2 - cy * base * z;
+    draw();
+  };
+  var drag = null;
+  frame.addEventListener('pointerdown', function (e) { drag = { x: e.clientX, y: e.clientY, ox: ox, oy: oy }; frame.setPointerCapture(e.pointerId); frame.style.cursor = 'grabbing'; });
+  frame.addEventListener('pointermove', function (e) { if (!drag) return; ox = drag.ox + e.clientX - drag.x; oy = drag.oy + e.clientY - drag.y; draw(); });
+  var end = function () { drag = null; frame.style.cursor = 'grab'; };
+  frame.addEventListener('pointerup', end); frame.addEventListener('pointercancel', end);
+  function close() { ov.remove(); }
+  ov.querySelector('#cropCancel').onclick = close;
+  ov.querySelector('#cropUse').onclick = function () {
+    var s = base * z;
+    var c = document.createElement('canvas'); c.width = opts.outW; c.height = opts.outH;
+    c.getContext('2d').drawImage(img, -ox / s, -oy / s, fw / s, fh / s, 0, 0, opts.outW, opts.outH);
+    var data = '', q = 0.85;
+    do { data = c.toDataURL('image/jpeg', q); q -= 0.1; } while (data.length > opts.maxLen && q > 0.3);
+    if (data.length > opts.maxLen) { alert(opts.tooBig || 'That photo is too detailed — try a different one.'); return; }
+    close();
+    done(data);
+  };
+  return ov;
+}
+function readImageFile(input, then) {
   var f = input.files && input.files[0];
   input.value = '';
   if (!f) return;
   var img = new Image();
   var url = URL.createObjectURL(f);
-  img.onload = function () {
-    URL.revokeObjectURL(url);
-    var side = Math.min(img.width, img.height);
-    var scale = Math.min(1, 128 / side);
-    var c = document.createElement('canvas');
-    c.width = c.height = Math.max(1, Math.round(side * scale));
-    c.getContext('2d').drawImage(img, (img.width - side) / 2, (img.height - side) / 2, side, side, 0, 0, c.width, c.height);
-    var data = c.toDataURL('image/jpeg', 0.82);
-    if (data.length > 60000) { alert('That photo is too heavy — try a smaller or simpler image.'); return; }
-    P.driver.photo = data;
-    save();
-    renderSettings();
-  };
+  img.onload = function () { then(img); setTimeout(function () { URL.revokeObjectURL(url); }, 60000); };
   img.onerror = function () { URL.revokeObjectURL(url); alert("Couldn't read that file as an image."); };
   img.src = url;
 }
+// Driver photo: positioned in a circle, saved as a 256px square JPEG (under the 60KB gate).
+function uploadPhoto(input) {
+  readImageFile(input, function (img) {
+    openPhotoCropper(img, { title: 'Position your photo', aspect: 1, outW: 256, outH: 256, round: true, maxLen: 60000, tooBig: 'That photo is too heavy — try a smaller or simpler image.' }, function (data) {
+      P.driver.photo = data;
+      save();
+      renderSettings();
+    });
+  });
+}
 function removePhoto() { P.driver.photo = null; save(); renderSettings(); }
-
-// Header photo (Pro): center-crop to a 3:1 banner, downscale to 900x300 JPEG. Stepping
-// quality down keeps it under the 140000-char card cap for busy photos.
+// Header photo (Pro): positioned in the 3:1 banner, saved as 900x300 JPEG under the card cap.
 function uploadHeader(input) {
-  var f = input.files && input.files[0];
-  input.value = '';
-  if (!f) return;
-  var img = new Image();
-  var url = URL.createObjectURL(f);
-  img.onload = function () {
-    URL.revokeObjectURL(url);
-    var sw = img.width, sh = Math.round(img.width / 3);
-    if (sh > img.height) { sh = img.height; sw = sh * 3; }
-    var c = document.createElement('canvas');
-    c.width = Math.min(900, sw); c.height = Math.round(c.width / 3);
-    c.getContext('2d').drawImage(img, (img.width - sw) / 2, (img.height - sh) / 2, sw, sh, 0, 0, c.width, c.height);
-    var data = '', q = 0.82;
-    do { data = c.toDataURL('image/jpeg', q); q -= 0.1; } while (data.length > 130000 && q > 0.3);
-    if (data.length > 130000) { alert('That photo is too detailed — try a different one.'); return; }
-    P.driver.header = data;
-    save();
-    renderSettings();
-  };
-  img.onerror = function () { URL.revokeObjectURL(url); alert("Couldn't read that file as an image."); };
-  img.src = url;
+  readImageFile(input, function (img) {
+    openPhotoCropper(img, { title: 'Position your header', aspect: 3, outW: 900, outH: 300, round: false, maxLen: 130000 }, function (data) {
+      P.driver.header = data;
+      save();
+      renderSettings();
+    });
+  });
 }
 function removeHeader() { P.driver.header = null; save(); renderSettings(); }
 
