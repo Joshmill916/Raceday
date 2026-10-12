@@ -2,6 +2,11 @@
 <html lang="en">
 <head>
 <meta charset="UTF-8">
+<script>/* http → https: forward when this app keeps no data on the http origin; otherwise the
+   app shows a one-tap "Move this track" banner (see offerSecureMove() near </body>). */
+(function(){if(location.protocol!=='http:'||!/(^|\.)victoryraceday\.com$/.test(location.hostname))return;
+try{if(localStorage.getItem('raceday_v1'))return;}catch(e){}
+location.replace('https://'+location.host+location.pathname+location.search+location.hash);})();</script>
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>RaceDay — Registration & Live Lineups</title>
 <link href="https://fonts.googleapis.com/css2?family=Saira+Condensed:wght@600;700;800&display=swap" rel="stylesheet">
@@ -7004,5 +7009,72 @@ if (!LOAD_FAILURE && !S.track.name && deviceRole() === 'admin' && !(S.sync && S.
 checkLoadFailure();
 </script>
 <!-- Cloudflare Web Analytics --><script type='module' src='https://static.cloudflareinsights.com/beacon.min.js' data-cf-beacon='{"token": "07e858325a984890a4f60c1cec1942bc"}'></script><!-- End Cloudflare Web Analytics -->
+<script>
+// ---- http → https for the app (see the content pages' head snippet) ----
+// The secure address is the one to use. A device that has this app's data on the old http://
+// origin gets a banner and a one-tap move: it opens the https page, which asks for the data by
+// postMessage (origin-checked both ways), stores it — confirming first if the secure side
+// already holds a different track — then reloads there.
+var RD_SECURE = 'https://victoryraceday.com', RD_OLD = 'http://victoryraceday.com';
+function rdMoveKeys() { return Object.keys(localStorage).filter(function (k) { return k === KEY || /^rd_/.test(k); }); }
+function rdTrackName(raw) { try { var s = JSON.parse(raw || 'null'); return (s && s.track && s.track.name) || ''; } catch (e) { return ''; } }
+function offerSecureMove() {
+  if (location.origin !== RD_OLD || !localStorage.getItem(KEY)) return;
+  var bar = document.createElement('div');
+  bar.id = 'secureMoveBar';
+  bar.style.cssText = 'position:sticky;top:0;z-index:9999;background:#ffc400;color:#161408;padding:12px 16px;font:600 14px/1.4 -apple-system,sans-serif;display:flex;gap:10px;align-items:center;flex-wrap:wrap';
+  bar.innerHTML = '<span id="secureMoveText" style="flex:1;min-width:200px">This track is saved on an old, insecure address. Move it to the secure address so it keeps working and every device matches.</span>'
+    + '<button type="button" id="secureMoveBtn" onclick="moveToSecure()" style="background:#161408;color:#fff;border:0;border-radius:8px;padding:9px 14px;font:700 14px -apple-system,sans-serif">Move this track</button>';
+  document.body.insertBefore(bar, document.body.firstChild);
+}
+function moveToSecure() {
+  var w = window.open(RD_SECURE + location.pathname + '?receive=1', '_blank');
+  var txt = document.getElementById('secureMoveText');
+  if (!w) { if (txt) txt.textContent = 'Your browser blocked the new tab — allow pop-ups for this site and tap Move again.'; return; }
+  if (txt) txt.textContent = 'Moving… keep this tab open until the secure page says it\'s done.';
+  window.addEventListener('message', function onMsg(e) {
+    if (e.origin !== RD_SECURE || e.source !== w || !e.data) return;
+    if (e.data.type === 'rd-ready') {
+      var payload = {}; rdMoveKeys().forEach(function (k) { payload[k] = localStorage.getItem(k); });
+      w.postMessage({ type: 'rd-move', key: KEY, payload: payload }, RD_SECURE);
+    } else if (e.data.type === 'rd-moved') {
+      localStorage.setItem('rd_moved_to_https', String(Date.now()));
+      if (txt) txt.innerHTML = '✅ Moved. This track now lives at <a href="' + RD_SECURE + location.pathname + '" style="color:#161408;font-weight:800">' + RD_SECURE.replace('https://', '') + location.pathname + '</a> — use that link from now on.';
+      var b = document.getElementById('secureMoveBtn'); if (b) b.remove();
+      window.removeEventListener('message', onMsg);
+    } else if (e.data.type === 'rd-declined') {
+      if (txt) txt.textContent = 'Not moved — the secure address kept its own track. Nothing here was changed.';
+      window.removeEventListener('message', onMsg);
+    }
+  });
+}
+function receiveFromOld() {
+  if (location.origin !== RD_SECURE || !/[?&]receive=1(&|$)/.test(location.search) || !window.opener) return;
+  var got = false;
+  var ping = setInterval(function () { if (got) return; try { window.opener.postMessage({ type: 'rd-ready' }, RD_OLD); } catch (e) {} }, 400);
+  setTimeout(function () { clearInterval(ping); }, 30000);
+  window.addEventListener('message', function onMsg(e) {
+    if (e.origin !== RD_OLD || e.source !== window.opener || !e.data || e.data.type !== 'rd-move' || got) return;
+    got = true; clearInterval(ping); window.removeEventListener('message', onMsg);
+    var p = e.data.payload || {}, incoming = p[KEY];
+    var mine = localStorage.getItem(KEY), mineName = rdTrackName(mine), theirName = rdTrackName(incoming);
+    if (incoming && mine && mineName && mine !== incoming
+        && !confirm('This device already has "' + mineName + '" at the secure address.\n\nReplace it with "' + (theirName || 'the track') + '" from the old address?\n\nOK = replace · Cancel = keep "' + mineName + '"')) {
+      window.opener.postMessage({ type: 'rd-declined' }, RD_OLD); return;
+    }
+    // The track and its station setup (role, score mode, theme…) move together; the anonymous
+    // usage-device id and open-ping stay per-address.
+    Object.keys(p).forEach(function (k) {
+      if (typeof p[k] !== 'string' || !(k === KEY || /^rd_/.test(k))) return;
+      if (k === 'rd_device' || k === 'rd_open_ping') { if (localStorage.getItem(k) == null) localStorage.setItem(k, p[k]); return; }
+      localStorage.setItem(k, p[k]);
+    });
+    window.opener.postMessage({ type: 'rd-moved' }, RD_OLD);
+    location.replace(location.pathname);
+  });
+}
+receiveFromOld();
+offerSecureMove();
+</script>
 </body>
 </html>

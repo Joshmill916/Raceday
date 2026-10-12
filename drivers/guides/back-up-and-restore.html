@@ -2,6 +2,12 @@
 <html lang="en">
 <head>
 <meta charset="utf-8">
+<script>/* http://victoryraceday.com and https:// are separate origins with separate storage. Send
+   http visitors to https — unless this browser keeps RaceDay/Driven data on the http origin,
+   in which case the apps offer a one-tap move first (see raceday/ offerSecureMove()). */
+(function(){if(location.protocol!=='http:'||!/(^|\.)victoryraceday\.com$/.test(location.hostname))return;
+try{if(localStorage.getItem('raceday_v1')||localStorage.getItem('raceday_v2')||localStorage.getItem('profiles_v1'))return;}catch(e){}
+location.replace('https://'+location.host+location.pathname+location.search+location.hash);})();</script>
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>Back up &amp; restore — Driven Guides</title>
 <meta name="description" content="Keep your profile safe and move it to a new phone. Step-by-step with real screenshots.">
