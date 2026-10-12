@@ -15,3 +15,8 @@ narration-clips/
 # never committed
 functions/node_modules/
 
+
+# Local-only (never commit): macOS metadata, personal Claude settings, raw reel renders
+.DS_Store
+.claude/settings.local.json
+reels/
