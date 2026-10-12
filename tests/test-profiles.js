@@ -365,6 +365,15 @@ fs.writeFileSync(TEST_PNG_PATH, Buffer.from(
     const left = await sample(await run(2000));     // dragged all the way right → shows the red side
     return { right, left };
   });
+  // The header photo (Pro) goes through the same position/zoom step, in the 3:1 banner shape.
+  await page.evaluate(() => { P.tier = 'pro'; P.premiumCode = localPremiumCode(P.profileId); save(); renderSettings(); });
+  await page.setInputFiles('#stHeaderFile', TEST_PNG_PATH); await page.waitForTimeout(250);
+  const hdrStep = await page.evaluate(() => { const f = document.querySelector('#cropHost #cropFrame'); return f ? Math.round(f.clientWidth / f.clientHeight) : 0; });
+  check('the header photo opens the same step, in the wide banner shape', hdrStep === 3, hdrStep);
+  await page.click('#cropUse'); await page.waitForTimeout(150);
+  const hdr = await page.evaluate(() => new Promise(r => { const v = P.driver.header; if (!v) return r(null); const i = new Image(); i.onload = () => r(i.width + 'x' + i.height); i.src = v; }));
+  check('the positioned header saves as a 900x300 banner', hdr === '900x300', hdr);
+  await page.evaluate(() => { removeHeader(); P.tier = 'free'; P.premiumCode = ''; save(); renderSettings(); });
   check('dragging moves the kept area (one side red, the other blue)', dragDiff.left[0] > 200 && dragDiff.left[2] < 60 && dragDiff.right[2] > 200 && dragDiff.right[0] < 60, JSON.stringify(dragDiff));
 
   console.log('\n— Photo pipeline: the 60KB size gate —');
