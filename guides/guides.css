@@ -112,3 +112,14 @@ footer a:hover{color:#fff}
 .help{margin-top:46px;border:2px solid var(--clay);border-radius:12px;padding:22px 26px;display:flex;justify-content:space-between;gap:18px;align-items:center;flex-wrap:wrap}
 .help p{color:var(--muted);max-width:56ch}
 .help a{font-family:var(--mono);font-weight:700;text-transform:uppercase;letter-spacing:.05em;font-size:.82rem;color:var(--clay);text-decoration:none;white-space:nowrap}
+
+/* Driver strip above the top bar: the way over to Driven from every RaceDay page. */
+.sitebar{background:#000;border-bottom:1px solid rgba(255,255,255,.08)}
+.sitebar-row{display:flex;justify-content:space-between;align-items:center;gap:12px;min-height:34px}
+.sitebar a{font-family:var(--mono);font-size:.72rem;font-weight:700;text-transform:uppercase;letter-spacing:.06em;color:#c7c8cd;text-decoration:none;padding:8px 0}
+.sitebar a:hover,.sitebar a:focus-visible{color:#fff}
+.sitebar .sb-right{color:#4b93ee}
+
+/* Guide top bar on phones: one line, button stays put. */
+@media (max-width:600px){.topbar-links{flex-wrap:nowrap;gap:12px}.topbar-link{white-space:nowrap}}
+@media (max-width:480px){.topbar a.topbar-link[href="/faq.html"],.topbar a.topbar-link[href="/drivers/faq.html"]{display:none}}
