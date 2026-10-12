@@ -63,6 +63,10 @@ Point the same script at that file instead.
 - **`/raceday/`** — the actual app (this is what "the app" means everywhere else in this
   doc). Own `manifest.webmanifest` + `sw.js` (scoped to `/raceday/` via relative paths).
 - **`/driven/`** — the Driven companion app, see below.
+- **`/drivers/`** — the Driven *website* (marketing for drivers): `index.html`, `pricing.html`, `faq.html`,
+  `guides/` (hub + 7 step-by-step guides). Static pages sharing `drivers/site.css` (the RaceDay site's
+  system in Driven blue); guides reuse `/guides/guides.css` + `drivers/guides/driven.css`. Screenshots in
+  `drivers/img/`. All "Driven" links on the RaceDay site point here, not at the app; no auto-redirect.
 
 ## Files
 | File | Purpose |
@@ -70,6 +74,7 @@ Point the same script at that file instead.
 | `index.html` | Root marketing homepage — **not** the app, see "Site structure" |
 | `sw.js` | Root's retired/minimal service worker — see "Site structure" |
 | `raceday/` | **The RaceDay app** — `index.html` is where all app features go, plus its own `manifest.webmanifest`/`sw.js`/icon |
+| `drivers/` | **Driven website** — home, pricing, FAQ, guides for drivers (see "Site structure") |
 | `driven/` | **Driven companion app** (separate PWA) — driver-owned cross-track racing identity. `driven/index.html` is fully standalone (own manifest/sw/state, `localStorage` key `profiles_v1`). Results move via manual JSON import (`ingestExport()`) or, for a linked profile, a live pull from RaceDay's published results (`shareResultsWithDriven()` → `pullRaceDayResults()`). See "Driven app" below. |
 | `BACKLOG.md` | Parked items (operator hardening, deferred audit findings) |
 | `ARCHITECTURE.md` | Full technical reference (data model, sync, roles, points system) |
