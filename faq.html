@@ -154,6 +154,12 @@ footer{background:var(--asphalt);color:var(--muted-dark);padding:30px 0;font-fam
 footer .wrap{display:flex;justify-content:space-between;gap:16px;flex-wrap:wrap}
 footer a{text-decoration:underline;text-decoration-color:rgba(255,255,255,.3);text-underline-offset:3px}
 footer a:hover{color:#fff}
+
+/* "Open RaceDay" in the top bar is the main action — style it as a button. */
+.topbar a[href="/raceday2/"]{background:var(--clay);color:#fff;border-radius:6px;padding:7px 12px;white-space:nowrap}
+.topbar a[href="/raceday2/"]:hover{background:var(--clay-2);color:#fff}
+@media (max-width:600px){.topbar a[href="/raceday2/"]{padding:6px 9px}.topbar a[href="/raceday2/"] .btn-arrow{display:none}}
+@media (max-width:380px){.topbar a[href="/faq.html"]{display:none}.topbar-links{gap:12px!important}.topbar-link{font-size:.7rem!important;letter-spacing:.02em!important}}
 </style>
 </head>
 <body>

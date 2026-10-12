@@ -12,4 +12,3 @@
 .sitebar-row{display:flex;justify-content:space-between;align-items:center;gap:12px;min-height:34px}
 .sitebar a{font-family:var(--mono);font-size:.72rem;font-weight:700;text-transform:uppercase;letter-spacing:.06em;color:#c7c8cd;text-decoration:none;padding:8px 0}
 .sitebar a:hover,.sitebar a:focus-visible{color:#fff}
-@media (max-width:480px){.sitebar .sb-right{display:none}}

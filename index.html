@@ -161,6 +161,12 @@ img{max-width:100%;display:block}
 }
 .topbar-link:focus-visible{outline:3px solid var(--clay-bright);outline-offset:3px;border-radius:2px}
 
+/* "Open RaceDay" in the top bar is the main action — style it as a button. */
+.topbar a[href="/raceday2/"]{background:var(--clay);color:#fff;border-radius:6px;padding:7px 12px;white-space:nowrap}
+.topbar a[href="/raceday2/"]:hover{background:var(--clay-2);color:#fff}
+@media (max-width:600px){.topbar a[href="/raceday2/"]{padding:6px 9px}.topbar a[href="/raceday2/"] .btn-arrow{display:none}}
+@media (max-width:380px){.topbar a[href="/faq.html"]{display:none}.topbar-links{gap:12px!important}.topbar-link{font-size:.7rem!important;letter-spacing:.02em!important}}
+
 /* ---------- Hero ---------- */
 .hero{
   background:var(--asphalt);color:#f2f1ec;
