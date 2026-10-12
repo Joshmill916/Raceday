@@ -197,9 +197,23 @@ footer a:hover{color:#fff}
   .fade-up.d1{animation-delay:.08s}
   @keyframes fadeUp{from{opacity:0;transform:translateY(14px)}to{opacity:1;transform:none}}
 }
+
+/* "Open RaceDay" in the top bar is the main action — style it as a button. */
+.topbar a[href="/raceday2/"]{background:var(--clay);color:#fff;border-radius:6px;padding:7px 12px;white-space:nowrap}
+.topbar a[href="/raceday2/"]:hover{background:var(--clay-2);color:#fff}
+@media (max-width:600px){.topbar a[href="/raceday2/"]{padding:6px 9px}.topbar a[href="/raceday2/"] .btn-arrow{display:none}}
+@media (max-width:380px){.topbar a[href="/faq.html"]{display:none}.topbar-links{gap:12px!important}.topbar-link{font-size:.7rem!important;letter-spacing:.02em!important}}
+
+/* Driver strip above the top bar: the way over to Driven from every RaceDay page. */
+.sitebar{background:#000;border-bottom:1px solid rgba(255,255,255,.08)}
+.sitebar-row{display:flex;justify-content:space-between;align-items:center;gap:12px;min-height:34px}
+.sitebar a{font-family:var(--mono);font-size:.72rem;font-weight:700;text-transform:uppercase;letter-spacing:.06em;color:#c7c8cd;text-decoration:none;padding:8px 0}
+.sitebar a:hover,.sitebar a:focus-visible{color:#fff}
+.sitebar .sb-right{color:#4b93ee}
 </style>
 </head>
 <body>
+<div class="sitebar"><div class="wrap sitebar-row"><a href="/drivers/">Driven — for drivers</a><a class="sb-right" href="/driven/">Open Driven →</a></div></div>
 <div class="topbar">
   <div class="wrap topbar-row">
     <a class="topbar-brand" href="/?home=1">RaceDay</a>

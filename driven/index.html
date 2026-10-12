@@ -65,7 +65,12 @@
   body { font-family: var(--body); background: var(--bg); color: var(--ink); font-size: 15px; line-height: 1.45; }
   .container { max-width: 640px; margin: 0 auto; padding: 0 0 64px; }
 
-  .header { background: var(--ink-0); color: #fff; padding: 16px 20px 12px; }
+  .header { background: var(--ink-0); color: #fff; padding: 16px 20px 12px; position: relative; }
+  /* Way back to the main site from every tab (the app has no other exit besides the browser). */
+  .header .site-link { position: absolute; right: 12px; top: 50%; transform: translateY(-50%); display: inline-flex; align-items: center;
+    min-height: 44px; padding: 0 8px; color: rgba(255,255,255,.75); text-decoration: none; font-size: 12px; font-weight: 700;
+    letter-spacing: .06em; text-transform: uppercase; }
+  .header .site-link:hover, .header .site-link:focus-visible { color: #fff; }
   .header .brand { font-family: var(--display); font-weight: 800; font-size: 21px; letter-spacing: 0.16em; text-transform: uppercase; display: inline-block; border-bottom: 3px solid var(--brand); padding-bottom: 3px; }
   .header .tag { display: none; }
   .checker { display: none; }
@@ -298,6 +303,7 @@
 
 <div class="header">
   <div class="brand">DRIVEN</div>
+  <a class="site-link" href="/?home=1" title="Back to victoryraceday.com">← victoryraceday.com</a>
   <div class="tag">Your racing record, wherever you race.</div>
 </div>
 <div class="checker"></div>
@@ -340,6 +346,9 @@
       <textarea id="restoreInput" rows="3" placeholder="e.g. K7Q2M4XN — or paste your exported backup JSON"></textarea>
       <button class="btn btn-block" onclick="restoreProfile()" style="margin-top:10px">Restore</button>
     </div>
+    <p class="sub" style="margin-top:14px;text-align:center">
+      <a href="/drivers/" style="color:inherit">What is Driven?</a> · <a href="/?home=1" style="color:inherit">← victoryraceday.com</a>
+    </p>
   </div>
 </div>
 

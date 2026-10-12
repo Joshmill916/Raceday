@@ -8,3 +8,7 @@
 .topbar-brand i{display:block;width:5px;height:16px;background:#d62828;transform:skewX(-18deg)}
 .topbar-brand i + i{background:#4b93ee;margin-left:-4px}
 .checker{background:repeating-conic-gradient(var(--clay) 0 25%,var(--asphalt) 0 50%) 0 0/20px 20px}
+.sitebar{background:#000;border-bottom:1px solid rgba(255,255,255,.08)}
+.sitebar-row{display:flex;justify-content:space-between;align-items:center;gap:12px;min-height:34px}
+.sitebar a{font-family:var(--mono);font-size:.72rem;font-weight:700;text-transform:uppercase;letter-spacing:.06em;color:#c7c8cd;text-decoration:none;padding:8px 0}
+.sitebar a:hover,.sitebar a:focus-visible{color:#fff}

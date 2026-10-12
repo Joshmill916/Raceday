@@ -28,6 +28,7 @@ a{color:inherit}
 img{max-width:100%;display:block}
 b,strong{font-weight:700}
 .ui{font-family:var(--mono);font-size:.86em;font-weight:700;background:rgba(193,87,31,.1);color:var(--clay);border-radius:4px;padding:1px 6px;white-space:nowrap}
+@media (max-width:420px){.ui{white-space:normal;box-decoration-break:clone;-webkit-box-decoration-break:clone}}
 .wrap{max-width:1040px;margin:0 auto;padding-inline:28px}
 @media (max-width:640px){.wrap{padding-inline:18px}}
 
@@ -38,6 +39,12 @@ b,strong{font-weight:700}
 .topbar-links{display:flex;gap:22px;align-items:center;flex-wrap:wrap}
 .topbar-link{font-family:var(--mono);font-size:.8rem;font-weight:700;text-transform:uppercase;letter-spacing:.06em;color:#c7c8cd;text-decoration:none}
 .topbar-link:hover,.topbar-link.on{color:#fff}
+
+/* "Open RaceDay" in the top bar is the main action — style it as a button. */
+.topbar a[href="/raceday2/"]{background:var(--clay);color:#fff;border-radius:6px;padding:7px 12px;white-space:nowrap}
+.topbar a[href="/raceday2/"]:hover{background:var(--clay-2);color:#fff}
+@media (max-width:600px){.topbar a[href="/raceday2/"]{padding:6px 9px}.topbar a[href="/raceday2/"] .btn-arrow{display:none}}
+@media (max-width:380px){.topbar a[href="/faq.html"]{display:none}.topbar-links{gap:12px!important}.topbar-link{font-size:.7rem!important;letter-spacing:.02em!important}}
 @media (max-width:600px){.topbar-links{gap:14px}.topbar-link{font-size:.72rem}}
 
 /* hero */
@@ -63,6 +70,8 @@ main{padding:46px 0 70px}
 .step h2{font-size:1.45rem;font-weight:800;display:flex;gap:14px;align-items:baseline}
 .step h2::before{content:counter(s);flex:none;display:inline-flex;align-items:center;justify-content:center;width:34px;height:34px;border-radius:50%;
   background:#ffd449;color:#111;font-family:var(--display);font-weight:900;font-size:1.15rem;transform:translateY(-2px)}
+.step > *{min-width:0}
+.step h2{overflow-wrap:anywhere}
 .step .body{display:flex;flex-direction:column;gap:10px}
 .step .body p,.step .body li{font-size:1rem}
 .step .body ul{margin:0;padding-left:20px;display:flex;flex-direction:column;gap:6px}
@@ -103,3 +112,14 @@ footer a:hover{color:#fff}
 .help{margin-top:46px;border:2px solid var(--clay);border-radius:12px;padding:22px 26px;display:flex;justify-content:space-between;gap:18px;align-items:center;flex-wrap:wrap}
 .help p{color:var(--muted);max-width:56ch}
 .help a{font-family:var(--mono);font-weight:700;text-transform:uppercase;letter-spacing:.05em;font-size:.82rem;color:var(--clay);text-decoration:none;white-space:nowrap}
+
+/* Driver strip above the top bar: the way over to Driven from every RaceDay page. */
+.sitebar{background:#000;border-bottom:1px solid rgba(255,255,255,.08)}
+.sitebar-row{display:flex;justify-content:space-between;align-items:center;gap:12px;min-height:34px}
+.sitebar a{font-family:var(--mono);font-size:.72rem;font-weight:700;text-transform:uppercase;letter-spacing:.06em;color:#c7c8cd;text-decoration:none;padding:8px 0}
+.sitebar a:hover,.sitebar a:focus-visible{color:#fff}
+.sitebar .sb-right{color:#4b93ee}
+
+/* Guide top bar on phones: one line, button stays put. */
+@media (max-width:600px){.topbar-links{flex-wrap:nowrap;gap:12px}.topbar-link{white-space:nowrap}}
+@media (max-width:480px){.topbar a.topbar-link[href="/faq.html"],.topbar a.topbar-link[href="/drivers/faq.html"]{display:none}}
