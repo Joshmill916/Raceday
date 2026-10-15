@@ -1,0 +1,35 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<meta name="robots" content="noindex">
+<title>RaceDay</title>
+<link rel="canonical" href="https://victoryraceday.com/">
+<meta http-equiv="refresh" content="3;url=/">
+<style>body{margin:0;min-height:100vh;display:flex;align-items:center;justify-content:center;background:#0d0f12;color:#f5f6f8;font:600 16px system-ui,-apple-system,sans-serif}a{color:#ffd23f}</style>
+</head>
+<body>
+<p>Opening <a href="/">RaceDay</a>…</p>
+<script>
+/* Short link for Facebook posts and the Page button: victoryraceday.com/fb/
+   Facebook's and LinkedIn's in-app browsers hide where a visitor came from, so every visit
+   used to show as "direct". Visiting this path first records it in Cloudflare Web Analytics
+   (Paths), then forwards — so the source shows up. Opted-out devices (/me/) just forward. */
+(function () {
+  var done = false, go = function () { if (done) return; done = true; location.replace('/' + location.search + location.hash); };
+  var off = false;
+  try { off = localStorage.getItem('rd_dont_count') === '1'; } catch (e) {}
+  if (off) { go(); return; }
+  var s = document.createElement('script');
+  s.defer = true;
+  s.src = 'https://static.cloudflareinsights.com/beacon.min.js';
+  s.setAttribute('data-cf-beacon', '{"token": "07e858325a984890a4f60c1cec1942bc"}');
+  s.onload = function () { setTimeout(go, 400); };
+  s.onerror = go;
+  document.body.appendChild(s);
+  setTimeout(go, 1500);
+})();
+</script>
+</body>
+</html>

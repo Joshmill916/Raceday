@@ -1,0 +1,52 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<meta name="robots" content="noindex">
+<title>Don't count this device</title>
+<style>
+  :root { --bg: #f4f4f1; --card: #fff; --ink: #1a1b1e; --muted: #6b6e76; --line: #e3e3de; --ok: #0e8a4d; --warn: #b8860b; }
+  @media (prefers-color-scheme: dark) { :root { --bg: #0d0f12; --card: #17181c; --ink: #f5f6f8; --muted: #9a9da6; --line: #2a2c33; } }
+  body { margin: 0; background: var(--bg); color: var(--ink); font: 16px/1.5 system-ui, -apple-system, sans-serif; }
+  main { max-width: 480px; margin: 0 auto; padding: 32px 16px; }
+  .card { background: var(--card); border: 1px solid var(--line); border-radius: 14px; padding: 20px; }
+  h1 { font-size: 22px; margin: 0 0 8px; }
+  p { color: var(--muted); margin: 0 0 14px; }
+  .state { font-weight: 700; font-size: 18px; margin: 14px 0; }
+  .state.off { color: var(--ok); } .state.on { color: var(--warn); }
+  button { width: 100%; padding: 14px; border-radius: 10px; border: 0; background: #1a1b1e; color: #fff; font: 700 16px system-ui, sans-serif; cursor: pointer; }
+  @media (prefers-color-scheme: dark) { button { background: #ffd23f; color: #161408; } }
+  a { color: inherit; }
+</style>
+</head>
+<body>
+<main>
+  <div class="card">
+    <h1>Don't count this device</h1>
+    <p>For testing RaceDay and Driven yourself. When it's on, this browser stops adding visits to the website analytics, and the apps stop logging its opens and race nights as track usage. Crash reports still come through.</p>
+    <div class="state" id="state"></div>
+    <button id="btn" type="button"></button>
+    <p style="margin:14px 0 0;font-size:14px">Do this once in each browser you test with (Safari, Chrome, and the home-screen apps on your phone). It only affects this browser.</p>
+  </div>
+  <p style="text-align:center;margin-top:16px;font-size:14px"><a href="/">victoryraceday.com</a></p>
+</main>
+<script>
+/* Sets rd_dont_count, read by every page's analytics loader and by sendUsage() in both apps.
+   The rd_ prefix means it moves along with the app data in the http→https move. This page
+   itself never loads analytics. */
+function get() { try { return localStorage.getItem('rd_dont_count') === '1'; } catch (e) { return false; } }
+function set(v) { try { if (v) localStorage.setItem('rd_dont_count', '1'); else localStorage.removeItem('rd_dont_count'); } catch (e) { alert("This browser won't let the page save the setting."); } }
+function render() {
+  var off = get();
+  document.getElementById('state').className = 'state ' + (off ? 'off' : 'on');
+  document.getElementById('state').textContent = off ? '✓ This device is not counted.' : 'This device is counted.';
+  document.getElementById('btn').textContent = off ? 'Count this device again' : "Don't count this device";
+}
+document.getElementById('btn').onclick = function () { set(!get()); render(); };
+if (/[?&]off\b/.test(location.search)) set(true);
+if (/[?&]on\b/.test(location.search)) set(false);
+render();
+</script>
+</body>
+</html>

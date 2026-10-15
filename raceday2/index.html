@@ -746,7 +746,9 @@ const KEY = 'raceday_v2';
 // guestBootRoom()/load()/save() below for how a slot is resolved.
 const GARAGE_KEY = 'rd_garage_v2';
 const ACTIVE_TRACK_KEY = 'rd_active_track_v2';
-const APP_VERSION = '2026-08';
+// Reported with every usage row and crash. The part after the dot MUST match this app's
+// sw.js CACHE number (tests/test-app-version.js) — bump both together on each release.
+const APP_VERSION = '2026-10-15.v5';
 const LEGAL_VERSION = '2026-06';   // bump when Terms / Privacy wording changes, so acceptances are versioned
 const TELEMETRY_URL = 'https://script.google.com/macros/s/AKfycbxa3i3y17TLp_NfXOOu2jM7-YzXH2fScxcXoQYmIh0-873rxWfxg0HdRP1DVsxZq6iR/exec';
 const FIREBASE_CONFIG = {
@@ -2568,8 +2570,12 @@ window.addEventListener('unhandledrejection', e => {
   const r = e.reason;
   reportCrash('Unhandled rejection: ' + String((r && r.message) || r), '', '', '', r instanceof Error ? r : null);
 });
+// Devices opted out at victoryraceday.com/me/ (the owner testing) send crash reports only,
+// so their opens and race nights don't count as track usage.
+function dontCount() { try { return localStorage.getItem('rd_dont_count') === '1'; } catch (e) { return false; } }
 function sendUsage(event, extra) {
   if (!TELEMETRY_URL) return;
+  if (event !== 'crash' && dontCount()) return;
   try {
     const body = JSON.stringify(Object.assign({
       event: event,
@@ -7246,8 +7252,9 @@ checkLoadFailure();
 
 </script>
 <!-- Cloudflare Web Analytics — injected only when online, so the shell keeps zero external
-     <script src> dependencies and still boots offline (tests/v2/test-v2-compat.js §7). -->
-<script>if (navigator.onLine) { var cfb = document.createElement('script'); cfb.defer = true;
+     <script src> dependencies and still boots offline (tests/v2/test-v2-compat.js §7). Skipped
+     on devices opted out at /me/ (the owner's own testing). -->
+<script>if (navigator.onLine && (function () { try { return localStorage.getItem('rd_dont_count') !== '1'; } catch (e) { return true; } })()) { var cfb = document.createElement('script'); cfb.defer = true;
   cfb.src = 'https://static.cloudflareinsights.com/beacon.min.js';
   cfb.setAttribute('data-cf-beacon', '{"token": "07e858325a984890a4f60c1cec1942bc"}'); document.body.appendChild(cfb); }</script>
 <script>

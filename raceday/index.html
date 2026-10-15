@@ -1188,7 +1188,9 @@ const ACTIVE_TRACK_KEY = 'rd_active_track';
 // no car numbers, no contact info) and crash messages. Leave TELEMETRY_URL blank
 // to disable everything — nothing is sent and no disclosure shows. To turn it on,
 // paste the Google Apps Script web-app URL between the quotes.
-const APP_VERSION = '2026-08';
+// Reported with every usage row and crash. The part after the dot MUST match this app's
+// sw.js CACHE number (tests/test-app-version.js) — bump both together on each release.
+const APP_VERSION = '2026-10-15.v18';
 const LEGAL_VERSION = '2026-06';   // bump when Terms / Privacy wording changes, so acceptances are versioned
 const TELEMETRY_URL = 'https://script.google.com/macros/s/AKfycbxa3i3y17TLp_NfXOOu2jM7-YzXH2fScxcXoQYmIh0-873rxWfxg0HdRP1DVsxZq6iR/exec';
 
@@ -5234,8 +5236,12 @@ function pingOpen() {
   } catch (e) { return; }
   sendUsage('open', currentCounts());
 }
+// Devices opted out at victoryraceday.com/me/ (the owner testing) send crash reports only,
+// so their opens and race nights don't count as track usage.
+function dontCount() { try { return localStorage.getItem('rd_dont_count') === '1'; } catch (e) { return false; } }
 function sendUsage(event, extra) {
   if (!TELEMETRY_URL) return;
+  if (event !== 'crash' && dontCount()) return;
   try {
     const body = JSON.stringify(Object.assign({
       event: event,
@@ -7008,7 +7014,7 @@ if (navigator.onLine && (S.roster || []).some(d => d.profile && d.profile.pendin
 if (!LOAD_FAILURE && !S.track.name && deviceRole() === 'admin' && !(S.sync && S.sync.enabled)) openSetupWizard();
 checkLoadFailure();
 </script>
-<!-- Cloudflare Web Analytics --><script type='module' src='https://static.cloudflareinsights.com/beacon.min.js' data-cf-beacon='{"token": "07e858325a984890a4f60c1cec1942bc"}'></script><!-- End Cloudflare Web Analytics -->
+<!-- Cloudflare Web Analytics --><script>/* skipped on devices opted out at /me/ (the owner's own testing) */try{if(localStorage.getItem('rd_dont_count')!=='1'){var cfb=document.createElement('script');cfb.defer=true;cfb.src='https://static.cloudflareinsights.com/beacon.min.js';cfb.setAttribute('data-cf-beacon','{"token": "07e858325a984890a4f60c1cec1942bc"}');(document.body||document.head).appendChild(cfb);}}catch(e){}</script><!-- End Cloudflare Web Analytics -->
 <script>
 // ---- http → https for the app (see the content pages' head snippet) ----
 // The secure address is the one to use. A device that has this app's data on the old http://
