@@ -115,6 +115,16 @@ profile that follows them across every RaceDay track they race at.
   on purpose — never in `raceResults`, never counted in stats/milestones/points. On the card
   (`other`, JSON `{r,more}`, ≤8000 chars, trimmed oldest-first) ONLY for Pro with
   `showOtherOnPage` on; `/d/` re-checks Pro and sanitizes. Guard: `tests/test-driven-other-results.js`
+- **Rides** (added 2026-10-15): one account, a card per kind of racing (Pro: up to 3). Every ride is a
+  full profile with its OWN profileId/card/link code/results — RaceDay, the results pipeline and `/d/`
+  need no ride logic. `profiles_v1` = the ACTIVE ride (unchanged shape); the others live in
+  `profiles_rides_v1` = `{primaryId, order, stash}` (stash never holds the active ride; absent for a
+  one-ride account). Pro is account-level: `currentTier()` also reads `primaryProfile()`; checkout,
+  billing portal, entitlement and redeem codes use the primary ride's id. Name/email/hometown/age are
+  shared (`saveProfileFields` copies them + `republishSiblings()`). Cards carry `rides`
+  (`CODE:Name|…`, primary first) + `rideLabel` only when multi-ride; `adoptRidesFromCard()` restores
+  siblings (reciprocal listing required); `/d/` shows tabs only for reciprocal rides.
+  Guard: `tests/test-driven-rides.js`
 - Same design language as `raceday/index.html` (CSS vars, `.card`/`.btn`/`.hr` patterns) and
   the same embedded QR generator, copied verbatim — kept intentionally separate rather than
   shared, to preserve the single-file-per-app model

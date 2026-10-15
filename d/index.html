@@ -90,6 +90,9 @@ location.replace('https://'+location.host+location.pathname+location.search+loca
   .res .from { display: inline-block; margin-top: 4px; font: 700 10.5px var(--display); letter-spacing: .08em; text-transform: uppercase; color: var(--td-mute); border: 1px solid var(--line-d); border-radius: 5px; padding: 1px 6px; }
   .res a { color: inherit; }
   .res .pos.other { font-size: 18px; color: var(--td-mute); }
+  .rides { display: flex; gap: 8px; overflow-x: auto; margin: 14px 0 2px; }
+  .rides a { flex: none; text-decoration: none; border: 1.5px solid var(--line-d); color: var(--td-mute); border-radius: 99px; padding: 6px 14px; font: 700 13px var(--display); letter-spacing: .06em; text-transform: uppercase; }
+  .rides a.on { background: var(--team); border-color: var(--team); color: #fff; }
 
   /* About + sponsors */
   .about { background: var(--ink-1); border-radius: 12px; padding: 14px; font-size: 14.5px; line-height: 1.6; }
@@ -222,6 +225,30 @@ function otherResults(card) {
   }).filter(Boolean).sort(function (a, b) { return a.date < b.date ? 1 : a.date > b.date ? -1 : 0; });
 }
 
+// A driver with several rides (karts and a late model…) has a card per ride, and each card
+// lists all of them. Only show a ride whose own card lists this one back, so a card can't
+// claim someone else's page. Returns [{ code, label, num, on }] or [] for a single ride.
+function parseRides(card) {
+  return str(card.rides, 200).split('|').map(function (x) {
+    var i = x.indexOf(':');
+    return { code: (i < 0 ? x : x.slice(0, i)).trim().toUpperCase(), label: (i < 0 ? '' : x.slice(i + 1)).trim().slice(0, 30) };
+  }).filter(function (e) { return /^[A-Z0-9]{4,20}$/.test(e.code); }).slice(0, 3);
+}
+function loadRides(code, card) {
+  var list = parseRides(card);
+  if (list.length < 2 || !list.some(function (e) { return e.code === code; })) return Promise.resolve([]);
+  return Promise.all(list.map(function (e) {
+    if (e.code === code) return { code: e.code, label: e.label, num: str(card.num, 8), on: true };
+    return get('profiles_short/' + e.code).then(function (id) {
+      if (typeof id !== 'string' || !/^prof_[a-z0-9]{6,20}$/i.test(id)) return null;
+      return get('profiles/' + id + '/card').then(function (c) {
+        if (!c || !parseRides(c).some(function (x) { return x.code === code; })) return null;
+        return { code: e.code, label: e.label || str(c.rideLabel, 30), num: str(c.num, 8), on: false };
+      });
+    });
+  })).then(function (r) { r = r.filter(Boolean); return r.length > 1 ? r : []; });
+}
+
 // Milestones drivers want to show off — computed from verified results only.
 function milestones(results) {
   var out = [], chrono = results.slice().reverse();
@@ -255,8 +282,9 @@ function formChart(results) {
     + '<div class="cap" style="display:flex;justify-content:space-between;margin-top:4px"><span>' + esc(fmtDate(pts[0].date)) + '</span><span>Latest: ' + ord(pts[pts.length - 1].pos) + '</span></div></div>';
 }
 
-function render(profileId, card, isPro, data) {
+function render(profileId, card, isPro, data, rides) {
   var results = data.mine, standings = data.standings;
+  rides = rides || [];
   var name = str(card.name, 40), num = str(card.num, 8), home = str(card.hometown, 60), aka = str(card.aliases, 60);
   var team = /^#[0-9a-fA-F]{6}$/.test(card.teamColor || '') ? card.teamColor : '#1f6fd6';
   var initials = name.split(/\s+/).map(function (w) { return w[0] || ''; }).slice(0, 2).join('').toUpperCase();
@@ -284,6 +312,9 @@ function render(profileId, card, isPro, data) {
     + (imgOK(card.photo) ? '<img class="avatar" src="' + card.photo + '" alt="">' : '<div class="avatar">' + esc(num || initials) + '</div>')
     + '<div style="padding-bottom:6px;min-width:0"><div class="name">' + esc(name) + (isPro ? '<span class="badge">PRO</span>' : '') + '</div>'
     + '<div class="cap meta">' + meta + '</div></div></div>'
+    + (rides.length ? '<div class="rides">' + rides.map(function (r) {
+        return '<a href="?' + encodeURIComponent(r.code) + '"' + (r.on ? ' class="on" aria-current="page"' : '') + '>' + esc(r.label || ('#' + r.num)) + (r.label && r.num ? ' #' + esc(r.num) : '') + '</a>';
+      }).join('') + '</div>' : '')
     + '<div class="actions"><button class="btn primary" onclick="shareLink()">Share profile</button></div>';
 
   if (results.length) {
@@ -373,13 +404,18 @@ function shareLink() {
     if (typeof profileId !== 'string' || !/^prof_[a-z0-9]{6,20}$/i.test(profileId)) { notFound('No driver uses the code ' + code + '.'); return; }
     return Promise.all([get('profiles/' + profileId + '/card'), get('profiles/' + profileId + '/entitlement'), loadResults(profileId)])
       .then(function (r) {
-        var card = r[0], ent = r[1], data = r[2] || { mine: [], standings: [] };
+        var card = r[0];
+        if (!card || !card.name) return r;
+        return loadRides(code, card).then(function (rides) { return r.concat([rides]); }, function () { return r.concat([[]]); });
+      })
+      .then(function (r) {
+        var card = r[0], ent = r[1], data = r[2] || { mine: [], standings: [] }, rides = r[3] || [];
         if (!card || !card.name) { notFound("This driver hasn't published a profile yet."); return; }
         // Pro = a valid owner code on the card (recomputed here, never trusted as a flag)
         // OR an active server-written subscription entitlement.
         var isPro = premCheck(profileId, card.premiumCode)
           || !!(ent && ent.tier === 'pro' && (ent.status === 'active' || ent.status === 'trialing'));
-        render(profileId, card, isPro, data);
+        render(profileId, card, isPro, data, rides);
       });
   }).catch(function () { show('<div class="msg"><h1>Couldn\'t load</h1>Check your connection and try again.</div>'); });
 })();
