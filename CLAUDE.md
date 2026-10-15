@@ -138,3 +138,9 @@ profile that follows them across every RaceDay track they race at.
 - See branch state: `/check`
 - Merge to main: only with explicit user approval — always ask first
 - After merging to main: VERIFY the GitHub Pages build succeeds (a deploy can fail transiently) before telling the user it's live; bump `raceday/sw.js` CACHE on cache-breaking changes
+- **Bumping an app's sw.js CACHE? Bump its `APP_VERSION` too** (`YYYY-MM-DD.vN`, N = the CACHE
+  number) — `tests/test-analytics.js` fails if they drift. It's what usage/crash rows report.
+- Analytics: every page loads the Cloudflare beacon through an inline loader that skips devices
+  with `localStorage.rd_dont_count === '1'` (set at `/me/`); both apps' `sendUsage()` then sends
+  crash rows only. Never add a direct `<script src=…cloudflareinsights…>` tag. Short links
+  `/fb/`, `/li/`, `/qr/` (+ `/drivers/` versions) record a visit, then forward — use them in posts.
