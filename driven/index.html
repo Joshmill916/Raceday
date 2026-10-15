@@ -111,7 +111,7 @@
 
   label { font-size: 12.5px; color: #555; display: block; margin: 16px 0 5px; font-weight: 600; }
   label:first-child { margin-top: 0; }
-  input[type="text"], input[type="number"], input[type="email"], textarea, select { width: 100%; padding: 12px 14px; border-radius: 10px; border: 1.5px solid #d5d8de; background: #fff; color: var(--ink); font-size: 16px; font-family: inherit; outline: none; transition: border-color .15s; }
+  input[type="text"], input[type="number"], input[type="email"], input[type="date"], input[type="url"], textarea, select { width: 100%; padding: 12px 14px; border-radius: 10px; border: 1.5px solid #d5d8de; background: #fff; color: var(--ink); font-size: 16px; font-family: inherit; outline: none; transition: border-color .15s; }
   textarea { resize: vertical; min-height: 80px; }
   input:focus, textarea:focus, select:focus { border-color: var(--brand); }
   .btn { display: inline-flex; align-items: center; justify-content: center; gap: 7px; padding: 12px 20px; border-radius: 10px; border: 1.5px solid #d5d8de; background: #fff; color: var(--ink); font-size: 15px; font-weight: 600; cursor: pointer; font-family: inherit; transition: background .15s; }
@@ -205,6 +205,20 @@
   /* Onboarding overlay (mirrors RaceDay's .wiz-overlay) */
   .wiz-overlay { position:fixed;inset:0;background:rgba(0,0,0,.65);z-index:9999;display:flex;align-items:center;justify-content:center;padding:16px; }
   .wiz-box { background:#fff;border-radius:14px;padding:1.75rem 1.5rem;max-width:440px;width:100%;max-height:90vh;overflow-y:auto;box-shadow:0 8px 32px rgba(0,0,0,.18); }
+  /* Other results — races from other apps. Kept visually apart from verified results. */
+  .ores { display: grid; grid-template-columns: 48px 1fr auto; gap: 10px; align-items: center; padding: 11px 0; border-top: 1px solid var(--line); }
+  .ores:first-child { border-top: none; }
+  .ores .op { font: 800 17px var(--display); text-align: center; color: var(--muted); }
+  .ores .t { font-weight: 600; font-size: 14px; }
+  .ores .s { font-size: 12.5px; color: var(--muted); margin-top: 2px; }
+  .ores .from, .dp-res .from { display: inline-block; margin-top: 4px; font: 700 10.5px var(--display); letter-spacing: .08em; text-transform: uppercase; color: var(--muted); border: 1px solid var(--line); border-radius: 5px; padding: 1px 6px; }
+  .dp-res .from { color: var(--td-mute); border-color: var(--line-d); }
+  .ores .acts { display: flex; gap: 6px; }
+  .ores a, .dp-res a { color: inherit; }
+  .orow2 { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+  .orow2 label { margin-top: 16px; }
+  .csv-pick { display: block; width: 100%; text-align: left; margin-top: 6px; }
+  .onote { font-size: 13px; color: var(--muted); margin-top: 10px; line-height: 1.5; }
 
   /* Premium broadcast card — dark hero panel, ghost number, team-color accents */
   .pcard { border-radius: 18px; overflow: hidden; box-shadow: 0 18px 44px rgba(8,10,16,.35); margin-bottom: 14px; background: var(--ink-1); color: var(--td); }
@@ -412,6 +426,10 @@ function migrate(p) {
   if (p.shortCode == null) p.shortCode = '';
   if (p.publishedAt == null) p.publishedAt = 0;
   if (p.entitlement == null) p.entitlement = null;
+  // Results from other race apps (Speedhive, MyRacePass…). A separate list on purpose:
+  // never mixed into raceResults, so they can't touch stats, wins, milestones or points.
+  if (!Array.isArray(p.otherResults)) p.otherResults = [];
+  if (p.showOtherOnPage == null) p.showOtherOnPage = true;   // only matters for Pro
   // source/verifiedBy: added for RaceDay-verified results (pullRaceDayResults()).
   // Honest default for anything already here — nothing so far was verified, it was
   // either typed in by hand or is the demo loader's sample data.
@@ -476,7 +494,9 @@ function newProfile(name, email, hometown, age) {
     premiumCode: '',
     shortCode: '',      // published track-link code (derived from profileId at publish time)
     publishedAt: 0,
-    entitlement: null   // server-side Pro subscription status — see refreshEntitlement()
+    entitlement: null,  // server-side Pro subscription status — see refreshEntitlement()
+    otherResults: [],   // races from other apps — see "Other results" below
+    showOtherOnPage: true
   };
 }
 
@@ -608,7 +628,7 @@ function refreshEntitlement() {
 function cardPayload() {
   if (!P || !P.driver) return null;
   var d = P.driver;
-  return {
+  return Object.assign({
     name: d.name || '',
     num: d.number || '',
     age: d.age != null ? String(d.age) : '',
@@ -629,8 +649,14 @@ function cardPayload() {
     crew: P.crew.map(function (c) { return c.name; }).join(', '),
     header: tierAtLeast('pro') ? (d.header || '') : '',
     updatedAt: firebase.database.ServerValue.TIMESTAMP
-  };
+  }, otherCardField());
 }
+// Other results go on the card only for Pro drivers who leave "show on my page" on. The
+// key is left out entirely otherwise, so free cards are exactly what they were before.
+function otherCardField() {
+  return otherOnCard() ? { other: otherPayload() } : {};
+}
+function otherOnCard() { return tierAtLeast('pro') && P.showOtherOnPage !== false; }
 // The published Firebase rules cap each card field; a payload over any cap is REJECTED
 // server-side (a silent no-op on the auto-republish path). Catch it here first and name
 // the offending field so the driver can fix it, instead of a doomed write + false success.
@@ -638,7 +664,8 @@ function cardPayload() {
 // Mirrors cardPayload()'s string fields WITHOUT the firebase timestamp sentinel, so it
 // can run before the SDK loads. updatedAt is numeric (no length cap) so it's not checked.
 var CARD_CAPS = { name: 40, num: 8, age: 8, hometown: 60, sponsors: 160, photo: 80000, premiumCode: 40,
-                  aliases: 60, bio: 300, highlights: 300, crew: 160, header: 140000, teamColor2: 7, teamColor3: 7 };
+                  aliases: 60, bio: 300, highlights: 300, crew: 160, header: 140000, teamColor2: 7, teamColor3: 7,
+                  other: 8000 };
 function cardStrings() {
   if (!P || !P.driver) return {};
   var d = P.driver;
@@ -648,13 +675,14 @@ function cardStrings() {
     photo: d.photo || '', premiumCode: tierAtLeast('pro') ? (P.premiumCode || localPremiumCode(P.profileId)) : '',
     aliases: d.aliases || '', bio: d.bio || '', highlights: d.highlights || '',
     crew: P.crew.map(function (c) { return c.name; }).join(', '), header: tierAtLeast('pro') ? (d.header || '') : '',
-    teamColor2: tierAtLeast('pro') ? (d.teamColor2 || '') : '', teamColor3: tierAtLeast('pro') ? (d.teamColor3 || '') : ''
+    teamColor2: tierAtLeast('pro') ? (d.teamColor2 || '') : '', teamColor3: tierAtLeast('pro') ? (d.teamColor3 || '') : '',
+    other: otherOnCard() ? otherPayload() : ''
   };
 }
 function cardTooLong() {
   var c = cardStrings(), labels = { name: 'Name', num: 'Number', age: 'Age', hometown: 'Hometown', sponsors: 'Sponsors', photo: 'Photo', premiumCode: 'Premium code',
                                       aliases: 'Also known as', bio: 'Bio', highlights: 'Highlights', crew: 'Crew', header: 'Header photo',
-                                      teamColor2: 'Accent color 1', teamColor3: 'Accent color 2' };
+                                      teamColor2: 'Accent color 1', teamColor3: 'Accent color 2', other: 'Other results' };
   for (var k in CARD_CAPS) {
     if (typeof c[k] === 'string' && c[k].length > CARD_CAPS[k]) {
       return labels[k] + ' is too long (' + c[k].length + '/' + CARD_CAPS[k] + ' characters) — shorten it so your card can publish.';
@@ -777,6 +805,8 @@ function applyCardToProfile(p, card) {
   if (has('highlights')) d.highlights = str(card.highlights, 300);
   if (has('sponsors')) p.sponsors = str(card.sponsors, 160).split(' · ').map(function (n) { return { name: n.trim() }; }).filter(function (x) { return x.name; });
   if (has('crew')) p.crew = str(card.crew, 160).split(',').map(function (n) { return { name: n.trim() }; }).filter(function (x) { return x.name; });
+  // Only Pro cards carry other results; a card without the key leaves this device's list alone.
+  if (has('other') && typeof card.other === 'string') { var o = parseOtherPayload(card.other); if (o) p.otherResults = o; }
   if (card.premiumCode && premCheck(p.profileId, card.premiumCode)) { p.tier = 'pro'; p.premiumCode = String(card.premiumCode).toUpperCase(); }
   if (typeof card.updatedAt === 'number') p.publishedAt = card.updatedAt;
   return p;
@@ -1017,7 +1047,8 @@ function renderHome() {
       + '<button class="btn btn-go btn-block" onclick="nav(\'link\')">' + icon('link') + ' Go to Link page</button></div>';
   }
   h += dpSummary(results, isPro)
-    + '<div class="dp-sec"><span class="dp-cap">Recent races</span>' + dpResultsList(results, 15) + '</div>';
+    + '<div class="dp-sec"><span class="dp-cap">Recent races</span>' + dpResultsList(results, 15) + '</div>'
+    + dpOtherSection();
   page.innerHTML = h;
 }
 
@@ -1142,7 +1173,311 @@ function renderStats() {
       h += '</div>';
     }
   }
+  h += otherSectionHtml();
   $id('page-stats').innerHTML = h;
+}
+
+/* ---------- Other results (races from other apps) ---------- */
+// A driver who races somewhere that isn't on RaceDay yet can add those results, labeled with
+// the app they came from. Deliberately kept apart: they live in P.otherResults (never
+// raceResults), so they never count toward stats, wins, milestones or points and are never
+// "verified". They reach the public page only for Pro drivers who leave "Show these on my
+// public page" on (see otherOnCard()).
+var OTHER_APPS = [
+  { key: 'speedhive', label: 'MYLAPS Speedhive', short: 'Speedhive' },
+  { key: 'myracepass', label: 'MyRacePass', short: 'MyRacePass' },
+  { key: 'racemonitor', label: 'Race Monitor', short: 'Race Monitor' },
+  { key: 'orbits', label: 'MYLAPS Orbits', short: 'Orbits' },
+  { key: 'westhold', label: 'Westhold', short: 'Westhold' },
+  { key: 'racehero', label: 'RaceHero', short: 'RaceHero' },
+  { key: 'other', label: 'Another app or website', short: '' }
+];
+var OTHER_SESSIONS = ['Feature', 'Heat', 'Qualifying', 'Practice'];
+var OTHER_STATUS = ['DNF', 'DNS', 'DQ'];
+var OTHER_EDIT = null;   // id of the result open in the form, or null when adding
+function otherApp(key) { return OTHER_APPS.filter(function (a) { return a.key === key; })[0] || OTHER_APPS[OTHER_APPS.length - 1]; }
+function otherFrom(r) { var a = otherApp(r.app); return a.key === 'other' ? (r.appName || 'another app') : a.short; }
+function otherPosLabel(p) { return typeof p === 'number' ? dpOrd(p) : (p || '—'); }
+function otherSorted() {
+  return P.otherResults.slice().sort(function (a, b) { return a.date < b.date ? 1 : a.date > b.date ? -1 : (b.addedAt || 0) - (a.addedAt || 0); });
+}
+function otherUrlOK(u) { return typeof u === 'string' && u.length <= 200 && /^https?:\/\/[^\s"'<>]+$/i.test(u); }
+function otherNewId() { return 'o' + Date.now().toString(36) + Math.random().toString(36).slice(2, 6); }
+function otherToday() { var t = new Date(); return t.getFullYear() + '-' + ('0' + (t.getMonth() + 1)).slice(-2) + '-' + ('0' + t.getDate()).slice(-2); }
+// One result, normalized and capped. Used for the form, for cards pulled from Firebase, and
+// mirrored in /d/ — anything that fails comes back null and is dropped.
+function cleanOther(r) {
+  if (!r || typeof r !== 'object') return null;
+  var s = function (v, n) { return typeof v === 'string' ? v.trim().slice(0, n) : ''; };
+  var pos = typeof r.pos === 'number' && r.pos >= 1 && r.pos <= 999 ? Math.floor(r.pos) : (OTHER_STATUS.indexOf(r.pos) >= 0 ? r.pos : null);
+  var out = {
+    id: /^[a-z0-9]{1,20}$/i.test(r.id || '') ? r.id : otherNewId(),
+    app: otherApp(r.app).key, appName: '',
+    date: /^\d{4}-\d{2}-\d{2}$/.test(r.date || '') ? r.date : '',
+    track: s(r.track, 60), cls: s(r.cls, 40), pos: pos,
+    starters: typeof r.starters === 'number' && r.starters >= 1 && r.starters <= 999 ? Math.floor(r.starters) : null,
+    session: OTHER_SESSIONS.indexOf(r.session) >= 0 ? r.session : '',
+    url: otherUrlOK(r.url) ? r.url : '',
+    addedAt: typeof r.addedAt === 'number' ? r.addedAt : Date.now()
+  };
+  if (out.app === 'other') out.appName = s(r.appName, 30);
+  return out.date && out.track && out.cls && out.pos != null ? out : null;
+}
+// Card field: compact JSON, newest first, trimmed to fit the 8000-character rule cap.
+// `more` counts results that didn't fit, so another device restoring the card keeps its
+// own older ones instead of losing them.
+function otherPayload() {
+  var list = otherSorted().map(function (r) {
+    var o = { i: r.id, a: r.app, d: r.date, t: r.track, c: r.cls, p: r.pos };
+    if (r.appName) o.n = r.appName;
+    if (r.starters) o.s = r.starters;
+    if (r.session) o.e = r.session;
+    if (r.url) o.u = r.url;
+    return o;
+  });
+  var more = 0, json = JSON.stringify({ r: list, more: 0 });
+  while (json.length > CARD_CAPS.other && list.length) { list.pop(); more++; json = JSON.stringify({ r: list, more: more }); }
+  return json;
+}
+function parseOtherPayload(str) {
+  var o; try { o = JSON.parse(str); } catch (e) { return null; }
+  if (!o || !Array.isArray(o.r)) return null;
+  var list = o.r.map(function (x) {
+    return x && cleanOther({ id: x.i, app: x.a, appName: x.n, date: x.d, track: x.t, cls: x.c, pos: x.p, starters: x.s, session: x.e, url: x.u, addedAt: 0 });
+  }).filter(Boolean);
+  if (o.more > 0 && P && P.otherResults) {
+    // The card was trimmed: keep this device's results that are older than anything on it.
+    var oldest = list.length ? list[list.length - 1].date : '9999-99-99';
+    var ids = {}; list.forEach(function (x) { ids[x.id] = 1; });
+    P.otherResults.forEach(function (x) { if (!ids[x.id] && x.date < oldest) list.push(x); });
+  }
+  return list;
+}
+
+function otherRowHtml(r) {
+  return '<div class="ores"><div class="op">' + esc(otherPosLabel(r.pos)) + '</div>'
+    + '<div style="min-width:0"><div class="t">' + esc(r.cls) + (r.session ? ' · ' + esc(r.session) : '') + '</div>'
+    + '<div class="s">' + esc([r.track, dpDate(r.date), r.starters ? r.starters + ' starters' : ''].filter(Boolean).join(' · ')) + '</div>'
+    + '<span class="from">from ' + esc(otherFrom(r)) + '</span>'
+    + (r.url ? ' <a class="s" href="' + esc(r.url) + '" target="_blank" rel="noopener nofollow">Results ↗</a>' : '') + '</div>'
+    + '<div class="acts"><button class="btn btn-sm" onclick="openOtherResult(\'' + r.id + '\')">Edit</button>'
+    + '<button class="btn btn-sm" onclick="delOtherResult(\'' + r.id + '\')" aria-label="Delete this result">✕</button></div></div>';
+}
+function otherSectionHtml() {
+  var list = otherSorted(), isPro = tierAtLeast('pro');
+  var h = '<div class="slbl">Other results</div><div class="card">'
+    + '<p class="sub" style="margin-bottom:6px">Races from other apps, or from tracks that aren\'t on RaceDay yet. Each one is labeled with where it came from, and they stay separate — they never count in your record above.</p>';
+  h += list.map(otherRowHtml).join('');
+  h += '<button class="btn btn-block" id="orAddBtn" onclick="openOtherResult()" style="margin-top:12px">+ Add a result</button>';
+  if (isPro) {
+    h += '<label style="display:flex;gap:10px;align-items:center;margin-top:14px;font-size:14px;color:var(--ink)">'
+      + '<input type="checkbox" id="orShow"' + (P.showOtherOnPage !== false ? ' checked' : '') + ' onchange="toggleOtherOnPage(this.checked)" style="width:18px;height:18px">'
+      + ' Show these on my public page</label>';
+  } else if (list.length) {
+    h += '<p class="onote">Only you can see these. Pro can show them on your public page, labeled with the app they came from.</p>';
+  }
+  return h + '</div>';
+}
+// Public-page mirror (Home), Pro only — same look as /d/.
+function dpOtherSection() {
+  if (!otherOnCard() || !P.otherResults.length) return '';
+  return '<div class="dp-sec"><span class="dp-cap">Other results · added by the driver</span><div class="dp-list">'
+    + otherSorted().slice(0, 20).map(function (r) {
+        return '<div class="dp-res"><div class="dp-pos">' + esc(otherPosLabel(r.pos)) + '</div>'
+          + '<div><div class="t">' + esc(r.cls) + (r.session ? ' · ' + esc(r.session) : '') + '</div>'
+          + '<div class="s">' + esc([r.track, dpDate(r.date)].filter(Boolean).join(' · ')) + '</div>'
+          + '<span class="from">from ' + esc(otherFrom(r)) + '</span></div>'
+          + '<div class="pts">' + (r.starters ? 'of ' + r.starters : '') + '</div></div>';
+      }).join('') + '</div></div>';
+}
+
+function openOtherResult(id) {
+  var r = id ? P.otherResults.filter(function (x) { return x.id === id; })[0] : null;
+  var last = otherSorted()[0];
+  // A new entry starts from the last one's app, track and class — the usual case is
+  // adding several nights from the same place.
+  var v = r || { app: last ? last.app : 'speedhive', appName: last ? last.appName : '', date: otherToday(),
+                 track: last ? last.track : '', cls: last ? last.cls : '', pos: null, starters: null, session: 'Feature', url: '' };
+  OTHER_EDIT = r ? r.id : null;
+  closeOtherResult();
+  var ov = document.createElement('div');
+  ov.id = 'otherModal'; ov.className = 'wiz-overlay';
+  ov.innerHTML = '<div class="wiz-box">'
+    + '<h2>' + (r ? 'Edit result' : 'Add a result') + '</h2>'
+    + '<p class="sub" style="margin-bottom:6px">From a race app, or a track that isn\'t on RaceDay yet. It\'s labeled with the app and kept separate from your RaceDay results.</p>'
+    + (r ? '' : '<button class="btn btn-sm" type="button" onclick="$id(\'orFile\').click()" style="margin-top:6px">Fill from a results file (CSV)</button>'
+      + '<input id="orFile" type="file" accept=".csv,text/csv,text/plain" style="display:none" onchange="otherFromCsv(this)"><div id="orCsv"></div>')
+    + '<label for="orApp">Where is this result from?</label><select id="orApp" onchange="$id(\'orAppNameWrap\').style.display = this.value === \'other\' ? \'\' : \'none\'">'
+    + OTHER_APPS.map(function (a) { return '<option value="' + a.key + '"' + (a.key === v.app ? ' selected' : '') + '>' + esc(a.label) + '</option>'; }).join('') + '</select>'
+    + '<div id="orAppNameWrap"' + (v.app === 'other' ? '' : ' style="display:none"') + '><label for="orAppName">App or website name</label>'
+    + '<input type="text" id="orAppName" maxlength="30" value="' + esc(v.appName || '') + '" placeholder="e.g. the track\'s Facebook page"></div>'
+    + '<div class="orow2"><div><label for="orDate">Date</label><input type="date" id="orDate" value="' + esc(v.date) + '"></div>'
+    + '<div><label for="orSession">Race</label><select id="orSession"><option value="">—</option>'
+    + OTHER_SESSIONS.map(function (x) { return '<option' + (x === v.session ? ' selected' : '') + '>' + x + '</option>'; }).join('') + '</select></div></div>'
+    + '<label for="orTrack">Track</label><input type="text" id="orTrack" maxlength="60" value="' + esc(v.track) + '">'
+    + '<label for="orCls">Class</label><input type="text" id="orCls" maxlength="40" value="' + esc(v.cls) + '">'
+    + '<div class="orow2"><div><label for="orPos">Finish</label><input type="text" id="orPos" maxlength="3" value="' + esc(v.pos == null ? '' : String(v.pos)) + '" placeholder="3, or DNF" autocapitalize="characters"></div>'
+    + '<div><label for="orStarters">Starters (optional)</label><input type="number" id="orStarters" min="1" max="999" value="' + (v.starters || '') + '"></div></div>'
+    + '<label for="orUrl">Link to the results (optional)</label><input type="url" id="orUrl" maxlength="200" value="' + esc(v.url || '') + '" placeholder="https://">'
+    + '<div style="display:flex;gap:8px;margin-top:20px"><button class="btn" type="button" onclick="closeOtherResult()" style="flex:1">Cancel</button>'
+    + '<button class="btn btn-primary" type="button" id="orSave" onclick="saveOtherResult()" style="flex:1">Save result</button></div>'
+    + '</div>';
+  document.body.appendChild(ov);
+}
+function closeOtherResult() { var m = $id('otherModal'); if (m) m.remove(); }
+
+function saveOtherResult() {
+  var val = function (id) { return ($id(id).value || '').trim(); };
+  var posRaw = val('orPos').toUpperCase(), pos = /^\d{1,3}$/.test(posRaw) ? parseInt(posRaw, 10) : posRaw;
+  var starters = val('orStarters') ? parseInt(val('orStarters'), 10) : null;
+  var raw = { id: OTHER_EDIT || undefined, app: $id('orApp').value, appName: val('orAppName'), date: val('orDate'), track: val('orTrack'), cls: val('orCls'),
+              pos: pos, starters: starters, session: $id('orSession').value, url: val('orUrl') };
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(raw.date)) return alert('Pick the date of the race.');
+  if (!raw.track) return alert('Add the track name.');
+  if (!raw.cls) return alert('Add the class you raced in.');
+  if (!(typeof pos === 'number' && pos >= 1) && OTHER_STATUS.indexOf(pos) < 0) return alert('Finish should be a number (like 3), or DNF, DNS or DQ.');
+  if (starters != null && !(starters >= 1 && starters <= 999)) return alert('Starters should be a number, or leave it blank.');
+  if (starters && typeof pos === 'number' && pos > starters) return alert('The finish is higher than the number of starters — check both.');
+  if (raw.url && !otherUrlOK(raw.url)) return alert('The link should start with https:// — or leave it blank.');
+  if (raw.app === 'other' && !raw.appName) return alert('Add the name of the app or website it came from.');
+  var low = function (x) { return String(x || '').toLowerCase(); };
+  var dupe = P.otherResults.some(function (x) {
+    return x.id !== OTHER_EDIT && x.date === raw.date && low(x.track) === low(raw.track) && low(x.cls) === low(raw.cls) && x.session === raw.session;
+  });
+  if (dupe && !confirm('You already have a ' + raw.cls + ' result at ' + raw.track + ' on that date. Add this one too?')) return;
+  var prev = OTHER_EDIT ? P.otherResults.filter(function (x) { return x.id === OTHER_EDIT; })[0] : null;
+  if (prev) raw.addedAt = prev.addedAt;
+  var r = cleanOther(raw);
+  if (!r) return alert('Something in this result isn\'t right — check each field.');
+  if (prev) P.otherResults = P.otherResults.map(function (x) { return x.id === prev.id ? r : x; });
+  else P.otherResults.push(r);
+  save();
+  closeOtherResult();
+  renderStats();
+}
+function delOtherResult(id) {
+  var r = P.otherResults.filter(function (x) { return x.id === id; })[0];
+  if (!r || !confirm('Remove your ' + r.cls + ' result at ' + r.track + ' (' + dpDate(r.date) + ')?')) return;
+  P.otherResults = P.otherResults.filter(function (x) { return x.id !== id; });
+  save();
+  renderStats();
+}
+function toggleOtherOnPage(on) {
+  P.showOtherOnPage = !!on;
+  save();
+  renderStats();
+}
+
+// "Fill from a results file": reads a timing/results CSV (Speedhive, Orbits, Westhold…),
+// finds the driver's row by name (or kart number), and fills finish, class and starters.
+// Parser and column names follow timing-import.html.
+var OTHER_CSV = null;
+var CSV_SYN = {
+  num:   ['kart', 'car number', 'car no', 'vehicle no', 'kart no', 'plate', 'car#', 'kart#', 'no', 'no.', '#', 'number', 'racer number', 'racer no', 'rider number', 'rider no', 'car'],
+  name:  ['driver name', 'driver', 'name', 'racer', 'rider', 'rider name', 'racer name', 'pilot', 'competitor', 'firstname', 'first name', 'first'],
+  name2: ['lastname', 'last name', 'last', 'surname', 'family name'],
+  cls:   ['class', 'category', 'group', 'division'],
+  pos:   ['pos', 'position', 'finish', 'place', 'rank', 'result', 'finish pos', 'pos.', 'p']
+};
+function parseCsvText(text) {
+  if (text.charCodeAt(0) === 0xFEFF) text = text.slice(1);
+  // Semicolon files (common from European timing software): judge by the first lines, not
+  // just line 1, which is often a title.
+  var head = text.split('\n').slice(0, 10).join('\n');
+  var delim = (head.match(/;/g) || []).length > (head.match(/,/g) || []).length ? ';' : ',';
+  var rows = [], row = [], cell = '', inQ = false;
+  for (var i = 0; i <= text.length; i++) {
+    var c = i < text.length ? text[i] : '\n';
+    if (inQ) {
+      if (c === '"') { if (text[i + 1] === '"') { cell += '"'; i++; } else inQ = false; }
+      else cell += c;
+    } else if (c === '"') inQ = true;
+    else if (c === delim || c === '\t') { row.push(cell); cell = ''; }
+    else if (c === '\r' || c === '\n') {
+      row.push(cell); cell = '';
+      if (row.some(function (v) { return v.trim(); })) rows.push(row);
+      row = [];
+      if (c === '\r' && text[i + 1] === '\n') i++;
+    } else cell += c;
+  }
+  return rows;
+}
+function csvColumns(hdr) {
+  var h = hdr.map(function (v) { return String(v).trim().toLowerCase(); });
+  var out = {};
+  Object.keys(CSV_SYN).forEach(function (k) {
+    var syns = CSV_SYN[k];
+    var idx = h.findIndex(function (c) { return syns.indexOf(c) >= 0; });
+    if (idx < 0 && k !== 'pos' && k !== 'num') idx = h.findIndex(function (c) { return syns.some(function (s) { return s.length > 3 && c.indexOf(s) >= 0; }); });
+    out[k] = idx;
+  });
+  if (out.name === out.name2) out.name2 = -1;
+  return out;
+}
+function csvScore(row) { var g = csvColumns(row); return Object.keys(g).filter(function (k) { return g[k] >= 0; }).length; }
+function csvCell(row, i) { return i >= 0 && row[i] != null ? String(row[i]).trim() : ''; }
+function csvName(row, c) { return [csvCell(row, c.name), csvCell(row, c.name2)].filter(Boolean).join(' '); }
+function csvTokens(s) { return String(s || '').toLowerCase().replace(/[^a-z0-9 ]/g, ' ').split(/\s+/).filter(Boolean); }
+function csvNameMatch(row, c) {
+  var have = csvTokens(csvName(row, c));
+  if (!have.length) return false;
+  var names = [P.driver.name].concat(String(P.driver.aliases || '').split(','));
+  // Every word of the driver's name (or an alias) appears in the row — so "Miller, Joshua"
+  // matches "Joshua Miller", but a lone first name only matches a one-word alias.
+  return names.some(function (n) {
+    var want = csvTokens(n);
+    return want.length && (want.length > 1 || have.length === 1) && want.every(function (w) { return have.indexOf(w) >= 0; });
+  });
+}
+function csvFinish(s) {
+  s = String(s || '').trim().toUpperCase();
+  if (OTHER_STATUS.indexOf(s) >= 0) return s;
+  if (/^(DSQ|EXC)$/.test(s)) return 'DQ';
+  if (/^(RET|NC|DNC)$/.test(s)) return 'DNF';
+  var n = parseInt(s, 10);
+  return n > 0 && n <= 999 ? n : null;
+}
+function otherFromCsv(input) {
+  var f = input.files && input.files[0]; input.value = '';
+  if (!f) return;
+  var fr = new FileReader();
+  fr.onload = function () { otherCsvLoaded(String(fr.result || '')); };
+  fr.readAsText(f);
+}
+function otherCsvLoaded(text) {
+  var box = $id('orCsv');
+  var all = parseCsvText(text);
+  // Some exports put title rows above the real header; take a later row only when it
+  // clearly looks more like a header.
+  var hdrIdx = 0, best = csvScore(all[0] || []);
+  if (best < 2) for (var i = 1; i < Math.min(all.length - 1, 10); i++) { var sc = csvScore(all[i]); if (sc >= 2 && sc > best) { hdrIdx = i; best = sc; } }
+  var cols = csvColumns(all[hdrIdx] || []), rows = all.slice(hdrIdx + 1);
+  if (!rows.length || cols.pos < 0 || (cols.name < 0 && cols.num < 0)) {
+    box.innerHTML = '<p class="onote">Couldn\'t find finish positions and driver names in that file. You can still fill in the result below.</p>';
+    return;
+  }
+  OTHER_CSV = { rows: rows, cols: cols };
+  var mine = rows.map(function (r, i) { return i; }).filter(function (i) { return csvNameMatch(rows[i], cols); });
+  var num = String(P.driver.number || '').trim().toUpperCase();
+  if (!mine.length && num) mine = rows.map(function (r, i) { return i; }).filter(function (i) { return csvCell(rows[i], cols.num).toUpperCase().replace(/^#/, '') === num; });
+  if (mine.length === 1) { otherPickRow(mine[0]); return; }
+  var pick = mine.length ? mine : rows.map(function (r, i) { return i; }).slice(0, 80);
+  box.innerHTML = '<p class="onote">' + (mine.length ? 'A few rows could be you — which one?' : 'Couldn\'t spot your name. Which row is you?') + '</p>'
+    + pick.map(function (i) {
+        var r = rows[i];
+        var bits = [csvCell(r, cols.pos) ? 'P' + csvCell(r, cols.pos) : '', csvCell(r, cols.num) ? '#' + csvCell(r, cols.num).replace(/^#/, '') : '', csvName(r, cols), csvCell(r, cols.cls)].filter(Boolean);
+        return '<button class="btn btn-sm csv-pick" type="button" onclick="otherPickRow(' + i + ')">' + esc(bits.join(' · ')) + '</button>';
+      }).join('');
+}
+function otherPickRow(i) {
+  var c = OTHER_CSV.cols, rows = OTHER_CSV.rows, r = rows[i];
+  var pos = csvFinish(csvCell(r, c.pos)), cls = csvCell(r, c.cls);
+  // Starters: everyone in the same class (or the whole file when there's no class column).
+  var field = rows.filter(function (x) { return c.cls < 0 || csvCell(x, c.cls) === cls; }).length;
+  if (pos != null) $id('orPos').value = String(pos);
+  if (cls) $id('orCls').value = cls.slice(0, 40);
+  if (field) $id('orStarters').value = field;
+  $id('orCsv').innerHTML = '<p class="onote">✓ Filled from the file: ' + esc([pos != null ? otherPosLabel(pos) : '', field ? 'of ' + field : '', cls].filter(Boolean).join(' ')) + '. Check the date and track, then save.</p>';
 }
 
 /* ---------- Link page ---------- */

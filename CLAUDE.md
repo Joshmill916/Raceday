@@ -110,6 +110,11 @@ profile that follows them across every RaceDay track they race at.
   `checkRaceDayResults()` (a "Check for new results" Settings button), source-tagged
   `'raceday'` as verified — corrected here after an audit found this doc stale
 - Career stats computed live from `raceResults` via `computeStats()` — no stored cache
+- **Other results** (`P.otherResults`, added 2026-10-15): races a driver adds from other apps
+  (Speedhive, MyRacePass…), each labeled with its app (`cleanOther()` normalizes). A separate list
+  on purpose — never in `raceResults`, never counted in stats/milestones/points. On the card
+  (`other`, JSON `{r,more}`, ≤8000 chars, trimmed oldest-first) ONLY for Pro with
+  `showOtherOnPage` on; `/d/` re-checks Pro and sanitizes. Guard: `tests/test-driven-other-results.js`
 - Same design language as `raceday/index.html` (CSS vars, `.card`/`.btn`/`.hr` patterns) and
   the same embedded QR generator, copied verbatim — kept intentionally separate rather than
   shared, to preserve the single-file-per-app model

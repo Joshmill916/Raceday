@@ -87,6 +87,9 @@ location.replace('https://'+location.host+location.pathname+location.search+loca
   .res .pts { font: 700 14px var(--display); color: var(--td-mute); letter-spacing: .04em; }
   .empty { color: var(--td-mute); font-size: 14px; padding: 16px 14px; line-height: 1.5; }
   .verified { font-size: 12px; color: var(--td-mute); margin: 8px 2px 0; }
+  .res .from { display: inline-block; margin-top: 4px; font: 700 10.5px var(--display); letter-spacing: .08em; text-transform: uppercase; color: var(--td-mute); border: 1px solid var(--line-d); border-radius: 5px; padding: 1px 6px; }
+  .res a { color: inherit; }
+  .res .pos.other { font-size: 18px; color: var(--td-mute); }
 
   /* About + sponsors */
   .about { background: var(--ink-1); border-radius: 12px; padding: 14px; font-size: 14.5px; line-height: 1.6; }
@@ -199,6 +202,26 @@ function loadResults(profileId) {
   });
 }
 
+// "Other results": races a Pro driver added from other apps (Speedhive, MyRacePass…). Kept
+// apart from verified results — never counted in the stats above — and labeled with the app.
+// Same normalization as Driven's cleanOther(); anything malformed is dropped.
+var OTHER_APPS = { speedhive: 'Speedhive', myracepass: 'MyRacePass', racemonitor: 'Race Monitor', orbits: 'Orbits', westhold: 'Westhold', racehero: 'RaceHero' };
+var OTHER_SESSIONS = ['Feature', 'Heat', 'Qualifying', 'Practice'];
+function otherResults(card) {
+  var o; try { o = JSON.parse(str(card.other, 8000)); } catch (e) { return []; }
+  if (!o || !Array.isArray(o.r)) return [];
+  return o.r.map(function (x) {
+    if (!x || typeof x !== 'object') return null;
+    var pos = typeof x.p === 'number' && x.p >= 1 && x.p <= 999 ? Math.floor(x.p) : (['DNF', 'DNS', 'DQ'].indexOf(x.p) >= 0 ? x.p : null);
+    var r = { date: /^\d{4}-\d{2}-\d{2}$/.test(x.d || '') ? x.d : '', track: str(x.t, 60), cls: str(x.c, 40), pos: pos,
+              from: (Object.prototype.hasOwnProperty.call(OTHER_APPS, x.a) ? OTHER_APPS[x.a] : '') || str(x.n, 30) || 'another app',
+              starters: typeof x.s === 'number' && x.s >= 1 && x.s <= 999 ? Math.floor(x.s) : null,
+              session: OTHER_SESSIONS.indexOf(x.e) >= 0 ? x.e : '',
+              url: typeof x.u === 'string' && x.u.length <= 200 && /^https?:\/\/[^\s"'<>]+$/i.test(x.u) ? x.u : '' };
+    return r.date && r.track && r.cls && r.pos != null ? r : null;
+  }).filter(Boolean).sort(function (a, b) { return a.date < b.date ? 1 : a.date > b.date ? -1 : 0; });
+}
+
 // Milestones drivers want to show off — computed from verified results only.
 function milestones(results) {
   var out = [], chrono = results.slice().reverse();
@@ -299,6 +322,20 @@ function render(profileId, card, isPro, data) {
     }).join('');
   }
   h += '</div>' + (results.length ? '<div class="verified">✓ Every result was posted by the track\'s official RaceDay scoring.</div>' : '') + '</div>';
+
+  var other = isPro ? otherResults(card) : [];
+  if (other.length) {
+    h += '<div class="sec"><span class="cap">Other results · added by the driver</span><div class="list">'
+      + other.slice(0, 30).map(function (r) {
+          return '<div class="res"><div class="pos other">' + esc(typeof r.pos === 'number' ? ord(r.pos) : r.pos) + '</div>'
+            + '<div><div class="t">' + esc(r.cls) + (r.session ? ' · ' + esc(r.session) : '') + '</div>'
+            + '<div class="s">' + esc(r.track) + ' · ' + esc(fmtDate(r.date)) + '</div>'
+            + '<span class="from">from ' + esc(r.from) + '</span>'
+            + (r.url ? ' <a class="s" href="' + esc(r.url) + '" target="_blank" rel="noopener nofollow ugc">Results ↗</a>' : '') + '</div>'
+            + '<div class="pts">' + (r.starters ? 'of ' + r.starters : '') + '</div></div>';
+        }).join('')
+      + '</div><div class="verified">Added by the driver from other apps. Not counted in the stats above.</div></div>';
+  }
 
   if (bio || highlights || crew.length) {
     h += '<div class="sec"><span class="cap">About</span><div class="about">'
