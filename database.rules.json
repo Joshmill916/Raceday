@@ -25,6 +25,8 @@
           "crew": { ".validate": "newData.isString() && newData.val().length <= 160" },
           "header": { ".validate": "newData.isString() && newData.val().length <= 140000" },
           "other": { ".validate": "newData.isString() && newData.val().length <= 8000" },
+          "rides": { ".validate": "newData.isString() && newData.val().length <= 200" },
+          "rideLabel": { ".validate": "newData.isString() && newData.val().length <= 30" },
           "updatedAt": { ".validate": "newData.isNumber()" },
           "$other": { ".validate": false }
         },

@@ -205,6 +205,12 @@
   /* Onboarding overlay (mirrors RaceDay's .wiz-overlay) */
   .wiz-overlay { position:fixed;inset:0;background:rgba(0,0,0,.65);z-index:9999;display:flex;align-items:center;justify-content:center;padding:16px; }
   .wiz-box { background:#fff;border-radius:14px;padding:1.75rem 1.5rem;max-width:440px;width:100%;max-height:90vh;overflow-y:auto;box-shadow:0 8px 32px rgba(0,0,0,.18); }
+  /* Ride switcher — shown only when the account has more than one ride */
+  .ride-bar { background: var(--ink-0); display: flex; gap: 8px; padding: 8px 16px 10px; overflow-x: auto; border-bottom: 1px solid var(--line-d); position: sticky; top: 44px; z-index: 19; }
+  .ride-pill { flex: none; border: 1.5px solid var(--ink-3); background: transparent; color: #aab0bb; border-radius: 99px; padding: 6px 14px; font: 700 13px var(--display); letter-spacing: .06em; text-transform: uppercase; cursor: pointer; }
+  .ride-pill span { color: #79808c; margin-left: 2px; }
+  .ride-pill.on { background: var(--brand); border-color: var(--brand); color: #fff; }
+  .ride-pill.on span { color: #dbe8fb; }
   /* Other results — races from other apps. Kept visually apart from verified results. */
   .ores { display: grid; grid-template-columns: 48px 1fr auto; gap: 10px; align-items: center; padding: 11px 0; border-top: 1px solid var(--line); }
   .ores:first-child { border-top: none; }
@@ -329,6 +335,7 @@
   <button data-page="link" onclick="nav('link')">Link</button>
   <button data-page="settings" onclick="nav('settings')">Settings</button>
 </div>
+<div id="rideBar" class="ride-bar" style="display:none"></div>
 
 <div class="container">
   <div id="page-home" class="page active"></div>
@@ -447,6 +454,253 @@ function migrate(p) {
   return p;
 }
 
+/* ---------- Rides: one account, a card for each kind of racing ---------- */
+// A driver who races karts AND cars (or two kinds of car) keeps one account with a "ride"
+// for each. Every ride is a complete profile with its OWN profileId, card, link code, QR,
+// results and public page, so RaceDay tracks, the results pipeline and /d/ need no changes:
+// a track links whichever ride's code the driver gives at sign-up. Name, email, hometown
+// and age are shared across rides; everything else is per ride. The first ride is the
+// account's "primary": it holds the Pro code/subscription, and Pro covers every ride.
+// Storage: profiles_v1 stays the ACTIVE ride (same shape as ever). The other rides live in
+// profiles_rides_v1 = { primaryId, order: [profileIds, primary first], stash: { id: profile } }
+// — the stash never holds the active ride. A one-ride account has no rides key at all.
+var RIDES_KEY = 'profiles_rides_v1';
+var RIDE_LIMIT = 3;   // Pro; free accounts have one ride
+var ACCT = null;
+function loadAcct() {
+  try {
+    var a = JSON.parse(localStorage.getItem(RIDES_KEY) || 'null');
+    if (!a || !Array.isArray(a.order) || !a.stash || typeof a.stash !== 'object' || !P || a.order.indexOf(P.profileId) < 0) return null;
+    delete a.stash[P.profileId];
+    Object.keys(a.stash).forEach(function (k) { migrate(a.stash[k]); });
+    a.order = a.order.filter(function (id) { return id === P.profileId || a.stash[id]; });
+    return a.order.length > 1 ? a : null;
+  } catch (e) { return null; }
+}
+function saveAcct() {
+  if (ACCT && ACCT.order.length > 1) localStorage.setItem(RIDES_KEY, JSON.stringify(ACCT));
+  else { ACCT = null; localStorage.removeItem(RIDES_KEY); }
+}
+function multiRide() { return !!(ACCT && ACCT.order.length > 1 && P); }
+function rideList() {
+  if (!multiRide()) return P ? [P] : [];
+  return ACCT.order.map(function (id) { return id === P.profileId ? P : ACCT.stash[id]; }).filter(Boolean);
+}
+function primaryProfile() {
+  if (!multiRide() || ACCT.primaryId === P.profileId) return P;
+  return ACCT.stash[ACCT.primaryId] || P;
+}
+function rideClean(v) { return typeof v === 'string' ? v.replace(/[:|<>]/g, '').trim().slice(0, 30) : ''; }
+function rideName(p) { var i = rideList().indexOf(p); return rideClean(p.rideLabel) || ('Ride ' + (i + 1)); }
+// Card fields that tie the rides together: `rides` lists every ride's link code and name,
+// primary first ("OZ0YWS5P:Karts|AB12CD34:Late Model"); /d/ shows them as tabs once each
+// ride's card lists the other. Left off entirely for a one-ride account.
+function ridesCardField() {
+  if (!multiRide()) return {};
+  return {
+    rideLabel: rideClean(P.rideLabel),
+    rides: rideList().filter(function (p) { return p.shortCode; }).map(function (p) { return p.shortCode + ':' + rideClean(p.rideLabel); }).join('|').slice(0, 200)
+  };
+}
+// Run fn with another ride as P (cardPayload(), tierAtLeast()… all read P). The active ride
+// sits in the stash meanwhile so primaryProfile() still finds it. Synchronous only.
+function asRide(p, fn) {
+  var keep = P;
+  if (p === keep) return fn();
+  ACCT.stash[keep.profileId] = keep; P = p;
+  try { return fn(); } finally { P = keep; delete ACCT.stash[keep.profileId]; }
+}
+// After anything that changes what the OTHER rides' cards should say (a ride added,
+// renamed or removed; shared name/hometown; Pro), rewrite their published cards.
+function republishSiblings() {
+  if (!multiRide()) return Promise.resolve(0);
+  var others = rideList().filter(function (p) { return p !== P && p.publishedAt && p.shortCode; });
+  if (!others.length) return Promise.resolve(0);
+  return ensureFirebase().then(function () {
+    var db = firebase.database();
+    return Promise.all(others.map(function (p) {
+      var payload = asRide(p, function () { return cardTooLong() ? null : cardPayload(); });
+      if (!payload) return null;
+      return db.ref('profiles/' + p.profileId + '/card').set(payload).then(function () { p.publishedAt = Date.now(); });
+    }));
+  }).then(function () { saveAcct(); return others.length; });
+}
+function switchRide(id) {
+  if (!multiRide() || id === P.profileId || !ACCT.stash[id]) return;
+  var page = (document.querySelector('.nav button.active') || {}).dataset;
+  ACCT.stash[P.profileId] = P;
+  P = ACCT.stash[id];
+  delete ACCT.stash[id];
+  localStorage.setItem('profiles_v1', JSON.stringify(P));   // direct write: switching publishes nothing
+  saveAcct();
+  nav(page && page.page ? page.page : 'home');
+  syncFromPublished();
+  if (P.needsResultsPull) {
+    pullRaceDayResults().then(function () { P.needsResultsPull = false; localStorage.setItem('profiles_v1', JSON.stringify(P)); nav((document.querySelector('.nav button.active') || {}).dataset.page || 'home'); }).catch(function () {});
+  }
+}
+function renderRideBar() {
+  var bar = $id('rideBar');
+  if (!bar) return;
+  if (!multiRide()) { bar.style.display = 'none'; bar.innerHTML = ''; return; }
+  bar.style.display = '';
+  bar.innerHTML = rideList().map(function (p) {
+    return '<button type="button" class="ride-pill' + (p === P ? ' on' : '') + '" onclick="switchRide(\'' + p.profileId + '\')">'
+      + esc(rideName(p)) + (p.driver.number ? ' <span>#' + esc(p.driver.number) + '</span>' : '') + '</button>';
+  }).join('');
+}
+
+function ridesSectionHtml() {
+  var list = rideList(), pro = tierAtLeast('pro');
+  var h = '<div class="card"><div class="slbl">Rides</div>';
+  if (!multiRide()) {
+    h += '<p class="sub" style="margin-bottom:10px">Race karts and cars, or more than one kind of car? Give each one its own ride — its own number, colors, photo, sponsors, link code and public page. Your stats stay separate, so kart wins don\'t mix with car wins.</p>';
+  } else {
+    h += '<p class="sub" style="margin-bottom:6px">Your name, email, hometown and age are shared. Everything else belongs to each ride. Give the track the link code for the ride you\'re racing that night.</p>';
+    h += list.map(function (p) {
+      var main = p.profileId === ACCT.primaryId;
+      return '<div class="track-row"><div class="tn"><b>' + esc(rideName(p)) + (p.driver.number ? ' · #' + esc(p.driver.number) : '') + (p === P ? ' (open)' : '') + '</b>'
+        + '<span>' + (p.shortCode ? 'Link code ' + esc(p.shortCode) : 'Not published yet') + (main ? ' · holds your Pro' : '') + '</span></div>'
+        + '<div style="display:flex;gap:6px">'
+        + (p === P ? '' : '<button class="btn btn-sm" onclick="switchRide(\'' + p.profileId + '\')">Open</button>')
+        + '<button class="btn btn-sm" onclick="renameRide(\'' + p.profileId + '\')">Rename</button>'
+        + (main ? '' : '<button class="btn btn-sm" onclick="removeRide(\'' + p.profileId + '\')" aria-label="Remove this ride">✕</button>')
+        + '</div></div>';
+    }).join('');
+  }
+  if (pro && list.length < RIDE_LIMIT) h += '<button class="btn btn-block" id="addRideBtn" onclick="openAddRide()" style="margin-top:12px">+ Add a ride</button>';
+  else if (pro) h += '<p class="onote">You have the most rides Pro allows (' + RIDE_LIMIT + ').</p>';
+  else h += '<p class="onote">' + (multiRide() ? 'Your rides stay, but adding another needs Pro.' : 'Rides come with <b>Pro</b> — up to ' + RIDE_LIMIT + ' on one account, one subscription.') + ' <a href="#" onclick="nav(\'card\');return false">See Pro</a></p>';
+  return h + '</div>';
+}
+
+function openAddRide() {
+  if (!tierAtLeast('pro')) { alert('Rides come with Pro.'); return; }
+  if (rideList().length >= RIDE_LIMIT) { alert('Pro allows up to ' + RIDE_LIMIT + ' rides.'); return; }
+  closeAddRide();
+  var ov = document.createElement('div');
+  ov.id = 'rideModal'; ov.className = 'wiz-overlay';
+  ov.innerHTML = '<div class="wiz-box"><h2>Add a ride</h2>'
+    + '<p class="sub" style="margin-bottom:6px">A separate card for another kind of racing, with its own number, colors, photo, sponsors, link code and public page.</p>'
+    + (multiRide() ? '' : '<label for="rideCur">Name for the ride you have now</label><input type="text" id="rideCur" maxlength="30" placeholder="e.g. Karts" value="' + esc(rideClean(P.rideLabel)) + '">')
+    + '<label for="rideNew">Name for the new ride</label><input type="text" id="rideNew" maxlength="30" placeholder="e.g. Late Model">'
+    + '<label for="rideNum">Number on the new ride (optional)</label><input type="text" id="rideNum" maxlength="5" placeholder="e.g. 7" autocapitalize="characters">'
+    + '<div style="display:flex;gap:8px;margin-top:20px"><button class="btn" type="button" onclick="closeAddRide()" style="flex:1">Cancel</button>'
+    + '<button class="btn btn-primary" type="button" id="rideSave" onclick="saveNewRide()" style="flex:1">Add ride</button></div></div>';
+  document.body.appendChild(ov);
+}
+function closeAddRide() { var m = $id('rideModal'); if (m) m.remove(); }
+function saveNewRide() {
+  var cur = $id('rideCur') ? rideClean($id('rideCur').value) : rideClean(P.rideLabel);
+  var label = rideClean($id('rideNew').value), num = ($id('rideNum').value || '').trim().slice(0, 5);
+  if (!multiRide() && !cur) return alert('Give the ride you have now a name, like "Karts".');
+  if (!label) return alert('Give the new ride a name, like "Late Model".');
+  if (rideList().some(function (p) { return p !== P && rideClean(p.rideLabel).toLowerCase() === label.toLowerCase(); }) || cur.toLowerCase() === label.toLowerCase()) return alert('You already have a ride called ' + label + '.');
+  if (!multiRide()) { ACCT = { primaryId: P.profileId, order: [P.profileId], stash: {} }; }
+  P.rideLabel = cur;
+  var d = P.driver;
+  var r = migrate(newProfile(d.name, d.email, d.hometown, d.age));
+  r.driver.number = num;
+  r.driver.photo = d.photo;   // same driver, so the headshot usually carries over; change it per ride in Settings
+  r.rideLabel = label;
+  ACCT.order.push(r.profileId);
+  ACCT.stash[P.profileId] = P;
+  var wasPublished = !!primaryProfile().publishedAt || !!P.publishedAt;
+  P = r;
+  localStorage.setItem('profiles_v1', JSON.stringify(P));
+  saveAcct();
+  closeAddRide();
+  nav('home');
+  // Publish the new ride right away (it needs a link code for the track), then update the
+  // other rides' cards so their public pages link to it.
+  if (wasPublished) {
+    publishCard(true).then(republishSiblings).then(function () {
+      alert('✅ ' + label + ' added. Its link code is ' + P.shortCode + ' — switch rides with the buttons at the top.');
+      nav('home');
+    }).catch(function () { alert(label + ' added. Publish it from the Home page when you\'re online to get its link code.'); });
+  } else {
+    alert('✅ ' + label + ' added — switch rides with the buttons at the top.');
+  }
+}
+function renameRide(id) {
+  var p = rideList().filter(function (x) { return x.profileId === id; })[0];
+  if (!p) return;
+  var v = prompt('Name for this ride', rideClean(p.rideLabel));
+  if (v == null) return;
+  v = rideClean(v);
+  if (!v) return alert('A ride needs a name.');
+  p.rideLabel = v;
+  saveAcct();
+  save();   // republishes the open ride
+  republishSiblings().catch(function () {});
+  renderSettings(); renderRideBar();
+}
+function removeRide(id) {
+  if (!multiRide() || id === ACCT.primaryId) return;
+  var p = rideList().filter(function (x) { return x.profileId === id; })[0];
+  if (!p) return;
+  if (!confirm('Remove the ' + rideName(p) + ' ride? Its card, link code, public page and results on this device are deleted.')) return;
+  if (!confirm('Really remove ' + rideName(p) + '? This cannot be undone.')) return;
+  if (p === P) switchRide(ACCT.primaryId);
+  delete ACCT.stash[id];
+  ACCT.order = ACCT.order.filter(function (x) { return x !== id; });
+  saveAcct();
+  save();
+  republishSiblings().catch(function () {});
+  if (p.publishedAt) {
+    ensureFirebase().then(function () {
+      var db = firebase.database(), ops = [db.ref('profiles/' + p.profileId).remove()];
+      if (p.shortCode) ops.push(db.ref('profiles_short/' + p.shortCode).remove());
+      return Promise.all(ops);
+    }).catch(function () {});
+  }
+  renderSettings(); renderRideBar();
+}
+
+// Brings back the other rides a published card lists (restore by link code, a second
+// device, ?restore= after the https move). A ride only counts if ITS card lists this one
+// back — a card can't claim someone else's page as its ride.
+function adoptRidesFromCard(card) {
+  var entries = String(card && card.rides || '').split('|').map(function (x) { var i = x.indexOf(':'); return { code: (i < 0 ? x : x.slice(0, i)).trim().toUpperCase(), label: rideClean(i < 0 ? '' : x.slice(i + 1)) }; })
+    .filter(function (e) { return /^[A-Z0-9]{4,20}$/.test(e.code); });
+  if (entries.length < 2 || !P || !P.shortCode) return Promise.resolve(0);
+  var known = {}; rideList().forEach(function (p) { if (p.shortCode) known[p.shortCode] = p; });
+  var missing = entries.filter(function (e) { return !known[e.code]; });
+  if (!missing.length) return Promise.resolve(0);
+  var db;
+  return ensureFirebase().then(function () {
+    db = firebase.database();
+    return Promise.all(missing.map(function (e) {
+      return db.ref('profiles_short/' + e.code).once('value').then(function (s) {
+        var id = s.val();
+        if (typeof id !== 'string' || !/^prof_[a-z0-9]{6,20}$/i.test(id)) return null;
+        return db.ref('profiles/' + id + '/card').once('value').then(function (cs) {
+          var c = cs.val();
+          if (!c || !c.name || String(c.rides || '').split('|').map(function (x) { return x.split(':')[0]; }).indexOf(P.shortCode) < 0) return null;
+          var r = migrate(newProfile(String(c.name).slice(0, 40), P.driver.email, '', null));
+          r.profileId = id; r.shortCode = e.code; r.publishedAt = Date.now(); r.needsResultsPull = true;
+          applyCardToProfile(r, c);
+          if (!r.rideLabel) r.rideLabel = e.label;
+          return r;
+        });
+      }).catch(function () { return null; });
+    }));
+  }).then(function (rides) {
+    rides = rides.filter(Boolean);
+    if (!rides.length) return 0;
+    if (!multiRide()) ACCT = { primaryId: P.profileId, order: [P.profileId], stash: {} };
+    rides.forEach(function (r) { ACCT.stash[r.profileId] = r; if (ACCT.order.indexOf(r.profileId) < 0) ACCT.order.push(r.profileId); });
+    // Order (and the primary) follow the card's list, primary first.
+    var byCode = {}; rideList().forEach(function (p) { if (p.shortCode) byCode[p.shortCode] = p.profileId; });
+    var ordered = entries.map(function (e) { return byCode[e.code]; }).filter(Boolean);
+    ACCT.order = ordered.concat(ACCT.order.filter(function (id) { return ordered.indexOf(id) < 0; }));
+    ACCT.primaryId = ACCT.order[0];
+    saveAcct();
+    renderRideBar();
+    return rides.length;
+  });
+}
+
 /* ---------- Tier registry ---------- */
 // Two tiers today: free and pro. Adding another later (say a mid tier between them)
 // means adding one entry here with a rank in the gap — nothing else in the app
@@ -465,18 +719,23 @@ function tierDef(key) { return TIERS[key] || TIERS[TIER_FALLBACK]; }
 // within this grace window — beyond that a device that's been offline too long quietly
 // falls back to free rather than trusting a possibly-stale "still Pro" forever.
 var ENTITLEMENT_GRACE_MS = 7 * 24 * 60 * 60 * 1000;
-function entitlementTierKey() {
-  var e = P && P.entitlement;
+function entitlementTierKey(p) {
+  var e = (p || P) && (p || P).entitlement;
   if (!e) return TIER_FALLBACK;
   if ((Date.now() - (e.checkedAt || 0)) > ENTITLEMENT_GRACE_MS) return TIER_FALLBACK;
   return TIERS[e.tier] ? e.tier : TIER_FALLBACK;
 }
 // The client honors whichever of (offline code, entitlement) grants the higher tier —
 // each is a completely independent unlock path, this is just their union.
+// With several rides, Pro belongs to the account: the first ride holds the code or the
+// subscription, and every ride gets the tier it unlocks.
 function currentTier() {
-  var offline = tierDef(P && P.tier);
-  var ent = tierDef(entitlementTierKey());
-  return ent.rank > offline.rank ? ent : offline;
+  var best = tierDef(TIER_FALLBACK);
+  [P, primaryProfile()].forEach(function (p) {
+    if (!p) return;
+    [tierDef(p.tier), tierDef(entitlementTierKey(p))].forEach(function (t) { if (t.rank > best.rank) best = t; });
+  });
+  return best;
 }
 // Feature gate: "does the current tier reach at least this one?" — rank-based so an
 // inserted mid tier keeps every existing check correct without edits.
@@ -519,14 +778,14 @@ function premShort(profileId) { return profileId.slice(5, 13).toUpperCase(); }
 // and the buyer returns here with ?pro=1 (see handleBootParams()).
 var PRO_CHECKOUT_URL = 'https://us-central1-raceday-d32dd.cloudfunctions.net/proCheckout';
 function proBuyUrl(period) {
-  return PRO_CHECKOUT_URL + '?period=' + encodeURIComponent(period) + '&profileId=' + encodeURIComponent(P.profileId);
+  return PRO_CHECKOUT_URL + '?period=' + encodeURIComponent(period) + '&profileId=' + encodeURIComponent(primaryProfile().profileId);
 }
 // The checkout needs a published card, so publish first if needed. The tab is opened
 // synchronously (inside the tap) so popup blockers allow it, then pointed at checkout.
 function proBuy(period) {
   var w = window.open('', '_blank');
   var go = function () { var u = proBuyUrl(period); if (w) w.location.href = u; else location.href = u; };
-  if (P.publishedAt) { go(); return; }
+  if (primaryProfile().publishedAt) { go(); return; }
   publishCard(true).then(go).catch(function () {
     if (w) w.close();
     alert("Couldn't publish your card, which Pro checkout needs — check your connection and try again.");
@@ -540,7 +799,7 @@ function proBuy(period) {
 var BILLING_PORTAL_URL = 'https://us-central1-raceday-d32dd.cloudfunctions.net/billingPortal';
 function billingPortalUrl() {
   if (!BILLING_PORTAL_URL) return '';
-  return BILLING_PORTAL_URL + (BILLING_PORTAL_URL.indexOf('?') >= 0 ? '&' : '?') + 'profileId=' + encodeURIComponent(P.profileId);
+  return BILLING_PORTAL_URL + (BILLING_PORTAL_URL.indexOf('?') >= 0 ? '&' : '?') + 'profileId=' + encodeURIComponent(primaryProfile().profileId);
 }
 function premCheck(profileId, code) {
   var parts = String(code || '').trim().toUpperCase().split('-');
@@ -563,10 +822,13 @@ function localPremiumCode(profileId) {
 function activatePremium() {
   var code = ($id('premCode').value || '').trim();
   if (!code) return;
-  if (!premCheck(P.profileId, code)) { alert("That code isn't valid for this profile — check it character by character."); return; }
-  P.tier = 'pro';
-  P.premiumCode = code.toUpperCase();
+  var main = primaryProfile();   // codes are issued for the account's first ride
+  if (!premCheck(main.profileId, code)) { alert("That code isn't valid for this profile — check it character by character."); return; }
+  main.tier = 'pro';
+  main.premiumCode = code.toUpperCase();
+  if (main !== P) saveAcct();
   save();
+  republishSiblings().catch(function () {});
   alert('✅ Pro unlocked — your card just got the broadcast look.');
   nav('card');
 }
@@ -609,11 +871,12 @@ function ensureFirebase() {
 // last merely tried" instead of "7 days offline", with no indication why Pro vanished.
 function refreshEntitlement() {
   if (!P || !P.profileId) return Promise.resolve(null);
+  var main = primaryProfile();   // a subscription is always on the account's first ride
   return ensureFirebase().then(function () {
-    return firebase.database().ref('profiles/' + P.profileId + '/entitlement').once('value');
+    return firebase.database().ref('profiles/' + main.profileId + '/entitlement').once('value');
   }).then(function (snap) {
     var v = snap.val();
-    P.entitlement = (v && typeof v === 'object' && TIERS[v.tier])
+    main.entitlement = (v && typeof v === 'object' && TIERS[v.tier])
       ? { tier: v.tier, status: String(v.status || ''), currentPeriodEnd: Number(v.currentPeriodEnd) || 0, checkedAt: Date.now() }
       : { tier: 'free', status: 'none', currentPeriodEnd: 0, checkedAt: Date.now() };
     // Direct write, NOT save(): this runs on every app open, and save() republishes the
@@ -621,7 +884,8 @@ function refreshEntitlement() {
     // tab vs the home-screen app) silently overwrote the published card with that copy,
     // wiping a photo added elsewhere. The entitlement is server state; nothing to publish.
     localStorage.setItem('profiles_v1', JSON.stringify(P));
-    return P.entitlement;
+    if (main !== P) saveAcct();
+    return main.entitlement;
   });
 }
 // What tracks receive. Deliberately lean: no email, no bio, no results.
@@ -649,7 +913,7 @@ function cardPayload() {
     crew: P.crew.map(function (c) { return c.name; }).join(', '),
     header: tierAtLeast('pro') ? (d.header || '') : '',
     updatedAt: firebase.database.ServerValue.TIMESTAMP
-  }, otherCardField());
+  }, otherCardField(), ridesCardField());
 }
 // Other results go on the card only for Pro drivers who leave "show on my page" on. The
 // key is left out entirely otherwise, so free cards are exactly what they were before.
@@ -665,7 +929,7 @@ function otherOnCard() { return tierAtLeast('pro') && P.showOtherOnPage !== fals
 // can run before the SDK loads. updatedAt is numeric (no length cap) so it's not checked.
 var CARD_CAPS = { name: 40, num: 8, age: 8, hometown: 60, sponsors: 160, photo: 80000, premiumCode: 40,
                   aliases: 60, bio: 300, highlights: 300, crew: 160, header: 140000, teamColor2: 7, teamColor3: 7,
-                  other: 8000 };
+                  other: 8000, rides: 200, rideLabel: 30 };
 function cardStrings() {
   if (!P || !P.driver) return {};
   var d = P.driver;
@@ -676,13 +940,15 @@ function cardStrings() {
     aliases: d.aliases || '', bio: d.bio || '', highlights: d.highlights || '',
     crew: P.crew.map(function (c) { return c.name; }).join(', '), header: tierAtLeast('pro') ? (d.header || '') : '',
     teamColor2: tierAtLeast('pro') ? (d.teamColor2 || '') : '', teamColor3: tierAtLeast('pro') ? (d.teamColor3 || '') : '',
-    other: otherOnCard() ? otherPayload() : ''
+    other: otherOnCard() ? otherPayload() : '',
+    rides: ridesCardField().rides || '', rideLabel: ridesCardField().rideLabel || ''
   };
 }
 function cardTooLong() {
   var c = cardStrings(), labels = { name: 'Name', num: 'Number', age: 'Age', hometown: 'Hometown', sponsors: 'Sponsors', photo: 'Photo', premiumCode: 'Premium code',
                                       aliases: 'Also known as', bio: 'Bio', highlights: 'Highlights', crew: 'Crew', header: 'Header photo',
-                                      teamColor2: 'Accent color 1', teamColor3: 'Accent color 2', other: 'Other results' };
+                                      teamColor2: 'Accent color 1', teamColor3: 'Accent color 2', other: 'Other results',
+                                      rides: 'Rides', rideLabel: 'Ride name' };
   for (var k in CARD_CAPS) {
     if (typeof c[k] === 'string' && c[k].length > CARD_CAPS[k]) {
       return labels[k] + ' is too long (' + c[k].length + '/' + CARD_CAPS[k] + ' characters) — shorten it so your card can publish.';
@@ -742,6 +1008,7 @@ function completeOnboarding() {
   var ageVal = $id('obAge').value;
   var age = ageVal ? parseInt(ageVal, 10) : null;
   P = newProfile(name, email, hometown, age);
+  ACCT = null; localStorage.removeItem(RIDES_KEY);
   save();
   $id('onboardModal').style.display = 'none';
   nav('home');
@@ -770,8 +1037,24 @@ function restoreProfile() {
 function restoreFromBackupJson(raw) {
   var parsed;
   try { parsed = JSON.parse(raw); } catch (e) { alert("That doesn't look like a valid backup file — couldn't read it."); return; }
+  // A multi-ride backup: { drivenBackup: 2, primaryId, activeId, rides: [profiles] }.
+  if (parsed && parsed.drivenBackup === 2 && Array.isArray(parsed.rides)) {
+    var rides = parsed.rides.filter(function (r) { return r && r.profileId && r.driver && r.driver.name; }).map(migrate);
+    var active = rides.filter(function (r) { return r.profileId === parsed.activeId; })[0] || rides[0];
+    if (!active) { alert("That doesn't look like a Driven backup file."); return; }
+    P = active;
+    ACCT = { primaryId: rides.some(function (r) { return r.profileId === parsed.primaryId; }) ? parsed.primaryId : rides[0].profileId, order: rides.map(function (r) { return r.profileId; }), stash: {} };
+    rides.forEach(function (r) { if (r !== active) ACCT.stash[r.profileId] = r; });
+    saveAcct();
+    save();
+    $id('onboardModal').style.display = 'none';
+    nav('home');
+    alert('✅ Profile restored with ' + rides.length + ' ride' + (rides.length === 1 ? '' : 's') + ' — welcome back, ' + P.driver.name + '.');
+    return;
+  }
   if (!parsed || !parsed.profileId || !parsed.driver || !parsed.driver.name) { alert("That doesn't look like a Driven backup file."); return; }
   P = migrate(parsed);
+  ACCT = null; localStorage.removeItem(RIDES_KEY);
   save();
   $id('onboardModal').style.display = 'none';
   nav('home');
@@ -808,6 +1091,7 @@ function applyCardToProfile(p, card) {
   // Only Pro cards carry other results; a card without the key leaves this device's list alone.
   if (has('other') && typeof card.other === 'string') { var o = parseOtherPayload(card.other); if (o) p.otherResults = o; }
   if (card.premiumCode && premCheck(p.profileId, card.premiumCode)) { p.tier = 'pro'; p.premiumCode = String(card.premiumCode).toUpperCase(); }
+  if (has('rideLabel')) p.rideLabel = rideClean(card.rideLabel);
   if (typeof card.updatedAt === 'number') p.publishedAt = card.updatedAt;
   return p;
 }
@@ -841,9 +1125,12 @@ function restoreFromLinkCode(code, quiet) {
     restored.publishedAt = Date.now();
     applyCardToProfile(restored, card);
     P = migrate(restored);
+    ACCT = null; localStorage.removeItem(RIDES_KEY);
     localStorage.setItem('profiles_v1', JSON.stringify(P));   // direct write: nothing new to publish
     $id('onboardModal').style.display = 'none';
     nav('home');
+    // The other rides on this account come back too (each card lists the rest).
+    adoptRidesFromCard(card).then(function (n) { if (n) nav('home'); }).catch(function () {});
     // Track-published results are readable now, so bring the verified history back too.
     pullRaceDayResults().then(function (n) { if (n) nav('home'); }).catch(function () {});
     if (!quiet) alert('✅ Profile restored for ' + P.driver.name + ' — your card, colors, photo and Pro status are back, and results posted by tracks will reload. Results you imported by hand stay on your original device; use "Back up my profile" there to bring those over.');
@@ -867,6 +1154,7 @@ function syncFromPublished() {
     localStorage.setItem('profiles_v1', JSON.stringify(P));
     var cur = document.querySelector('.nav button.active');
     nav(cur ? cur.dataset.page : 'home');
+    adoptRidesFromCard(card).catch(function () {});   // a ride added on another device
     return true;
   }).catch(function () { return false; });
 }
@@ -901,7 +1189,8 @@ function handleRestoreParam() {
 // Full local backup — the only path that preserves race history, since it serializes
 // the ENTIRE P object rather than re-deriving from the lean published card.
 function backupProfile() {
-  var blob = new Blob([JSON.stringify(P, null, 2)], { type: 'application/json' });
+  var data = multiRide() ? { drivenBackup: 2, primaryId: ACCT.primaryId, activeId: P.profileId, rides: rideList() } : P;
+  var blob = new Blob([JSON.stringify(data, null, 2)], { type: 'application/json' });
   var url = URL.createObjectURL(blob);
   var a = document.createElement('a');
   a.href = url;
@@ -919,6 +1208,7 @@ function nav(page) {
   document.querySelectorAll('.page').forEach(function (p) { p.classList.remove('active'); });
   $id('page-' + page).classList.add('active');
   document.body.classList.toggle('dp-dark', page === 'home' || page === 'card');
+  renderRideBar();
   if (page === 'home') renderHome();
   if (page === 'card') renderCard();
   if (page === 'stats') renderStats();
@@ -967,7 +1257,7 @@ function dpHero(isPro) {
   var d = P.driver;
   var initials = d.name.split(/\s+/).map(function (w) { return w[0] || ''; }).slice(0, 2).join('').toUpperCase();
   var banner = isPro && photoOK(d.header);
-  var meta = [d.number ? '#' + esc(d.number) : '', d.hometown ? esc(d.hometown) : '', d.aliases ? 'AKA ' + esc(d.aliases) : ''].filter(Boolean).join(' · ');
+  var meta = [multiRide() ? esc(rideName(P)) : '', d.number ? '#' + esc(d.number) : '', d.hometown ? esc(d.hometown) : '', d.aliases ? 'AKA ' + esc(d.aliases) : ''].filter(Boolean).join(' · ');
   return '<div class="dp-banner' + (banner ? '' : ' gen') + '"' + (banner ? ' style="background-image:url(\'' + d.header + '\')"' : '') + '>'
     + (!banner && d.number ? '<div class="bignum">' + esc(d.number) + '</div>' : '') + '<div class="chk"></div></div>'
     + '<div class="dp-who">'
@@ -1123,9 +1413,9 @@ function renderCard() {
       + '</div>'
       + '</div>';
   } else {
-    var viaSub = entitlementTierKey() === 'pro';
-    var renewLine = (viaSub && P.entitlement && P.entitlement.currentPeriodEnd)
-      ? ' Renews ' + new Date(P.entitlement.currentPeriodEnd).toLocaleDateString() + '.' : '';
+    var mainRide = primaryProfile(), viaSub = entitlementTierKey(mainRide) === 'pro';
+    var renewLine = (viaSub && mainRide.entitlement && mainRide.entitlement.currentPeriodEnd)
+      ? ' Renews ' + new Date(mainRide.entitlement.currentPeriodEnd).toLocaleDateString() + '.' : '';
     h += '<div class="card"><div class="slbl">Your plan</div>'
       + '<p class="sub" style="margin:0 0 8px">' + esc(currentTier().label) + ' is active \u2014 your card shows the full broadcast look at every track.' + renewLine + '</p>'
       + (viaSub && billingPortalUrl() ? '<a class="btn btn-block" href="' + esc(billingPortalUrl()) + '" target="_blank" rel="noopener">Manage subscription</a>' : '')
@@ -1482,7 +1772,8 @@ function otherPickRow(i) {
 
 /* ---------- Link page ---------- */
 function renderLink() {
-  var h = '<h2>Link a Track</h2><p class="sub">Give the sign-up table your link code (or show this QR) to connect your card and results to this profile.</p>';
+  var h = '<h2>Link a Track</h2><p class="sub">Give the sign-up table your link code (or show this QR) to connect your card and results to this profile.'
+    + (multiRide() ? ' This is the code for your <b>' + esc(rideName(P)) + '</b> ride — switch rides at the top for the others.' : '') + '</p>';
   h += '<div class="link-panel">'
     + (P.shortCode
         ? '<div class="slbl">Your track link code</div><div class="link-code">' + esc(P.shortCode) + '</div>'
@@ -1514,7 +1805,7 @@ function unlinkTrack(trackId) {
 /* ---------- Settings page ---------- */
 function renderSettings() {
   var d = P.driver;
-  var h = '<h2>Settings</h2>';
+  var h = '<h2>Settings</h2>' + (multiRide() ? '<p class="sub">Editing your <b>' + esc(rideName(P)) + '</b> ride. Name, email, hometown and age are shared by all your rides.</p>' : '');
   h += '<div class="card">'
     + '<div class="slbl">Profile</div>'
     + '<label>Name</label><input type="text" id="stName" value="' + esc(d.name) + '" maxlength="40">'
@@ -1554,6 +1845,8 @@ function renderSettings() {
     + '<label>Crew (comma-separated)</label><input type="text" id="stCrew" maxlength="150" value="' + esc(P.crew.map(function (c) { return c.name; }).join(', ')) + '" placeholder="Jamie Park (wrench), Alex Cho (spotter)">'
     + '<button class="btn btn-primary btn-block" onclick="saveProfileFields()" style="margin-top:16px">Save changes</button>'
     + '</div>';
+
+  h += ridesSectionHtml();
 
   h += '<div class="card">'
     + '<div class="slbl">Results from RaceDay</div>'
@@ -1609,6 +1902,15 @@ function saveProfileFields() {
   var crewRaw = ($id('stCrew').value || '').trim();
   P.crew = crewRaw ? crewRaw.split(',').map(function (s) { return { name: s.trim() }; }).filter(function (s) { return s.name; }) : [];
   save();
+  // Name, email, hometown and age belong to the driver, so every ride gets them.
+  if (multiRide()) {
+    rideList().forEach(function (p) {
+      if (p === P) return;
+      p.driver.name = P.driver.name; p.driver.email = P.driver.email; p.driver.hometown = P.driver.hometown; p.driver.age = P.driver.age;
+    });
+    saveAcct();
+    republishSiblings().catch(function () {});
+  }
   // Don't promise the published card updated if the new values exceed a field cap — the
   // auto-republish in save() would be silently rejected by the rules.
   var tooLong = P.publishedAt ? cardTooLong() : null;
@@ -1823,15 +2125,18 @@ function checkRaceDayResults() {
 }
 
 function deleteProfile() {
-  if (!confirm('Delete your profile? This cannot be undone.')) return;
+  if (!confirm('Delete your profile' + (multiRide() ? ' and all ' + rideList().length + ' rides' : '') + '? This cannot be undone.')) return;
   if (!confirm('Really delete everything — profile, results, and stats?')) return;
-  // Best-effort: remove the published card + link-code mapping, then wipe locally either way.
-  var wipe = function () { localStorage.removeItem('profiles_v1'); location.reload(); };
-  if (P.publishedAt) {
+  // Best-effort: remove every ride's published card + link-code mapping, then wipe locally either way.
+  var wipe = function () { localStorage.removeItem('profiles_v1'); localStorage.removeItem(RIDES_KEY); location.reload(); };
+  var published = rideList().filter(function (p) { return p.publishedAt; });
+  if (published.length) {
     ensureFirebase().then(function () {
-      var db = firebase.database();
-      var ops = [db.ref('profiles/' + P.profileId).remove()];
-      if (P.shortCode) ops.push(db.ref('profiles_short/' + P.shortCode).remove());
+      var db = firebase.database(), ops = [];
+      published.forEach(function (p) {
+        ops.push(db.ref('profiles/' + p.profileId).remove());
+        if (p.shortCode) ops.push(db.ref('profiles_short/' + p.shortCode).remove());
+      });
       return Promise.all(ops);
     }).then(wipe, wipe);
   } else wipe();
@@ -1873,6 +2178,7 @@ function handleBootParams() {
 
 /* ---------- Boot ---------- */
 P = load();
+ACCT = loadAcct();
 if (!P) { openOnboarding(); } else { nav('home'); }
 handleBootParams();
 handleRestoreParam();

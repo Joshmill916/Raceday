@@ -152,7 +152,10 @@ depends on it.
 
 **Current caps live in `database.rules.json`** (the snippet above is the original
 version). Later additions: `aliases` 60, `bio`/`highlights` 300, `crew` 160, `header`
-140000, `teamColor2`/`teamColor3` 7, and `other` 8000. `other` is the Pro-only
+140000, `teamColor2`/`teamColor3` 7, `other` 8000, `rides` 200 and `rideLabel` 30.
+`rides`/`rideLabel` tie a multi-ride account's cards together: `rides` lists every
+ride's link code and name, primary first (`CODE:Name|CODE:Name`); `/d/` shows them as
+tabs only when each card lists the other. `other` is the Pro-only
 "Other results" list, races from other apps that Driven keeps separate from verified
 results: `{"r":[…],"more":n}` as a JSON string. **Deploy the rules before the app code
 that sends a new card field** — `$other: false` rejects the whole card write otherwise.

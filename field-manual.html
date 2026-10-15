@@ -919,6 +919,12 @@ location.replace('https://'+location.host+location.pathname+location.search+loca
           return there's a short "confirming your payment…" wait while the server switches the card to
           Pro.</li>
         </ol>
+        <p><b>Rides (Pro).</b> A driver who races more than one kind of car — karts and a late model, say —
+        adds a ride for each under <b>Settings → Rides → Add a ride</b>, up to 3. Each ride is its own card
+        with its own number, colors, photo, sponsors, link code, QR, results and public page; name, email,
+        hometown and age are shared, and Pro on the first ride covers them all. Buttons under the tabs
+        switch rides, and the public page shows a tab for each. At sign-up the track just gets that ride's
+        link code — nothing changes in RaceDay.</p>
       </section>
 
       <section class="scenario" id="dr-stats">
@@ -926,6 +932,10 @@ location.replace('https://'+location.host+location.pathname+location.search+loca
         <p>The Stats tab computes live from every result on file — no separate "refresh" step. Three
         blocks: career totals, broken down by class, and broken down by track — races / wins / podiums
         for each.</p>
+        <p><b>Other results.</b> Below the record, drivers can add races from other apps or from tracks that
+        aren't on RaceDay yet — typed in or filled from a results CSV — each labeled with the app it came
+        from (Speedhive, MyRacePass…). They're kept separate and never count in the stats. Pro drivers can
+        show them on the public page in their own "added by the driver" section.</p>
         <figure class="screen wide"><img src="field-manual/shot-59.jpg" loading="lazy" alt="Driven stats tab showing career record"><figcaption>Stats — career record</figcaption></figure>
       </section>
 
@@ -935,7 +945,7 @@ location.replace('https://'+location.host+location.pathname+location.search+loca
         photo, header photo (Pro), hometown, age, bio, highlights, sponsors and crew — one
         <code class="ui">Save changes</code> button for the lot.</p>
         <figure class="screen"><img src="field-manual/shot-60.jpg" loading="lazy" alt="Driven settings profile fields"><figcaption>Settings — profile fields</figcaption></figure>
-        <p>Below that: <b>Download backup</b> (the entire profile as a JSON file — the only full-fidelity
+        <p>Below that: <b>Rides</b> (see Pro above), <b>Download backup</b> (the entire profile — every ride — as a JSON file — the only full-fidelity
         way to move to a new phone, since race history never syncs anywhere else) and, in the danger zone,
         <b>Delete my profile</b> — a double confirmation, then a best-effort cleanup of the published card
         before wiping the device.</p>
