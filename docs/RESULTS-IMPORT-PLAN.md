@@ -46,16 +46,16 @@ with the vendor's OK.
 - Each result is saved with `source: 'import'`, `sourceApp: 'speedhive'` (etc.), the optional
   `sourceUrl`, and `importedAt`. Duplicates are caught the same way as today (track + date +
   class).
-- What the driver sees:
-  - In their own profile, imported results count toward **career** stats, and each one is labeled
-    with its app.
-  - Verified (RaceDay) results keep the "verified by the track" badge. Imported ones show
-    "from Speedhive" in muted text.
-  - A filter lets the driver show verified results only.
+- What the driver sees (**decided Oct 15**):
+  - Imported results are kept **completely separate**: they never count toward career stats, wins,
+    or points, which come only from RaceDay tracks.
+  - They appear only if the driver adds them, in their own "Other results" list. Each result is
+    labeled with its app ("from Speedhive").
+  - Verified (RaceDay) results keep the "verified by the track" badge.
 
-### Phase 2 — Speedhive link import (only if MYLAPS agrees)
+### Phase 2 — Speedhive link import (parked — not contacting MYLAPS for now)
 
-- Email MYLAPS and ask for API access or written permission. Speedhive is the one most worth it,
+- Would need MYLAPS to agree, through API access or written permission. Speedhive is the one most worth it,
   because so many karting and club tracks use it.
 - If they say yes: the driver pastes a Speedhive results link, a small Cloud Function fetches the
   session and finds the driver, and the result arrives labeled "from Speedhive" with the link.
@@ -68,16 +68,15 @@ with the vendor's OK.
 - The driver pastes their own MRP API key in Driven Settings and we pull *their* results with it.
   This only helps MRP Plus users, so treat it as low priority.
 
-## Public page decision (needs your call)
+## Public page (decided Oct 15)
 
-Right now the public page (`/d/?CODE`) only shows results posted by RaceDay tracks. That's what
-makes "nobody can type it in" true.
-
-- **Recommended:** keep it that way. Imported results stay in the driver's own app. If you want
-  them public later, show them in a separate "Other results (driver-added)" list below the verified
-  stats, never mixed into them.
-- Showing them publicly needs the Firebase rules updated first. Cards reject any new field until
-  the rules allow it.
+- **Free:** imported results stay in the driver's own app and never appear on their card or public
+  page.
+- **Pro:** the driver can choose to show them on the public page, in a separate "Other results"
+  list below the verified stats. Each one is labeled with its app and is never mixed into the
+  verified numbers. This is one more reason to upgrade.
+- Before the code ships, the Firebase rules must be updated to allow the new card field (needs
+  Josh's OK to deploy). Cards reject any new field until the rules allow it.
 
 ## How it stays "not the focus"
 
@@ -89,13 +88,44 @@ makes "nobody can type it in" true.
   race at that aren't on RaceDay yet. Those are good outreach leads. This is internal only and is
   never shown publicly with track names.
 
-## Decisions for Josh
+## Decisions (Oct 15)
 
-1. Approve phase 1 (manual + CSV, labeled by app, kept off the public page)?
-2. Should I draft the email to MYLAPS asking about Speedhive access? (I'd show it to you before
-   sending.)
-3. Should imported results count in the driver's own career totals, or only show as a separate
-   list?
+1. Phase 1: **yes**.
+2. Email MYLAPS: **no**, not for now.
+3. Imported results: **kept separate**. They never count in totals, show up only if the driver
+   adds them, and appear on the card or public page **only for Pro**.
+
+## Next idea: different cards for different kinds of racing
+
+Josh asked: a driver who races karts *and* cars (or different types of cars) — different cards,
+or separate accounts?
+
+**Recommendation: one account, with a "ride" for each kind of racing. Not separate accounts.**
+
+| | One account, several rides (recommended) | Separate accounts |
+|---|---|---|
+| Sign-in | One | One per account; easy to lose track of |
+| Pro | Pays once and covers every ride | Pays again for each account |
+| Number, colors, photo, sponsors | Each ride has its own (kart #18, late model #7) | Each account has its own |
+| Stats | Kept apart per ride, so kart wins don't mix with car wins | Apart, but with no single view of everything |
+| Public page | One link, with a tab for each ride; each ride can also have its own link and QR | Several unrelated links |
+| At the track | The driver shows that ride's QR code, so the track links the right one | Same |
+
+How it would work:
+
+- **Free:** 1 ride. **Pro:** up to 3 rides. That gives drivers another reason to upgrade.
+- Each ride keeps its own number, classes, colors, photo, header, sponsors, QR code and short code.
+  Name, hometown and bio are shared, and the driver can override them per ride.
+- Results stay with the ride they were raced under. Results from RaceDay go to whichever ride's QR
+  code or link code the driver used at sign-up.
+- An existing profile simply becomes ride #1, so nothing changes for anyone today.
+- **Smaller first step:** before building full rides, the stats on the card could be split by
+  class (the app already groups results by class), with a number for each class. That covers
+  "same me, different classes" cheaply. Full rides are for different colors, sponsors or a
+  separate public page.
+
+Not decided yet; this needs Josh's go-ahead before any work starts. Build it **after** phase 1, so
+imported results can be assigned to a ride from the start.
 
 ## Sources
 
