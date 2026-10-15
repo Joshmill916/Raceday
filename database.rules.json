@@ -24,6 +24,7 @@
           "highlights": { ".validate": "newData.isString() && newData.val().length <= 300" },
           "crew": { ".validate": "newData.isString() && newData.val().length <= 160" },
           "header": { ".validate": "newData.isString() && newData.val().length <= 140000" },
+          "other": { ".validate": "newData.isString() && newData.val().length <= 8000" },
           "updatedAt": { ".validate": "newData.isNumber()" },
           "$other": { ".validate": false }
         },

@@ -150,6 +150,13 @@ left open elsewhere.
 Publish this any time — it only tightens what's already accepted; no app code
 depends on it.
 
+**Current caps live in `database.rules.json`** (the snippet above is the original
+version). Later additions: `aliases` 60, `bio`/`highlights` 300, `crew` 160, `header`
+140000, `teamColor2`/`teamColor3` 7, and `other` 8000. `other` is the Pro-only
+"Other results" list, races from other apps that Driven keeps separate from verified
+results: `{"r":[…],"more":n}` as a JSON string. **Deploy the rules before the app code
+that sends a new card field** — `$other: false` rejects the whole card write otherwise.
+
 ### Sync write-gating — deferred (needs a backend)
 
 The remaining gap is that `tracks/*` is writable by anyone who knows the sync code.
