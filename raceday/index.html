@@ -1190,7 +1190,7 @@ const ACTIVE_TRACK_KEY = 'rd_active_track';
 // paste the Google Apps Script web-app URL between the quotes.
 // Reported with every usage row and crash. The part after the dot MUST match this app's
 // sw.js CACHE number (tests/test-app-version.js) — bump both together on each release.
-const APP_VERSION = '2026-10-15.v18';
+const APP_VERSION = '2026-10-16.v19';
 const LEGAL_VERSION = '2026-06';   // bump when Terms / Privacy wording changes, so acceptances are versioned
 const TELEMETRY_URL = 'https://script.google.com/macros/s/AKfycbxa3i3y17TLp_NfXOOu2jM7-YzXH2fScxcXoQYmIh0-873rxWfxg0HdRP1DVsxZq6iR/exec';
 
@@ -5719,13 +5719,25 @@ function toggleKiosk(on) { S.settings.kioskReg = !!on; save(); applyRole(); }
 // escape hatch, but by opening one of the Registration/Scoring/TV/Operator links
 // (Admin → Device Access) directly in that device's own browser; those links carry
 // their own role in the URL and apply it on load with no on-screen control needed.
+// The staff-device escape (⚙ Device job) checks the admin PIN itself rather than through
+// adminOk(): adminOk() refuses TV/announcer devices outright (they must never reach
+// admin-gated actions), which also rejected the CORRECT PIN here and left those devices
+// stuck in their mode for good. Knowing the PIN proves it's the track's own device.
+function staffPinOk() {
+  if (sessionStorage.getItem('rd_admin_ok') === '1') return true;
+  const t = prompt('Enter the admin PIN to change what this device does');
+  if (t === null) return false;
+  if (pinHash(t) === S.adminPin) { sessionStorage.setItem('rd_admin_ok', '1'); return true; }
+  alert('Wrong PIN.');
+  return false;
+}
 function changeDeviceRole() {
   const currentRole = deviceRole();
   if (currentRole === 'viewer') return;
   // Viewer role cannot escalate to admin/operator without PIN, even if no PIN is set.
   // This prevents silent unprotected escalation from the escape hatch.
   if (S.adminPin || (currentRole === 'viewer')) {
-    if (!adminOk()) return;
+    if (!staffPinOk()) return;
   } else {
     if (!confirm("This track hasn't set an admin PIN, so anyone can change this device's role right now. Continue? (Set a PIN from Admin → PIN to lock this down.)")) return;
   }

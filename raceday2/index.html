@@ -783,7 +783,7 @@ const GARAGE_KEY = 'rd_garage_v2';
 const ACTIVE_TRACK_KEY = 'rd_active_track_v2';
 // Reported with every usage row and crash. The part after the dot MUST match this app's
 // sw.js CACHE number (tests/test-app-version.js) — bump both together on each release.
-const APP_VERSION = '2026-10-16.v6';
+const APP_VERSION = '2026-10-16.v7';
 const LEGAL_VERSION = '2026-06';   // bump when Terms / Privacy wording changes, so acceptances are versioned
 const TELEMETRY_URL = 'https://script.google.com/macros/s/AKfycbxa3i3y17TLp_NfXOOu2jM7-YzXH2fScxcXoQYmIh0-873rxWfxg0HdRP1DVsxZq6iR/exec';
 const FIREBASE_CONFIG = {
@@ -2826,7 +2826,8 @@ function seedFullDemoNight() {
   setTimeout(() => alert('🏁 Welcome to the RaceDay demo!\n\nA full night is already scored and archived. Tap any driver\'s name to see their card, check Points for series standings, or start a new race day yourself to try the "Share results with Driven" flow.'), 300);
 }
 function setRolePrompt() {
-  const r = prompt('Set this device\'s job — type one of:  admin  ·  register  ·  scoring  ·  tv  ·  tech  ·  announcer  ·  operator', deviceRole());
+  // A staff device using the escape almost always wants to go back to running the night.
+  const r = prompt('Set this device\'s job — type one of:  admin  ·  register  ·  scoring  ·  tv  ·  tech  ·  announcer  ·  operator', 'admin');
   if (!r) return;
   const rr = r.trim().toLowerCase();
   if (!ROLE_PAGES[rr]) { alert('Unknown role. Use admin, register, scoring, tv, tech, announcer, or operator.'); return; }
@@ -2886,13 +2887,25 @@ function opStop() {
   flashMsg('Stopped monitoring — back to your own device');
 }
 function toggleKiosk(on) { S.settings.kioskReg = !!on; save(); applyRole(); }
+// The staff-device escape (⚙ Device job) checks the admin PIN itself rather than through
+// adminOk(): adminOk() refuses TV/announcer devices outright (they must never reach
+// admin-gated actions), which also rejected the CORRECT PIN here and left those devices
+// stuck in their mode for good. Knowing the PIN proves it's the track's own device.
+function staffPinOk() {
+  if (sessionStorage.getItem('rd_admin_ok') === '1') return true;
+  const t = prompt('Enter the admin PIN to change what this device does');
+  if (t === null) return false;
+  if (pinHash(t) === S.adminPin) { sessionStorage.setItem('rd_admin_ok', '1'); return true; }
+  alert('Wrong PIN.');
+  return false;
+}
 function changeDeviceRole() {
   const currentRole = deviceRole();
   if (currentRole === 'viewer') return;
   // Viewer role cannot escalate to admin/operator without PIN, even if no PIN is set.
   // This prevents silent unprotected escalation from the escape hatch.
   if (S.adminPin || (currentRole === 'viewer')) {
-    if (!adminOk()) return;
+    if (!staffPinOk()) return;
   } else {
     if (!confirm("This track hasn't set an admin PIN, so anyone can change this device's role right now. Continue? (Set a PIN from Admin → PIN to lock this down.)")) return;
   }
@@ -3092,6 +3105,10 @@ function renderHeader() {
   if (syncOn()) bits.push('<span class="badge ' + (Sync.connected ? 'badge-green' : 'badge-dim') + '">'
     + (Sync.connected ? '◉ Synced' : '○ Offline') + '</span>');
   if (deviceRole() === 'viewer') bits.push('<span class="badge badge-dim">Spectator</span>');
+  // Staff devices (opened from a Registration/Scoring/TV/Tech/Announcer link) get a way back
+  // to admin, PIN-protected. Never on a spectator's phone; admin/operator don't need it.
+  if (['register', 'scoring', 'tv', 'tech', 'announcer'].indexOf(deviceRole()) >= 0 && !GUEST)
+    bits.push('<button class="btn btn-sm btn-ghost" id="roleEscape" onclick="changeDeviceRole()" title="Switch this device back to admin, or give it a different job">⚙ Device job</button>');
   if (!S.adminPin && deviceRole() === 'admin') bits.push('<span class="badge badge-dim">No PIN</span>');
   if (S.adminPin && sessionStorage.getItem('rd_admin_ok') === '1')
     bits.push('<button class="btn btn-sm btn-ghost" onclick="lockAdmin()">🔒 Lock</button>');
