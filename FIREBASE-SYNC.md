@@ -152,7 +152,8 @@ depends on it.
 
 **Current caps live in `database.rules.json`** (the snippet above is the original
 version). Later additions: `aliases` 60, `bio`/`highlights` 300, `crew` 160, `header`
-140000, `teamColor2`/`teamColor3` 7, `other` 8000, `rides` 200 and `rideLabel` 30.
+140000, `teamColor2`/`teamColor3` 7, `other` 8000, `rides` 200, `rideLabel` 30 and
+`iracingId` (digits only, up to 9 — the driver's iRacing Customer ID, shown as a link).
 `rides`/`rideLabel` tie a multi-ride account's cards together: `rides` lists every
 ride's link code and name, primary first (`CODE:Name|CODE:Name`); `/d/` shows them as
 tabs only when each card lists the other. `other` is the Pro-only

@@ -285,6 +285,9 @@
   .dp-who { position: relative; display: flex; align-items: flex-end; gap: 14px; margin-top: -42px; z-index: 1; }
   .dp-avatar { width: 88px; height: 88px; border-radius: 50%; flex: none; object-fit: cover; border: 4px solid var(--tc); box-shadow: 0 0 0 3px var(--tc2, var(--tc)); background: var(--ink-3); display: flex; align-items: center; justify-content: center; font: 800 32px var(--display); color: #fff; }
   .dp-name { font: 800 30px/0.95 var(--display); text-transform: uppercase; color: var(--td); }
+  .dp-sim { display: flex; align-items: center; gap: 10px; margin-top: 8px; flex-wrap: wrap; }
+  .dp-sim .sim-chip { padding: 2px 8px; border-radius: 5px; background: #fff; color: #111; font: 800 11px var(--display); letter-spacing: .12em; }
+  .dp-sim a { color: #fff; font-size: 13px; font-weight: 700; text-decoration: underline; text-underline-offset: 3px; }
   .dp-badge { display: inline-block; margin-left: 6px; padding: 2px 7px; border-radius: 5px; background: var(--tc); color: #fff; font: 800 12px var(--display); letter-spacing: .12em; vertical-align: 5px; }
   .dp-actions { display: flex; gap: 8px; margin-top: 14px; }
   .dp-actions .btn { flex: 1; font: 700 14px var(--display); letter-spacing: .1em; text-transform: uppercase; }
@@ -427,6 +430,7 @@ function migrate(p) {
   if (p.driver.teamColor2 == null) p.driver.teamColor2 = '';
   if (p.driver.teamColor3 == null) p.driver.teamColor3 = '';
   if (p.driver.aliases == null) p.driver.aliases = '';
+  if (p.driver.iracingId == null) p.driver.iracingId = '';
   if (p.driver.highlights == null) p.driver.highlights = '';
   if (!Array.isArray(p.crew)) p.crew = [];
   if (p.premiumCode == null) p.premiumCode = '';
@@ -744,7 +748,7 @@ function tierAtLeast(key) { return currentTier().rank >= tierDef(key).rank; }
 function newProfile(name, email, hometown, age) {
   return {
     profileId: genId(),
-    driver: { name: name, email: email || '', photo: null, bio: '', hometown: hometown || '', age: age || null, joinedDate: Date.now(), number: '', teamColor: '', aliases: '', highlights: '' },
+    driver: { name: name, email: email || '', photo: null, bio: '', hometown: hometown || '', age: age || null, joinedDate: Date.now(), number: '', teamColor: '', aliases: '', highlights: '', iracingId: '' },
     linkedTracks: [],
     raceResults: [],
     sponsors: [],
@@ -908,6 +912,7 @@ function cardPayload() {
     // Public driver page (/d/?CODE) fields. RaceDay's sanitizeProfileCard() whitelists
     // what it keeps, so these never reach a track's roster — only the public page reads them.
     aliases: d.aliases || '',
+    iracingId: iracingIdOK(d.iracingId) ? d.iracingId : '',
     bio: d.bio || '',
     highlights: d.highlights || '',
     crew: P.crew.map(function (c) { return c.name; }).join(', '),
@@ -929,7 +934,7 @@ function otherOnCard() { return tierAtLeast('pro') && P.showOtherOnPage !== fals
 // can run before the SDK loads. updatedAt is numeric (no length cap) so it's not checked.
 var CARD_CAPS = { name: 40, num: 8, age: 8, hometown: 60, sponsors: 160, photo: 80000, premiumCode: 40,
                   aliases: 60, bio: 300, highlights: 300, crew: 160, header: 140000, teamColor2: 7, teamColor3: 7,
-                  other: 8000, rides: 200, rideLabel: 30 };
+                  other: 8000, rides: 200, rideLabel: 30, iracingId: 9 };
 function cardStrings() {
   if (!P || !P.driver) return {};
   var d = P.driver;
@@ -937,7 +942,7 @@ function cardStrings() {
     name: d.name || '', num: d.number || '', age: d.age != null ? String(d.age) : '',
     hometown: d.hometown || '', sponsors: P.sponsors.map(function (s) { return s.name; }).join(' · '),
     photo: d.photo || '', premiumCode: tierAtLeast('pro') ? (P.premiumCode || localPremiumCode(P.profileId)) : '',
-    aliases: d.aliases || '', bio: d.bio || '', highlights: d.highlights || '',
+    aliases: d.aliases || '', bio: d.bio || '', highlights: d.highlights || '', iracingId: d.iracingId || '',
     crew: P.crew.map(function (c) { return c.name; }).join(', '), header: tierAtLeast('pro') ? (d.header || '') : '',
     teamColor2: tierAtLeast('pro') ? (d.teamColor2 || '') : '', teamColor3: tierAtLeast('pro') ? (d.teamColor3 || '') : '',
     other: otherOnCard() ? otherPayload() : '',
@@ -948,7 +953,7 @@ function cardTooLong() {
   var c = cardStrings(), labels = { name: 'Name', num: 'Number', age: 'Age', hometown: 'Hometown', sponsors: 'Sponsors', photo: 'Photo', premiumCode: 'Premium code',
                                       aliases: 'Also known as', bio: 'Bio', highlights: 'Highlights', crew: 'Crew', header: 'Header photo',
                                       teamColor2: 'Accent color 1', teamColor3: 'Accent color 2', other: 'Other results',
-                                      rides: 'Rides', rideLabel: 'Ride name' };
+                                      rides: 'Rides', rideLabel: 'Ride name', iracingId: 'iRacing member ID' };
   for (var k in CARD_CAPS) {
     if (typeof c[k] === 'string' && c[k].length > CARD_CAPS[k]) {
       return labels[k] + ' is too long (' + c[k].length + '/' + CARD_CAPS[k] + ' characters) — shorten it so your card can publish.';
@@ -1084,6 +1089,7 @@ function applyCardToProfile(p, card) {
   if (has('photo')) d.photo = photoOK(card.photo) ? card.photo : null;
   if (has('header')) d.header = photoOK(card.header) ? card.header : null;
   if (has('aliases')) d.aliases = str(card.aliases, 60);
+  if (has('iracingId')) d.iracingId = iracingIdOK(card.iracingId) ? card.iracingId : '';
   if (has('bio')) d.bio = str(card.bio, 300);
   if (has('highlights')) d.highlights = str(card.highlights, 300);
   if (has('sponsors')) p.sponsors = str(card.sponsors, 160).split(' · ').map(function (n) { return { name: n.trim() }; }).filter(function (x) { return x.name; });
@@ -1253,6 +1259,15 @@ function dpApplyColors(el, isPro) {
   el.style.setProperty('--tc2', isPro && ok(d.teamColor2) ? d.teamColor2 : c1);
   el.style.setProperty('--tc3', isPro && ok(d.teamColor3) ? d.teamColor3 : c1);
 }
+// iRacing: a link to the driver's own iRacing member profile, nothing more. Driven never
+// reads iRacing data (iRacing's API needs an approved OAuth app; new ones are paused).
+var IRACING_PROFILE_URL = 'https://members-ng.iracing.com/web/racing/profile?cust_id=';
+function iracingIdOK(v) { return typeof v === 'string' && /^[0-9]{1,9}$/.test(v); }
+function iracingLinkHtml(id, cls) {
+  if (!iracingIdOK(id)) return '';
+  return '<div class="' + cls + '"><span class="sim-chip">SIM RACER</span>'
+    + '<a href="' + IRACING_PROFILE_URL + id + '" target="_blank" rel="noopener">View iRacing profile ↗</a></div>';
+}
 function dpHero(isPro) {
   var d = P.driver;
   var initials = d.name.split(/\s+/).map(function (w) { return w[0] || ''; }).slice(0, 2).join('').toUpperCase();
@@ -1263,7 +1278,7 @@ function dpHero(isPro) {
     + '<div class="dp-who">'
     + (photoOK(d.photo) ? '<img class="dp-avatar" src="' + d.photo + '" alt="">' : '<div class="dp-avatar">' + esc(d.number || initials) + '</div>')
     + '<div style="padding-bottom:6px;min-width:0"><div class="dp-name">' + esc(d.name) + (isPro ? '<span class="dp-badge">PRO</span>' : '') + '</div>'
-    + '<div class="dp-cap" style="margin-top:6px">' + meta + '</div></div></div>';
+    + '<div class="dp-cap" style="margin-top:6px">' + meta + '</div>' + iracingLinkHtml(d.iracingId, 'dp-sim') + '</div></div>';
 }
 function dpSummary(results, isPro) {
   var h = '';
@@ -1812,6 +1827,8 @@ function renderSettings() {
     + '<label>Also known as (comma-separated)</label><input type="text" id="stAliases" value="' + esc(d.aliases || '') + '" maxlength="60" placeholder="Junior, J-Miller">'
     + '<label>Email</label><input type="email" id="stEmail" value="' + esc(d.email) + '" maxlength="80">'
     + '<label>Car number</label><input type="text" id="stNumber" value="' + esc(d.number || '') + '" maxlength="5" placeholder="e.g. 47 or 12A" autocapitalize="characters">'
+    + '<label>iRacing member ID (optional)</label><input type="text" id="stIracing" value="' + esc(d.iracingId || '') + '" maxlength="9" inputmode="numeric" placeholder="e.g. 123456">'
+    + '<p class="sub" style="margin:4px 0 10px">Your Customer ID from the iRacing member site. Adds a Sim racer badge and a link to your iRacing profile.</p>'
     + (tierAtLeast('pro')
         ? '<label>Team colors — primary, then two accents (Pro)</label><div style="display:flex;gap:8px">'
           + ['stTeamColor', 'stTeamColor2', 'stTeamColor3'].map(function (id, i) {
@@ -1885,6 +1902,7 @@ function saveProfileFields() {
   P.driver.aliases = ($id('stAliases').value || '').trim();
   P.driver.email = ($id('stEmail').value || '').trim();
   P.driver.number = ($id('stNumber').value || '').trim().toUpperCase().slice(0, 5);
+  if ($id('stIracing')) P.driver.iracingId = ($id('stIracing').value || '').replace(/[^0-9]/g, '').slice(0, 9);
   var col = $id('stTeamColor').value;
   P.driver.teamColor = /^#[0-9a-fA-F]{6}$/.test(col) ? col : '';
   // Accent pickers only render for Pro; leave stored accents untouched otherwise.

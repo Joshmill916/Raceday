@@ -47,6 +47,9 @@ location.replace('https://'+location.host+location.pathname+location.search+loca
   .who { position: relative; display: flex; align-items: flex-end; gap: 14px; padding: 0 16px; margin-top: -44px; z-index: 1; }
   .avatar { width: 92px; height: 92px; border-radius: 50%; flex: none; object-fit: cover; border: 4px solid var(--team); box-shadow: 0 0 0 3px var(--team2, var(--team)); background: var(--ink-3); display: flex; align-items: center; justify-content: center; font: 800 34px var(--display); color: #fff; }
   .name { font: 800 32px/0.95 var(--display); text-transform: uppercase; letter-spacing: .01em; }
+  .sim { display: flex; align-items: center; gap: 10px; margin-top: 8px; flex-wrap: wrap; }
+  .sim .sim-chip { padding: 2px 8px; border-radius: 5px; background: #fff; color: #111; font: 800 11px var(--display); letter-spacing: .12em; }
+  .sim a { color: #fff; font-size: 13px; font-weight: 700; text-decoration: underline; text-underline-offset: 3px; }
   .badge { display: inline-block; margin-left: 6px; padding: 2px 7px; border-radius: 5px; background: var(--team); color: #fff; font: 800 12px var(--display); letter-spacing: .12em; vertical-align: 5px; }
   .meta { margin-top: 6px; }
   .actions { display: flex; gap: 8px; padding: 14px 16px 0; }
@@ -282,6 +285,12 @@ function formChart(results) {
     + '<div class="cap" style="display:flex;justify-content:space-between;margin-top:4px"><span>' + esc(fmtDate(pts[0].date)) + '</span><span>Latest: ' + ord(pts[pts.length - 1].pos) + '</span></div></div>';
 }
 
+// iRacing member profile link, only for a digits-only id (the card is public input).
+function iracingLink(v) {
+  if (typeof v !== 'string' || !/^[0-9]{1,9}$/.test(v)) return '';
+  return '<div class="sim"><span class="sim-chip">SIM RACER</span>'
+    + '<a href="https://members-ng.iracing.com/web/racing/profile?cust_id=' + v + '" target="_blank" rel="noopener">View iRacing profile ↗</a></div>';
+}
 function render(profileId, card, isPro, data, rides) {
   var results = data.mine, standings = data.standings;
   rides = rides || [];
@@ -311,7 +320,7 @@ function render(profileId, card, isPro, data, rides) {
     + '<div class="who">'
     + (imgOK(card.photo) ? '<img class="avatar" src="' + card.photo + '" alt="">' : '<div class="avatar">' + esc(num || initials) + '</div>')
     + '<div style="padding-bottom:6px;min-width:0"><div class="name">' + esc(name) + (isPro ? '<span class="badge">PRO</span>' : '') + '</div>'
-    + '<div class="cap meta">' + meta + '</div></div></div>'
+    + '<div class="cap meta">' + meta + '</div>' + iracingLink(card.iracingId) + '</div></div>'
     + (rides.length ? '<div class="rides">' + rides.map(function (r) {
         return '<a href="?' + encodeURIComponent(r.code) + '"' + (r.on ? ' class="on" aria-current="page"' : '') + '>' + esc(r.label || ('#' + r.num)) + (r.label && r.num ? ' #' + esc(r.num) : '') + '</a>';
       }).join('') + '</div>' : '')
