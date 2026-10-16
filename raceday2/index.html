@@ -783,7 +783,7 @@ const GARAGE_KEY = 'rd_garage_v2';
 const ACTIVE_TRACK_KEY = 'rd_active_track_v2';
 // Reported with every usage row and crash. The part after the dot MUST match this app's
 // sw.js CACHE number (tests/test-app-version.js) — bump both together on each release.
-const APP_VERSION = '2026-10-16.v6';
+const APP_VERSION = '2026-10-16.v7';
 const LEGAL_VERSION = '2026-06';   // bump when Terms / Privacy wording changes, so acceptances are versioned
 const TELEMETRY_URL = 'https://script.google.com/macros/s/AKfycbxa3i3y17TLp_NfXOOu2jM7-YzXH2fScxcXoQYmIh0-873rxWfxg0HdRP1DVsxZq6iR/exec';
 const FIREBASE_CONFIG = {
@@ -5115,15 +5115,21 @@ function dcRemovePhoto() {
    1i  ENGINE — timing import: parsing, matching, preview, apply (verbatim)
    ========================================================================= */
 const IMP_SYN = {
-  trans: ['transponder','trans','tx','chip','decoder','tag','rfid','transponderid','transponder id','trans id','tran'],
+  trans: ['transponder','trans','tx','chip','decoder','tag','rfid','transponderid','transponder id','trans id','tran','trns id','trns'],
   num:   ['kart','car number','car no','vehicle no','kart no','plate','car#','kart#','no','no.','nbr','racer number','racer no','rider number','rider no'],
   name:  ['driver name','driver','name','racer','rider','rider name','racer name','pilot','competitor','entry','entrant','firstname','first name','first'],
   name2: ['lastname','last name','last','surname','family name'],
   cls:   ['class','category','group','division'],
   pos:   ['pos','position','finish','place','rank','result','qual pos','qualifying pos','finish pos'],
-  time:  ['best lap','best time','lap time','best tm','best laptime','best lap time','total time','total tm','bestlap','besttime','laptime','fast lap','qualifying time','q-time'],
+  // In priority order: a single best lap beats a total. No 'fast lap' — Westhold's Fast Lap is
+  // the lap NUMBER the best time came on; its time column is 'Fast Time'.
+  time:  ['best tm','best time','best lap time','fast time','qualifying time','q-time','best laptime','bestlap','besttime','best lap','lap time','laptime','scored time','total time','total tm'],
 };
 const IMP_VENDORS = [
+  // Westhold Race Manager: Place, No., Name, Trns ID, Laps, Lag, Scored Time, Total Time.
+  { name: 'Westhold', detect: h => h.includes('trns id') || (h.includes('scored time') && h.includes('lag')) },
+  // MYLAPS Orbits results export (usually tab-separated): a transponder column with Best Tm / Diff.
+  { name: 'MYLAPS Orbits', detect: (h, delim) => delim === '\t' && h.some(c => c === 'transponder' || c === 'transponder no.' || c === 'transponder id') && (h.includes('best tm') || h.includes('diff')) },
   { name: 'MotoSponder', detect: h => {
       const has = t => h.some(c => c === t);
       const hasFirstLast = (has('first') || has('first name')) && (has('last') || has('last name'));
@@ -5156,8 +5162,25 @@ function impParseFinish(s) {
   const n = parseInt(s);
   return n > 0 ? n : null;
 }
-function impParseCSV(text) {
+/* Timing exports aren't always comma-separated: MYLAPS Orbits is usually tab-separated, and
+   European-locale software uses semicolons. Pick the delimiter that splits the most of the
+   first lines into the same, multi-column shape (quotes respected); ties go to the comma. */
+function impDetectDelim(text) {
+  const lines = String(text || '').replace(/^\uFEFF/, '').split(/\r?\n/).filter(l => l.trim()).slice(0, 15);
+  const count = (line, d) => { let n = 0, q = false; for (const ch of line) { if (ch === '"') q = !q; else if (!q && ch === d) n++; } return n; };
+  let best = ',', bestScore = 0;
+  for (const d of [',', '\t', ';']) {
+    const counts = lines.map(l => count(l, d)).filter(n => n > 0);
+    if (!counts.length) continue;
+    const freq = {}; counts.forEach(n => { freq[n] = (freq[n] || 0) + 1; });
+    const score = Math.max(...Object.values(freq));            // lines sharing the most common shape
+    if (score > bestScore) { best = d; bestScore = score; }
+  }
+  return best;
+}
+function impParseCSV(text, delim) {
   if (text.charCodeAt(0) === 0xFEFF) text = text.slice(1);
+  const D = delim || impDetectDelim(text);
   const rows = [];
   let row = [], cell = '', inQ = false;
   for (let i = 0; i <= text.length; i++) {
@@ -5166,7 +5189,7 @@ function impParseCSV(text) {
       if (c === '"') { if (i + 1 < text.length && text[i + 1] === '"') { cell += '"'; i++; } else inQ = false; }
       else cell += c;
     } else if (c === '"') { inQ = true; }
-    else if (c === ',') { row.push(cell); cell = ''; }
+    else if (c === D) { row.push(cell); cell = ''; }
     else if (c === '\r' || c === '\n') {
       row.push(cell); cell = '';
       if (row.some(v => v.trim())) rows.push(row);
@@ -5184,7 +5207,10 @@ function impGuessColumns(hdr) {
   const timeish = c => /\b(lap|laps|time|elapsed|gap|diff|difference|clock|sector|split|interval)\b|best|laptime/.test(c);
   for (const [key, syns] of Object.entries(IMP_SYN)) {
     const nameKey = (key === 'name' || key === 'name2');
-    let idx = h.findIndex(c => syns.includes(c) && !(nameKey && timeish(c)));
+    // Time columns go by synonym priority (best single lap first); the rest by column order.
+    let idx = key === 'time'
+      ? (syns.map(syn => h.indexOf(syn)).find(i => i >= 0) ?? -1)
+      : h.findIndex(c => syns.includes(c) && !(nameKey && timeish(c)));
     if (idx < 0) idx = h.findIndex(c => syns.some(s => c.includes(s)) && !(nameKey && timeish(c)));
     out[key] = idx;
   }
@@ -5194,9 +5220,9 @@ function impGuessColumns(hdr) {
   if (out.pos < 0) out.pos = h.findIndex(c => c.includes('pos') || c.includes('place') || c.includes('rank') || c.includes('finish'));
   return out;
 }
-function impDetectVendor(hdr) {
+function impDetectVendor(hdr, delim) {
   const h = hdr.map(v => v.trim().toLowerCase());
-  const v = IMP_VENDORS.find(v => v.detect(h));
+  const v = IMP_VENDORS.find(v => v.detect(h, delim || ','));
   return v ? { name: v.name } : null;
 }
 function impPickHeader(rows) {
@@ -5275,7 +5301,10 @@ function impClassFromFilename(fn) {
   s = s.replace(/^.*\bresults\b/i, '').trim();
   // strip trailing session / round / moto tokens and numbers
   s = s.replace(/\b(qualifying|qualify|qual|heat|heats|main|mains|feature|features|final|finals|moto|round|race|set|session)\b\s*\d*/ig, ' ');
-  s = s.replace(/\b\d+\b/g, ' ').replace(/\s+/g, ' ').trim();
+  // timing-software and file words are never a class name ("westhold-race", "MYLAPS export")
+  s = s.replace(/\b(westhold|mylaps|my laps|orbits?|motosponder|speedhive|race ?manager|export(ed)?|timing|scoring|csv|tsv|txt)\b/ig, ' ');
+  // keep hyphens inside a name (Mini-Sprint); drop punctuation left dangling at the ends
+  s = s.replace(/\b\d+\b/g, ' ').replace(/\s+[-–·:]+\s+/g, ' ').replace(/^[\W_]+|[\W_]+$/g, '').replace(/\s+/g, ' ').trim();
   return s ? s.replace(/\b\w/g, m => m.toUpperCase()) : '';
 }
 function impHeatFromFilename(fn) {
@@ -5583,8 +5612,9 @@ function impBodyMarkup() {
   return '<div id="impStepper" class="tabs"></div>'
     + '<div class="card">'
     + '<div class="rowflex"><button class="btn btn-primary" onclick="document.getElementById(\'impFile\').click()">📄 Choose CSV file</button>'
-    + '<input id="impFile" type="file" accept=".csv,text/csv" style="display:none" onchange="impLoadCsv(this)">'
+    + '<input id="impFile" type="file" accept=".csv,.txt,.tsv,text/csv,text/plain,text/tab-separated-values" style="display:none" onchange="impLoadCsv(this)">'
     + '<span class="tiny" id="impCsvInfo" style="display:none"></span></div>'
+    + '<p class="tiny" style="margin-top:8px">Export a results file from your timing software — CSV or tab-separated. Reads MYLAPS Orbits, Westhold Race Manager, MotoSponder and most others by their column names.</p>'
     + '<div id="impClsMode" style="display:none;margin-top:14px">'
     +   '<div class="seg"><button class="on" id="impCmOne" onclick="impSetClsMode(false,true)">One class for this file</button>'
     +   '<button id="impCmCol" onclick="impSetClsMode(true,true)">Use the file\'s Class column</button></div>'
@@ -5613,14 +5643,21 @@ function impLoadCsv(input) {
    the parsing/detection calls it makes are the same engine functions. */
 function impIngestText(text, filename) {
   if (!Imp) return false;
-  const rows = impParseCSV(String(text || ''));
-  if (rows.length < 2) { toast("That file doesn't look like a results CSV (no data rows).", 'err'); return false; }
+  const delim = impDetectDelim(String(text || ''));
+  const rows = impParseCSV(String(text || ''), delim);
+  if (rows.length < 2) { toast("That file doesn't look like a results file (no data rows).", 'err'); return false; }
   const hi = impPickHeader(rows);
   Imp.preamble = hi;
   Imp.header = rows[hi];
   Imp.rows = rows.slice(hi + 1);
   Imp.cols = impGuessColumns(Imp.header);
-  Imp.vendor = impDetectVendor(Imp.header);
+  Imp.delim = delim;
+  // A "time" column that only holds small whole numbers is a lap count, not a time — skip it.
+  if (Imp.cols.time >= 0) {
+    const vals = Imp.rows.map(r => String(r[Imp.cols.time] || '').trim()).filter(Boolean);
+    if (vals.length && vals.every(v => /^\d{1,3}$/.test(v))) Imp.cols.time = -1;
+  }
+  Imp.vendor = impDetectVendor(Imp.header, delim);
   Imp.lastFile = filename || '';
   Imp.div = impHeatFromFilename(filename);
 
