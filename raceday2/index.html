@@ -513,6 +513,31 @@ body.kiosk .wrap-narrow { max-width:600px; width:100%; }
 .sec-btn .nm { font-size:14.5px; font-weight:700; }
 .sec-btn .nm small { display:block; font-size:12px; font-weight:500; color:var(--muted); margin-top:3px; line-height:1.4; }
 .sec-btn.danger { border-color:#4d2320; }
+.ann-now { margin:10px 0 14px; padding:14px 16px; border-radius:var(--r); background:var(--asphalt-2); border-left:4px solid var(--plate); }
+.ann-now h3 { margin:4px 0 2px; font-size:22px; }
+.ann-tag { display:inline-block; font-size:11px; font-weight:800; letter-spacing:.1em; text-transform:uppercase; background:var(--plate); color:var(--plate-ink); padding:2px 8px; border-radius:4px; }
+.ann-last { margin:6px 0 4px; padding:10px 14px; border:1px solid var(--line); border-radius:var(--r); font-size:14px; }
+.ann-car { display:flex; align-items:center; gap:12px; width:100%; padding:12px; border:1px solid var(--line); border-radius:var(--r); background:var(--asphalt-1); color:var(--ink); font:inherit; text-align:left; cursor:pointer; }
+.ann-car:hover { border-color:var(--plate); }
+.ann-pos { font-weight:800; font-size:15px; min-width:30px; color:var(--muted); }
+.ann-who { display:flex; flex-direction:column; flex:1; min-width:0; gap:2px; }
+.ann-who b { font-size:18px; }
+.ann-spon { font-size:13px; font-weight:700; color:var(--plate); }
+.tech-row { display:flex; align-items:center; gap:12px; width:100%; padding:10px 12px; border:1px solid var(--line); border-radius:var(--r); background:var(--asphalt-1); color:var(--ink); font:inherit; text-align:left; cursor:pointer; }
+.tech-row:hover { border-color:var(--plate); }
+.tech-who { display:flex; flex-direction:column; flex:1; min-width:0; }
+.tech-who b { overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+.po-table { width:100%; border-collapse:collapse; font-size:13.5px; }
+.po-table th { text-align:left; font-size:11px; letter-spacing:.06em; text-transform:uppercase; color:var(--muted); font-weight:700; padding:6px 6px; border-bottom:1px solid var(--line); }
+.po-table td { padding:7px 6px; border-bottom:1px solid var(--line); vertical-align:top; }
+.po-table .r { text-align:right; font-variant-numeric:tabular-nums; white-space:nowrap; }
+.po-table tr.tot td { font-weight:800; border-bottom:none; }
+.po-table select { width:auto; padding:4px 26px 4px 8px; font-size:13px; min-height:0; }
+.po-night { border-top:1px solid var(--line); padding:10px 0; }
+@media (max-width:360px) { .po-table td, .po-table th { padding:6px 3px; } .po-table select { max-width:70px; padding:4px 16px 4px 6px; background-position:calc(100% - 9px) 50%,calc(100% - 5px) 50%; } }
+.po-night summary { cursor:pointer; }
+.po-unpaid { color:var(--pit-red); font-weight:700; }
+.po-table tr.po-cls td { font-weight:800; font-size:12px; letter-spacing:.06em; text-transform:uppercase; color:var(--plate); padding-top:12px; }
 .sec-btn.danger:hover { border-color:var(--pit-red); background:var(--pit-red-bg); }
 .crumb { display:flex; align-items:center; gap:10px; margin-bottom:16px; flex-wrap:wrap; }
 .adm-sec { display:none; }
@@ -650,6 +675,16 @@ body.kiosk .wrap-narrow { max-width:600px; width:100%; }
         <div class="wrap-mid" id="pointsWrap"></div>
       </section>
 
+      <!-- ===== ANNOUNCER ===== -->
+      <section class="view" id="view-announce">
+        <div class="wrap-mid" id="announceWrap"></div>
+      </section>
+
+      <!-- ===== TECH INSPECTION ===== -->
+      <section class="view" id="view-tech">
+        <div class="wrap-mid" id="techWrap"></div>
+      </section>
+
       <!-- ===== ADMIN ===== -->
       <section class="view" id="view-admin">
         <div class="wrap" id="adminWrap"></div>
@@ -748,7 +783,7 @@ const GARAGE_KEY = 'rd_garage_v2';
 const ACTIVE_TRACK_KEY = 'rd_active_track_v2';
 // Reported with every usage row and crash. The part after the dot MUST match this app's
 // sw.js CACHE number (tests/test-app-version.js) — bump both together on each release.
-const APP_VERSION = '2026-10-15.v5';
+const APP_VERSION = '2026-10-16.v6';
 const LEGAL_VERSION = '2026-06';   // bump when Terms / Privacy wording changes, so acceptances are versioned
 const TELEMETRY_URL = 'https://script.google.com/macros/s/AKfycbxa3i3y17TLp_NfXOOu2jM7-YzXH2fScxcXoQYmIh0-873rxWfxg0HdRP1DVsxZq6iR/exec';
 const FIREBASE_CONFIG = {
@@ -760,15 +795,18 @@ const FIREBASE_CONFIG = {
   messagingSenderId: "891072179363",
   appId: "1:891072179363:web:36d8b91fd7da81932f2316"
 };
-const SYNC_FIELDS = ['raceDay/date', 'raceDay/entries', 'raceDay/heatResults', 'raceDay/pointsRace', 'raceDay/resultGov', 'classes', 'roster', 'settings', 'track'];
+const SYNC_FIELDS = ['raceDay/date', 'raceDay/entries', 'raceDay/heatResults', 'raceDay/pointsRace', 'raceDay/resultGov', 'raceDay/tech', 'classes', 'roster', 'settings', 'track'];
 const ROLE_PAGES = {
-  admin:    ['signup', 'grid', 'results', 'points', 'admin', 'help'],
+  admin:    ['signup', 'grid', 'results', 'points', 'tech', 'announce', 'admin', 'help'],
   register: ['signup', 'help'],
-  scoring:  ['grid', 'results', 'points', 'help'],
+  tech:     ['tech', 'help'],       // tech inspector's tablet: the inspection list only
+  scoring:  ['grid', 'results', 'points', 'announce', 'help'],
+  announcer: ['announce', 'grid', 'help'],   // announcer's booth: read-only talking points
   tv:       ['grid', 'help'],
   viewer:   ['grid', 'help'],       // spectator: read-only Lineups only (QR link)
-  operator: ['signup', 'grid', 'results', 'points', 'admin', 'help']   // owner: sees everything, read-only until "Take control"
+  operator: ['signup', 'grid', 'results', 'points', 'tech', 'announce', 'admin', 'help']   // owner: sees everything, read-only until "Take control"
 };
+const TECH_DEFAULT = ['Weight', 'Tires', 'Safety gear', 'Fuel', 'Engine seal / claim', 'Body & bumpers'];
 function syncOn() { return !!(S.sync && S.sync.enabled && FIREBASE_CONFIG.apiKey); }
 /* rd_role_v2 is a distinct key from v1's rd_role — localStorage is origin-scoped, not
    path-scoped, so sharing v1's key would leak a spectator/admin role picked up under
@@ -810,7 +848,7 @@ function defaults() {
       { id: 3, name: 'Open Shifter', maxPill: 200 }
     ],
     settings: { maxHeat: 8, maxBMain: 12, maxFeature: 20, transfers: 2, gridStyle: 'double', heatFill: 'alternate', bmainMode: 'single', bmainCount: 2, points: { mode: 'fixed', table: [10, 8, 6, 5, 4, 3, 2, 1], beyond: 0 }, requireConsent: true, captureConsentIP: true, cloudBackup: false },
-    raceDay: { date: today(), entries: [], heatResults: {}, pointsRace: {}, resultGov: {}, resultVersions: {} },  // entries: {driverId, classId, pill}; resultGov: per-class {status,locked}; resultVersions: per-class snapshots
+    raceDay: { date: today(), entries: [], heatResults: {}, pointsRace: {}, resultGov: {}, resultVersions: {}, tech: {} },  // tech: per-car inspection {status,weight,items,notes,at}; entries: {driverId, classId, pill}; resultGov: per-class {status,locked}; resultVersions: per-class snapshots
     nextId: 100,
     // MUST equal the latest migration number in migrate(). Left at 2 when migration 3
     // (PIN hashing) shipped, every fresh install re-hashed its already-hashed PIN on the
@@ -842,6 +880,8 @@ function migrate(s) {
   if (!s.raceDay.pointsRace) s.raceDay.pointsRace = {};
   if (!s.raceDay.resultGov) s.raceDay.resultGov = {};
   if (!s.raceDay.resultVersions) s.raceDay.resultVersions = {};
+  if (!s.raceDay.tech) s.raceDay.tech = {};
+  if (!Array.isArray(s.settings.techChecklist)) s.settings.techChecklist = TECH_DEFAULT.slice();
   if (!s.provider) s.provider = { legalName: '', operator: '', jurisdiction: '' };
   if (!s.consents) s.consents = [];
   if (!s.audit) s.audit = [];
@@ -1297,7 +1337,7 @@ function adminOk() {
   // role reaches adminOk() only through pages ROLE_PAGES already grants it. Ported from
   // raceday/index.html (v1) after a real production bug there.
   const role = deviceRole();
-  if (role === 'viewer' || role === 'tv') return false;
+  if (role === 'viewer' || role === 'tv' || role === 'announcer') return false;
   if (!S.adminPin || sessionStorage.getItem('rd_admin_ok') === '1') return true;
   const t = prompt('Enter the admin PIN');
   if (t === null) return false;
@@ -1475,6 +1515,30 @@ function finPoints(v, heatSize) {
   return v;
 }
 function finLabel(v) { return v == null ? '·' : v; }
+/* Passing points (a class option): each heat scores finish points plus points for every
+   spot gained from the heat's starting grid (set 1 as drawn, set 2 reversed). Most points
+   wins; ties still go to the pill draw. DNF/DNS/DQ score nothing for that heat. */
+const PASSING_DEFAULT = { finish: [10, 9, 8, 7, 6, 5, 4, 3, 2, 1], perSpot: 1 };
+function isPassing(cls) { return !!cls && cls.heatScoring === 'passing' && classHeats(cls) >= 1; }
+function passingCfg(cls) {
+  const p = (cls && cls.passing) || {};
+  const finish = Array.isArray(p.finish) && p.finish.length ? p.finish : PASSING_DEFAULT.finish;
+  const perSpot = p.perSpot != null && +p.perSpot >= 0 ? +p.perSpot : PASSING_DEFAULT.perSpot;
+  return { finish, perSpot };
+}
+function passPts(fin, start, cfg) {
+  if (typeof fin !== 'number' || fin < 1) return 0;
+  return (cfg.finish[fin - 1] || 0) + Math.max(0, (start || fin) - fin) * cfg.perSpot;
+}
+function heatStarts(racers, cls) {
+  const s1 = {}, s2 = {};
+  heatSet(racers, cls).forEach(heat => {
+    heat.forEach((r, i) => { s1[r.id] = i + 1; });
+    [...heat].reverse().forEach((r, i) => { s2[r.id] = i + 1; });
+  });
+  return { s1, s2 };
+}
+function heatTotalTag(cls, s) { return (isPassing(cls) ? 'Passing pts ' : 'Heat total ') + s.pts; }
 function calcStandings(clsId) {
   const cls = classById(clsId);
   const heats = classHeats(cls);
@@ -1483,14 +1547,20 @@ function calcStandings(clsId) {
   const heatOf = {};
   set1.forEach((heat, hi) => heat.forEach(r => { heatOf[r.id] = hi; }));
   const res = getRes(clsId);
+  const passing = isPassing(cls);
+  const starts = passing ? heatStarts(racers, cls) : null, pcfg = passing ? passingCfg(cls) : null;
   return racers.map(r => {
     const hi = heatOf[r.id], n = set1[hi].length;
     const f1 = heats >= 1 ? res['h1_' + r.id] : undefined;    // 0-heat classes ignore stale heat keys
     const f2 = heats === 2 ? res['h2_' + r.id] : undefined;   // 1-heat classes ignore set 2
     const scored = (f1 != null ? 1 : 0) + (f2 != null ? 1 : 0);
-    const pts = (f1 != null ? finPoints(f1, n) : 0) + (f2 != null ? finPoints(f2, n) : 0);
+    const pts = passing
+      ? (f1 != null ? passPts(f1, starts.s1[r.id], pcfg) : 0) + (f2 != null ? passPts(f2, starts.s2[r.id], pcfg) : 0)
+      : (f1 != null ? finPoints(f1, n) : 0) + (f2 != null ? finPoints(f2, n) : 0);
     return { ...r, pts, scored, f1, f2 };
-  }).sort((a, b) => (b.scored - a.scored) || (a.pts - b.pts) || (a.pill - b.pill));
+  }).sort(passing
+    ? (a, b) => (b.scored - a.scored) || (b.pts - a.pts) || (a.pill - b.pill)
+    : (a, b) => (b.scored - a.scored) || (a.pts - b.pts) || (a.pill - b.pill));
 }
 function classComplete(clsId) { const s = calcStandings(clsId), need = classHeats(classById(clsId)); return s.length > 0 && s.every(x => x.scored === need); }
 function bmKey(mi, id) { return (mi === 0 ? 'bm_' : 'bm' + mi + '_') + id; }
@@ -1604,7 +1674,7 @@ function dayPoints(clsId) {
   if (!isPointsRace(clsId)) return null;
   const fin = featureFinish(clsId);
   if (!fin.length) return null;
-  const { mode, table, beyond } = S.settings.points;
+  const { mode, table, beyond } = classPointsCfg(clsId);
   const pts = {};
   classRacers(clsId).forEach(r => { pts[r.id] = beyond; });
   if (mode === 'linear') {
@@ -1617,6 +1687,13 @@ function dayPoints(clsId) {
   }
   S.raceDay.entries.filter(e => e.classId === clsId && (e.noPoints || (driverById(e.driverId) || {}).noPoints)).forEach(e => { delete pts[e.driverId]; });
   return pts;
+}
+/* A class can carry its own points table; otherwise it scores on the track's series table. */
+function classPointsCfg(clsOrId) {
+  const c = (clsOrId && typeof clsOrId === 'object') ? clsOrId : classById(clsOrId);
+  const p = c && c.points;
+  if (p && (p.mode === 'linear' || (p.mode === 'fixed' && Array.isArray(p.table)))) return { mode: p.mode, table: p.table || [], beyond: +p.beyond || 0 };
+  return S.settings.points;
 }
 function seriesClassNames() {
   const names = new Map();   // series are keyed by class name, stable across class re-creation
@@ -1956,7 +2033,7 @@ function syncApplySnapshot(v) {
   }
 }
 function syncPush() {
-  if (deviceRole() === 'viewer' || operatorWatching()) return;   // spectators + watching operators never write to the shared room
+  if (deviceRole() === 'viewer' || deviceRole() === 'announcer' || operatorWatching()) return;   // spectators, the announcer + watching operators never write to the shared room
   if (!syncOn() || !Sync.db || Sync.applying) return;
   clearTimeout(Sync.timer);
   Sync.timer = setTimeout(() => {
@@ -1969,7 +2046,7 @@ function syncPush() {
   }, 400);
 }
 function syncPushFull() {
-  if (deviceRole() === 'viewer' || operatorWatching() || !Sync.db) return;   // spectators + watching operators never seed/write the room
+  if (deviceRole() === 'viewer' || deviceRole() === 'announcer' || operatorWatching() || !Sync.db) return;   // spectators, the announcer + watching operators never seed/write the room
   const upd = {};
   SYNC_FIELDS.forEach(f => { const j = JSON.stringify(syncGet(f) === undefined ? null : syncGet(f)); upd[f] = j; _syncLast[f] = j; });
   Sync.db.update(upd).catch(e => console.warn('RaceDay sync:', e && e.message || e));
@@ -2130,6 +2207,8 @@ function buildSnapshot() {
     const dp = dayPoints(cls.id);
     snap.classes.push({
       name: cls.name,
+      heatScoring: isPassing(cls) ? 'passing' : 'finish',
+      tech: classRacers(cls.id).map(r => { const t = techOf(r.id, cls.id); return t && t.status ? { driverId: r.id, name: r.name, num: r.num, status: t.status, weight: t.weight || '' } : null; }).filter(Boolean),
       standings: standings.map((s, i) => ({ pos: i + 1, name: s.name, num: s.num, pill: s.pill, f1: s.f1 != null ? s.f1 : '', f2: s.f2 != null ? s.f2 : '', pts: s.scored ? s.pts : '' })),
       feature: featureGridOrder(fd, cls.id).map(s => ({ name: s.name, num: s.num })),
       featureFinish: featureFinish(cls.id).map(f => ({ driverId: f.id, name: f.name, num: f.num, fin: f.fin })),
@@ -2141,6 +2220,56 @@ function buildSnapshot() {
     });
   });
   return snap;
+}
+/* ---- Payouts ----------------------------------------------------------------------
+   A class's purse pays by feature finish: table[fin-1], and finishers past the table plus
+   DNF cars (they started) get the start money. DNS never started and DQ forfeits, so
+   neither is paid. Amounts are stored on the archived night (history[].payouts) when it is
+   archived — history never syncs, so money stays on the admin device, and it rides along in
+   both backups. No tax IDs. */
+function classPurse(cls) {
+  const p = cls && cls.purse;
+  if (!p || !Array.isArray(p.table)) return null;
+  const start = +p.start > 0 ? +p.start : 0;
+  if (!p.table.some(v => +v > 0) && !start) return null;
+  return { table: p.table.map(v => +v || 0), start };
+}
+function money(n) { return '$' + (Math.round((+n || 0) * 100) / 100).toLocaleString(undefined, { minimumFractionDigits: 0, maximumFractionDigits: 2 }); }
+function payeeOf(d) { return d && d.payTo === 'owner' && d.owner ? d.owner : (d ? d.name : ''); }
+function nightPayouts() {
+  const rows = [];
+  S.classes.forEach(cls => {
+    const pu = classPurse(cls); if (!pu) return;
+    const fd = featureData(cls.id), res = getRes(cls.id);
+    [...fd.locked, ...fd.transferred].forEach(r => {
+      const v = res['ft_' + r.id];
+      let amount = 0;
+      if (typeof v === 'number' && v > 0) amount = pu.table[v - 1] > 0 ? pu.table[v - 1] : pu.start;
+      else if (v === 'DNF') amount = pu.start;
+      else return;   // no result yet, DNS or DQ: nothing owed
+      if (!(amount > 0)) return;
+      const d = driverById(r.id) || { name: r.name };
+      rows.push({ className: cls.name, classId: cls.id, driverId: r.id, name: r.name, num: r.num, pos: v,
+        amount: Math.round(amount * 100) / 100, payee: payeeOf(d), payTo: d.payTo === 'owner' && d.owner ? 'owner' : 'driver' });
+    });
+  });
+  return rows.sort((a, b) => a.className.localeCompare(b.className) || ((typeof a.pos === 'number' ? a.pos : 999) - (typeof b.pos === 'number' ? b.pos : 999)));
+}
+function recordPayouts(snap) {
+  if (S.raceDay.demo || !snap) return 0;
+  const rows = nightPayouts();
+  if (!rows.length) return 0;
+  const date = snap.date, names = new Set(rows.map(r => r.className));
+  // Archiving the same night again replaces those rows on the older record rather than paying twice.
+  S.history.forEach(h => { if (h !== snap && h.date === date && h.payouts) h.payouts = h.payouts.filter(p => !names.has(p.className)); });
+  const stamp = Date.now();
+  snap.payouts = rows.map((r, i) => Object.assign({ id: 'po' + stamp + '_' + i, date }, r, { method: '', paid: false, paidAt: 0 }));
+  return rows.length;
+}
+function allPayouts() {
+  const out = [];
+  (S.history || []).forEach(h => (h.payouts || []).forEach(p => out.push(p)));
+  return out;
 }
 function archiveDay() {
   // A demo day (seedDemo) is discarded, not archived: no history, no season points, and
@@ -2164,6 +2293,7 @@ function archiveDay() {
   if (incomplete.length && !confirm('⚠ Feature not fully entered:\n' + incomplete.join('\n') + '\n\nPoints for those classes won\'t count in the series.\n\nOK = archive anyway · Cancel = go back and finish results')) return false;
   S.history.unshift(snap);
   if (S.history.length > 60) S.history.length = 60;
+  recordPayouts(snap);
   // Report the night now, while S.raceDay still holds it — the caller clears the board next.
   sendUsage('night', Object.assign(currentCounts(), { features: featuresUsed() }));
   return true;
@@ -2429,7 +2559,7 @@ function newRaceDay() {
   const justArchived = S.history.length > histLenBefore ? 0 : -1;   // unshift() puts it at index 0
   logAudit('Started new race day', S.raceDay.date, today(), 'Race day');
   resOverride = {};
-  S.raceDay = { date: today(), entries: [], heatResults: {}, pointsRace: {}, resultGov: {}, resultVersions: {} };
+  S.raceDay = { date: today(), entries: [], heatResults: {}, pointsRace: {}, resultGov: {}, resultVersions: {}, tech: {} };
   save();
   resetReg();
   render(curPage);
@@ -2696,10 +2826,10 @@ function seedFullDemoNight() {
   setTimeout(() => alert('🏁 Welcome to the RaceDay demo!\n\nA full night is already scored and archived. Tap any driver\'s name to see their card, check Points for series standings, or start a new race day yourself to try the "Share results with Driven" flow.'), 300);
 }
 function setRolePrompt() {
-  const r = prompt('Set this device\'s job — type one of:  admin  ·  register  ·  scoring  ·  tv  ·  operator', deviceRole());
+  const r = prompt('Set this device\'s job — type one of:  admin  ·  register  ·  scoring  ·  tv  ·  tech  ·  announcer  ·  operator', deviceRole());
   if (!r) return;
   const rr = r.trim().toLowerCase();
-  if (!ROLE_PAGES[rr]) { alert('Unknown role. Use admin, register, scoring, tv, or operator.'); return; }
+  if (!ROLE_PAGES[rr]) { alert('Unknown role. Use admin, register, scoring, tv, tech, announcer, or operator.'); return; }
   if (rr === 'operator') _operatorControl = false;   // always start in safe read-only watch mode
   setDeviceRole(rr);
   applyRole();
@@ -2881,6 +3011,8 @@ const NAV = [
   { id:'grid',    label:'Lineups', short:'Lineups', ico:'▦' },
   { id:'results', label:'Score',   short:'Score',   ico:'⏱' },
   { id:'points',  label:'Points',  short:'Points',  ico:'🏆' },
+  { id:'tech',    label:'Tech',    short:'Tech',    ico:'🔧', tabFor:['tech'] },   // admins reach it from Admin → Tech inspection
+  { id:'announce', label:'Announce', short:'Announce', ico:'🎙', tabFor:['announcer'] },   // staff reach it from Lineups
   { id:'admin',   label:'Admin',   short:'Admin',   ico:'⚙',  grp:'Track' },
   { id:'help',    label:'Guide',   short:'Guide',   ico:'❔' }
 ];
@@ -2910,6 +3042,8 @@ function render(p) {
   if (p === 'grid')    return renderGrid();
   if (p === 'results') return renderResults();
   if (p === 'points')  return renderPoints();
+  if (p === 'tech')    return renderTech();
+  if (p === 'announce') return renderAnnounce();
   if (p === 'admin')   return renderAdmin();
   if (p === 'help')    return renderHelp();
 }
@@ -2925,7 +3059,8 @@ function renderAll() {
 }
 
 function renderNav() {
-  const pages = allowedPages();
+  const role0 = deviceRole();
+  const pages = allowedPages().filter(n => !n.tabFor || n.tabFor.includes(role0));
   let rail = '', last = null;
   pages.forEach(n => {
     if (n.grp && n.grp !== last) { rail += '<div class="rail-grp">' + esc(n.grp) + '</div>'; last = n.grp; }
@@ -2942,7 +3077,7 @@ function renderNav() {
   document.getElementById('railSub').textContent =
     role === 'viewer' ? 'Spectator view' : role === 'operator' ? 'Operator' :
     role === 'register' ? 'Registration' : role === 'scoring' ? 'Scoring' :
-    role === 'tv' ? 'TV display' : 'Race night';
+    role === 'tv' ? 'TV display' : role === 'tech' ? 'Tech inspection' : role === 'announcer' ? 'Announcer' : 'Race night';
 }
 
 /* ------------------------------------------------------------------- header */
@@ -3048,8 +3183,8 @@ function nightPhase() {
 function renderRaceControl() {
   const bar = document.getElementById('raceControl');
   const role = deviceRole();
-  /* Spectators and TV don't run the night; the spine is operator furniture. */
-  if (role === 'viewer' || role === 'tv' || curPage === 'help' || curPage === 'doc') { bar.style.display = 'none'; return; }
+  /* Spectators, TV and the tech tablet don't run the night; the spine is operator furniture. */
+  if (role === 'viewer' || role === 'tv' || role === 'tech' || role === 'announcer' || curPage === 'help' || curPage === 'doc') { bar.style.display = 'none'; return; }
   bar.style.display = '';
 
   const ph = nightPhase();
@@ -3194,7 +3329,7 @@ function emptyState(icon, msg, ctaLabel, ctaFn) {
 }
 function driverLabel(d) { return d ? esc(d.name) : 'Unknown driver'; }
 /* Guard used by every write path that a spectator must never reach. */
-function canWrite() { return deviceRole() !== 'viewer' && deviceRole() !== 'tv' && !operatorWatching(); }
+function canWrite() { const r = deviceRole(); return r !== 'viewer' && r !== 'tv' && r !== 'announcer' && !operatorWatching(); }
 
 /* ============================================================================
    §1h  ENGINE — scoring, qualifying times, grid style (verbatim)
@@ -3696,6 +3831,7 @@ function renderGrid() {
     + '<span class="push"></span>'
     + (isTv ? '' :
       '<button class="btn btn-sm btn-primary" onclick="openTV()">📺 TV display</button>'
+      + (allowedPages().some(n => n.id === 'announce') ? '<button class="btn btn-sm" onclick="nav(\'announce\')">🎙 Announcer</button>' : '')
       + '<button class="btn btn-sm" onclick="openPrint()">🖨 Print</button>'
       + '<button class="btn btn-sm" onclick="openImport(\'qual\')">📥 Import timing</button>')
     + '</div>'
@@ -3759,7 +3895,7 @@ function classGridMarkup(cls, single, isTv) {
     const fd = featureData(cls.id);
     const toRow = heats === 0
       ? s => ({ id: s.id, name: s.name, num: s.num, tag: s.qualTime ? '⏱ ' + s.qualTime : 'Seed P' + s.pill })
-      : s => ({ id: s.id, name: s.name, num: s.num, tag: 'Heat total ' + s.pts });
+      : s => ({ id: s.id, name: s.name, num: s.num, tag: heatTotalTag(cls, s) });
     const bmInvNote = clsBMainInvert(cls) ? ' · top ' + clsBMainInvert(cls) + ' start inverted' : '';
     const ftInvNote = clsFeatInvert(cls) ? ' · top ' + clsFeatInvert(cls) + ' start inverted' : '';
     if (fd.mains.length) {
@@ -3773,7 +3909,7 @@ function classGridMarkup(cls, single, isTv) {
         h += emptyState('🏁', 'The feature grid posts here once the main finishes are entered on the Score tab.');
       }
     } else {
-      h += '<div class="slbl">🏁 Feature lineup — ' + (heats === 0 ? 'by qualifying order' : 'by heat total (low wins)') + ftInvNote + '</div>'
+      h += '<div class="slbl">🏁 Feature lineup — ' + (heats === 0 ? 'by qualifying order' : isPassing(cls) ? 'by passing points (most wins)' : 'by heat total (low wins)') + ftInvNote + '</div>'
         + gridMarkup(featureGridOrder(fd, cls.id).map(toRow), single);
     }
   }
@@ -3870,6 +4006,7 @@ function openDriverCard(driverId) {
   openSheet(d.name, h,
     deviceRole() === 'admin'
       ? '<button class="btn" onclick="editDriverCard()">Edit profile</button>'
+        + '<button class="btn btn-sm" onclick="editPayee()">Payout info</button>'
         + (d.profileId
             ? '<button class="btn btn-sm" onclick="refreshProfile()">↻ Refresh from Driven</button>'
             : '<button class="btn btn-sm" onclick="linkProfilePrompt()">Link Driven card</button>')
@@ -3878,6 +4015,28 @@ function openDriverCard(driverId) {
   autoRefreshProfile(d);
 }
 function closeDriverCard() { closeSheet(); }
+function editPayee() {
+  if (!adminOk()) return;
+  const d = driverById(driverCardId); if (!d) return;
+  const body = '<p class="sub" style="margin-bottom:12px">Who gets paid when this car earns purse money. RaceDay never stores tax IDs.</p>'
+    + '<div class="field"><label>Car owner (optional)</label><input id="poOwner" type="text" maxlength="60" placeholder="e.g. Rivera Motorsports" value="' + esc(d.owner || '') + '"></div>'
+    + '<div class="field"><label>Pay to</label><select id="poPayTo">'
+    +   '<option value="driver"' + (d.payTo === 'owner' ? '' : ' selected') + '>The driver (' + esc(d.name) + ')</option>'
+    +   '<option value="owner"' + (d.payTo === 'owner' ? ' selected' : '') + '>The car owner</option></select></div>';
+  openSheet('Payout info — ' + d.name, body,
+    '<button class="btn" onclick="renderDriverCard()">Cancel</button><button class="btn btn-primary" onclick="savePayee()">Save</button>');
+}
+function savePayee() {
+  if (!adminOk()) return;
+  const d = driverById(driverCardId); if (!d) return;
+  const owner = document.getElementById('poOwner').value.trim().slice(0, 60);
+  const payTo = document.getElementById('poPayTo').value === 'owner' && owner ? 'owner' : 'driver';
+  if (owner) d.owner = owner; else delete d.owner;
+  d.payTo = payTo;
+  save();
+  if (payTo === 'owner' && !owner) toast('Add the owner\'s name to pay the owner.');
+  renderDriverCard();
+}
 function dcStat(n, l) { return '<div class="dc-stat"><div class="n">' + esc(String(n)) + '</div><div class="l">' + esc(l) + '</div></div>'; }
 function renderDriverCard() { if (driverCardId) openDriverCard(driverCardId); }
 /* ============================================================================
@@ -4127,10 +4286,11 @@ function renderClassResults(clsId) {
   fd.locked.forEach(r => { advMap[r.id] = { label: '→ Feature', feat: true }; });
   fd.mains.forEach(m => { m.drivers.forEach(r => { if (!advMap[r.id]) advMap[r.id] = { label: '→ ' + m.label, feat: false }; }); });
 
-  h += '<div class="slbl">' + (heats === 0 ? 'Seeding — qualifying order' : 'Heat totals — the "race pill"') + '</div>'
+  h += '<div class="slbl">' + (heats === 0 ? 'Seeding — qualifying order' : isPassing(cls) ? 'Passing points' : 'Heat totals — the "race pill"') + '</div>'
     + '<div class="hb"><div class="hh"><span>' + (heats === 0 ? 'Seeds' : 'Standings') + '</span>'
     + '<small class="tiny">' + (heats === 0
         ? 'fastest qualifier is the top seed · mains fill straight from here'
+        : isPassing(cls) ? 'finish points + ' + passingCfg(cls).perSpot + ' per spot gained · most wins · ties go to the pill draw'
         : 'finishes added up · low wins · ties go to the pill draw') + '</small></div>'
     + standings.map((s, i) => {
         const detail = heats === 0
@@ -4193,8 +4353,8 @@ function renderClassResults(clsId) {
         title: '🏁 Feature',
         headClass: ' feat',
         sub: (fd.mains.length
-              ? fd.locked.length + (heats === 0 ? ' on qualifying' : ' on heat totals') + ' + ' + fd.toFeatureSpots + ' transferring up'
-              : (heats === 0 ? 'lined up by qualifying order' : 'lined up by heat totals'))
+              ? fd.locked.length + (heats === 0 ? ' on qualifying' : isPassing(cls) ? ' on passing points' : ' on heat totals') + ' + ' + fd.toFeatureSpots + ' transferring up'
+              : (heats === 0 ? 'lined up by qualifying order' : isPassing(cls) ? 'lined up by passing points' : 'lined up by heat totals'))
              + (ftInv ? ' · top ' + ftInv + ' start inverted' : '')
              + (isPointsRace(clsId) ? ' · finishes award series points' : '')
       }));
@@ -4548,6 +4708,17 @@ function printResultsSheet() {
   printShellOpen('Feature Results', h || '<p>No feature results entered yet.</p>');
 }
 
+function printPayoutSheet() {
+  const rows = nightPayouts();
+  let h = '';
+  [...new Set(rows.map(r => r.className))].forEach(name => {
+    const rs = rows.filter(r => r.className === name);
+    h += '<h2>' + esc(name) + ' — payouts</h2><table><tr><th>Pos</th><th>Vehicle #</th><th>Driver</th><th>Pay to</th><th>Amount</th><th>Signature</th></tr>'
+      + rs.map(r => '<tr><td>' + esc(String(r.pos)) + '</td><td>#' + esc(r.num) + '</td><td>' + esc(r.name) + '</td><td>' + esc(r.payee) + '</td><td>' + money(r.amount) + '</td><td style="min-width:140px"></td></tr>').join('')
+      + '<tr><td colspan="4"><b>Total</b></td><td><b>' + money(rs.reduce((t, r) => t + r.amount, 0)) + '</b></td><td></td></tr></table>';
+  });
+  printShellOpen('Payout Sheet', h || '<p>No payouts yet — set a purse in Admin → Race classes and enter feature finishes.</p>');
+}
 function printPointsSheet() {
   let h = '';
   seriesClassNames().forEach(name => {
@@ -4579,7 +4750,7 @@ function openPrint() {
     { fn:'printPitBoard',    ico:'📋', label:'Pit board',     hint:'Pill order per class, for the pit table' },
     { fn:'printResultsSheet',ico:'🏁', label:'Results sheet', hint:"Tonight's feature finishes" },
     { fn:'printPointsSheet', ico:'🏆', label:'Points standings', hint:'Season points by class' }
-  ];
+  ].concat(deviceRole() === 'admin' || deviceRole() === 'operator' ? [{ fn:'printPayoutSheet', ico:'💵', label:'Payout sheet', hint:"Tonight's purse by class, with a signature column" }] : []);
   openSheet('Print', '<div class="stack">' + outputs.map(o =>
     '<button class="sec-btn" style="width:100%" onclick="closeSheet();' + o.fn + '()">'
     + '<span class="ico">' + o.ico + '</span><span><span class="nm">' + esc(o.label) + '<small>' + esc(o.hint) + '</small></span></span></button>'
@@ -4687,7 +4858,7 @@ function renderFanView() {
   const heats = classHeats(cls);
   const toRow = heats === 0
     ? s => ({ id:s.id, name:s.name, num:s.num, tag: s.qualTime ? '⏱ ' + s.qualTime : 'Seed P' + s.pill })
-    : s => ({ id:s.id, name:s.name, num:s.num, tag: 'Heat total ' + s.pts });
+    : s => ({ id:s.id, name:s.name, num:s.num, tag: heatTotalTag(cls, s) });
 
   if (heats === 0 && UI.viewStage === 'heats') UI.viewStage = 'qual';
   const stages = [['qual', 'Qualifying']]
@@ -5869,7 +6040,8 @@ function clearImpForm() {
   const m = document.getElementById('impMsg'); if (m) m.style.display = 'none';
 }
 function delHist(i) {
-  if (!confirm('Delete the archived race day from ' + S.history[i].date + '? This cannot be undone.')) return;
+  const po = (S.history[i].payouts || []).length;
+  if (!confirm('Delete the archived race day from ' + S.history[i].date + '?' + (po ? ' Its ' + po + ' payout record' + (po === 1 ? '' : 's') + ' will be deleted too.' : '') + ' This cannot be undone.')) return;
   S.history.splice(i, 1);
   // A pending edit points at a history index — deleting shifts every later index, so drop it.
   if (_impEditIdx != null) clearImpForm();
@@ -6345,6 +6517,8 @@ let _impEditIdx = null;   /* set while editing an existing history entry */
 const ADMIN_SECTIONS = [
   { id:'today',    door:'night',  ico:'📋', label:"Today's entries",    hint:'Add, move, or fix who\'s racing tonight', kw:'entries pill grid spot number quick add refill' },
   { id:'history',  door:'night',  ico:'📅', label:'Race day history',   hint:'Past nights, CSV export, edit an import', kw:'archive export csv delete edit imported' },
+  { id:'tech',     door:'night',  ico:'🔧', label:'Tech inspection',    hint:'Checklist, pass/fail per car, tech tablet link', kw:'tech inspection weight tires safety fuel seal claim pass fail recheck' },
+  { id:'payouts',  door:'night',  ico:'💵', label:'Payouts',            hint:'Purse payouts, paid/unpaid, season totals', kw:'payout purse pay money owner check cash 1099 season totals' },
   { id:'track',    door:'setup',  ico:'🏁', label:'Track identity',     hint:'Name, logo, length, surface', kw:'name logo header surface configuration oval' },
   { id:'classes',  door:'setup',  ico:'🏎',  label:'Race classes',      hint:'Add classes, pills, invert, running order', kw:'class pill invert heat qualifying age group specs' },
   { id:'format',   door:'setup',  ico:'⚙️',  label:'Race format',       hint:'Heat size, B-mains, feature size', kw:'heat fill alternate block bmain b-main parallel cascade transfers' },
@@ -6432,6 +6606,8 @@ function secMarkup(id) {
   switch (id) {
     case 'today':   return secToday();
     case 'history':  return '<div class="card" id="historyList"></div>';
+    case 'payouts':  return '<div id="payoutsWrap"></div>';
+    case 'tech':     return '<div id="techAdminWrap"></div>';
     case 'track':    return secTrack();
     case 'classes':  return secClasses();
     case 'format':   return secFormat();
@@ -6452,6 +6628,8 @@ function secMarkup(id) {
 function secMount(id) {
   if (id === 'today')   { renderQuickAdd(); renderEntryList(); }
   if (id === 'history')  renderHistory();
+  if (id === 'payouts')  renderPayouts();
+  if (id === 'tech')     renderTech('techAdminWrap');
   if (id === 'track')   { mountTrack(); }
   if (id === 'classes') { renderClsList(); renderClsLib(); }
   if (id === 'format')  { mountFormat(); }
@@ -6466,6 +6644,311 @@ function secMount(id) {
   if (id === 'repair')   renderImpForm();
   if (id === 'audit')  { renderConsentCard(); renderAuditCard(); }
   if (id === 'danger')  { const b = document.getElementById('exitDemoBtn'); if (b) b.style.display = S.demo ? '' : 'none'; }
+}
+
+/* ---------------------------------------------------------------- announcer ---- */
+/* Running order the way most nights go: every class's set-1 heats, then set 2, then the
+   B-mains, then the features. A race is "ready" once its grid is known (mains and features
+   only after the heats are in). The first ready race without a full result is Now. */
+function raceOrder() {
+  const races = [], classes = S.classes.filter(c => classRacers(c.id).length);
+  const done = (res, key, grid) => grid.length > 0 && grid.every(r => res[key(r)] != null);
+  const sets = [];
+  classes.forEach(c => {
+    const hs = classHeats(c), set1 = hs >= 1 ? heatSet(classRacers(c.id), c) : [];
+    sets.push({ c, set1, hs });
+  });
+  [1, 2].forEach(n => sets.forEach(({ c, set1, hs }) => {
+    if (hs < n) return;
+    const res = getRes(c.id);
+    set1.forEach((heat, hi) => {
+      const grid = n === 1 ? heat : [...heat].reverse();
+      races.push({ cls: c, label: 'Heat ' + (hi + 1) + (hs === 2 ? ' · Set ' + n : ''), grid, key: r => 'h' + n + '_' + r.id,
+        done: done(res, r => 'h' + n + '_' + r.id, grid), ready: true });
+    });
+  }));
+  classes.forEach(c => {
+    if (!classComplete(c.id)) return;
+    const fd = featureData(c.id), res = getRes(c.id);
+    fd.mains.forEach((m, mi) => races.push({ cls: c, label: m.label, grid: m.drivers, key: r => bmKey(mi, r.id),
+      done: done(res, r => bmKey(mi, r.id), m.drivers), ready: m.drivers.length > 0 }));
+  });
+  classes.forEach(c => {
+    if (!classComplete(c.id)) return;
+    const fd = featureData(c.id), res = getRes(c.id);
+    const ready = !fd.mains.length || !fd.toFeatureSpots || fd.transferred.length >= fd.toFeatureSpots;
+    const grid = ready ? featureGridOrder(fd, c.id) : [];
+    races.push({ cls: c, label: 'Feature', grid, key: r => 'ft_' + r.id, done: done(res, r => 'ft_' + r.id, grid), ready: ready && grid.length > 0, feature: true });
+  });
+  return races;
+}
+function announceNow() {
+  const races = raceOrder().filter(r => r.ready);
+  const open = races.filter(r => !r.done);
+  // "Just finished" is the last completed race BEFORE the one on track — not a later race
+  // that happens to be scored already (e.g. an earlier heat being re-run or re-scored).
+  const cut = open[0] ? races.indexOf(open[0]) : races.length;
+  const lastDone = races.slice(0, cut).reverse().find(r => r.done) || null;
+  return { now: open[0] || null, next: open[1] || null, upcoming: open.slice(1, 7), last: lastDone };
+}
+function announceFacts(r, cls) {
+  const d = driverById(r.id) || {}, p = d.profile || {};
+  const st = driverStats(r.id);
+  const res = getRes(cls.id);
+  const tonight = ['h1_', 'h2_'].map(k => res[k + r.id]).filter(v => v != null);
+  const series = seriesStandings(cls.name), rank = series.findIndex(x => x.name === d.name);
+  const bits = [];
+  if (p.hometown) bits.push('🏠 ' + esc(p.hometown));
+  if (st.starts) bits.push(st.wins + ' win' + (st.wins === 1 ? '' : 's') + ' in ' + st.starts + ' start' + (st.starts === 1 ? '' : 's') + (st.top5 ? ' · ' + st.top5 + ' top-5' : ''));
+  else bits.push('No feature starts here yet');
+  if (rank >= 0 && series[rank].pts > 0) bits.push(ordinal(rank + 1) + ' in ' + esc(cls.name) + ' points (' + series[rank].pts + ')');
+  if (tonight.length) bits.push('Tonight: ' + tonight.map(v => typeof v === 'number' ? ordinal(v) : v).join(', '));
+  return { sponsors: p.sponsors || '', bits };
+}
+function renderAnnounce() {
+  const el = document.getElementById('announceWrap'); if (!el) return;
+  const a = announceNow();
+  const pick = UI.annRace != null ? raceOrder().filter(r => r.ready)[UI.annRace] : null;
+  const race = pick || a.now;
+  let h = '<h2>Announcer</h2>';
+  if (!race) {
+    h += S.raceDay.entries.length
+      ? emptyState('🏁', 'Every race tonight is in the books.' + (a.last ? ' Last up: ' + esc(a.last.cls.name) + ' ' + esc(a.last.label) + '.' : ''))
+      : emptyState('🎙', 'Nothing to call yet — lineups appear here as drivers sign up.');
+    el.innerHTML = h; return;
+  }
+  if (a.last && a.last !== race) {
+    const lres = getRes(a.last.cls.id);
+    const top = a.last.grid.filter(r => typeof lres[a.last.key(r)] === 'number').sort((x, y) => lres[a.last.key(x)] - lres[a.last.key(y)]).slice(0, 3);
+    if (top.length) h += '<div class="ann-last"><span class="tiny">Just finished · ' + esc(a.last.cls.name) + ' ' + esc(a.last.label) + '</span><div>'
+      + top.map((r, i) => '<b>' + ['🥇', '🥈', '🥉'][i] + ' #' + esc(r.num) + ' ' + esc(r.name) + '</b>').join(' &nbsp; ') + '</div></div>';
+  }
+  h += '<div class="ann-now"><span class="ann-tag">' + (pick ? 'Preview' : 'Now') + '</span><h3>' + esc(race.cls.name) + ' · ' + esc(race.label) + '</h3>'
+    + '<span class="tiny">' + plural(race.grid.length, 'car', 'cars') + (race.feature && isPointsRace(race.cls.id) ? ' · points race' : '') + '</span></div>';
+  h += '<div class="stack">' + race.grid.map((r, i) => {
+    const f = announceFacts(r, race.cls);
+    return '<button type="button" class="ann-car" onclick="openDriverCard(' + r.id + ')">'
+      + '<span class="ann-pos">P' + (i + 1) + '</span>' + discNum(r.num)
+      + '<span class="ann-who"><b>' + esc(r.name) + '</b>'
+      + (f.sponsors ? '<span class="ann-spon">' + esc(f.sponsors) + '</span>' : '')
+      + '<span class="tiny">' + f.bits.join(' · ') + '</span></span></button>';
+  }).join('') + '</div>';
+  const up = a.upcoming.filter(r => r !== race);
+  if (up.length) {
+    const ready = raceOrder().filter(r => r.ready);
+    h += '<div class="slbl" style="margin-top:18px">Up next</div><div class="chips">'
+      + up.map(r => '<button type="button" class="chip" onclick="UI.annRace=' + ready.findIndex(x => x.cls.id === r.cls.id && x.label === r.label) + ';renderAnnounce()">' + esc(r.cls.name) + ' · ' + esc(r.label) + '</button>').join('') + '</div>';
+  }
+  if (pick) h += '<button class="btn btn-sm" style="margin-top:12px" onclick="UI.annRace=null;renderAnnounce()">← Back to the race on track</button>';
+  el.innerHTML = h;
+}
+
+/* ---------------------------------------------------------- tech inspection ---- */
+/* One record per car per class tonight: S.raceDay.tech['<driverId>|<classId>'] =
+   {status:'pass'|'fail'|'recheck', weight, items:{name:true}, notes, at}. It syncs
+   (raceDay/tech) so a tech tablet and the tower see the same list. Admin, a controlling
+   operator and the tech role can write; everyone else only reads. */
+const TECH_STATUS = {
+  pass:    { ico: '✅', label: 'Passed',  cls: 'badge-green' },
+  fail:    { ico: '❌', label: 'Failed',  cls: 'badge-red' },
+  recheck: { ico: '🔁', label: 'Recheck', cls: 'badge-amber' }
+};
+function techKey(dId, cId) { return dId + '|' + cId; }
+function techOf(dId, cId) { return (S.raceDay.tech || {})[techKey(dId, cId)] || null; }
+function techChecklist() { return Array.isArray(S.settings.techChecklist) && S.settings.techChecklist.length ? S.settings.techChecklist : TECH_DEFAULT; }
+function canTech() { const r = deviceRole(); return canWrite() && (r === 'admin' || r === 'operator' || r === 'tech'); }
+function techChip(t) {
+  if (!t || !TECH_STATUS[t.status]) return '<span class="badge badge-dim">Not checked</span>';
+  const st = TECH_STATUS[t.status];
+  return '<span class="badge ' + st.cls + '">' + st.ico + ' ' + st.label + '</span>';
+}
+function techMini(e) {
+  const t = e && techOf(e.driverId, e.classId);
+  return t && TECH_STATUS[t.status] ? ' <span title="Tech: ' + TECH_STATUS[t.status].label + '">' + TECH_STATUS[t.status].ico + '</span>' : '';
+}
+function techCars() {
+  return S.raceDay.entries.map(e => {
+    const d = driverById(e.driverId) || { name: '?', num: '?' }, c = classById(e.classId) || { name: '?' };
+    return { dId: e.driverId, cId: e.classId, name: d.name, num: d.num, cls: c.name, t: techOf(e.driverId, e.classId) };
+  });
+}
+function renderTech(wrapId) {
+  const id = wrapId || 'techWrap';
+  const el = document.getElementById(id); if (!el) return;
+  const cars = techCars();
+  const n = k => cars.filter(x => k === 'none' ? !(x.t && TECH_STATUS[x.t.status]) : x.t && x.t.status === k).length;
+  const f = UI.techFilter || 'all';
+  const chip = (k, label) => '<button type="button" class="chip' + (f === k ? ' on' : '') + '" onclick="UI.techFilter=\'' + k + '\';renderTech(\'' + (wrapId || '') + '\')">' + label + '</button>';
+  let h = (wrapId ? '' : '<h2>Tech inspection</h2>')
+    + '<p class="sub">' + plural(cars.length, 'car', 'cars') + ' tonight · ✅ ' + n('pass') + ' passed · ❌ ' + n('fail') + ' failed · 🔁 ' + n('recheck') + ' recheck · ' + n('none') + ' not checked</p>'
+    + '<div class="chips" style="margin:12px 0">' + chip('all', 'All') + chip('none', 'Not checked') + chip('fail', 'Failed') + chip('recheck', 'Recheck') + chip('pass', 'Passed') + '</div>'
+    + '<input type="text" placeholder="Find a car — name or number" value="' + esc(UI.techQ || '') + '" oninput="UI.techQ=this.value;renderTechList(\'' + id + '\')" autocomplete="off">'
+    + '<div id="' + id + 'List" style="margin-top:12px"></div>';
+  if (deviceRole() === 'admin' || deviceRole() === 'operator') {
+    h += '<details class="card card-tight" style="margin-top:16px"><summary class="tiny" style="cursor:pointer"><b>Edit checklist</b> — one item per line</summary>'
+      + '<textarea id="techListEdit" rows="6" style="margin-top:8px">' + esc(techChecklist().join('\n')) + '</textarea>'
+      + '<button class="btn btn-sm" style="margin-top:8px" onclick="saveTechChecklist()">Save checklist</button></details>';
+  }
+  el.innerHTML = h;
+  renderTechList(id);
+}
+function renderTechList(id) {
+  const el = document.getElementById(id + 'List'); if (!el) return;
+  const f = UI.techFilter || 'all', q = (UI.techQ || '').trim().toLowerCase();
+  const cars = techCars()
+    .filter(x => f === 'all' || (f === 'none' ? !(x.t && TECH_STATUS[x.t.status]) : x.t && x.t.status === f))
+    .filter(x => !q || x.name.toLowerCase().includes(q) || String(x.num).toLowerCase().includes(q))
+    .sort((a, b) => a.cls.localeCompare(b.cls) || String(a.num).localeCompare(String(b.num), undefined, { numeric: true }));
+  if (!S.raceDay.entries.length) { el.innerHTML = emptyState('🔧', 'No cars signed in yet tonight.'); return; }
+  if (!cars.length) { el.innerHTML = emptyState('⌕', 'No cars match.'); return; }
+  el.innerHTML = '<div class="stack">' + cars.map(x =>
+    '<button type="button" class="tech-row" onclick="openTech(' + x.dId + ',' + x.cId + ')">'
+    + discNum(x.num) + '<span class="tech-who"><b>' + esc(x.name) + '</b><span class="tiny">' + esc(x.cls)
+    + (x.t && x.t.weight ? ' · ' + esc(String(x.t.weight)) + ' lb' : '') + (x.t && x.t.notes ? ' · 📝' : '') + '</span></span>'
+    + techChip(x.t) + '</button>').join('') + '</div>';
+}
+function openTech(dId, cId) {
+  const d = driverById(dId) || { name: '?', num: '?' }, c = classById(cId) || { name: '?' };
+  const t = techOf(dId, cId) || {}, items = t.items || {}, ro = !canTech();
+  const body = '<p class="sub" style="margin-bottom:12px">#' + esc(d.num) + ' · ' + esc(c.name) + ' · ' + techChip(t.status ? t : null) + '</p>'
+    + '<div class="stack" style="gap:8px">' + techChecklist().map((name, i) =>
+        '<label class="check"><input type="checkbox" data-tech-item="' + esc(name) + '"' + (items[name] ? ' checked' : '') + (ro ? ' disabled' : '') + '><span>' + esc(name) + '</span></label>').join('') + '</div>'
+    + '<div class="field" style="margin-top:14px"><label>Weight (lb)</label><input id="techWeight" type="number" inputmode="decimal" min="0" max="9999" step="0.1" value="' + esc(String(t.weight || '')) + '"' + (ro ? ' disabled' : '') + '></div>'
+    + '<div class="field"><label>Notes</label><textarea id="techNotes" rows="3" maxlength="300" placeholder="e.g. 2 lb light — add weight, recheck before the feature"' + (ro ? ' disabled' : '') + '>' + esc(t.notes || '') + '</textarea></div>'
+    + (t.at ? '<p class="tiny">Last updated ' + esc(new Date(t.at).toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' })) + '</p>' : '');
+  openSheet('Tech — ' + d.name, body, ro
+    ? '<button class="btn" onclick="closeSheet()">Close</button>'
+    : '<button class="btn btn-sm" onclick="saveTech(' + dId + ',' + cId + ',\'\')">Clear</button>'
+      + '<button class="btn" onclick="saveTech(' + dId + ',' + cId + ',\'recheck\')">🔁 Recheck</button>'
+      + '<button class="btn btn-danger" onclick="saveTech(' + dId + ',' + cId + ',\'fail\')">❌ Fail</button>'
+      + '<button class="btn btn-primary" onclick="saveTech(' + dId + ',' + cId + ',\'pass\')">✅ Pass</button>');
+}
+function saveTech(dId, cId, status) {
+  if (!canTech()) return;
+  if (!S.raceDay.tech) S.raceDay.tech = {};
+  const key = techKey(dId, cId);
+  if (!status) delete S.raceDay.tech[key];
+  else {
+    const items = {};
+    document.querySelectorAll('[data-tech-item]').forEach(cb => { if (cb.checked) items[cb.getAttribute('data-tech-item')] = true; });
+    const w = parseFloat((document.getElementById('techWeight') || {}).value);
+    S.raceDay.tech[key] = { status: TECH_STATUS[status] ? status : 'recheck', weight: isFinite(w) && w > 0 ? Math.round(w * 10) / 10 : '',
+      items, notes: String((document.getElementById('techNotes') || {}).value || '').trim().slice(0, 300), at: Date.now() };
+  }
+  save();
+  closeSheet();
+  refreshTech();
+}
+function saveTechChecklist() {
+  if (!adminOk()) return;
+  const ta = document.getElementById('techListEdit'); if (!ta) return;
+  const seen = new Set(), list = [];
+  ta.value.split('\n').map(x => x.trim().slice(0, 40)).filter(Boolean).forEach(x => { const k = x.toLowerCase(); if (!seen.has(k)) { seen.add(k); list.push(x); } });
+  S.settings.techChecklist = list.length ? list.slice(0, 20) : TECH_DEFAULT.slice();
+  save(); toast('Checklist saved'); refreshTech();
+}
+function refreshTech() {
+  if (curPage === 'tech') renderTech();
+  if (document.getElementById('techAdminWrap')) renderTech('techAdminWrap');
+  if (document.getElementById('entryList')) renderEntryList();
+}
+
+/* ------------------------------------------------------------- payouts ---- */
+function payoutYears() {
+  const ys = new Set(allPayouts().map(p => String(p.date).slice(0, 4)));
+  ys.add(String(S.raceDay.date).slice(0, 4));
+  return [...ys].sort().reverse();
+}
+function payeeTotals(year) {
+  const agg = {};
+  allPayouts().filter(p => String(p.date).slice(0, 4) === year).forEach(p => {
+    const k = p.payee.toLowerCase();
+    if (!agg[k]) agg[k] = { payee: p.payee, payTo: p.payTo, drivers: new Set(), total: 0, paid: 0, nights: new Set() };
+    const a = agg[k]; a.total += p.amount; if (p.paid) a.paid += p.amount; a.drivers.add(p.name); a.nights.add(p.date);
+  });
+  return Object.values(agg).map(a => Object.assign(a, { total: Math.round(a.total * 100) / 100, paid: Math.round(a.paid * 100) / 100 }))
+    .sort((a, b) => b.total - a.total || a.payee.localeCompare(b.payee));
+}
+function renderPayouts() {
+  const el = document.getElementById('payoutsWrap'); if (!el) return;
+  const tonight = nightPayouts();
+  const anyPurse = S.classes.some(c => classPurse(c));
+  let h = '<div class="card"><div class="slbl">Tonight — ' + esc(fmtDate(S.raceDay.date)) + '</div>';
+  if (!anyPurse) h += '<p class="sub">No purse set yet. Add one per class in <a onclick="admOpen(\'classes\')">Race classes</a> → Purse.</p>';
+  else if (!tonight.length) h += '<p class="sub">Payouts appear here as feature finishes are entered.</p>';
+  else h += '<table class="po-table"><tr><th>Pos</th><th>Driver</th><th class="r">Amount</th></tr>'
+    + poByClass(tonight, rs => rs.map(r => '<tr><td>' + esc(String(r.pos)) + '</td><td>' + poWho(r) + '</td><td class="r">' + money(r.amount) + '</td></tr>').join(''), 3)
+    + '<tr class="tot"><td colspan="2">Total</td><td class="r">' + money(tonight.reduce((t, r) => t + r.amount, 0)) + '</td></tr></table>'
+    + '<p class="tiny" style="margin-top:8px">These are saved with the night when you archive it. Print a copy from Lineups → Print → Payout sheet.</p>';
+  h += '</div>';
+
+  const nights = {};
+  allPayouts().forEach(p => { (nights[p.date] = nights[p.date] || []).push(p); });
+  const dates = Object.keys(nights).sort().reverse();
+  h += '<div class="card"><div class="slbl">Ledger</div>';
+  if (!dates.length) h += '<p class="sub">No archived payouts yet.</p>';
+  dates.forEach(date => {
+    const rows = nights[date], total = rows.reduce((t, r) => t + r.amount, 0), unpaid = rows.filter(r => !r.paid).reduce((t, r) => t + r.amount, 0);
+    h += '<details class="po-night"' + (dates[0] === date ? ' open' : '') + '><summary><b>' + esc(fmtDate(date)) + '</b> · ' + money(total)
+      + (unpaid > 0 ? ' · <span class="po-unpaid">' + money(unpaid) + ' unpaid</span>' : ' · all paid') + '</summary>'
+      + '<table class="po-table"><tr><th>Pos</th><th>Driver</th><th class="r">Amount</th><th>Method</th><th>Paid</th></tr>'
+      + poByClass(rows, rs => rs.map(r => '<tr><td>' + esc(String(r.pos)) + '</td><td>' + poWho(r) + '</td><td class="r">' + money(r.amount) + '</td>'
+        + '<td><select onchange="setPayoutMethod(\'' + r.id + '\',this.value)"><option value=""' + (r.method ? '' : ' selected') + '>—</option>'
+        + ['cash', 'check', 'other'].map(m => '<option value="' + m + '"' + (r.method === m ? ' selected' : '') + '>' + m + '</option>').join('') + '</select></td>'
+        + '<td><input type="checkbox"' + (r.paid ? ' checked' : '') + ' onchange="setPayoutPaid(\'' + r.id + '\',this.checked)" aria-label="Paid"></td></tr>').join(''), 5)
+      + '</table></details>';
+  });
+  h += '</div>';
+
+  const years = payoutYears(), yr = UI.poYear && years.includes(UI.poYear) ? UI.poYear : years[0];
+  const totals = payeeTotals(yr);
+  h += '<div class="card"><div class="spread"><div class="slbl" style="margin:0">Season totals</div>'
+    + (years.length > 1 ? '<select style="width:auto" onchange="UI.poYear=this.value;renderPayouts()">' + years.map(y => '<option' + (y === yr ? ' selected' : '') + '>' + y + '</option>').join('') + '</select>' : '<span class="tiny">' + yr + '</span>') + '</div>'
+    + (totals.length
+        ? '<table class="po-table" style="margin-top:10px"><tr><th>Payee</th><th>Nights</th><th class="r">Paid</th><th class="r">Total</th></tr>'
+          + totals.map(t => '<tr><td>' + esc(t.payee) + (t.payTo === 'owner' ? ' <span class="badge badge-dim">owner</span>' : '') + '</td><td>' + t.nights.size + '</td><td class="r">' + money(t.paid) + '</td><td class="r">' + money(t.total) + '</td></tr>').join('')
+          + '</table>'
+        : '<p class="sub" style="margin-top:8px">No payouts recorded for ' + yr + '.</p>')
+    + '<div class="rowflex" style="margin-top:12px"><button class="btn btn-sm" onclick="exportPayeeTotalsCSV(\'' + yr + '\')">Season totals → CSV</button>'
+    + '<button class="btn btn-sm" onclick="exportPayoutsCSV(\'' + yr + '\')">Every payout → CSV</button></div>'
+    + '<p class="tiny" style="margin-top:8px">For year-end 1099 prep: totals per payee. RaceDay never stores Social Security or tax ID numbers — collect W-9s separately.</p></div>';
+  el.innerHTML = h;
+}
+// Rows grouped under a class heading row, in the order the classes first appear.
+function poByClass(rows, rowsHtml, cols) {
+  return [...new Set(rows.map(r => r.className))].map(name =>
+    '<tr class="po-cls"><td colspan="' + cols + '">' + esc(name) + '</td></tr>' + rowsHtml(rows.filter(r => r.className === name))).join('');
+}
+function poWho(r) {
+  return '#' + esc(r.num) + ' ' + esc(r.name)
+    + (r.payee !== r.name ? '<br><span class="tiny">pay ' + esc(r.payee) + (r.payTo === 'owner' ? ' (owner)' : '') + '</span>' : '');
+}
+function findPayout(id) { return allPayouts().find(p => p.id === id); }
+function setPayoutPaid(id, on) {
+  if (!adminOk()) return;
+  const p = findPayout(id); if (!p) return;
+  p.paid = !!on; p.paidAt = on ? Date.now() : 0;
+  logAudit('Payout ' + (on ? 'marked paid' : 'marked unpaid'), p.payee, money(p.amount) + ' · ' + p.className + ' · ' + p.date, '');
+  save(); renderPayouts();
+}
+function setPayoutMethod(id, m) {
+  if (!adminOk()) return;
+  const p = findPayout(id); if (!p) return;
+  p.method = ['cash', 'check', 'other'].includes(m) ? m : '';
+  save(); renderPayouts();
+}
+function exportPayeeTotalsCSV(year) {
+  if (!adminOk()) return;
+  const rows = [['Payee', 'Paid to', 'Driver(s)', 'Nights', 'Total', 'Paid', 'Unpaid']]
+    .concat(payeeTotals(year).map(t => [t.payee, t.payTo, [...t.drivers].join('; '), t.nights.size, t.total.toFixed(2), t.paid.toFixed(2), (t.total - t.paid).toFixed(2)]));
+  downloadFile('raceday-payout-totals-' + year + '.csv', csvRows(rows), 'text/csv');
+}
+function exportPayoutsCSV(year) {
+  if (!adminOk()) return;
+  const rows = [['Date', 'Class', 'Pos', 'Driver', 'Vehicle #', 'Payee', 'Paid to', 'Amount', 'Method', 'Paid']]
+    .concat(allPayouts().filter(p => String(p.date).slice(0, 4) === year).sort((a, b) => a.date.localeCompare(b.date))
+      .map(p => [p.date, p.className, p.pos, p.name, p.num, p.payee, p.payTo, p.amount.toFixed(2), p.method, p.paid ? 'yes' : 'no']));
+  downloadFile('raceday-payouts-' + year + '.csv', csvRows(rows), 'text/csv');
 }
 
 /* --------------------------------------------------------------- today ---- */
@@ -6513,7 +6996,7 @@ function renderEntryList() {
     + '<b>To fix an entry:</b> change <b>Car #</b> for a wrong number (updates every heat today) · '
     + 'change <b>Class</b> to move the driver · use <b>▲ ▼</b> on <b>Grid spot</b> to adjust their start.</div>'
     + '<div class="scroll-x"><table class="tbl"><thead><tr><th>Driver</th><th>Car #</th><th>Class</th><th>Grid spot</th><th></th></tr></thead><tbody>'
-    + rows.map(r => '<tr><td style="font-weight:600">' + esc(r.name) + '</td>'
+    + rows.map(r => '<tr><td style="font-weight:600">' + esc(r.name) + techMini(S.raceDay.entries[r.i]) + '</td>'
       + '<td><input type="text" maxlength="5" value="' + esc(r.num) + '" style="width:60px;text-align:center" onchange="setEntryNum(' + r.i + ',this.value)"></td>'
       + '<td><select style="max-width:150px" onchange="moveEntryClass(' + r.i + ',this.value)">'
         + S.classes.map(c => '<option value="' + c.id + '"' + (c.id === r.clsId ? ' selected' : '') + '>' + esc(c.name) + '</option>').join('') + '</select></td>'
@@ -6607,6 +7090,8 @@ function renderClsList() {
       + '<div class="rowflex tiny" style="margin-top:6px" title="After the heats are scored: flip that many starting spots at the front of the main. Who qualifies is unchanged — only where they start."><b>Main invert</b>'
       +   '<label style="margin:0;display:inline-flex;align-items:center;gap:4px">feature <input class="inline-num" type="number" min="2" max="40" value="' + (clsFeatInvert(c) || '') + '" placeholder="—" onchange="setClassMainInvert(' + c.id + ',\'invertFeature\',this.value)"></label>'
       +   '<label style="margin:0;display:inline-flex;align-items:center;gap:4px">B-mains <input class="inline-num" type="number" min="2" max="30" value="' + (clsBMainInvert(c) || '') + '" placeholder="—" onchange="setClassMainInvert(' + c.id + ',\'invertBMain\',this.value)"></label></div>'
+      + clsScoringMarkup(c)
+      + clsPurseMarkup(c)
       + '<details style="margin-top:10px"><summary class="tiny" style="cursor:pointer">' + ((c.description || c.ageGroup || c.specs) ? 'Edit spectator info' : '+ Add spectator info') + '</summary>'
       + '<div class="stack" style="margin-top:8px;max-width:480px">'
       +   '<div class="field" style="margin:0"><label>Age group / eligibility</label><input type="text" value="' + esc(c.ageGroup || '') + '" placeholder="e.g. Ages 8–14" onchange="saveClassInfo(' + c.id + ',\'ageGroup\',this.value)"></div>'
@@ -6614,6 +7099,98 @@ function renderClsList() {
       +   '<div class="field" style="margin:0"><label>Description for spectators</label><textarea rows="3" placeholder="What makes this class unique, who races it." onchange="saveClassInfo(' + c.id + ',\'description\',this.value)">' + esc(c.description || '') + '</textarea></div>'
       + '</div></details></div>';
   }).join('');
+}
+function clsPointsKey(c) {
+  const p = c.points;
+  if (!p) return '';
+  for (const key in POINT_PRESETS) {
+    const q = POINT_PRESETS[key];
+    if (q.mode === p.mode && q.beyond === (+p.beyond || 0) && (q.mode === 'linear' || (q.table.length === (p.table || []).length && q.table.every((v, i) => v === p.table[i])))) return key;
+  }
+  return 'custom';
+}
+function clsScoringMarkup(c) {
+  const pk = clsPointsKey(c), pc = passingCfg(c), canPass = classHeats(c) >= 1;
+  const trackKey = currentPointsPreset();
+  const trackLbl = trackKey ? POINT_PRESETS[trackKey].label : 'custom';
+  return '<div class="rowflex tiny" style="margin-top:8px;flex-wrap:wrap" title="How heat finishes line up the mains"><b>Heat scoring</b>'
+    + (canPass
+        ? '<select style="width:auto;max-width:100%" onchange="setClassScoring(' + c.id + ',this.value)">'
+          + '<option value="finish"' + (isPassing(c) ? '' : ' selected') + '>Heat totals — low wins</option>'
+          + '<option value="passing"' + (isPassing(c) ? ' selected' : '') + '>Passing points — most wins</option></select>'
+          + (isPassing(c)
+              ? '<label style="margin:0;display:inline-flex;align-items:center;gap:4px">finish pts <input type="text" style="width:150px" value="' + esc(pc.finish.join(',')) + '" onchange="setClassPassing(' + c.id + ',\'finish\',this.value)"></label>'
+                + '<label style="margin:0;display:inline-flex;align-items:center;gap:4px">per spot gained <input class="inline-num" type="number" min="0" max="10" step="0.5" value="' + pc.perSpot + '" onchange="setClassPassing(' + c.id + ',\'perSpot\',this.value)"></label>'
+              : '')
+        : '<span>qualifying order (no heats)</span>')
+    + '</div>'
+    + '<div class="rowflex tiny" style="margin-top:6px;flex-wrap:wrap" title="Feature points for this class\'s season series"><b>Points table</b>'
+    + '<select style="width:auto;max-width:100%" onchange="setClassPointsPreset(' + c.id + ',this.value)">'
+    +   '<option value=""' + (pk === '' ? ' selected' : '') + '>Track default (' + esc(trackLbl) + ')</option>'
+    +   Object.keys(POINT_PRESETS).map(k => '<option value="' + k + '"' + (pk === k ? ' selected' : '') + '>' + esc(POINT_PRESETS[k].label) + '</option>').join('')
+    +   '<option value="custom"' + (pk === 'custom' ? ' selected' : '') + '>Custom for this class…</option></select>'
+    + (pk === 'custom'
+        ? '<label style="margin:0;display:inline-flex;align-items:center;gap:4px">1st, 2nd… <input type="text" style="width:150px" value="' + esc((c.points.table || []).join(',')) + '" onchange="setClassPointsTable(' + c.id + ',this.value)"></label>'
+          + '<label style="margin:0;display:inline-flex;align-items:center;gap:4px">everyone else <input class="inline-num" type="number" min="0" max="999" value="' + (+c.points.beyond || 0) + '" onchange="setClassPointsBeyond(' + c.id + ',this.value)"></label>'
+        : '')
+    + '</div>';
+}
+function clsPurseMarkup(c) {
+  const p = c.purse || {};
+  return '<div class="rowflex tiny" style="margin-top:6px;flex-wrap:wrap" title="Feature payouts by finishing position. Start money goes to every other starter, including DNF; DNS and DQ are not paid."><b>Purse $</b>'
+    + '<label style="margin:0;display:inline-flex;align-items:center;gap:4px">1st, 2nd… <input type="text" style="width:150px" inputmode="decimal" placeholder="e.g. 1000, 500, 250" value="' + esc((p.table || []).join(',')) + '" onchange="setClassPurse(' + c.id + ',\'table\',this.value)"></label>'
+    + '<label style="margin:0;display:inline-flex;align-items:center;gap:4px">start money <input class="inline-num" type="number" min="0" step="0.01" value="' + (+p.start || '') + '" placeholder="0" onchange="setClassPurse(' + c.id + ',\'start\',this.value)"></label></div>';
+}
+function setClassPurse(id, field, val) {
+  if (!adminOk()) return;
+  const c = classById(id); if (!c) return;
+  const p = c.purse ? { table: (c.purse.table || []).slice(), start: +c.purse.start || 0 } : { table: [], start: 0 };
+  // Commas separate places, so amounts are typed without thousands commas (1000, not 1,000).
+  if (field === 'table') p.table = String(val || '').replace(/\$/g, ' ').split(/[\s,;]+/).filter(Boolean).map(Number).filter(n => isFinite(n) && n >= 0).map(n => Math.round(n * 100) / 100).slice(0, 60);
+  else { const n = parseFloat(val); p.start = isFinite(n) && n > 0 ? Math.round(n * 100) / 100 : 0; }
+  if (!p.table.length && !p.start) delete c.purse; else c.purse = p;
+  save(); renderClsList();
+}
+function renderClsList_rerender() { renderClsList(); renderGrid(); if (curPage === 'results') renderResults(); if (curPage === 'points') renderPoints(); }
+function parsePtsList(text) {
+  return String(text || '').split(/[\s,;]+/).filter(Boolean).map(Number).filter(n => isFinite(n) && n >= 0).slice(0, 60);
+}
+function setClassScoring(id, val) {
+  if (!adminOk()) return;
+  const c = classById(id); if (!c) return;
+  if (val === 'passing') { c.heatScoring = 'passing'; if (!c.passing) c.passing = { finish: PASSING_DEFAULT.finish.slice(), perSpot: PASSING_DEFAULT.perSpot }; }
+  else delete c.heatScoring;
+  save(); renderClsList_rerender();
+}
+function setClassPassing(id, field, val) {
+  if (!adminOk()) return;
+  const c = classById(id); if (!c) return;
+  const cur = passingCfg(c);
+  c.passing = { finish: cur.finish.slice(), perSpot: cur.perSpot };
+  if (field === 'finish') { const list = parsePtsList(val); if (list.length) c.passing.finish = list; }
+  else { const n = parseFloat(val); c.passing.perSpot = isFinite(n) && n >= 0 ? Math.min(10, n) : PASSING_DEFAULT.perSpot; }
+  save(); renderClsList_rerender();
+}
+function setClassPointsPreset(id, key) {
+  if (!adminOk()) return;
+  const c = classById(id); if (!c) return;
+  if (!key) delete c.points;
+  else if (key === 'custom') { const base = classPointsCfg(c); c.points = { mode: 'fixed', table: (base.mode === 'fixed' && base.table.length ? base.table : POINT_PRESETS.standard.table).slice(), beyond: +base.beyond || 0 }; }
+  else { const q = POINT_PRESETS[key]; if (!q) return; c.points = { mode: q.mode, table: q.table.slice(), beyond: q.beyond }; }
+  save(); renderClsList_rerender();
+}
+function setClassPointsTable(id, text) {
+  if (!adminOk()) return;
+  const c = classById(id); if (!c || !c.points) return;
+  const list = parsePtsList(text);
+  if (list.length) c.points = { mode: 'fixed', table: list, beyond: +c.points.beyond || 0 };
+  save(); renderClsList_rerender();
+}
+function setClassPointsBeyond(id, val) {
+  if (!adminOk()) return;
+  const c = classById(id); if (!c || !c.points) return;
+  c.points.beyond = Math.max(0, parseInt(val, 10) || 0);
+  save(); renderClsList_rerender();
 }
 function renderClsLib() {
   const el = document.getElementById('clsLib');
@@ -6673,6 +7250,7 @@ function secPoints() {
     +   '<div class="field" style="margin:0"><label>Everyone else</label><input id="ptsBeyond" type="number" min="0" max="999" onchange="savePoints()"></div>'
     + '</div>'
     + '<p id="ptsLinearNote" style="display:none;font-size:12px;color:var(--plate);margin-top:8px"></p>'
+    + '<p class="tiny" style="margin-top:10px">This is the track default. A class can use its own table under <a onclick="admOpen(\'classes\')">Race classes</a> → Points table.</p>'
     + '<p class="tiny" style="margin-top:8px">Feature finish decides points. Anyone finishing past the list, not making the feature, or scoring DNF/DNS/DQ gets the "everyone else" value.</p></div>';
 }
 
@@ -6924,7 +7502,7 @@ function renderSyncCard() {
   if (!configured && !(S.sync && S.sync.enabled)) { el.innerHTML = '<p>Live sync isn\'t set up on this build yet. The app owner enables it once.</p>'; return; }
   if (!configured) { el.innerHTML = '<p>Live sync isn\'t set up on this build yet. The app owner enables it once.</p>'; return; }
   const role = deviceRole();
-  const roleName = { admin:'Admin (full control)', register:'Registration', scoring:'Scoring tower', tv:'TV display' }[role] || role;
+  const roleName = { admin:'Admin (full control)', register:'Registration', scoring:'Scoring tower', tv:'TV display', tech:'Tech inspection', announcer:'Announcer' }[role] || role;
   let h = '';
   if (syncOn()) {
     const base = location.origin + location.pathname;
@@ -6933,7 +7511,7 @@ function renderSyncCard() {
     h += '<p>✅ Live sync is <b>ON</b> for this track. Sync code: <b>' + esc(k) + '</b> <button class="btn btn-sm" onclick="copyText(\'' + esc(k) + '\',\'Code\')">Copy code</button></p>';
     h += '<p style="margin-top:10px">This device\'s job: <b>' + esc(roleName) + '</b> <button class="btn btn-sm" onclick="setRolePrompt()">Change</button></p>';
     h += '<p class="tiny" style="margin-top:12px">Set up another device — send it one of these links:</p>';
-    h += '<div style="margin-top:6px">' + linkRow('Registration link', link('register')) + linkRow('Scoring tower link', link('scoring')) + linkRow('TV display link', link('tv')) + '</div>';
+    h += '<div style="margin-top:6px">' + linkRow('Registration link', link('register')) + linkRow('Scoring tower link', link('scoring')) + linkRow('TV display link', link('tv')) + linkRow('Tech inspection link', link('tech')) + linkRow('Announcer link', link('announcer')) + '</div>';
     h += '<div style="margin-top:14px;border-top:1px solid var(--line);padding-top:12px">'
       + '<div class="slbl" style="margin:0 0 6px">🛡 Operator link (private)</div>'
       + '<p class="tiny" style="margin:0 0 8px">For YOUR own device only. Opens in <b>watch</b> mode; Take control (your Operator PIN) makes live changes.</p>'
@@ -7122,6 +7700,20 @@ function renderHelp() {
       + guideStep(4, 'Tap for more', '<p>Tap a <b>driver\'s name</b> to see their car number, classes and career stats.</p>');
     return;
   }
+  if (deviceRole() === 'tech') {
+    el.innerHTML = '<h2>Tech inspection</h2><p class="sub">This tablet only does tech.</p>'
+      + guideStep(1, 'Find the car', '<p>Every car signed in tonight is listed. Filter by <b>Not checked</b>, <b>Failed</b> or <b>Recheck</b>, or search a name or number.</p>')
+      + guideStep(2, 'Inspect', '<p>Tap the car, tick the checklist, enter the weight and any notes.</p>')
+      + guideStep(3, 'Pass, fail or recheck', '<p>Tap <b>✅ Pass</b>, <b>❌ Fail</b> or <b>🔁 Recheck</b>. The tower sees it right away.</p>');
+    return;
+  }
+  if (deviceRole() === 'announcer') {
+    el.innerHTML = '<h2>Announcer</h2><p class="sub">Read-only — this screen can\'t change anything.</p>'
+      + guideStep(1, 'Now', '<p>The race on track, in starting order, with each driver\'s number, sponsors, hometown, career record, points rank and tonight\'s finishes. It moves on by itself as results are entered.</p>')
+      + guideStep(2, 'Just finished and up next', '<p>The top 3 from the last race sit above Now. Tap an <b>Up next</b> race to preview its grid.</p>')
+      + guideStep(3, 'More about a driver', '<p>Tap any car for the full driver card.</p>');
+    return;
+  }
   el.innerHTML = '<h2>How to use RaceDay</h2>'
     + '<p class="sub">A quick walkthrough — the tabs run in order, left to right.</p>'
     + guideStep(1, 'Sign up — drivers join',
@@ -7136,6 +7728,11 @@ function renderHelp() {
         '<p>Search for any setting, or use the four doors: <b>Race night</b> (entries, history), <b>Season setup</b> (track, classes, format, points, sync), <b>Account</b> (PIN, license, backups, records), and <b>Danger zone</b> (new race day, demo, resets). First time here? Use the <b>Setup wizard</b>.</p>')
     + guideStep(6, 'Multi-device sync (optional)',
         '<p>Run a registration tablet, scoring tower and TV screen on the same race day at once — Admin → Multi-device sync → Start sync, then open the matching link on each device. The free spectator QR link is the same place.</p>')
+    + guideStep(7, 'Race-night extras',
+        '<p><b>🔧 Tech inspection</b> — Admin → Race night → Tech inspection, or send the <b>Tech inspection link</b> to a tablet: checklist, weight, Pass / Fail / Recheck per car. '
+        + '<b>💵 Payouts</b> — set a purse per class in Race classes; tonight\'s payouts, a paid/unpaid ledger and season totals for 1099s are in Admin → Payouts, and Print has a payout sheet. '
+        + '<b>🎙 Announcer</b> — Lineups → Announcer, or the <b>Announcer link</b>: who\'s on track, in order, with talking points. '
+        + '<b>Passing points</b> and a <b>points table per class</b> are options in Race classes.</p>')
     + '<div class="card" style="text-align:center"><p style="margin-bottom:10px">Step-by-step guides with screenshots for every setup, staff job and race format.</p>'
     + '<a class="btn btn-primary" href="/guides/" target="_blank" rel="noopener">Open the full guides →</a></div>';
 }
@@ -7155,10 +7752,13 @@ function applyRole() {
   renderOpBar();
   renderHeader();
   renderNav();
-  if (allowed.indexOf(curPage) < 0) nav(allowed[0]);
+  // A device that has just become the announcer opens on its own page (it can still visit Lineups).
+  if (allowed.indexOf(curPage) < 0 || (role === 'announcer' && _appliedRole !== 'announcer')) nav(allowed[0]);
   else renderRaceControl();
+  _appliedRole = role;
   if (role === 'tv' && !TV.on && typeof openTV === 'function') openTV();
 }
+let _appliedRole = null;
 
 /* Operator bar — the owner's monitoring device: watch read-only, or take control. */
 function renderOpBar() {
