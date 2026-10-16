@@ -10,11 +10,11 @@ try{if(localStorage.getItem('raceday_v1')||localStorage.getItem('raceday_v2')||l
 location.replace('https://'+location.host+location.pathname+location.search+location.hash);})();</script>
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>Pill draw and heats — RaceDay Guides</title>
-<meta name="description" content="Two heats, pill order, inverts, and how the feature is set. Step-by-step with real screenshots.">
+<meta name="description" content="Two heats, pill order, inverts, passing points, and how the feature is set. Step-by-step with real screenshots.">
 <meta property="og:type" content="website">
 <meta property="og:url" content="https://victoryraceday.com/guides/pill-draw-heats.html">
 <meta property="og:title" content="Pill draw and heats — RaceDay Guides">
-<meta property="og:description" content="Two heats, pill order, inverts, and how the feature is set. Step-by-step with real screenshots.">
+<meta property="og:description" content="Two heats, pill order, inverts, passing points, and how the feature is set. Step-by-step with real screenshots.">
 <meta property="og:image" content="https://victoryraceday.com/raceday/icon-rd.png">
 <meta name="twitter:card" content="summary">
 <link rel="apple-touch-icon" href="../raceday/icon-rd.png">
@@ -63,12 +63,16 @@ location.replace('https://'+location.host+location.pathname+location.search+loca
       <div class="body"><h2>How the feature is set</h2><p>After both heats, each driver's finishes are added up — <b>low total wins</b>, ties go to the pill draw. The best totals fill the feature; if the field is bigger than the feature, the rest go to <a href="b-mains.html">B-mains</a>.</p></div>
       <figure class="shot phone"><img src="img/lineups-feature.jpg" alt="Feature by heat total" loading="lazy"><figcaption>Feature by heat total</figcaption></figure>
     </li>
+    <li class="step has-img">
+      <div class="body"><h2>Or use passing points</h2><p>Per class, set <span class="ui">Heat scoring</span> to <span class="ui">Passing points — most wins</span>. Each heat then scores finish points (<span class="ui">finish pts</span>, 10-9-8… by default) plus points for every spot gained from the starting grid (<span class="ui">per spot gained</span>, 1 by default). Losing spots never costs points; DNF, DNS and DQ score nothing. <b>Most points wins</b>, ties still go to the pill draw.</p></div>
+      <figure class="shot phone"><img src="img/passing-standings.jpg" alt="Passing points on the Score tab" loading="lazy"><figcaption>Passing points on the Score tab</figcaption></figure>
+    </li>
     <li class="step">
       <div class="body"><h2>Inverting the feature</h2><p><span class="ui">Main invert</span> (per class) flips that many starting spots at the front of the feature or B-mains. It changes where drivers start, not who qualifies.</p></div>
     </li>
   </ol>
   <div class="note"><h3>Good to know</h3><ul><li>Heat, feature and B-main sizes are track-wide in Race format; set a different size for one class under <span class="ui">Sizes</span> in Race classes.</li></ul></div>
-  <div class="next"><h3>Next guides</h3><div class="cards"><a class="gcard" href="b-mains.html"><div class="k">Race formats</div><div class="t">B-mains</div><div class="d">Single, parallel or cascade B-mains, transfers, and DNF promotion.</div></a><a class="gcard" href="qualifying.html"><div class="k">Race formats</div><div class="t">Qualifying & timing</div><div class="d">Qualifying with one heat or straight to mains, entering times, and CSV timing import.</div></a><a class="gcard" href="points.html"><div class="k">Race formats</div><div class="t">Season points</div><div class="d">Points systems, tie-breaks, non-points drivers, and fixing missed nights.</div></a></div></div>
+  <div class="next"><h3>Next guides</h3><div class="cards"><a class="gcard" href="b-mains.html"><div class="k">Race formats</div><div class="t">B-mains</div><div class="d">Single, parallel or cascade B-mains, transfers, and DNF promotion.</div></a><a class="gcard" href="qualifying.html"><div class="k">Race formats</div><div class="t">Qualifying & timing</div><div class="d">Qualifying with one heat or straight to mains, entering times, and CSV timing import.</div></a><a class="gcard" href="points.html"><div class="k">Race formats</div><div class="t">Season points</div><div class="d">Points systems, a table per class, tie-breaks, non-points drivers, and fixing missed nights.</div></a></div></div>
 
   <div class="help">
     <p><b>Still stuck?</b> The <a href="/field-manual.html">Field Manual</a> walks through every screen, and the <a href="/faq.html">FAQ</a> covers common questions. Or just ask.</p>

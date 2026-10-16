@@ -1,0 +1,79 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<script>/* http://victoryraceday.com and https:// are separate origins with separate storage. Send
+   http visitors to https — unless this browser keeps RaceDay/Driven data on the http origin,
+   in which case the apps offer a one-tap move first (see raceday/ offerSecureMove()). */
+(function(){if(location.protocol!=='http:'||!/(^|\.)victoryraceday\.com$/.test(location.hostname))return;
+try{if(localStorage.getItem('raceday_v1')||localStorage.getItem('raceday_v2')||localStorage.getItem('profiles_v1'))return;}catch(e){}
+location.replace('https://'+location.host+location.pathname+location.search+location.hash);})();</script>
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>The tech inspector — RaceDay Guides</title>
+<meta name="description" content="A checklist, weight and Pass / Fail / Recheck for every car — on a tablet or the main device. Step-by-step with real screenshots.">
+<meta property="og:type" content="website">
+<meta property="og:url" content="https://victoryraceday.com/guides/tech-inspector.html">
+<meta property="og:title" content="The tech inspector — RaceDay Guides">
+<meta property="og:description" content="A checklist, weight and Pass / Fail / Recheck for every car — on a tablet or the main device. Step-by-step with real screenshots.">
+<meta property="og:image" content="https://victoryraceday.com/raceday/icon-rd.png">
+<meta name="twitter:card" content="summary">
+<link rel="apple-touch-icon" href="../raceday/icon-rd.png">
+<link rel="icon" type="image/png" sizes="512x512" href="../raceday/icon-rd.png">
+<link rel="stylesheet" href="../fonts.css">
+<link rel="stylesheet" href="guides.css">
+</head>
+<body>
+<div class="sitebar"><div class="wrap sitebar-row"><a href="/drivers/">Driven — for drivers</a><a class="sb-right" href="/driven/">Open Driven →</a></div></div>
+<div class="topbar"><div class="wrap topbar-row">
+  <a class="topbar-brand" href="/?home=1">RaceDay</a>
+  <span class="topbar-links">
+    <a class="topbar-link on" href="/guides/">Guides</a>
+    <a class="topbar-link" href="/faq.html">FAQ</a>
+    <a class="topbar-link" href="/pricing.html">Pricing</a>
+    <a class="topbar-link" href="/raceday2/">Open RaceDay <span class="btn-arrow">→</span></a>
+  </span>
+</div></div>
+
+<header class="hero"><div class="wrap">
+  <div class="crumbs"><a href="/guides/">Guides</a> &nbsp;›&nbsp; Staff roles</div>
+  <div class="eyebrow"><span class="flag"></span>Staff roles</div>
+  <h1>The tech inspector</h1>
+  <p class="lede">Every car signed in tonight is on one list. Tech it, record the weight and notes, and the tower sees the result right away.</p>
+  <div class="meta"><span><b>Who</b>Tech official</span><span><b>Time</b>Seconds per car</span><span><b>Where</b>A tech tablet or Admin</span></div>
+</div></header>
+<div class="checker"></div>
+<main><div class="wrap">
+  <ol class="steps">
+    <li class="step has-img">
+      <div class="body"><h2>Set up the device</h2><p>On the main device, open <b>Admin → Race night → Tech inspection</b>. For a separate tablet, start sync and send it the <span class="ui">Tech inspection link</span> — that tablet shows only the tech list.</p></div>
+      <figure class="shot phone"><img src="img/tech-list.jpg" alt="Tech inspection" loading="lazy"><figcaption>Tech inspection</figcaption></figure>
+    </li>
+    <li class="step">
+      <div class="body"><h2>Find the car</h2><p>Filter by <span class="ui">Not checked</span>, <span class="ui">Failed</span>, <span class="ui">Recheck</span> or <span class="ui">Passed</span>, or search a name or number. The counts at the top show where you are.</p></div>
+    </li>
+    <li class="step has-img">
+      <div class="body"><h2>Inspect and record</h2><p>Tap the car. Tick each checklist item, type the weight in pounds, and add notes. Then tap <span class="ui">✅ Pass</span>, <span class="ui">❌ Fail</span> or <span class="ui">🔁 Recheck</span>. <span class="ui">Clear</span> wipes it.</p></div>
+      <figure class="shot phone"><img src="img/tech-sheet.jpg" alt="A car in tech" loading="lazy"><figcaption>A car in tech</figcaption></figure>
+    </li>
+    <li class="step">
+      <div class="body"><h2>The tower sees it</h2><p>Results sync to every staff device. In <b>Admin → Today's entries</b>, a ✅ ❌ or 🔁 sits next to each driver.</p></div>
+    </li>
+    <li class="step">
+      <div class="body"><h2>Change the checklist</h2><p>On the main device, open <span class="ui">Edit checklist</span> under the list — one item per line — and tap <span class="ui">Save checklist</span>. The default is weight, tires, safety gear, fuel, engine seal / claim, and body & bumpers.</p></div>
+    </li>
+  </ol>
+  <div class="note"><h3>Good to know</h3><ul><li>Only the admin, a controlling operator and the tech tablet can change results; spectators never see them.</li><li>Each archived night keeps a tech summary per class. A new race day starts with a clean list.</li></ul></div>
+  <div class="next"><h3>Next guides</h3><div class="cards"><a class="gcard" href="race-director.html"><div class="k">Staff roles</div><div class="t">Race director</div><div class="d">Admin: the four doors, fixing entries, and making results official.</div></a><a class="gcard" href="sign-up-table.html"><div class="k">Staff roles</div><div class="t">Sign-up table</div><div class="d">Registering drivers, returning drivers, pill draws, and self-serve kiosk.</div></a><a class="gcard" href="multi-device.html"><div class="k">Device setups</div><div class="t">Multiple devices</div><div class="d">A sign-up station, a scoring tower and a TV — all live, all in sync.</div></a></div></div>
+
+  <div class="help">
+    <p><b>Still stuck?</b> The <a href="/field-manual.html">Field Manual</a> walks through every screen, and the <a href="/faq.html">FAQ</a> covers common questions. Or just ask.</p>
+    <a href="mailto:josh@victoryraceday.com?subject=RaceDay%20question">Email a question →</a>
+  </div>
+</div></main>
+<footer><div class="wrap">
+  <span>RaceDay &amp; Driven — race night, one screen.</span>
+  <span><a href="/?home=1">Overview</a> &nbsp;·&nbsp; <a href="/guides/">Guides</a> &nbsp;·&nbsp; <a href="/faq.html">FAQ</a> &nbsp;·&nbsp; <a href="/pricing.html">Pricing</a> &nbsp;·&nbsp; <a href="/raceday2/">Open the app</a> &nbsp;·&nbsp; <a href="https://www.facebook.com/victoryraceday" target="_blank" rel="noopener">Facebook</a> &nbsp;·&nbsp; <a href="https://www.linkedin.com/company/victoryraceday/" target="_blank" rel="noopener">LinkedIn</a></span>
+</div></footer>
+<!-- Cloudflare Web Analytics --><script>/* skipped on devices opted out at /me/ (the owner's own testing) */try{if(localStorage.getItem('rd_dont_count')!=='1'){var cfb=document.createElement('script');cfb.defer=true;cfb.src='https://static.cloudflareinsights.com/beacon.min.js';cfb.setAttribute('data-cf-beacon','{"token": "07e858325a984890a4f60c1cec1942bc"}');(document.body||document.head).appendChild(cfb);}}catch(e){}</script><!-- End Cloudflare Web Analytics -->
+</body>
+</html>

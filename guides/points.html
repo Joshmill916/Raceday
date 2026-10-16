@@ -10,11 +10,11 @@ try{if(localStorage.getItem('raceday_v1')||localStorage.getItem('raceday_v2')||l
 location.replace('https://'+location.host+location.pathname+location.search+location.hash);})();</script>
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>Season points — RaceDay Guides</title>
-<meta name="description" content="Points systems, tie-breaks, non-points drivers, and fixing missed nights. Step-by-step with real screenshots.">
+<meta name="description" content="Points systems, a table per class, tie-breaks, non-points drivers, and fixing missed nights. Step-by-step with real screenshots.">
 <meta property="og:type" content="website">
 <meta property="og:url" content="https://victoryraceday.com/guides/points.html">
 <meta property="og:title" content="Season points — RaceDay Guides">
-<meta property="og:description" content="Points systems, tie-breaks, non-points drivers, and fixing missed nights. Step-by-step with real screenshots.">
+<meta property="og:description" content="Points systems, a table per class, tie-breaks, non-points drivers, and fixing missed nights. Step-by-step with real screenshots.">
 <meta property="og:image" content="https://victoryraceday.com/raceday/icon-rd.png">
 <meta name="twitter:card" content="summary">
 <link rel="apple-touch-icon" href="../raceday/icon-rd.png">
@@ -47,6 +47,10 @@ location.replace('https://'+location.host+location.pathname+location.search+loca
     <li class="step has-img">
       <div class="body"><h2>Choose a points system</h2><p>In <b>Admin → Points series</b>, pick <span class="ui">Standard (10-8-6-5-4-3-2-1)</span>, <span class="ui">F1-style (top 10)</span>, <span class="ui">Full-field linear (everyone scores)</span>, <span class="ui">Podium only (5-3-1)</span>, or <span class="ui">Custom — type your own below</span>. <span class="ui">Everyone else</span> is what drivers outside the list get.</p></div>
       <figure class="shot phone"><img src="img/admin-points.jpg" alt="Points series" loading="lazy"><figcaption>Points series</figcaption></figure>
+    </li>
+    <li class="step has-img">
+      <div class="body"><h2>A different table for one class</h2><p>In <b>Admin → Race classes</b>, <span class="ui">Points table</span> on a class can stay on <span class="ui">Track default</span>, use any preset, or <span class="ui">Custom for this class…</span> with its own <span class="ui">1st, 2nd…</span> and <span class="ui">everyone else</span>.</p></div>
+      <figure class="shot phone"><img src="img/class-scoring.jpg" alt="Points table per class" loading="lazy"><figcaption>Points table per class</figcaption></figure>
     </li>
     <li class="step">
       <div class="body"><h2>Who scores what</h2><p>The <b>feature finish</b> decides points. Drivers who finish past the list, don't make the feature, or DNF/DNS/DQ get the “everyone else” value. With full-field linear, the winner gets one point per car in the feature and last gets 1.</p></div>

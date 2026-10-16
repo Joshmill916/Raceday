@@ -1,0 +1,79 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<script>/* http://victoryraceday.com and https:// are separate origins with separate storage. Send
+   http visitors to https — unless this browser keeps RaceDay/Driven data on the http origin,
+   in which case the apps offer a one-tap move first (see raceday/ offerSecureMove()). */
+(function(){if(location.protocol!=='http:'||!/(^|\.)victoryraceday\.com$/.test(location.hostname))return;
+try{if(localStorage.getItem('raceday_v1')||localStorage.getItem('raceday_v2')||localStorage.getItem('profiles_v1'))return;}catch(e){}
+location.replace('https://'+location.host+location.pathname+location.search+location.hash);})();</script>
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>The announcer — RaceDay Guides</title>
+<meta name="description" content="Who is on track, in starting order, with talking points for every driver. Step-by-step with real screenshots.">
+<meta property="og:type" content="website">
+<meta property="og:url" content="https://victoryraceday.com/guides/announcer.html">
+<meta property="og:title" content="The announcer — RaceDay Guides">
+<meta property="og:description" content="Who is on track, in starting order, with talking points for every driver. Step-by-step with real screenshots.">
+<meta property="og:image" content="https://victoryraceday.com/raceday/icon-rd.png">
+<meta name="twitter:card" content="summary">
+<link rel="apple-touch-icon" href="../raceday/icon-rd.png">
+<link rel="icon" type="image/png" sizes="512x512" href="../raceday/icon-rd.png">
+<link rel="stylesheet" href="../fonts.css">
+<link rel="stylesheet" href="guides.css">
+</head>
+<body>
+<div class="sitebar"><div class="wrap sitebar-row"><a href="/drivers/">Driven — for drivers</a><a class="sb-right" href="/driven/">Open Driven →</a></div></div>
+<div class="topbar"><div class="wrap topbar-row">
+  <a class="topbar-brand" href="/?home=1">RaceDay</a>
+  <span class="topbar-links">
+    <a class="topbar-link on" href="/guides/">Guides</a>
+    <a class="topbar-link" href="/faq.html">FAQ</a>
+    <a class="topbar-link" href="/pricing.html">Pricing</a>
+    <a class="topbar-link" href="/raceday2/">Open RaceDay <span class="btn-arrow">→</span></a>
+  </span>
+</div></div>
+
+<header class="hero"><div class="wrap">
+  <div class="crumbs"><a href="/guides/">Guides</a> &nbsp;›&nbsp; Staff roles</div>
+  <div class="eyebrow"><span class="flag"></span>Staff roles</div>
+  <h1>The announcer</h1>
+  <p class="lede">A read-only screen that follows the night: the race on track, the race that just finished, and what is up next — with something to say about every driver.</p>
+  <div class="meta"><span><b>Who</b>Announcer</span><span><b>Time</b>All night</span><span><b>Where</b>An announcer tablet or Lineups</span></div>
+</div></header>
+<div class="checker"></div>
+<main><div class="wrap">
+  <ol class="steps">
+    <li class="step has-img">
+      <div class="body"><h2>Open it</h2><p>On a staff device, tap <span class="ui">🎙 Announcer</span> on the <span class="ui">Lineups</span> tab. For the booth, start sync and send a tablet the <span class="ui">Announcer link</span> — it opens straight to the announcer screen and can't change anything.</p></div>
+      <figure class="shot phone"><img src="img/announcer-button.jpg" alt="The Announcer button" loading="lazy"><figcaption>The Announcer button</figcaption></figure>
+    </li>
+    <li class="step has-img">
+      <div class="body"><h2>Now</h2><p>The race on track, in starting order. Each car shows its start spot, number, name, sponsors, hometown, career wins and starts, season points rank, and tonight's heat finishes. It moves to the next race by itself as results are entered.</p></div>
+      <figure class="shot phone"><img src="img/announcer.jpg" alt="Announcer screen" loading="lazy"><figcaption>Announcer screen</figcaption></figure>
+    </li>
+    <li class="step">
+      <div class="body"><h2>Just finished</h2><p>Above the current race: the top 3 from the race that just ended.</p></div>
+    </li>
+    <li class="step">
+      <div class="body"><h2>Up next</h2><p>Tap any <span class="ui">Up next</span> race to preview its grid, then <span class="ui">← Back to the race on track</span>.</p></div>
+    </li>
+    <li class="step">
+      <div class="body"><h2>More about a driver</h2><p>Tap any car for the full driver card.</p></div>
+    </li>
+  </ol>
+  <div class="note"><h3>Good to know</h3><ul><li>The running order is every class's first heats, then the second heats, then B-mains, then features.</li><li>Driver details come from the driver book and linked Driven cards — the more drivers fill in, the more there is to say.</li></ul></div>
+  <div class="next"><h3>Next guides</h3><div class="cards"><a class="gcard" href="fans-and-tv.html"><div class="k">Device setups</div><div class="t">Fans & TV</div><div class="d">A QR code fans scan for live lineups, the big-screen TV view, and self-serve sign-up.</div></a><a class="gcard" href="race-director.html"><div class="k">Staff roles</div><div class="t">Race director</div><div class="d">Admin: the four doors, fixing entries, and making results official.</div></a><a class="gcard" href="scoring-tower.html"><div class="k">Staff roles</div><div class="t">Scoring tower</div><div class="d">Three ways to enter finishes, DNF/DNS/DQ, heat totals and features.</div></a></div></div>
+
+  <div class="help">
+    <p><b>Still stuck?</b> The <a href="/field-manual.html">Field Manual</a> walks through every screen, and the <a href="/faq.html">FAQ</a> covers common questions. Or just ask.</p>
+    <a href="mailto:josh@victoryraceday.com?subject=RaceDay%20question">Email a question →</a>
+  </div>
+</div></main>
+<footer><div class="wrap">
+  <span>RaceDay &amp; Driven — race night, one screen.</span>
+  <span><a href="/?home=1">Overview</a> &nbsp;·&nbsp; <a href="/guides/">Guides</a> &nbsp;·&nbsp; <a href="/faq.html">FAQ</a> &nbsp;·&nbsp; <a href="/pricing.html">Pricing</a> &nbsp;·&nbsp; <a href="/raceday2/">Open the app</a> &nbsp;·&nbsp; <a href="https://www.facebook.com/victoryraceday" target="_blank" rel="noopener">Facebook</a> &nbsp;·&nbsp; <a href="https://www.linkedin.com/company/victoryraceday/" target="_blank" rel="noopener">LinkedIn</a></span>
+</div></footer>
+<!-- Cloudflare Web Analytics --><script>/* skipped on devices opted out at /me/ (the owner's own testing) */try{if(localStorage.getItem('rd_dont_count')!=='1'){var cfb=document.createElement('script');cfb.defer=true;cfb.src='https://static.cloudflareinsights.com/beacon.min.js';cfb.setAttribute('data-cf-beacon','{"token": "07e858325a984890a4f60c1cec1942bc"}');(document.body||document.head).appendChild(cfb);}}catch(e){}</script><!-- End Cloudflare Web Analytics -->
+</body>
+</html>
