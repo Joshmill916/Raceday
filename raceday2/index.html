@@ -1475,6 +1475,30 @@ function finPoints(v, heatSize) {
   return v;
 }
 function finLabel(v) { return v == null ? '·' : v; }
+/* Passing points (a class option): each heat scores finish points plus points for every
+   spot gained from the heat's starting grid (set 1 as drawn, set 2 reversed). Most points
+   wins; ties still go to the pill draw. DNF/DNS/DQ score nothing for that heat. */
+const PASSING_DEFAULT = { finish: [10, 9, 8, 7, 6, 5, 4, 3, 2, 1], perSpot: 1 };
+function isPassing(cls) { return !!cls && cls.heatScoring === 'passing' && classHeats(cls) >= 1; }
+function passingCfg(cls) {
+  const p = (cls && cls.passing) || {};
+  const finish = Array.isArray(p.finish) && p.finish.length ? p.finish : PASSING_DEFAULT.finish;
+  const perSpot = p.perSpot != null && +p.perSpot >= 0 ? +p.perSpot : PASSING_DEFAULT.perSpot;
+  return { finish, perSpot };
+}
+function passPts(fin, start, cfg) {
+  if (typeof fin !== 'number' || fin < 1) return 0;
+  return (cfg.finish[fin - 1] || 0) + Math.max(0, (start || fin) - fin) * cfg.perSpot;
+}
+function heatStarts(racers, cls) {
+  const s1 = {}, s2 = {};
+  heatSet(racers, cls).forEach(heat => {
+    heat.forEach((r, i) => { s1[r.id] = i + 1; });
+    [...heat].reverse().forEach((r, i) => { s2[r.id] = i + 1; });
+  });
+  return { s1, s2 };
+}
+function heatTotalTag(cls, s) { return (isPassing(cls) ? 'Passing pts ' : 'Heat total ') + s.pts; }
 function calcStandings(clsId) {
   const cls = classById(clsId);
   const heats = classHeats(cls);
@@ -1483,14 +1507,20 @@ function calcStandings(clsId) {
   const heatOf = {};
   set1.forEach((heat, hi) => heat.forEach(r => { heatOf[r.id] = hi; }));
   const res = getRes(clsId);
+  const passing = isPassing(cls);
+  const starts = passing ? heatStarts(racers, cls) : null, pcfg = passing ? passingCfg(cls) : null;
   return racers.map(r => {
     const hi = heatOf[r.id], n = set1[hi].length;
     const f1 = heats >= 1 ? res['h1_' + r.id] : undefined;    // 0-heat classes ignore stale heat keys
     const f2 = heats === 2 ? res['h2_' + r.id] : undefined;   // 1-heat classes ignore set 2
     const scored = (f1 != null ? 1 : 0) + (f2 != null ? 1 : 0);
-    const pts = (f1 != null ? finPoints(f1, n) : 0) + (f2 != null ? finPoints(f2, n) : 0);
+    const pts = passing
+      ? (f1 != null ? passPts(f1, starts.s1[r.id], pcfg) : 0) + (f2 != null ? passPts(f2, starts.s2[r.id], pcfg) : 0)
+      : (f1 != null ? finPoints(f1, n) : 0) + (f2 != null ? finPoints(f2, n) : 0);
     return { ...r, pts, scored, f1, f2 };
-  }).sort((a, b) => (b.scored - a.scored) || (a.pts - b.pts) || (a.pill - b.pill));
+  }).sort(passing
+    ? (a, b) => (b.scored - a.scored) || (b.pts - a.pts) || (a.pill - b.pill)
+    : (a, b) => (b.scored - a.scored) || (a.pts - b.pts) || (a.pill - b.pill));
 }
 function classComplete(clsId) { const s = calcStandings(clsId), need = classHeats(classById(clsId)); return s.length > 0 && s.every(x => x.scored === need); }
 function bmKey(mi, id) { return (mi === 0 ? 'bm_' : 'bm' + mi + '_') + id; }
@@ -1604,7 +1634,7 @@ function dayPoints(clsId) {
   if (!isPointsRace(clsId)) return null;
   const fin = featureFinish(clsId);
   if (!fin.length) return null;
-  const { mode, table, beyond } = S.settings.points;
+  const { mode, table, beyond } = classPointsCfg(clsId);
   const pts = {};
   classRacers(clsId).forEach(r => { pts[r.id] = beyond; });
   if (mode === 'linear') {
@@ -1617,6 +1647,13 @@ function dayPoints(clsId) {
   }
   S.raceDay.entries.filter(e => e.classId === clsId && (e.noPoints || (driverById(e.driverId) || {}).noPoints)).forEach(e => { delete pts[e.driverId]; });
   return pts;
+}
+/* A class can carry its own points table; otherwise it scores on the track's series table. */
+function classPointsCfg(clsOrId) {
+  const c = (clsOrId && typeof clsOrId === 'object') ? clsOrId : classById(clsOrId);
+  const p = c && c.points;
+  if (p && (p.mode === 'linear' || (p.mode === 'fixed' && Array.isArray(p.table)))) return { mode: p.mode, table: p.table || [], beyond: +p.beyond || 0 };
+  return S.settings.points;
 }
 function seriesClassNames() {
   const names = new Map();   // series are keyed by class name, stable across class re-creation
@@ -2130,6 +2167,7 @@ function buildSnapshot() {
     const dp = dayPoints(cls.id);
     snap.classes.push({
       name: cls.name,
+      heatScoring: isPassing(cls) ? 'passing' : 'finish',
       standings: standings.map((s, i) => ({ pos: i + 1, name: s.name, num: s.num, pill: s.pill, f1: s.f1 != null ? s.f1 : '', f2: s.f2 != null ? s.f2 : '', pts: s.scored ? s.pts : '' })),
       feature: featureGridOrder(fd, cls.id).map(s => ({ name: s.name, num: s.num })),
       featureFinish: featureFinish(cls.id).map(f => ({ driverId: f.id, name: f.name, num: f.num, fin: f.fin })),
@@ -3759,7 +3797,7 @@ function classGridMarkup(cls, single, isTv) {
     const fd = featureData(cls.id);
     const toRow = heats === 0
       ? s => ({ id: s.id, name: s.name, num: s.num, tag: s.qualTime ? '⏱ ' + s.qualTime : 'Seed P' + s.pill })
-      : s => ({ id: s.id, name: s.name, num: s.num, tag: 'Heat total ' + s.pts });
+      : s => ({ id: s.id, name: s.name, num: s.num, tag: heatTotalTag(cls, s) });
     const bmInvNote = clsBMainInvert(cls) ? ' · top ' + clsBMainInvert(cls) + ' start inverted' : '';
     const ftInvNote = clsFeatInvert(cls) ? ' · top ' + clsFeatInvert(cls) + ' start inverted' : '';
     if (fd.mains.length) {
@@ -3773,7 +3811,7 @@ function classGridMarkup(cls, single, isTv) {
         h += emptyState('🏁', 'The feature grid posts here once the main finishes are entered on the Score tab.');
       }
     } else {
-      h += '<div class="slbl">🏁 Feature lineup — ' + (heats === 0 ? 'by qualifying order' : 'by heat total (low wins)') + ftInvNote + '</div>'
+      h += '<div class="slbl">🏁 Feature lineup — ' + (heats === 0 ? 'by qualifying order' : isPassing(cls) ? 'by passing points (most wins)' : 'by heat total (low wins)') + ftInvNote + '</div>'
         + gridMarkup(featureGridOrder(fd, cls.id).map(toRow), single);
     }
   }
@@ -4127,10 +4165,11 @@ function renderClassResults(clsId) {
   fd.locked.forEach(r => { advMap[r.id] = { label: '→ Feature', feat: true }; });
   fd.mains.forEach(m => { m.drivers.forEach(r => { if (!advMap[r.id]) advMap[r.id] = { label: '→ ' + m.label, feat: false }; }); });
 
-  h += '<div class="slbl">' + (heats === 0 ? 'Seeding — qualifying order' : 'Heat totals — the "race pill"') + '</div>'
+  h += '<div class="slbl">' + (heats === 0 ? 'Seeding — qualifying order' : isPassing(cls) ? 'Passing points' : 'Heat totals — the "race pill"') + '</div>'
     + '<div class="hb"><div class="hh"><span>' + (heats === 0 ? 'Seeds' : 'Standings') + '</span>'
     + '<small class="tiny">' + (heats === 0
         ? 'fastest qualifier is the top seed · mains fill straight from here'
+        : isPassing(cls) ? 'finish points + ' + passingCfg(cls).perSpot + ' per spot gained · most wins · ties go to the pill draw'
         : 'finishes added up · low wins · ties go to the pill draw') + '</small></div>'
     + standings.map((s, i) => {
         const detail = heats === 0
@@ -4193,8 +4232,8 @@ function renderClassResults(clsId) {
         title: '🏁 Feature',
         headClass: ' feat',
         sub: (fd.mains.length
-              ? fd.locked.length + (heats === 0 ? ' on qualifying' : ' on heat totals') + ' + ' + fd.toFeatureSpots + ' transferring up'
-              : (heats === 0 ? 'lined up by qualifying order' : 'lined up by heat totals'))
+              ? fd.locked.length + (heats === 0 ? ' on qualifying' : isPassing(cls) ? ' on passing points' : ' on heat totals') + ' + ' + fd.toFeatureSpots + ' transferring up'
+              : (heats === 0 ? 'lined up by qualifying order' : isPassing(cls) ? 'lined up by passing points' : 'lined up by heat totals'))
              + (ftInv ? ' · top ' + ftInv + ' start inverted' : '')
              + (isPointsRace(clsId) ? ' · finishes award series points' : '')
       }));
@@ -4687,7 +4726,7 @@ function renderFanView() {
   const heats = classHeats(cls);
   const toRow = heats === 0
     ? s => ({ id:s.id, name:s.name, num:s.num, tag: s.qualTime ? '⏱ ' + s.qualTime : 'Seed P' + s.pill })
-    : s => ({ id:s.id, name:s.name, num:s.num, tag: 'Heat total ' + s.pts });
+    : s => ({ id:s.id, name:s.name, num:s.num, tag: heatTotalTag(cls, s) });
 
   if (heats === 0 && UI.viewStage === 'heats') UI.viewStage = 'qual';
   const stages = [['qual', 'Qualifying']]
@@ -6607,6 +6646,7 @@ function renderClsList() {
       + '<div class="rowflex tiny" style="margin-top:6px" title="After the heats are scored: flip that many starting spots at the front of the main. Who qualifies is unchanged — only where they start."><b>Main invert</b>'
       +   '<label style="margin:0;display:inline-flex;align-items:center;gap:4px">feature <input class="inline-num" type="number" min="2" max="40" value="' + (clsFeatInvert(c) || '') + '" placeholder="—" onchange="setClassMainInvert(' + c.id + ',\'invertFeature\',this.value)"></label>'
       +   '<label style="margin:0;display:inline-flex;align-items:center;gap:4px">B-mains <input class="inline-num" type="number" min="2" max="30" value="' + (clsBMainInvert(c) || '') + '" placeholder="—" onchange="setClassMainInvert(' + c.id + ',\'invertBMain\',this.value)"></label></div>'
+      + clsScoringMarkup(c)
       + '<details style="margin-top:10px"><summary class="tiny" style="cursor:pointer">' + ((c.description || c.ageGroup || c.specs) ? 'Edit spectator info' : '+ Add spectator info') + '</summary>'
       + '<div class="stack" style="margin-top:8px;max-width:480px">'
       +   '<div class="field" style="margin:0"><label>Age group / eligibility</label><input type="text" value="' + esc(c.ageGroup || '') + '" placeholder="e.g. Ages 8–14" onchange="saveClassInfo(' + c.id + ',\'ageGroup\',this.value)"></div>'
@@ -6614,6 +6654,82 @@ function renderClsList() {
       +   '<div class="field" style="margin:0"><label>Description for spectators</label><textarea rows="3" placeholder="What makes this class unique, who races it." onchange="saveClassInfo(' + c.id + ',\'description\',this.value)">' + esc(c.description || '') + '</textarea></div>'
       + '</div></details></div>';
   }).join('');
+}
+function clsPointsKey(c) {
+  const p = c.points;
+  if (!p) return '';
+  for (const key in POINT_PRESETS) {
+    const q = POINT_PRESETS[key];
+    if (q.mode === p.mode && q.beyond === (+p.beyond || 0) && (q.mode === 'linear' || (q.table.length === (p.table || []).length && q.table.every((v, i) => v === p.table[i])))) return key;
+  }
+  return 'custom';
+}
+function clsScoringMarkup(c) {
+  const pk = clsPointsKey(c), pc = passingCfg(c), canPass = classHeats(c) >= 1;
+  const trackKey = currentPointsPreset();
+  const trackLbl = trackKey ? POINT_PRESETS[trackKey].label : 'custom';
+  return '<div class="rowflex tiny" style="margin-top:8px;flex-wrap:wrap" title="How heat finishes line up the mains"><b>Heat scoring</b>'
+    + (canPass
+        ? '<select style="width:auto;max-width:100%" onchange="setClassScoring(' + c.id + ',this.value)">'
+          + '<option value="finish"' + (isPassing(c) ? '' : ' selected') + '>Heat totals — low wins</option>'
+          + '<option value="passing"' + (isPassing(c) ? ' selected' : '') + '>Passing points — most wins</option></select>'
+          + (isPassing(c)
+              ? '<label style="margin:0;display:inline-flex;align-items:center;gap:4px">finish pts <input type="text" style="width:150px" value="' + esc(pc.finish.join(',')) + '" onchange="setClassPassing(' + c.id + ',\'finish\',this.value)"></label>'
+                + '<label style="margin:0;display:inline-flex;align-items:center;gap:4px">per spot gained <input class="inline-num" type="number" min="0" max="10" step="0.5" value="' + pc.perSpot + '" onchange="setClassPassing(' + c.id + ',\'perSpot\',this.value)"></label>'
+              : '')
+        : '<span>qualifying order (no heats)</span>')
+    + '</div>'
+    + '<div class="rowflex tiny" style="margin-top:6px;flex-wrap:wrap" title="Feature points for this class\'s season series"><b>Points table</b>'
+    + '<select style="width:auto;max-width:100%" onchange="setClassPointsPreset(' + c.id + ',this.value)">'
+    +   '<option value=""' + (pk === '' ? ' selected' : '') + '>Track default (' + esc(trackLbl) + ')</option>'
+    +   Object.keys(POINT_PRESETS).map(k => '<option value="' + k + '"' + (pk === k ? ' selected' : '') + '>' + esc(POINT_PRESETS[k].label) + '</option>').join('')
+    +   '<option value="custom"' + (pk === 'custom' ? ' selected' : '') + '>Custom for this class…</option></select>'
+    + (pk === 'custom'
+        ? '<label style="margin:0;display:inline-flex;align-items:center;gap:4px">1st, 2nd… <input type="text" style="width:150px" value="' + esc((c.points.table || []).join(',')) + '" onchange="setClassPointsTable(' + c.id + ',this.value)"></label>'
+          + '<label style="margin:0;display:inline-flex;align-items:center;gap:4px">everyone else <input class="inline-num" type="number" min="0" max="999" value="' + (+c.points.beyond || 0) + '" onchange="setClassPointsBeyond(' + c.id + ',this.value)"></label>'
+        : '')
+    + '</div>';
+}
+function renderClsList_rerender() { renderClsList(); renderGrid(); if (curPage === 'results') renderResults(); if (curPage === 'points') renderPoints(); }
+function parsePtsList(text) {
+  return String(text || '').split(/[\s,;]+/).map(Number).filter(n => isFinite(n) && n >= 0).slice(0, 60);
+}
+function setClassScoring(id, val) {
+  if (!adminOk()) return;
+  const c = classById(id); if (!c) return;
+  if (val === 'passing') { c.heatScoring = 'passing'; if (!c.passing) c.passing = { finish: PASSING_DEFAULT.finish.slice(), perSpot: PASSING_DEFAULT.perSpot }; }
+  else delete c.heatScoring;
+  save(); renderClsList_rerender();
+}
+function setClassPassing(id, field, val) {
+  if (!adminOk()) return;
+  const c = classById(id); if (!c) return;
+  const cur = passingCfg(c);
+  c.passing = { finish: cur.finish.slice(), perSpot: cur.perSpot };
+  if (field === 'finish') { const list = parsePtsList(val); if (list.length) c.passing.finish = list; }
+  else { const n = parseFloat(val); c.passing.perSpot = isFinite(n) && n >= 0 ? Math.min(10, n) : PASSING_DEFAULT.perSpot; }
+  save(); renderClsList_rerender();
+}
+function setClassPointsPreset(id, key) {
+  if (!adminOk()) return;
+  const c = classById(id); if (!c) return;
+  if (!key) delete c.points;
+  else if (key === 'custom') { const base = classPointsCfg(c); c.points = { mode: 'fixed', table: (base.mode === 'fixed' && base.table.length ? base.table : POINT_PRESETS.standard.table).slice(), beyond: +base.beyond || 0 }; }
+  else { const q = POINT_PRESETS[key]; if (!q) return; c.points = { mode: q.mode, table: q.table.slice(), beyond: q.beyond }; }
+  save(); renderClsList_rerender();
+}
+function setClassPointsTable(id, text) {
+  if (!adminOk()) return;
+  const c = classById(id); if (!c || !c.points) return;
+  const list = parsePtsList(text);
+  if (list.length) c.points = { mode: 'fixed', table: list, beyond: +c.points.beyond || 0 };
+  save(); renderClsList_rerender();
+}
+function setClassPointsBeyond(id, val) {
+  if (!adminOk()) return;
+  const c = classById(id); if (!c || !c.points) return;
+  c.points.beyond = Math.max(0, parseInt(val, 10) || 0);
+  save(); renderClsList_rerender();
 }
 function renderClsLib() {
   const el = document.getElementById('clsLib');
