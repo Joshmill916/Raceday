@@ -783,7 +783,7 @@ const GARAGE_KEY = 'rd_garage_v2';
 const ACTIVE_TRACK_KEY = 'rd_active_track_v2';
 // Reported with every usage row and crash. The part after the dot MUST match this app's
 // sw.js CACHE number (tests/test-app-version.js) — bump both together on each release.
-const APP_VERSION = '2026-10-15.v5';
+const APP_VERSION = '2026-10-16.v6';
 const LEGAL_VERSION = '2026-06';   // bump when Terms / Privacy wording changes, so acceptances are versioned
 const TELEMETRY_URL = 'https://script.google.com/macros/s/AKfycbxa3i3y17TLp_NfXOOu2jM7-YzXH2fScxcXoQYmIh0-873rxWfxg0HdRP1DVsxZq6iR/exec';
 const FIREBASE_CONFIG = {
@@ -7250,6 +7250,7 @@ function secPoints() {
     +   '<div class="field" style="margin:0"><label>Everyone else</label><input id="ptsBeyond" type="number" min="0" max="999" onchange="savePoints()"></div>'
     + '</div>'
     + '<p id="ptsLinearNote" style="display:none;font-size:12px;color:var(--plate);margin-top:8px"></p>'
+    + '<p class="tiny" style="margin-top:10px">This is the track default. A class can use its own table under <a onclick="admOpen(\'classes\')">Race classes</a> → Points table.</p>'
     + '<p class="tiny" style="margin-top:8px">Feature finish decides points. Anyone finishing past the list, not making the feature, or scoring DNF/DNS/DQ gets the "everyone else" value.</p></div>';
 }
 
@@ -7699,6 +7700,20 @@ function renderHelp() {
       + guideStep(4, 'Tap for more', '<p>Tap a <b>driver\'s name</b> to see their car number, classes and career stats.</p>');
     return;
   }
+  if (deviceRole() === 'tech') {
+    el.innerHTML = '<h2>Tech inspection</h2><p class="sub">This tablet only does tech.</p>'
+      + guideStep(1, 'Find the car', '<p>Every car signed in tonight is listed. Filter by <b>Not checked</b>, <b>Failed</b> or <b>Recheck</b>, or search a name or number.</p>')
+      + guideStep(2, 'Inspect', '<p>Tap the car, tick the checklist, enter the weight and any notes.</p>')
+      + guideStep(3, 'Pass, fail or recheck', '<p>Tap <b>✅ Pass</b>, <b>❌ Fail</b> or <b>🔁 Recheck</b>. The tower sees it right away.</p>');
+    return;
+  }
+  if (deviceRole() === 'announcer') {
+    el.innerHTML = '<h2>Announcer</h2><p class="sub">Read-only — this screen can\'t change anything.</p>'
+      + guideStep(1, 'Now', '<p>The race on track, in starting order, with each driver\'s number, sponsors, hometown, career record, points rank and tonight\'s finishes. It moves on by itself as results are entered.</p>')
+      + guideStep(2, 'Just finished and up next', '<p>The top 3 from the last race sit above Now. Tap an <b>Up next</b> race to preview its grid.</p>')
+      + guideStep(3, 'More about a driver', '<p>Tap any car for the full driver card.</p>');
+    return;
+  }
   el.innerHTML = '<h2>How to use RaceDay</h2>'
     + '<p class="sub">A quick walkthrough — the tabs run in order, left to right.</p>'
     + guideStep(1, 'Sign up — drivers join',
@@ -7713,6 +7728,11 @@ function renderHelp() {
         '<p>Search for any setting, or use the four doors: <b>Race night</b> (entries, history), <b>Season setup</b> (track, classes, format, points, sync), <b>Account</b> (PIN, license, backups, records), and <b>Danger zone</b> (new race day, demo, resets). First time here? Use the <b>Setup wizard</b>.</p>')
     + guideStep(6, 'Multi-device sync (optional)',
         '<p>Run a registration tablet, scoring tower and TV screen on the same race day at once — Admin → Multi-device sync → Start sync, then open the matching link on each device. The free spectator QR link is the same place.</p>')
+    + guideStep(7, 'Race-night extras',
+        '<p><b>🔧 Tech inspection</b> — Admin → Race night → Tech inspection, or send the <b>Tech inspection link</b> to a tablet: checklist, weight, Pass / Fail / Recheck per car. '
+        + '<b>💵 Payouts</b> — set a purse per class in Race classes; tonight\'s payouts, a paid/unpaid ledger and season totals for 1099s are in Admin → Payouts, and Print has a payout sheet. '
+        + '<b>🎙 Announcer</b> — Lineups → Announcer, or the <b>Announcer link</b>: who\'s on track, in order, with talking points. '
+        + '<b>Passing points</b> and a <b>points table per class</b> are options in Race classes.</p>')
     + '<div class="card" style="text-align:center"><p style="margin-bottom:10px">Step-by-step guides with screenshots for every setup, staff job and race format.</p>'
     + '<a class="btn btn-primary" href="/guides/" target="_blank" rel="noopener">Open the full guides →</a></div>';
 }
