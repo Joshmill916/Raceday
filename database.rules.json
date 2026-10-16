@@ -1,7 +1,40 @@
 {
   "rules": {
     "tracks": {
-      "$key": { ".read": true, ".write": true }
+      "$key": {
+        ".read": true,
+        ".write": "auth != null && root.child('trackStaff').child($key).child(auth.uid).exists()"
+      }
+    },
+    "trackOwner": {
+      "$key": {
+        ".read": true,
+        ".write": "auth != null && !data.exists() && newData.val() === auth.uid",
+        ".validate": "newData.isString()"
+      }
+    },
+    "trackStaff": {
+      "$key": {
+        "$uid": {
+          ".read": "auth != null && auth.uid === $uid",
+          ".write": "auth != null && ((auth.uid === $uid && newData.exists() && (root.child('trackOwner').child($key).val() === auth.uid || newData.val() === root.child('trackInvite').child($key).val())) || (!newData.exists() && root.child('trackStaff').child($key).child(auth.uid).exists()))",
+          ".validate": "newData.isString() && newData.val().matches(/^[a-f0-9]{32}$/)"
+        }
+      }
+    },
+    "trackInvite": {
+      "$key": {
+        ".read": false,
+        ".write": "auth != null && root.child('trackStaff').child($key).child(auth.uid).exists()",
+        ".validate": "newData.isString() && newData.val().matches(/^[a-f0-9]{32}$/)"
+      }
+    },
+    "trackPin": {
+      "$key": {
+        ".read": "auth != null && root.child('trackStaff').child($key).child(auth.uid).exists()",
+        ".write": "auth != null && root.child('trackStaff').child($key).child(auth.uid).exists()",
+        ".validate": "newData.isString() && newData.val().length <= 128"
+      }
     },
     "profiles": {
       "$id": {

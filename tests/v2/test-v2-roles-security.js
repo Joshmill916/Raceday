@@ -201,12 +201,30 @@ const check = (name, ok, extra) => {
   answer = (m) => { if (/admin PIN/i.test(m)) return '1234'; return true; };
   await go(base + '?sync=LIVEROOM&role=scoring');
   await page.waitForTimeout(500);
-  check('viewer + ?role=scoring + CORRECT pin recovers to scoring', (await role()) === 'scoring', 'got ' + await role());
+  check('viewer + ?role=scoring + correct PIN but NO staff key stays viewer (a PIN alone never promotes a spectator)', (await role()) === 'viewer', 'got ' + await role());
+  check('…and the spectator is not even asked for a PIN', !dlgSeen.some(m => /admin PIN/i.test(m)), JSON.stringify(dlgSeen));
+
+  // A real staff link (with the room's staff key) is the only way a spectator device becomes staff.
+  resetDlg();
+  await page.evaluate(() => { setDeviceRole('viewer'); });
+  answer = () => true;
+  await go(base + '?sync=LIVEROOM&role=scoring&st=0123456789abcdef0123456789abcdef');
+  await page.waitForTimeout(500);
+  check('viewer + a real staff link (with staff key) becomes scoring', (await role()) === 'scoring', 'got ' + await role());
+  check('…and keeps the staff key for signing in', await page.evaluate(() => S.sync.staffKey === '0123456789abcdef0123456789abcdef'));
+
+  // A fan who edits the spectator QR link on a fresh phone gets a viewer, nothing more.
+  resetDlg();
+  answer = () => true;
+  await page.evaluate(() => localStorage.clear());
+  await go(base + '?sync=LIVEROOM&role=scoring');
+  await page.waitForTimeout(500);
+  check('fresh phone + edited link (role=scoring, no staff key) only watches', (await role()) === 'viewer', 'got ' + await role());
 
   resetDlg();
   answer = (m) => { if (/admin PIN/i.test(m)) return '__SHOULD_NOT_BE_ASKED__'; return true; };
   await page.evaluate(() => localStorage.clear());
-  await go(base + '?sync=NEWROOM&role=scoring');
+  await go(base + '?sync=NEWROOM&role=scoring&st=0123456789abcdef0123456789abcdef');
   await page.waitForTimeout(500);
   check('fresh device + staff link provisions with no PIN challenge', (await role()) === 'scoring' && !dlgSeen.some(m => /admin PIN/i.test(m)), 'role=' + await role());
 
@@ -254,9 +272,23 @@ const check = (name, ok, extra) => {
   resetDlg();
   answer = () => true;
   await page.evaluate(() => { localStorage.clear(); S = load(); S.track.name = 'T'; S.sync = { enabled: true, key: 'LIVEROOM' }; save(); setDeviceRole('tv'); });
-  await go(base + '?sync=LIVEROOM&role=register');
+  await go(base + '?sync=LIVEROOM&role=register&st=0123456789abcdef0123456789abcdef');
   await page.waitForTimeout(500);
-  check('a stuck tv device recovers to register via a role link', (await role()) === 'register', 'got ' + await role());
+  check('a stuck tv device recovers to register via a staff link', (await role()) === 'register', 'got ' + await role());
+
+  // With a PIN, a staff device changing jobs by link needs it (like ⚙ Device job).
+  resetDlg();
+  await page.evaluate(() => { S.adminPin = pinHash('1234'); save(); setDeviceRole('tv'); });
+  answer = (m) => { if (/admin PIN/i.test(m)) return '0000'; return true; };
+  await go(base + '?sync=LIVEROOM&role=admin&st=0123456789abcdef0123456789abcdef');
+  await page.waitForTimeout(500);
+  check('PIN set: a tv device + ?role=admin + WRONG PIN stays tv', (await role()) === 'tv', 'got ' + await role());
+  resetDlg();
+  answer = (m) => { if (/admin PIN/i.test(m)) return '1234'; return true; };
+  await go(base + '?sync=LIVEROOM&role=admin&st=0123456789abcdef0123456789abcdef&x=2');
+  await page.waitForTimeout(500);
+  check('PIN set: a tv device + ?role=admin + correct PIN switches to admin', (await role()) === 'admin', 'got ' + await role());
+  await page.evaluate(() => { S.adminPin = ''; save(); });
 
   // ============================================================================
   console.log('\n=== 6. Forgotten admin PIN is recoverable (not a data-wiping dead end) ===');
@@ -785,7 +817,7 @@ const check = (name, ok, extra) => {
   answer = () => true;
   await page.evaluate(() => { localStorage.clear(); S = load(); S.track.name = 'T'; S.sync = { enabled: true, key: 'LIVEROOM' }; save(); });
   const correctOpk = await page.evaluate(() => OPERATOR_KEY);
-  await go(base + '?sync=LIVEROOM&role=operator&opk=' + encodeURIComponent(correctOpk));
+  await go(base + '?sync=LIVEROOM&role=operator&opk=' + encodeURIComponent(correctOpk) + '&st=0123456789abcdef0123456789abcdef');
   await page.waitForTimeout(500);
   check('?role=operator WITH correct opk grants operator role', (await role()) === 'operator', 'got ' + await role());
 

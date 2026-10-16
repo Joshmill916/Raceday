@@ -79,6 +79,16 @@ CDN only when sync is active, so the dormant build stays zero-weight.
    and locks that device to its role.
 3. (Or, on another device: **Join with a sync code** and set its role manually.)
 
+## Staff-only rooms (2026-10-16)
+
+`tracks/<code>` is readable by anyone (the spectator QR) but writable only by devices registered in
+`trackStaff/<code>/<uid>`, where uid is a Firebase **anonymous** sign-in (Authentication → Sign-in
+method → Anonymous must be ON). Registering needs the room's staff key (`trackInvite/<code>`, never
+readable); the first claimer (`trackOwner/<code>` = uid) registers without one and creates it. Staff
+links carry the key as `&st=`; the spectator QR never does. `trackPin/<code>` holds the admin PIN hash
+for staff devices. Rollout: ship the app, enable Anonymous sign-in, let each track's admin device open
+once (it claims its room), deploy the rules, re-send staff links.
+
 ## Rules hardening (Profiles `.validate` caps)
 
 The rules above are wide open: anyone who knows (or guesses) a track's sync code has

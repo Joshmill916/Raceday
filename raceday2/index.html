@@ -783,7 +783,7 @@ const GARAGE_KEY = 'rd_garage_v2';
 const ACTIVE_TRACK_KEY = 'rd_active_track_v2';
 // Reported with every usage row and crash. The part after the dot MUST match this app's
 // sw.js CACHE number (tests/test-app-version.js) — bump both together on each release.
-const APP_VERSION = '2026-10-16.v7';
+const APP_VERSION = '2026-10-16.v8';
 const LEGAL_VERSION = '2026-06';   // bump when Terms / Privacy wording changes, so acceptances are versioned
 const TELEMETRY_URL = 'https://script.google.com/macros/s/AKfycbxa3i3y17TLp_NfXOOu2jM7-YzXH2fScxcXoQYmIh0-873rxWfxg0HdRP1DVsxZq6iR/exec';
 const FIREBASE_CONFIG = {
@@ -1353,6 +1353,7 @@ function forgotPin() {
       S.adminPin = '';
       sessionStorage.setItem('rd_admin_ok', '1');
       save();
+      staffSharePin();
       alert('✅ PIN cleared — set a new one now from Admin → PIN.');
       return true;
     }
@@ -1379,6 +1380,7 @@ function setPin() {
   S.adminPin = pinHash(p1);
   sessionStorage.setItem('rd_admin_ok', '1');
   save();
+  staffSharePin();
   renderAdmin();
 }
 function delPin() {
@@ -1388,6 +1390,7 @@ function delPin() {
   S.adminPin = '';
   sessionStorage.removeItem('rd_admin_ok');
   save();
+  staffSharePin();
   renderAdmin();
 }
 
@@ -1794,6 +1797,100 @@ function ensureFirebase() {
   if (!FIREBASE_CONFIG.apiKey) return Promise.reject(new Error('no firebase config'));
   return loadFirebase().then(() => { if (!firebase.apps.length) firebase.initializeApp(FIREBASE_CONFIG); });
 }
+
+/* ---------- Staff access: only the track's own devices may change the shared race ----------
+   The spectator QR carries just the room code, and tracks/<code> is readable by anyone — that
+   is all a fan's phone ever gets. Changing the race takes the room's STAFF KEY, which only
+   staff links carry (&st=…, never on the spectator QR): each staff device signs in to
+   Firebase anonymously (no account, nothing to type) and registers
+   trackStaff/<code>/<uid> = staffKey, and database.rules.json accepts writes to
+   tracks/<code> only from registered devices. The admin device that first syncs a room
+   claims it (trackOwner/<code> = its sign-in id) and makes the key; the key lives in S.sync.staffKey, which
+   never syncs. The admin PIN's hash is shared at trackPin/<code> (staff-only) so a scoring,
+   TV or announcer device enforces the same PIN as the admin device.
+   Until Anonymous sign-in is turned on for the project, sign-in fails quietly and sync
+   works exactly as before (the rules then still allow it). */
+const Staff = { uid: null, ok: false, pinRef: null, denied: false };
+function loadFirebaseAuth() {
+  return loadFirebase().then(() => new Promise((resolve, reject) => {
+    if (window.firebase && window.firebase.auth) return resolve();
+    const s = document.createElement('script');
+    s.src = 'https://www.gstatic.com/firebasejs/10.12.0/firebase-auth-compat.js';
+    s.onload = resolve; s.onerror = reject;
+    document.head.appendChild(s);
+  }));
+}
+function newStaffKey() {
+  const b = new Uint8Array(16);
+  if (window.crypto && crypto.getRandomValues) crypto.getRandomValues(b);
+  else for (let i = 0; i < b.length; i++) b[i] = Math.floor(Math.random() * 256);
+  return Array.from(b, x => ('0' + x.toString(16)).slice(-2)).join('');
+}
+function validStaffKey(k) { return typeof k === 'string' && /^[a-f0-9]{32}$/.test(k); }
+// Signs this device in and registers it as staff for the room. Resolves true once
+// registered; false without a key, with a wrong one, or when another device owns the room.
+function staffJoin() {
+  if (GUEST || !syncOn() || !syncKey() || deviceRole() === 'viewer') return Promise.resolve(false);
+  const code = syncKey();
+  return loadFirebaseAuth().then(() => {
+    if (!firebase.apps.length) firebase.initializeApp(FIREBASE_CONFIG);
+    const auth = firebase.auth();
+    return auth.currentUser ? auth.currentUser : auth.signInAnonymously().then(c => c.user);
+  }).then(user => {
+    Staff.uid = user.uid;
+    const db = firebase.database();
+    const register = key => db.ref('trackStaff/' + code + '/' + user.uid).set(key).then(() => true, () => false);
+    if (validStaffKey(S.sync.staffKey)) return register(S.sync.staffKey);
+    if (deviceRole() !== 'admin') return false;
+    // The admin device claims a room nobody owns yet, and makes its staff key.
+    return db.ref('trackOwner/' + code).transaction(cur => (cur ? undefined : user.uid)).then(r => {
+      // Not first — unless this device already owns the room (its saved key was lost):
+      // then it makes a fresh key, and older staff links stop working.
+      if (!r.committed && !(r.snapshot && r.snapshot.val() === user.uid)) return false;
+      const key = newStaffKey();
+      return register(key).then(ok => !ok ? false
+        : db.ref('trackInvite/' + code).set(key).then(() => { S.sync.staffKey = key; persistLocal(); return true; }, () => false));
+    }, () => false);
+  }).then(ok => {
+    Staff.ok = !!ok;
+    if (Staff.ok) { Staff.denied = false; staffWatchPin(); }
+    if (typeof renderSyncCard === 'function') renderSyncCard();
+    return Staff.ok;
+  }).catch(e => { console.warn('RaceDay staff sign-in:', e && e.message || e); Staff.ok = false; return false; });
+}
+// Every staff device follows the track's PIN; a device that has one and finds the room
+// without one shares it. Clearing the PIN on the admin device clears it everywhere.
+function staffWatchPin() {
+  if (Staff.pinRef || !syncKey()) return;
+  Staff.pinRef = firebase.database().ref('trackPin/' + syncKey());
+  if (S.adminPin) Staff.pinRef.transaction(cur => (cur == null ? S.adminPin : undefined)).catch(() => {});
+  Staff.pinRef.on('value', snap => {
+    const v = snap.val();
+    if (typeof v === 'string' && v !== S.adminPin) { S.adminPin = v; persistLocal(); renderHeader(); }
+  }, () => {});
+}
+function staffSharePin() {
+  if (!Staff.ok || !syncOn() || !syncKey() || !window.firebase || !firebase.apps.length) return;
+  firebase.database().ref('trackPin/' + syncKey()).set(S.adminPin || '').catch(() => {});
+}
+function staffStop() {
+  if (Staff.pinRef) { try { Staff.pinRef.off(); } catch (e) {} }
+  Staff.pinRef = null; Staff.ok = false; Staff.denied = false;
+}
+// A write the rules refused: this device isn't registered staff. Say so once.
+function syncWriteFailed(e) {
+  console.warn('RaceDay sync:', e && e.message || e);
+  if (e && /permission/i.test(String(e.code || e.message || '')) && !Staff.denied) {
+    Staff.denied = true;
+    alert('This device isn\'t approved to change the live race.\n\nOpen a staff link from the track\'s admin device (Admin → Multi-device sync) on this device.');
+  }
+}
+// Staff link for a job: the room code plus the staff key (never on the spectator QR).
+function staffLinkParams(role) {
+  return '?sync=' + encodeURIComponent(syncKey()) + '&role=' + role
+    + (role === 'operator' ? '&opk=' + encodeURIComponent(OPERATOR_KEY) : '')
+    + (role !== 'viewer' && validStaffKey(S.sync.staffKey) ? '&st=' + S.sync.staffKey : '');
+}
 function profStr(v, cap) { return typeof v === 'string' ? v.slice(0, cap) : ''; }
 function profPhotoOK(src) { return typeof src === 'string' && src.length <= 80000 && /^data:image\/(png|jpe?g);base64,[A-Za-z0-9+/=]+$/.test(src); }
 function sanitizeProfileCard(profileId, card) {
@@ -1990,7 +2087,7 @@ function initSync() {
       Sync.db = firebase.database().ref('tracks/' + syncKey());
       firebase.database().ref('.info/connected').on('value', snap => { Sync.connected = !!snap.val(); renderHeader(); }, () => {});
       SYNC_FIELDS.forEach(f => { _syncLast[f] = JSON.stringify(syncGet(f) === undefined ? null : syncGet(f)); });
-      Sync.db.on('value', snap => {
+      const attach = () => Sync.db && Sync.db.on('value', snap => {
         const v = snap.val();
         if (!v || Sync.activating) {
           // Empty room: for a viewer this means the code on the poster doesn't match
@@ -2001,6 +2098,9 @@ function initSync() {
         }
         syncApplySnapshot(v);
       });
+      // Staff devices sign in and register first, so their first write isn't refused;
+      // spectators only read and never sign in.
+      if (deviceRole() === 'viewer' || GUEST) attach(); else staffJoin().then(attach, attach);
     } catch (e) { console.warn('RaceDay sync init:', e && e.message || e); }
   }).catch(e => console.warn('RaceDay sync:', e && e.message || e));
 }
@@ -2042,14 +2142,14 @@ function syncPush() {
       const j = JSON.stringify(syncGet(f) === undefined ? null : syncGet(f));
       if (j !== _syncLast[f]) { upd[f] = j; _syncLast[f] = j; }
     });
-    if (Object.keys(upd).length && Sync.db) Sync.db.update(upd).catch(e => console.warn('RaceDay sync:', e && e.message || e));
+    if (Object.keys(upd).length && Sync.db) Sync.db.update(upd).catch(syncWriteFailed);
   }, 400);
 }
 function syncPushFull() {
   if (deviceRole() === 'viewer' || deviceRole() === 'announcer' || operatorWatching() || !Sync.db) return;   // spectators, the announcer + watching operators never seed/write the room
   const upd = {};
   SYNC_FIELDS.forEach(f => { const j = JSON.stringify(syncGet(f) === undefined ? null : syncGet(f)); upd[f] = j; _syncLast[f] = j; });
-  Sync.db.update(upd).catch(e => console.warn('RaceDay sync:', e && e.message || e));
+  Sync.db.update(upd).catch(syncWriteFailed);
 }
 function syncActivate() {
   if (!FIREBASE_CONFIG.apiKey) { alert('Live sync is not set up on this build yet — the app owner adds the Firebase settings once to turn it on.'); return; }
@@ -2061,6 +2161,7 @@ function syncActivate() {
   const seed = existing || (normKey((S.license && S.license.name) || 'TRACK') + rand);
   const k = prompt('Choose a sync code for this track. Every device for this track uses the SAME code — keep it unique so no other track lands in the same room:', seed);
   if (!k) return;
+  if (normKey(k) !== existing) S.sync.staffKey = '';   // a different room needs its own key
   S.sync.key = normKey(k);
   S.sync.enabled = true;
   setDeviceRole('admin');
@@ -2075,7 +2176,13 @@ function syncJoin() {
   if (!k) return;
   // Joining pulls the cloud copy over this device — warn if real local data is at stake.
   if (S.raceDay.entries && S.raceDay.entries.length && !confirm('Joining code "' + normKey(k) + '" will replace this device\'s current entries and results with the cloud copy. Continue?')) return;
+  // Changing the race also needs the staff key from the admin device; without it this
+  // device only watches (as a spectator would).
+  const st = (prompt('Staff key — shown with the staff links on the admin device (Admin → Multi-device sync). Leave blank to just watch.') || '').trim().toLowerCase();
+  if (st && !validStaffKey(st)) { alert('That doesn\'t look like a staff key — it is 32 letters and numbers. Nothing was changed.'); return; }
+  if (!st) setDeviceRole('viewer');
   S.sync.key = normKey(k);
+  S.sync.staffKey = st;
   S.sync.enabled = true;
   save();
   initSync();
@@ -2093,6 +2200,7 @@ function syncDisable() {
   if (Sync.db) { try { Sync.db.off(); } catch (e) {} Sync.db = null; }
   Sync.connected = false;
   S.sync.enabled = false;
+  staffStop();
   save();
   renderSyncCard();
 }
@@ -2881,6 +2989,7 @@ function opStop() {
   if (Sync.db) { try { Sync.db.off(); } catch (e) {} Sync.db = null; }
   Sync.connected = false;
   S.sync.enabled = false;
+  staffStop();
   setDeviceRole('admin');
   persistLocal();   // sync just turned off, must not trigger syncPush
   applyRole();
@@ -2968,13 +3077,25 @@ function handleUrlParams() {
     // are provisioned from a fresh/default ('admin') local role, so they never hit this
     // challenge — only a device that already scanned the spectator QR does. If the
     // challenge fails, we do NOT mark the link consumed, so a legit admin can retry.
-    if (role && role !== 'viewer' && deviceRole() === 'viewer') {
-      if (S.adminPin) {
-        const t = prompt('This link makes this device a "' + role + '" station (it can change the live race). Enter the admin PIN to allow it:');
-        if (t === null || pinHash(t) !== S.adminPin) { if (t !== null) alert('Wrong PIN — this device stays a spectator view.'); history.replaceState({}, '', location.pathname); return; }
-      } else if (!confirm('This link makes this device a "' + role + '" station that can change the live race. The track hasn\'t set an admin PIN, so anyone with this link can do this. Continue?')) {
-        history.replaceState({}, '', location.pathname); return;
-      }
+    // Staff links carry the room's staff key (&st=); the spectator QR never does, so a fan
+    // editing their QR link (role=viewer → role=scoring) gets nothing more than a viewer.
+    const st = (q.get('st') || '').trim().toLowerCase();
+    if (role && role !== 'viewer' && sk && !validStaffKey(st)) {
+      alert('This link can\'t make this device a staff station — it\'s missing the track\'s staff key.\n\nAsk the track for a fresh staff link from the admin device. For now this device can only watch.');
+      role = 'viewer';
+    }
+    // A spectator device never takes a staff job without a real staff link — no PIN or
+    // "continue?" shortcut, even when the track has no PIN.
+    if (role && role !== 'viewer' && deviceRole() === 'viewer' && !validStaffKey(st)) {
+      history.replaceState({}, '', location.pathname); return;
+    }
+    // A staff device (scoring, TV, announcer…) changing jobs by link needs the admin PIN,
+    // same as ⚙ Device job.
+    const curRole = deviceRole();
+    if (role && role !== curRole && curRole !== 'admin' && curRole !== 'viewer' && S.adminPin) {
+      const t = prompt('This link changes this device to "' + role + '". Enter the admin PIN to allow it:');
+      if (t === null || pinHash(t) !== S.adminPin) { if (t !== null) alert('Wrong PIN — nothing was changed.'); history.replaceState({}, '', location.pathname); return; }
+      sessionStorage.setItem('rd_admin_ok', '1');
     }
     if (sk) {
       const incoming = normKey(sk);
@@ -3003,6 +3124,8 @@ function handleUrlParams() {
         return;
       }
       S.sync.key = incoming; S.sync.enabled = true;
+      if (role && role !== 'viewer' && validStaffKey(st)) S.sync.staffKey = st;
+      else if (diff) S.sync.staffKey = '';
     }
     if (role && ROLE_PAGES[role]) setDeviceRole(role);
     save();
@@ -7524,9 +7647,14 @@ function renderSyncCard() {
   if (syncOn()) {
     const base = location.origin + location.pathname;
     const k = syncKey();
-    const link = r => base + '?sync=' + encodeURIComponent(k) + '&role=' + r + (r === 'operator' ? '&opk=' + encodeURIComponent(OPERATOR_KEY) : '');
+    const link = r => base + staffLinkParams(r);
     h += '<p>✅ Live sync is <b>ON</b> for this track. Sync code: <b>' + esc(k) + '</b> <button class="btn btn-sm" onclick="copyText(\'' + esc(k) + '\',\'Code\')">Copy code</button></p>';
     h += '<p style="margin-top:10px">This device\'s job: <b>' + esc(roleName) + '</b> <button class="btn btn-sm" onclick="setRolePrompt()">Change</button></p>';
+    // Whether this room is locked to staff devices, and the key for typing it in by hand.
+    h += validStaffKey(S.sync.staffKey)
+      ? '<p style="margin-top:10px">🔒 <b>Staff-only room.</b> Only devices opened from the links below can change the race; the spectator QR can only watch. '
+        + 'Staff key (for joining by hand): <code style="font-size:12px;word-break:break-all">' + esc(S.sync.staffKey) + '</code></p>'
+      : (role === 'admin' ? '<p style="margin-top:10px">⏳ Securing this room for staff devices… The links below get their staff key once this device has signed in (it needs to be online).</p>' : '');
     h += '<p class="tiny" style="margin-top:12px">Set up another device — send it one of these links:</p>';
     h += '<div style="margin-top:6px">' + linkRow('Registration link', link('register')) + linkRow('Scoring tower link', link('scoring')) + linkRow('TV display link', link('tv')) + linkRow('Tech inspection link', link('tech')) + linkRow('Announcer link', link('announcer')) + '</div>';
     h += '<div style="margin-top:14px;border-top:1px solid var(--line);padding-top:12px">'
@@ -7669,7 +7797,7 @@ function wizNext() {
     if (p1 || p2) {
       if (p1 !== p2) { alert('PINs do not match.'); return; }
       if (!/^\d{4,8}$/.test(p1)) { alert('PIN must be 4–8 digits.'); return; }
-      S.adminPin = pinHash(p1); save();
+      S.adminPin = pinHash(p1); save(); staffSharePin();
     }
   }
   if (UI.wizStep === WIZ_STEPS) { closeSheet(); renderAll(); return; }
