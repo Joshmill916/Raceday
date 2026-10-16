@@ -604,6 +604,23 @@ body.kiosk .wrap-narrow { max-width:600px; width:100%; }
 .tv-page { font-family:var(--display); font-weight:700; font-size:2vh; font-variant-numeric:tabular-nums; }
 .tv-ctl { position:fixed; left:0; right:0; bottom:0; display:flex; align-items:center; gap:1.4vw; padding:1.6vh 3vw; background:linear-gradient(0deg,rgba(0,0,0,.75),transparent); opacity:0; pointer-events:none; transition:opacity .2s; }
 .tv-ctl.show { opacity:1; pointer-events:auto; }
+.tv-brand { font-size:calc(3.4vh * var(--tvk, 1)); }
+.tv-h span:first-child { font-size:calc(4.4vh * var(--tvk, 1)); }
+.tv-sub { font-size:calc(2vh * var(--tvk, 1)); }
+.tv-board { display:grid; gap:1.6vh 1.4vw; height:74vh; }
+.tv-bd-card { background:#111318; border:1px solid #23262d; border-radius:1vh; padding:1.2vh 1vw; min-height:0; overflow:hidden; }
+.tv-bd-card.now { border-color:var(--plate); box-shadow:0 0 0 1px var(--plate); }
+.tv-bd-card.done { opacity:.55; }
+.tv-bd-h { display:flex; justify-content:space-between; align-items:baseline; gap:1vw; font-family:var(--display); font-weight:800; font-size:calc(2.6vh * var(--tvk, 1)); text-transform:uppercase; letter-spacing:.02em; margin-bottom:.8vh; }
+.tv-bd-h > span:first-child { overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+.tv-bd-tag { flex:none; font-size:.62em; letter-spacing:.08em; padding:.2em .6em; border-radius:99px; }
+.tv-bd-tag.now { background:var(--plate); color:#161408; }
+.tv-bd-tag.done { color:#9a9da6; border:1px solid #3a3e47; }
+.tv-bd-list { display:grid; gap:.25em; }
+.tv-bd-row { display:flex; align-items:center; gap:.7em; line-height:1.5; }
+.tv-bd-pos { font-family:var(--display); font-weight:800; color:#8a8d95; width:1.6em; flex:none; }
+.tv-bd-num { font-family:var(--display); font-weight:800; color:var(--plate); min-width:2.2em; flex:none; }
+.tv-bd-nm { font-weight:700; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
 .tv-ctl button { background:rgba(255,255,255,.08); border:1px solid rgba(255,255,255,.18); color:#fff; border-radius:8px; padding:1vh 1.6vw; font-size:1.9vh; font-weight:700; cursor:pointer; }
 .tv-ctl button:hover { background:rgba(255,255,255,.16); }
 .tv-ctl #tvPage { margin:0 .4vw; color:#c9ccd3; }
@@ -783,7 +800,7 @@ const GARAGE_KEY = 'rd_garage_v2';
 const ACTIVE_TRACK_KEY = 'rd_active_track_v2';
 // Reported with every usage row and crash. The part after the dot MUST match this app's
 // sw.js CACHE number (tests/test-app-version.js) — bump both together on each release.
-const APP_VERSION = '2026-10-16.v7';
+const APP_VERSION = '2026-10-16.v9';
 const LEGAL_VERSION = '2026-06';   // bump when Terms / Privacy wording changes, so acceptances are versioned
 const TELEMETRY_URL = 'https://script.google.com/macros/s/AKfycbxa3i3y17TLp_NfXOOu2jM7-YzXH2fScxcXoQYmIh0-873rxWfxg0HdRP1DVsxZq6iR/exec';
 const FIREBASE_CONFIG = {
@@ -4457,7 +4474,86 @@ function renderPoints() {
    §10 TV DISPLAY
    ========================================================================= */
 const TV = { on:false, idx:0, locked:false, timer:null, ctlTimer:null };
-const TV_SECS = 12;
+const TV_SECS = 12;   // default seconds per screen (Admin → TV display can change it)
+/* TV display settings — S.settings.tv, synced to the TV from the admin device.
+   mode  'cycle' : every class's lineups one at a time, then results and points (the original)
+         'stage' : the whole stage of the night at once — every Set 1 heat together, then Set 2
+                   once Set 1 is scored, then the B-mains, then the features, then results
+         'now'   : just the race on track now, as big as it gets
+   stage 'auto' follows the night (the first race without a full result decides it), or pin one.
+   secs  seconds per screen · size normal|large|xl · clock on/off · file ''(as Lineups)|single|double */
+const TV_STAGES = { set1: 'Heats — Set 1', set2: 'Heats — Set 2 (inverted)', bmain: 'B-Mains', feature: 'Features' };
+function tvCfg() {
+  const t = (S.settings && S.settings.tv) || {};
+  const pick = (v, list, d) => (list.indexOf(v) >= 0 ? v : d);
+  const secs = parseInt(t.secs, 10);
+  return {
+    mode: pick(t.mode, ['cycle', 'stage', 'now'], 'cycle'),
+    stage: pick(t.stage, ['auto', 'set1', 'set2', 'bmain', 'feature'], 'auto'),
+    secs: secs >= 5 && secs <= 60 ? secs : TV_SECS,
+    size: pick(t.size, ['normal', 'large', 'xl'], 'normal'),
+    clock: t.clock !== false,
+    file: pick(t.file, ['', 'single', 'double'], '')
+  };
+}
+function tvK() { return { normal: 1, large: 1.3, xl: 1.65 }[tvCfg().size]; }
+function tvSingle() { const f = tvCfg().file; return f ? f === 'single' : S.settings.gridStyle === 'single'; }
+// The stage the night is in: the first race (in running order) that doesn't have a full result.
+function tvStageNow() {
+  const open = raceOrder().filter(r => r.ready).find(r => !r.done);
+  return open ? open.stage : 'done';
+}
+function setTv(field, val) {
+  if (!adminOk()) return;
+  S.settings.tv = Object.assign({}, S.settings.tv || {}, { [field]: val });
+  save();
+  if (TV.on) { clearInterval(TV.timer); TV.timer = setInterval(tvTick, tvCfg().secs * 1000); TV.idx = 0; tvRender(); }
+  if (typeof renderAdmin === 'function' && curPage === 'admin') renderAdmin();
+}
+// Whole-stage screens: the stage's races as cards, several per screen.
+function tvStageSlides() {
+  const cfg = tvCfg();
+  const stage = cfg.stage === 'auto' ? tvStageNow() : cfg.stage;
+  if (stage === 'done') return [...tvResultSlides(), ...tvPointsSlides()];
+  const order = raceOrder().filter(r => r.ready);
+  const open = order.find(r => !r.done);
+  const races = order.filter(r => r.stage === stage).map(r => ({
+    title: r.cls.name, label: r.label.replace(/ · Set \d$/, ''), drivers: r.grid.map(x => ({ name: x.name, num: x.num })),
+    status: r.done ? 'done' : r === open ? 'now' : 'next'
+  }));
+  if (!races.length) return [...tvResultSlides(), ...tvPointsSlides()];
+  const per = { normal: 6, large: 4, xl: 2 }[cfg.size];
+  const pages = [];
+  for (let i = 0; i < races.length; i += per) pages.push(races.slice(i, i + per));
+  return pages.map((pg, i) => ({ kind: 'board', title: TV_STAGES[stage], sub: pages.length > 1 ? 'Screen ' + (i + 1) + ' of ' + pages.length : '', races: pg, per }));
+}
+function tvBoardMarkup(s) {
+  const k = tvK(), n = s.races.length;
+  const cols = s.per >= 6 ? 3 : 2, rows = Math.max(1, Math.ceil(Math.min(n, s.per) / cols));
+  const maxN = Math.max(1, ...s.races.map(r => r.drivers.length));
+  // The board gets what the (text-size-scaled) header and title leave of the screen. Each card
+  // is a share of that; its header takes ~4.6vh at this text size and each driver row ~1.75em
+  // (line height + gap), so the whole lineup always fits. Fewer cards → bigger names, up to a cap.
+  const H = 74 - 10 * (k - 1);
+  const cardH = (H - (rows - 1) * 1.6) / rows;
+  const fs = Math.max(1.2, Math.min((rows === 1 ? 4.4 : 3.1) * k, (cardH - 2.4 - 3.4 * k) / (maxN * 1.75)));
+  const tag = st => st === 'now' ? '<span class="tv-bd-tag now">ON TRACK</span>' : st === 'done' ? '<span class="tv-bd-tag done">✓ Finished</span>' : '';
+  return '<div class="tv-board" style="height:' + H.toFixed(1) + 'vh;grid-template-columns:repeat(' + cols + ',minmax(0,1fr));grid-template-rows:repeat(' + rows + ',minmax(0,1fr))">'
+    + s.races.map(r => '<div class="tv-bd-card' + (r.status === 'now' ? ' now' : '') + (r.status === 'done' ? ' done' : '') + '">'
+      + '<div class="tv-bd-h"><span>' + esc(r.title) + ' · ' + esc(r.label) + '</span>' + tag(r.status) + '</div>'
+      + '<div class="tv-bd-list" style="font-size:' + fs.toFixed(2) + 'vh">'
+      + r.drivers.map((d, i) => '<div class="tv-bd-row"><span class="tv-bd-pos">' + (i + 1) + '</span>'
+        + '<span class="tv-bd-num">' + esc(d.num || '') + '</span><span class="tv-bd-nm">' + esc(d.name) + '</span></div>').join('')
+      + '</div></div>').join('')
+    + '</div>';
+}
+// "Race on track now": that race's grid, full size, with what's next underneath.
+function tvNowSlides() {
+  const a = announceNow();
+  if (!a.now) return [...tvResultSlides(), ...tvPointsSlides()];
+  const toRow = x => ({ name: x.name, num: x.num });
+  return [{ kind: 'grid', title: a.now.cls.name, sub: 'On track now · ' + a.now.label + (a.next ? '   ·   Up next: ' + a.next.cls.name + ' ' + a.next.label : ''), racers: a.now.grid.map(toRow) }];
+}
 
 /* ============================================================================
    §10  TV DISPLAY — broadcast mode
@@ -4527,7 +4623,12 @@ function tvPointsSlides() {
   });
   return out;
 }
-function tvSlides() { return [...tvGridSlides(), ...tvResultSlides(), ...tvPointsSlides()]; }
+function tvSlides() {
+  const m = tvCfg().mode;
+  if (m === 'stage') return tvStageSlides();
+  if (m === 'now') return tvNowSlides();
+  return [...tvGridSlides(), ...tvResultSlides(), ...tvPointsSlides()];
+}
 
 /* Lineup/grid rendering — verbatim v1. */
 function tvPanelMarkup(racers, single, offset, fs, disc) {
@@ -4552,16 +4653,16 @@ function tvGridMarkup(racers, single) {
   if (racers.length > SPLIT) {
     const a = racers.slice(0, SPLIT), b = racers.slice(SPLIT);
     const splitRows = single ? SPLIT : Math.ceil(SPLIT / 2);
-    const fs = Math.min(5.2, 70 / splitRows * 0.42);
-    const disc = Math.min(8.5, 70 / splitRows * 0.6);
+    const fs = Math.min(5.2 * tvK(), 70 / splitRows * 0.42);
+    const disc = Math.min(8.5 * tvK(), 70 / splitRows * 0.6);
     return '<div class="tv-split">'
       + '<div>' + tvPanelMarkup(a, single, 0, fs, disc) + '</div>'
       + '<div class="tv-split-rule"></div>'
       + '<div>' + tvPanelMarkup(b, single, SPLIT, fs, disc) + '</div></div>';
   }
   const rows = single ? Math.max(racers.length, 1) : Math.max(Math.ceil(racers.length / 2), 1);
-  const fs = Math.min(5.2, 70 / rows * 0.42);
-  const disc = Math.min(8.5, 70 / rows * 0.6);
+  const fs = Math.min(5.2 * tvK(), 70 / rows * 0.42);
+  const disc = Math.min(8.5 * tvK(), 70 / rows * 0.6);
   return tvPanelMarkup(racers, single, 0, fs, disc);
 }
 /* New: results/points table slides — same font-scaling approach as the grid. */
@@ -4582,6 +4683,10 @@ function tvRender() {
   document.getElementById('tvTrack').textContent = S.track.name || 'RaceDay';
   const logo = document.getElementById('tvLogo');
   if (S.track.logo) { logo.src = S.track.logo; logo.style.display = ''; } else { logo.style.display = 'none'; }
+  const cfg = tvCfg();
+  const ov = document.getElementById('tvOverlay');
+  ov.style.setProperty('--tvk', tvK());
+  document.getElementById('tvClock').style.display = cfg.clock ? '' : 'none';
   document.getElementById('tvClock').textContent = new Date().toLocaleTimeString([], { hour:'numeric', minute:'2-digit' });
   document.getElementById('tvLockTag').style.display = TV.locked ? '' : 'none';
   const sl = document.getElementById('tvSlide');
@@ -4593,8 +4698,8 @@ function tvRender() {
   }
   TV.idx = ((TV.idx % slides.length) + slides.length) % slides.length;
   const s = slides[TV.idx];
-  const body = s.kind === 'grid'
-    ? tvGridMarkup(s.racers, S.settings.gridStyle === 'single')
+  const body = s.kind === 'board' ? tvBoardMarkup(s)
+    : s.kind === 'grid' ? tvGridMarkup(s.racers, tvSingle())
     : tvTableMarkup(s.rows, s.kind === 'points' || s.rows.some(r => r.pts != null));
   sl.innerHTML = '<div class="tv-h"><span>' + esc(s.title) + '</span><span class="tv-sub">' + esc(s.sub) + '</span></div>' + body;
   document.getElementById('tvPage').textContent = (TV.idx + 1) + ' / ' + slides.length;
@@ -4608,7 +4713,7 @@ function openTV() {
   if (document.documentElement.requestFullscreen) document.documentElement.requestFullscreen().catch(() => {});
   tvRender();
   clearInterval(TV.timer);
-  TV.timer = setInterval(tvTick, TV_SECS * 1000);
+  TV.timer = setInterval(tvTick, tvCfg().secs * 1000);
 }
 function closeTV(ev) {
   if (ev) ev.stopPropagation();
@@ -6541,6 +6646,7 @@ const ADMIN_SECTIONS = [
   { id:'format',   door:'setup',  ico:'⚙️',  label:'Race format',       hint:'Heat size, B-mains, feature size', kw:'heat fill alternate block bmain b-main parallel cascade transfers' },
   { id:'points',   door:'setup',  ico:'🏆', label:'Points series',      hint:'Standard, F1-style, linear, custom', kw:'points table preset standard f1 linear podium' },
   { id:'legal',    door:'setup',  ico:'📄', label:'Legal & business',   hint:'Consent, provider name, terms', kw:'consent terms privacy ip legal owner operator' },
+  { id:'tv',       door:'setup',  ico:'📺', label:'TV display',         hint:'What the TV shows, timing, text size', kw:'tv display screen rotate rotation seconds heats set stage b-main feature text size clock big screen' },
   { id:'sync',     door:'setup',  ico:'🔄', label:'Multi-device sync',  hint:'Registration, scoring, TV, spectator links', kw:'sync code join device station operator spectator qr kiosk driven' },
   { id:'garage',   door:'account',ico:'🅿️', label:'The Garage',        hint:'Run more than one track from this device', kw:'garage multiple tracks switch add device' },
   { id:'pin',      door:'account',ico:'🔐', label:'Admin PIN',          hint:'Lock the Admin tab on this device', kw:'pin password lock security' },
@@ -6630,6 +6736,7 @@ function secMarkup(id) {
     case 'format':   return secFormat();
     case 'points':   return secPoints();
     case 'legal':    return secLegal();
+    case 'tv':       return secTv();
     case 'sync':     return '<div class="card" id="syncCard"></div>';
     case 'garage':   return '<div class="card" id="garageCard"></div>';
     case 'pin':      return '<div class="card" id="pinCard"></div>';
@@ -6681,21 +6788,21 @@ function raceOrder() {
     set1.forEach((heat, hi) => {
       const grid = n === 1 ? heat : [...heat].reverse();
       races.push({ cls: c, label: 'Heat ' + (hi + 1) + (hs === 2 ? ' · Set ' + n : ''), grid, key: r => 'h' + n + '_' + r.id,
-        done: done(res, r => 'h' + n + '_' + r.id, grid), ready: true });
+        done: done(res, r => 'h' + n + '_' + r.id, grid), ready: true, stage: 'set' + n });
     });
   }));
   classes.forEach(c => {
     if (!classComplete(c.id)) return;
     const fd = featureData(c.id), res = getRes(c.id);
     fd.mains.forEach((m, mi) => races.push({ cls: c, label: m.label, grid: m.drivers, key: r => bmKey(mi, r.id),
-      done: done(res, r => bmKey(mi, r.id), m.drivers), ready: m.drivers.length > 0 }));
+      done: done(res, r => bmKey(mi, r.id), m.drivers), ready: m.drivers.length > 0, stage: 'bmain' }));
   });
   classes.forEach(c => {
     if (!classComplete(c.id)) return;
     const fd = featureData(c.id), res = getRes(c.id);
     const ready = !fd.mains.length || !fd.toFeatureSpots || fd.transferred.length >= fd.toFeatureSpots;
     const grid = ready ? featureGridOrder(fd, c.id) : [];
-    races.push({ cls: c, label: 'Feature', grid, key: r => 'ft_' + r.id, done: done(res, r => 'ft_' + r.id, grid), ready: ready && grid.length > 0, feature: true });
+    races.push({ cls: c, label: 'Feature', grid, key: r => 'ft_' + r.id, done: done(res, r => 'ft_' + r.id, grid), ready: ready && grid.length > 0, feature: true, stage: 'feature' });
   });
   return races;
 }
@@ -7269,6 +7376,41 @@ function secPoints() {
     + '<p id="ptsLinearNote" style="display:none;font-size:12px;color:var(--plate);margin-top:8px"></p>'
     + '<p class="tiny" style="margin-top:10px">This is the track default. A class can use its own table under <a onclick="admOpen(\'classes\')">Race classes</a> → Points table.</p>'
     + '<p class="tiny" style="margin-top:8px">Feature finish decides points. Anyone finishing past the list, not making the feature, or scoring DNF/DNS/DQ gets the "everyone else" value.</p></div>';
+}
+
+/* ---------------------------------------------------------- TV display ---- */
+function secTv() {
+  const c = tvCfg();
+  const opt = (v, cur, label) => '<option value="' + v + '"' + (v === cur ? ' selected' : '') + '>' + label + '</option>';
+  const now = tvStageNow();
+  return '<div class="card">'
+    + '<div class="field"><label>What the TV shows</label><select id="tvMode" onchange="setTv(\'mode\', this.value)">'
+    +   opt('cycle', c.mode, 'Rotate through each class') + opt('stage', c.mode, 'Whole stage at once') + opt('now', c.mode, 'Only the race on track now')
+    + '</select><p class="tiny" style="margin-top:6px">' + {
+        cycle: 'Each class\'s lineups one screen at a time, then results and points.',
+        stage: 'Every Set 1 heat on one screen, then Set 2, then the B-mains, then the features.',
+        now: 'Just the race on track, as big as possible, with what\'s up next.' }[c.mode] + '</p></div>'
+    + (c.mode === 'stage'
+        ? '<div class="field"><label>Stage</label><select id="tvStage" onchange="setTv(\'stage\', this.value)">'
+          + opt('auto', c.stage, 'Follow the night (automatic)') + opt('set1', c.stage, 'Heats — Set 1') + opt('set2', c.stage, 'Heats — Set 2')
+          + opt('bmain', c.stage, 'B-Mains') + opt('feature', c.stage, 'Features') + '</select>'
+          + '<p class="tiny" style="margin-top:6px">Automatic shows the stage of the first race that doesn\'t have a full result yet. '
+          + 'When every Set 1 heat is scored it moves to Set 2, then the B-mains once the heats are done, then the features, then results and points. '
+          + 'Finished races stay on screen, dimmed; the race on track is outlined. Right now: <b>' + (now === 'done' ? 'all races scored — results' : esc(TV_STAGES[now])) + '</b>.</p></div>'
+        : '')
+    + '<div class="cols">'
+    +   '<div class="field" style="margin:0"><label>Seconds per screen</label><input id="tvSecs" type="number" min="5" max="60" value="' + c.secs + '" onchange="setTv(\'secs\', parseInt(this.value, 10))"></div>'
+    +   '<div class="field" style="margin:0"><label>Text size</label><select id="tvSize" onchange="setTv(\'size\', this.value)">'
+    +     opt('normal', c.size, 'Normal') + opt('large', c.size, 'Large') + opt('xl', c.size, 'Extra large — far-away TVs') + '</select></div>'
+    + '</div>'
+    + '<div class="cols" style="margin-top:12px">'
+    +   '<div class="field" style="margin:0"><label>Starting grids</label><select id="tvFile" onchange="setTv(\'file\', this.value)">'
+    +     opt('', c.file, 'Same as Lineups') + opt('single', c.file, 'Single file') + opt('double', c.file, 'Double file') + '</select></div>'
+    +   '<label class="check" style="margin-top:26px"><input type="checkbox" id="tvClockOn"' + (c.clock ? ' checked' : '') + ' onchange="setTv(\'clock\', this.checked)"><b>Show the clock</b></label>'
+    + '</div>'
+    + '<p class="tiny" style="margin-top:12px">These settings follow the TV through sync, so you can change them from here while the TV is running.</p>'
+    + '<button class="btn" style="margin-top:10px" onclick="openTV()">📺 Preview the TV display</button>'
+    + '</div>';
 }
 
 /* --------------------------------------------------------------- legal ---- */
