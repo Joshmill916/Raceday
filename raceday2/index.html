@@ -513,6 +513,16 @@ body.kiosk .wrap-narrow { max-width:600px; width:100%; }
 .sec-btn .nm { font-size:14.5px; font-weight:700; }
 .sec-btn .nm small { display:block; font-size:12px; font-weight:500; color:var(--muted); margin-top:3px; line-height:1.4; }
 .sec-btn.danger { border-color:#4d2320; }
+.ann-now { margin:10px 0 14px; padding:14px 16px; border-radius:var(--r); background:var(--asphalt-2); border-left:4px solid var(--plate); }
+.ann-now h3 { margin:4px 0 2px; font-size:22px; }
+.ann-tag { display:inline-block; font-size:11px; font-weight:800; letter-spacing:.1em; text-transform:uppercase; background:var(--plate); color:var(--plate-ink); padding:2px 8px; border-radius:4px; }
+.ann-last { margin:6px 0 4px; padding:10px 14px; border:1px solid var(--line); border-radius:var(--r); font-size:14px; }
+.ann-car { display:flex; align-items:center; gap:12px; width:100%; padding:12px; border:1px solid var(--line); border-radius:var(--r); background:var(--asphalt-1); color:var(--ink); font:inherit; text-align:left; cursor:pointer; }
+.ann-car:hover { border-color:var(--plate); }
+.ann-pos { font-weight:800; font-size:15px; min-width:30px; color:var(--muted); }
+.ann-who { display:flex; flex-direction:column; flex:1; min-width:0; gap:2px; }
+.ann-who b { font-size:18px; }
+.ann-spon { font-size:13px; font-weight:700; color:var(--plate); }
 .tech-row { display:flex; align-items:center; gap:12px; width:100%; padding:10px 12px; border:1px solid var(--line); border-radius:var(--r); background:var(--asphalt-1); color:var(--ink); font:inherit; text-align:left; cursor:pointer; }
 .tech-row:hover { border-color:var(--plate); }
 .tech-who { display:flex; flex-direction:column; flex:1; min-width:0; }
@@ -665,6 +675,11 @@ body.kiosk .wrap-narrow { max-width:600px; width:100%; }
         <div class="wrap-mid" id="pointsWrap"></div>
       </section>
 
+      <!-- ===== ANNOUNCER ===== -->
+      <section class="view" id="view-announce">
+        <div class="wrap-mid" id="announceWrap"></div>
+      </section>
+
       <!-- ===== TECH INSPECTION ===== -->
       <section class="view" id="view-tech">
         <div class="wrap-mid" id="techWrap"></div>
@@ -782,13 +797,14 @@ const FIREBASE_CONFIG = {
 };
 const SYNC_FIELDS = ['raceDay/date', 'raceDay/entries', 'raceDay/heatResults', 'raceDay/pointsRace', 'raceDay/resultGov', 'raceDay/tech', 'classes', 'roster', 'settings', 'track'];
 const ROLE_PAGES = {
-  admin:    ['signup', 'grid', 'results', 'points', 'tech', 'admin', 'help'],
+  admin:    ['signup', 'grid', 'results', 'points', 'tech', 'announce', 'admin', 'help'],
   register: ['signup', 'help'],
   tech:     ['tech', 'help'],       // tech inspector's tablet: the inspection list only
-  scoring:  ['grid', 'results', 'points', 'help'],
+  scoring:  ['grid', 'results', 'points', 'announce', 'help'],
+  announcer: ['announce', 'grid', 'help'],   // announcer's booth: read-only talking points
   tv:       ['grid', 'help'],
   viewer:   ['grid', 'help'],       // spectator: read-only Lineups only (QR link)
-  operator: ['signup', 'grid', 'results', 'points', 'tech', 'admin', 'help']   // owner: sees everything, read-only until "Take control"
+  operator: ['signup', 'grid', 'results', 'points', 'tech', 'announce', 'admin', 'help']   // owner: sees everything, read-only until "Take control"
 };
 const TECH_DEFAULT = ['Weight', 'Tires', 'Safety gear', 'Fuel', 'Engine seal / claim', 'Body & bumpers'];
 function syncOn() { return !!(S.sync && S.sync.enabled && FIREBASE_CONFIG.apiKey); }
@@ -1321,7 +1337,7 @@ function adminOk() {
   // role reaches adminOk() only through pages ROLE_PAGES already grants it. Ported from
   // raceday/index.html (v1) after a real production bug there.
   const role = deviceRole();
-  if (role === 'viewer' || role === 'tv') return false;
+  if (role === 'viewer' || role === 'tv' || role === 'announcer') return false;
   if (!S.adminPin || sessionStorage.getItem('rd_admin_ok') === '1') return true;
   const t = prompt('Enter the admin PIN');
   if (t === null) return false;
@@ -2017,7 +2033,7 @@ function syncApplySnapshot(v) {
   }
 }
 function syncPush() {
-  if (deviceRole() === 'viewer' || operatorWatching()) return;   // spectators + watching operators never write to the shared room
+  if (deviceRole() === 'viewer' || deviceRole() === 'announcer' || operatorWatching()) return;   // spectators, the announcer + watching operators never write to the shared room
   if (!syncOn() || !Sync.db || Sync.applying) return;
   clearTimeout(Sync.timer);
   Sync.timer = setTimeout(() => {
@@ -2030,7 +2046,7 @@ function syncPush() {
   }, 400);
 }
 function syncPushFull() {
-  if (deviceRole() === 'viewer' || operatorWatching() || !Sync.db) return;   // spectators + watching operators never seed/write the room
+  if (deviceRole() === 'viewer' || deviceRole() === 'announcer' || operatorWatching() || !Sync.db) return;   // spectators, the announcer + watching operators never seed/write the room
   const upd = {};
   SYNC_FIELDS.forEach(f => { const j = JSON.stringify(syncGet(f) === undefined ? null : syncGet(f)); upd[f] = j; _syncLast[f] = j; });
   Sync.db.update(upd).catch(e => console.warn('RaceDay sync:', e && e.message || e));
@@ -2810,10 +2826,10 @@ function seedFullDemoNight() {
   setTimeout(() => alert('🏁 Welcome to the RaceDay demo!\n\nA full night is already scored and archived. Tap any driver\'s name to see their card, check Points for series standings, or start a new race day yourself to try the "Share results with Driven" flow.'), 300);
 }
 function setRolePrompt() {
-  const r = prompt('Set this device\'s job — type one of:  admin  ·  register  ·  scoring  ·  tv  ·  tech  ·  operator', deviceRole());
+  const r = prompt('Set this device\'s job — type one of:  admin  ·  register  ·  scoring  ·  tv  ·  tech  ·  announcer  ·  operator', deviceRole());
   if (!r) return;
   const rr = r.trim().toLowerCase();
-  if (!ROLE_PAGES[rr]) { alert('Unknown role. Use admin, register, scoring, tv, tech, or operator.'); return; }
+  if (!ROLE_PAGES[rr]) { alert('Unknown role. Use admin, register, scoring, tv, tech, announcer, or operator.'); return; }
   if (rr === 'operator') _operatorControl = false;   // always start in safe read-only watch mode
   setDeviceRole(rr);
   applyRole();
@@ -2996,6 +3012,7 @@ const NAV = [
   { id:'results', label:'Score',   short:'Score',   ico:'⏱' },
   { id:'points',  label:'Points',  short:'Points',  ico:'🏆' },
   { id:'tech',    label:'Tech',    short:'Tech',    ico:'🔧', tabFor:['tech'] },   // admins reach it from Admin → Tech inspection
+  { id:'announce', label:'Announce', short:'Announce', ico:'🎙', tabFor:['announcer'] },   // staff reach it from Lineups
   { id:'admin',   label:'Admin',   short:'Admin',   ico:'⚙',  grp:'Track' },
   { id:'help',    label:'Guide',   short:'Guide',   ico:'❔' }
 ];
@@ -3026,6 +3043,7 @@ function render(p) {
   if (p === 'results') return renderResults();
   if (p === 'points')  return renderPoints();
   if (p === 'tech')    return renderTech();
+  if (p === 'announce') return renderAnnounce();
   if (p === 'admin')   return renderAdmin();
   if (p === 'help')    return renderHelp();
 }
@@ -3059,7 +3077,7 @@ function renderNav() {
   document.getElementById('railSub').textContent =
     role === 'viewer' ? 'Spectator view' : role === 'operator' ? 'Operator' :
     role === 'register' ? 'Registration' : role === 'scoring' ? 'Scoring' :
-    role === 'tv' ? 'TV display' : role === 'tech' ? 'Tech inspection' : 'Race night';
+    role === 'tv' ? 'TV display' : role === 'tech' ? 'Tech inspection' : role === 'announcer' ? 'Announcer' : 'Race night';
 }
 
 /* ------------------------------------------------------------------- header */
@@ -3166,7 +3184,7 @@ function renderRaceControl() {
   const bar = document.getElementById('raceControl');
   const role = deviceRole();
   /* Spectators, TV and the tech tablet don't run the night; the spine is operator furniture. */
-  if (role === 'viewer' || role === 'tv' || role === 'tech' || curPage === 'help' || curPage === 'doc') { bar.style.display = 'none'; return; }
+  if (role === 'viewer' || role === 'tv' || role === 'tech' || role === 'announcer' || curPage === 'help' || curPage === 'doc') { bar.style.display = 'none'; return; }
   bar.style.display = '';
 
   const ph = nightPhase();
@@ -3311,7 +3329,7 @@ function emptyState(icon, msg, ctaLabel, ctaFn) {
 }
 function driverLabel(d) { return d ? esc(d.name) : 'Unknown driver'; }
 /* Guard used by every write path that a spectator must never reach. */
-function canWrite() { return deviceRole() !== 'viewer' && deviceRole() !== 'tv' && !operatorWatching(); }
+function canWrite() { const r = deviceRole(); return r !== 'viewer' && r !== 'tv' && r !== 'announcer' && !operatorWatching(); }
 
 /* ============================================================================
    §1h  ENGINE — scoring, qualifying times, grid style (verbatim)
@@ -3813,6 +3831,7 @@ function renderGrid() {
     + '<span class="push"></span>'
     + (isTv ? '' :
       '<button class="btn btn-sm btn-primary" onclick="openTV()">📺 TV display</button>'
+      + (allowedPages().some(n => n.id === 'announce') ? '<button class="btn btn-sm" onclick="nav(\'announce\')">🎙 Announcer</button>' : '')
       + '<button class="btn btn-sm" onclick="openPrint()">🖨 Print</button>'
       + '<button class="btn btn-sm" onclick="openImport(\'qual\')">📥 Import timing</button>')
     + '</div>'
@@ -6627,6 +6646,103 @@ function secMount(id) {
   if (id === 'danger')  { const b = document.getElementById('exitDemoBtn'); if (b) b.style.display = S.demo ? '' : 'none'; }
 }
 
+/* ---------------------------------------------------------------- announcer ---- */
+/* Running order the way most nights go: every class's set-1 heats, then set 2, then the
+   B-mains, then the features. A race is "ready" once its grid is known (mains and features
+   only after the heats are in). The first ready race without a full result is Now. */
+function raceOrder() {
+  const races = [], classes = S.classes.filter(c => classRacers(c.id).length);
+  const done = (res, key, grid) => grid.length > 0 && grid.every(r => res[key(r)] != null);
+  const sets = [];
+  classes.forEach(c => {
+    const hs = classHeats(c), set1 = hs >= 1 ? heatSet(classRacers(c.id), c) : [];
+    sets.push({ c, set1, hs });
+  });
+  [1, 2].forEach(n => sets.forEach(({ c, set1, hs }) => {
+    if (hs < n) return;
+    const res = getRes(c.id);
+    set1.forEach((heat, hi) => {
+      const grid = n === 1 ? heat : [...heat].reverse();
+      races.push({ cls: c, label: 'Heat ' + (hi + 1) + (hs === 2 ? ' · Set ' + n : ''), grid, key: r => 'h' + n + '_' + r.id,
+        done: done(res, r => 'h' + n + '_' + r.id, grid), ready: true });
+    });
+  }));
+  classes.forEach(c => {
+    if (!classComplete(c.id)) return;
+    const fd = featureData(c.id), res = getRes(c.id);
+    fd.mains.forEach((m, mi) => races.push({ cls: c, label: m.label, grid: m.drivers, key: r => bmKey(mi, r.id),
+      done: done(res, r => bmKey(mi, r.id), m.drivers), ready: m.drivers.length > 0 }));
+  });
+  classes.forEach(c => {
+    if (!classComplete(c.id)) return;
+    const fd = featureData(c.id), res = getRes(c.id);
+    const ready = !fd.mains.length || !fd.toFeatureSpots || fd.transferred.length >= fd.toFeatureSpots;
+    const grid = ready ? featureGridOrder(fd, c.id) : [];
+    races.push({ cls: c, label: 'Feature', grid, key: r => 'ft_' + r.id, done: done(res, r => 'ft_' + r.id, grid), ready: ready && grid.length > 0, feature: true });
+  });
+  return races;
+}
+function announceNow() {
+  const races = raceOrder().filter(r => r.ready);
+  const open = races.filter(r => !r.done);
+  // "Just finished" is the last completed race BEFORE the one on track — not a later race
+  // that happens to be scored already (e.g. an earlier heat being re-run or re-scored).
+  const cut = open[0] ? races.indexOf(open[0]) : races.length;
+  const lastDone = races.slice(0, cut).reverse().find(r => r.done) || null;
+  return { now: open[0] || null, next: open[1] || null, upcoming: open.slice(1, 7), last: lastDone };
+}
+function announceFacts(r, cls) {
+  const d = driverById(r.id) || {}, p = d.profile || {};
+  const st = driverStats(r.id);
+  const res = getRes(cls.id);
+  const tonight = ['h1_', 'h2_'].map(k => res[k + r.id]).filter(v => v != null);
+  const series = seriesStandings(cls.name), rank = series.findIndex(x => x.name === d.name);
+  const bits = [];
+  if (p.hometown) bits.push('🏠 ' + esc(p.hometown));
+  if (st.starts) bits.push(st.wins + ' win' + (st.wins === 1 ? '' : 's') + ' in ' + st.starts + ' start' + (st.starts === 1 ? '' : 's') + (st.top5 ? ' · ' + st.top5 + ' top-5' : ''));
+  else bits.push('No feature starts here yet');
+  if (rank >= 0 && series[rank].pts > 0) bits.push(ordinal(rank + 1) + ' in ' + esc(cls.name) + ' points (' + series[rank].pts + ')');
+  if (tonight.length) bits.push('Tonight: ' + tonight.map(v => typeof v === 'number' ? ordinal(v) : v).join(', '));
+  return { sponsors: p.sponsors || '', bits };
+}
+function renderAnnounce() {
+  const el = document.getElementById('announceWrap'); if (!el) return;
+  const a = announceNow();
+  const pick = UI.annRace != null ? raceOrder().filter(r => r.ready)[UI.annRace] : null;
+  const race = pick || a.now;
+  let h = '<h2>Announcer</h2>';
+  if (!race) {
+    h += S.raceDay.entries.length
+      ? emptyState('🏁', 'Every race tonight is in the books.' + (a.last ? ' Last up: ' + esc(a.last.cls.name) + ' ' + esc(a.last.label) + '.' : ''))
+      : emptyState('🎙', 'Nothing to call yet — lineups appear here as drivers sign up.');
+    el.innerHTML = h; return;
+  }
+  if (a.last && a.last !== race) {
+    const lres = getRes(a.last.cls.id);
+    const top = a.last.grid.filter(r => typeof lres[a.last.key(r)] === 'number').sort((x, y) => lres[a.last.key(x)] - lres[a.last.key(y)]).slice(0, 3);
+    if (top.length) h += '<div class="ann-last"><span class="tiny">Just finished · ' + esc(a.last.cls.name) + ' ' + esc(a.last.label) + '</span><div>'
+      + top.map((r, i) => '<b>' + ['🥇', '🥈', '🥉'][i] + ' #' + esc(r.num) + ' ' + esc(r.name) + '</b>').join(' &nbsp; ') + '</div></div>';
+  }
+  h += '<div class="ann-now"><span class="ann-tag">' + (pick ? 'Preview' : 'Now') + '</span><h3>' + esc(race.cls.name) + ' · ' + esc(race.label) + '</h3>'
+    + '<span class="tiny">' + plural(race.grid.length, 'car', 'cars') + (race.feature && isPointsRace(race.cls.id) ? ' · points race' : '') + '</span></div>';
+  h += '<div class="stack">' + race.grid.map((r, i) => {
+    const f = announceFacts(r, race.cls);
+    return '<button type="button" class="ann-car" onclick="openDriverCard(' + r.id + ')">'
+      + '<span class="ann-pos">P' + (i + 1) + '</span>' + discNum(r.num)
+      + '<span class="ann-who"><b>' + esc(r.name) + '</b>'
+      + (f.sponsors ? '<span class="ann-spon">' + esc(f.sponsors) + '</span>' : '')
+      + '<span class="tiny">' + f.bits.join(' · ') + '</span></span></button>';
+  }).join('') + '</div>';
+  const up = a.upcoming.filter(r => r !== race);
+  if (up.length) {
+    const ready = raceOrder().filter(r => r.ready);
+    h += '<div class="slbl" style="margin-top:18px">Up next</div><div class="chips">'
+      + up.map(r => '<button type="button" class="chip" onclick="UI.annRace=' + ready.findIndex(x => x.cls.id === r.cls.id && x.label === r.label) + ';renderAnnounce()">' + esc(r.cls.name) + ' · ' + esc(r.label) + '</button>').join('') + '</div>';
+  }
+  if (pick) h += '<button class="btn btn-sm" style="margin-top:12px" onclick="UI.annRace=null;renderAnnounce()">← Back to the race on track</button>';
+  el.innerHTML = h;
+}
+
 /* ---------------------------------------------------------- tech inspection ---- */
 /* One record per car per class tonight: S.raceDay.tech['<driverId>|<classId>'] =
    {status:'pass'|'fail'|'recheck', weight, items:{name:true}, notes, at}. It syncs
@@ -7385,7 +7501,7 @@ function renderSyncCard() {
   if (!configured && !(S.sync && S.sync.enabled)) { el.innerHTML = '<p>Live sync isn\'t set up on this build yet. The app owner enables it once.</p>'; return; }
   if (!configured) { el.innerHTML = '<p>Live sync isn\'t set up on this build yet. The app owner enables it once.</p>'; return; }
   const role = deviceRole();
-  const roleName = { admin:'Admin (full control)', register:'Registration', scoring:'Scoring tower', tv:'TV display', tech:'Tech inspection' }[role] || role;
+  const roleName = { admin:'Admin (full control)', register:'Registration', scoring:'Scoring tower', tv:'TV display', tech:'Tech inspection', announcer:'Announcer' }[role] || role;
   let h = '';
   if (syncOn()) {
     const base = location.origin + location.pathname;
@@ -7394,7 +7510,7 @@ function renderSyncCard() {
     h += '<p>✅ Live sync is <b>ON</b> for this track. Sync code: <b>' + esc(k) + '</b> <button class="btn btn-sm" onclick="copyText(\'' + esc(k) + '\',\'Code\')">Copy code</button></p>';
     h += '<p style="margin-top:10px">This device\'s job: <b>' + esc(roleName) + '</b> <button class="btn btn-sm" onclick="setRolePrompt()">Change</button></p>';
     h += '<p class="tiny" style="margin-top:12px">Set up another device — send it one of these links:</p>';
-    h += '<div style="margin-top:6px">' + linkRow('Registration link', link('register')) + linkRow('Scoring tower link', link('scoring')) + linkRow('TV display link', link('tv')) + linkRow('Tech inspection link', link('tech')) + '</div>';
+    h += '<div style="margin-top:6px">' + linkRow('Registration link', link('register')) + linkRow('Scoring tower link', link('scoring')) + linkRow('TV display link', link('tv')) + linkRow('Tech inspection link', link('tech')) + linkRow('Announcer link', link('announcer')) + '</div>';
     h += '<div style="margin-top:14px;border-top:1px solid var(--line);padding-top:12px">'
       + '<div class="slbl" style="margin:0 0 6px">🛡 Operator link (private)</div>'
       + '<p class="tiny" style="margin:0 0 8px">For YOUR own device only. Opens in <b>watch</b> mode; Take control (your Operator PIN) makes live changes.</p>'
@@ -7616,10 +7732,13 @@ function applyRole() {
   renderOpBar();
   renderHeader();
   renderNav();
-  if (allowed.indexOf(curPage) < 0) nav(allowed[0]);
+  // A device that has just become the announcer opens on its own page (it can still visit Lineups).
+  if (allowed.indexOf(curPage) < 0 || (role === 'announcer' && _appliedRole !== 'announcer')) nav(allowed[0]);
   else renderRaceControl();
+  _appliedRole = role;
   if (role === 'tv' && !TV.on && typeof openTV === 'function') openTV();
 }
+let _appliedRole = null;
 
 /* Operator bar — the owner's monitoring device: watch read-only, or take control. */
 function renderOpBar() {

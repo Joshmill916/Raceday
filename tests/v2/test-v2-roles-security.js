@@ -215,15 +215,16 @@ const check = (name, ok, extra) => {
   // MATRIX = pages a role may open. Some pages are a tab only on their dedicated device
   // (TAB_ONLY) so the phone tab bar stays short; admins reach them from Admin instead.
   const MATRIX = {
-    admin:    ['signup', 'grid', 'results', 'points', 'tech', 'admin', 'help'],
+    admin:    ['signup', 'grid', 'results', 'points', 'tech', 'announce', 'admin', 'help'],
     register: ['signup', 'help'],
-    scoring:  ['grid', 'results', 'points', 'help'],
+    scoring:  ['grid', 'results', 'points', 'announce', 'help'],
     tv:       ['grid', 'help'],
     viewer:   ['grid', 'help'],
-    operator: ['signup', 'grid', 'results', 'points', 'tech', 'admin', 'help'],
+    operator: ['signup', 'grid', 'results', 'points', 'tech', 'announce', 'admin', 'help'],
     tech:     ['tech', 'help'],
+    announcer: ['grid', 'announce', 'help'],
   };
-  const TAB_ONLY = { tech: ['tech'] };
+  const TAB_ONLY = { tech: ['tech'], announce: ['announcer'] };
   const visibleFor = r => MATRIX[r].filter(p => !TAB_ONLY[p] || TAB_ONLY[p].includes(r));
   resetDlg();
   await page.evaluate(() => { localStorage.clear(); S = load(); S.track.name = 'T'; save(); });
@@ -233,7 +234,7 @@ const check = (name, ok, extra) => {
     const vis = await navVisible();
     check(`role=${r}: nav = [${visibleFor(r).join(',')}]`, JSON.stringify(vis) === JSON.stringify(visibleFor(r)), 'got [' + vis.join(',') + ']');
     const leaked = await page.evaluate((allowed) => {
-      const all = ['signup', 'grid', 'results', 'points', 'tech', 'admin', 'help'];
+      const all = ['signup', 'grid', 'results', 'points', 'tech', 'announce', 'admin', 'help'];
       const bad = [];
       all.filter(p => !allowed.includes(p)).forEach(p => { try { nav(p); } catch (e) {} if (curPage === p) bad.push(p); });
       return bad;
