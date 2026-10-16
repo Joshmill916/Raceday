@@ -513,6 +513,10 @@ body.kiosk .wrap-narrow { max-width:600px; width:100%; }
 .sec-btn .nm { font-size:14.5px; font-weight:700; }
 .sec-btn .nm small { display:block; font-size:12px; font-weight:500; color:var(--muted); margin-top:3px; line-height:1.4; }
 .sec-btn.danger { border-color:#4d2320; }
+.tech-row { display:flex; align-items:center; gap:12px; width:100%; padding:10px 12px; border:1px solid var(--line); border-radius:var(--r); background:var(--asphalt-1); color:var(--ink); font:inherit; text-align:left; cursor:pointer; }
+.tech-row:hover { border-color:var(--plate); }
+.tech-who { display:flex; flex-direction:column; flex:1; min-width:0; }
+.tech-who b { overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
 .po-table { width:100%; border-collapse:collapse; font-size:13.5px; }
 .po-table th { text-align:left; font-size:11px; letter-spacing:.06em; text-transform:uppercase; color:var(--muted); font-weight:700; padding:6px 6px; border-bottom:1px solid var(--line); }
 .po-table td { padding:7px 6px; border-bottom:1px solid var(--line); vertical-align:top; }
@@ -661,6 +665,11 @@ body.kiosk .wrap-narrow { max-width:600px; width:100%; }
         <div class="wrap-mid" id="pointsWrap"></div>
       </section>
 
+      <!-- ===== TECH INSPECTION ===== -->
+      <section class="view" id="view-tech">
+        <div class="wrap-mid" id="techWrap"></div>
+      </section>
+
       <!-- ===== ADMIN ===== -->
       <section class="view" id="view-admin">
         <div class="wrap" id="adminWrap"></div>
@@ -771,15 +780,17 @@ const FIREBASE_CONFIG = {
   messagingSenderId: "891072179363",
   appId: "1:891072179363:web:36d8b91fd7da81932f2316"
 };
-const SYNC_FIELDS = ['raceDay/date', 'raceDay/entries', 'raceDay/heatResults', 'raceDay/pointsRace', 'raceDay/resultGov', 'classes', 'roster', 'settings', 'track'];
+const SYNC_FIELDS = ['raceDay/date', 'raceDay/entries', 'raceDay/heatResults', 'raceDay/pointsRace', 'raceDay/resultGov', 'raceDay/tech', 'classes', 'roster', 'settings', 'track'];
 const ROLE_PAGES = {
-  admin:    ['signup', 'grid', 'results', 'points', 'admin', 'help'],
+  admin:    ['signup', 'grid', 'results', 'points', 'tech', 'admin', 'help'],
   register: ['signup', 'help'],
+  tech:     ['tech', 'help'],       // tech inspector's tablet: the inspection list only
   scoring:  ['grid', 'results', 'points', 'help'],
   tv:       ['grid', 'help'],
   viewer:   ['grid', 'help'],       // spectator: read-only Lineups only (QR link)
-  operator: ['signup', 'grid', 'results', 'points', 'admin', 'help']   // owner: sees everything, read-only until "Take control"
+  operator: ['signup', 'grid', 'results', 'points', 'tech', 'admin', 'help']   // owner: sees everything, read-only until "Take control"
 };
+const TECH_DEFAULT = ['Weight', 'Tires', 'Safety gear', 'Fuel', 'Engine seal / claim', 'Body & bumpers'];
 function syncOn() { return !!(S.sync && S.sync.enabled && FIREBASE_CONFIG.apiKey); }
 /* rd_role_v2 is a distinct key from v1's rd_role — localStorage is origin-scoped, not
    path-scoped, so sharing v1's key would leak a spectator/admin role picked up under
@@ -821,7 +832,7 @@ function defaults() {
       { id: 3, name: 'Open Shifter', maxPill: 200 }
     ],
     settings: { maxHeat: 8, maxBMain: 12, maxFeature: 20, transfers: 2, gridStyle: 'double', heatFill: 'alternate', bmainMode: 'single', bmainCount: 2, points: { mode: 'fixed', table: [10, 8, 6, 5, 4, 3, 2, 1], beyond: 0 }, requireConsent: true, captureConsentIP: true, cloudBackup: false },
-    raceDay: { date: today(), entries: [], heatResults: {}, pointsRace: {}, resultGov: {}, resultVersions: {} },  // entries: {driverId, classId, pill}; resultGov: per-class {status,locked}; resultVersions: per-class snapshots
+    raceDay: { date: today(), entries: [], heatResults: {}, pointsRace: {}, resultGov: {}, resultVersions: {}, tech: {} },  // tech: per-car inspection {status,weight,items,notes,at}; entries: {driverId, classId, pill}; resultGov: per-class {status,locked}; resultVersions: per-class snapshots
     nextId: 100,
     // MUST equal the latest migration number in migrate(). Left at 2 when migration 3
     // (PIN hashing) shipped, every fresh install re-hashed its already-hashed PIN on the
@@ -853,6 +864,8 @@ function migrate(s) {
   if (!s.raceDay.pointsRace) s.raceDay.pointsRace = {};
   if (!s.raceDay.resultGov) s.raceDay.resultGov = {};
   if (!s.raceDay.resultVersions) s.raceDay.resultVersions = {};
+  if (!s.raceDay.tech) s.raceDay.tech = {};
+  if (!Array.isArray(s.settings.techChecklist)) s.settings.techChecklist = TECH_DEFAULT.slice();
   if (!s.provider) s.provider = { legalName: '', operator: '', jurisdiction: '' };
   if (!s.consents) s.consents = [];
   if (!s.audit) s.audit = [];
@@ -2179,6 +2192,7 @@ function buildSnapshot() {
     snap.classes.push({
       name: cls.name,
       heatScoring: isPassing(cls) ? 'passing' : 'finish',
+      tech: classRacers(cls.id).map(r => { const t = techOf(r.id, cls.id); return t && t.status ? { driverId: r.id, name: r.name, num: r.num, status: t.status, weight: t.weight || '' } : null; }).filter(Boolean),
       standings: standings.map((s, i) => ({ pos: i + 1, name: s.name, num: s.num, pill: s.pill, f1: s.f1 != null ? s.f1 : '', f2: s.f2 != null ? s.f2 : '', pts: s.scored ? s.pts : '' })),
       feature: featureGridOrder(fd, cls.id).map(s => ({ name: s.name, num: s.num })),
       featureFinish: featureFinish(cls.id).map(f => ({ driverId: f.id, name: f.name, num: f.num, fin: f.fin })),
@@ -2529,7 +2543,7 @@ function newRaceDay() {
   const justArchived = S.history.length > histLenBefore ? 0 : -1;   // unshift() puts it at index 0
   logAudit('Started new race day', S.raceDay.date, today(), 'Race day');
   resOverride = {};
-  S.raceDay = { date: today(), entries: [], heatResults: {}, pointsRace: {}, resultGov: {}, resultVersions: {} };
+  S.raceDay = { date: today(), entries: [], heatResults: {}, pointsRace: {}, resultGov: {}, resultVersions: {}, tech: {} };
   save();
   resetReg();
   render(curPage);
@@ -2796,10 +2810,10 @@ function seedFullDemoNight() {
   setTimeout(() => alert('🏁 Welcome to the RaceDay demo!\n\nA full night is already scored and archived. Tap any driver\'s name to see their card, check Points for series standings, or start a new race day yourself to try the "Share results with Driven" flow.'), 300);
 }
 function setRolePrompt() {
-  const r = prompt('Set this device\'s job — type one of:  admin  ·  register  ·  scoring  ·  tv  ·  operator', deviceRole());
+  const r = prompt('Set this device\'s job — type one of:  admin  ·  register  ·  scoring  ·  tv  ·  tech  ·  operator', deviceRole());
   if (!r) return;
   const rr = r.trim().toLowerCase();
-  if (!ROLE_PAGES[rr]) { alert('Unknown role. Use admin, register, scoring, tv, or operator.'); return; }
+  if (!ROLE_PAGES[rr]) { alert('Unknown role. Use admin, register, scoring, tv, tech, or operator.'); return; }
   if (rr === 'operator') _operatorControl = false;   // always start in safe read-only watch mode
   setDeviceRole(rr);
   applyRole();
@@ -2981,6 +2995,7 @@ const NAV = [
   { id:'grid',    label:'Lineups', short:'Lineups', ico:'▦' },
   { id:'results', label:'Score',   short:'Score',   ico:'⏱' },
   { id:'points',  label:'Points',  short:'Points',  ico:'🏆' },
+  { id:'tech',    label:'Tech',    short:'Tech',    ico:'🔧', tabFor:['tech'] },   // admins reach it from Admin → Tech inspection
   { id:'admin',   label:'Admin',   short:'Admin',   ico:'⚙',  grp:'Track' },
   { id:'help',    label:'Guide',   short:'Guide',   ico:'❔' }
 ];
@@ -3010,6 +3025,7 @@ function render(p) {
   if (p === 'grid')    return renderGrid();
   if (p === 'results') return renderResults();
   if (p === 'points')  return renderPoints();
+  if (p === 'tech')    return renderTech();
   if (p === 'admin')   return renderAdmin();
   if (p === 'help')    return renderHelp();
 }
@@ -3025,7 +3041,8 @@ function renderAll() {
 }
 
 function renderNav() {
-  const pages = allowedPages();
+  const role0 = deviceRole();
+  const pages = allowedPages().filter(n => !n.tabFor || n.tabFor.includes(role0));
   let rail = '', last = null;
   pages.forEach(n => {
     if (n.grp && n.grp !== last) { rail += '<div class="rail-grp">' + esc(n.grp) + '</div>'; last = n.grp; }
@@ -3042,7 +3059,7 @@ function renderNav() {
   document.getElementById('railSub').textContent =
     role === 'viewer' ? 'Spectator view' : role === 'operator' ? 'Operator' :
     role === 'register' ? 'Registration' : role === 'scoring' ? 'Scoring' :
-    role === 'tv' ? 'TV display' : 'Race night';
+    role === 'tv' ? 'TV display' : role === 'tech' ? 'Tech inspection' : 'Race night';
 }
 
 /* ------------------------------------------------------------------- header */
@@ -3148,8 +3165,8 @@ function nightPhase() {
 function renderRaceControl() {
   const bar = document.getElementById('raceControl');
   const role = deviceRole();
-  /* Spectators and TV don't run the night; the spine is operator furniture. */
-  if (role === 'viewer' || role === 'tv' || curPage === 'help' || curPage === 'doc') { bar.style.display = 'none'; return; }
+  /* Spectators, TV and the tech tablet don't run the night; the spine is operator furniture. */
+  if (role === 'viewer' || role === 'tv' || role === 'tech' || curPage === 'help' || curPage === 'doc') { bar.style.display = 'none'; return; }
   bar.style.display = '';
 
   const ph = nightPhase();
@@ -6481,6 +6498,7 @@ let _impEditIdx = null;   /* set while editing an existing history entry */
 const ADMIN_SECTIONS = [
   { id:'today',    door:'night',  ico:'📋', label:"Today's entries",    hint:'Add, move, or fix who\'s racing tonight', kw:'entries pill grid spot number quick add refill' },
   { id:'history',  door:'night',  ico:'📅', label:'Race day history',   hint:'Past nights, CSV export, edit an import', kw:'archive export csv delete edit imported' },
+  { id:'tech',     door:'night',  ico:'🔧', label:'Tech inspection',    hint:'Checklist, pass/fail per car, tech tablet link', kw:'tech inspection weight tires safety fuel seal claim pass fail recheck' },
   { id:'payouts',  door:'night',  ico:'💵', label:'Payouts',            hint:'Purse payouts, paid/unpaid, season totals', kw:'payout purse pay money owner check cash 1099 season totals' },
   { id:'track',    door:'setup',  ico:'🏁', label:'Track identity',     hint:'Name, logo, length, surface', kw:'name logo header surface configuration oval' },
   { id:'classes',  door:'setup',  ico:'🏎',  label:'Race classes',      hint:'Add classes, pills, invert, running order', kw:'class pill invert heat qualifying age group specs' },
@@ -6570,6 +6588,7 @@ function secMarkup(id) {
     case 'today':   return secToday();
     case 'history':  return '<div class="card" id="historyList"></div>';
     case 'payouts':  return '<div id="payoutsWrap"></div>';
+    case 'tech':     return '<div id="techAdminWrap"></div>';
     case 'track':    return secTrack();
     case 'classes':  return secClasses();
     case 'format':   return secFormat();
@@ -6591,6 +6610,7 @@ function secMount(id) {
   if (id === 'today')   { renderQuickAdd(); renderEntryList(); }
   if (id === 'history')  renderHistory();
   if (id === 'payouts')  renderPayouts();
+  if (id === 'tech')     renderTech('techAdminWrap');
   if (id === 'track')   { mountTrack(); }
   if (id === 'classes') { renderClsList(); renderClsLib(); }
   if (id === 'format')  { mountFormat(); }
@@ -6605,6 +6625,116 @@ function secMount(id) {
   if (id === 'repair')   renderImpForm();
   if (id === 'audit')  { renderConsentCard(); renderAuditCard(); }
   if (id === 'danger')  { const b = document.getElementById('exitDemoBtn'); if (b) b.style.display = S.demo ? '' : 'none'; }
+}
+
+/* ---------------------------------------------------------- tech inspection ---- */
+/* One record per car per class tonight: S.raceDay.tech['<driverId>|<classId>'] =
+   {status:'pass'|'fail'|'recheck', weight, items:{name:true}, notes, at}. It syncs
+   (raceDay/tech) so a tech tablet and the tower see the same list. Admin, a controlling
+   operator and the tech role can write; everyone else only reads. */
+const TECH_STATUS = {
+  pass:    { ico: '✅', label: 'Passed',  cls: 'badge-green' },
+  fail:    { ico: '❌', label: 'Failed',  cls: 'badge-red' },
+  recheck: { ico: '🔁', label: 'Recheck', cls: 'badge-amber' }
+};
+function techKey(dId, cId) { return dId + '|' + cId; }
+function techOf(dId, cId) { return (S.raceDay.tech || {})[techKey(dId, cId)] || null; }
+function techChecklist() { return Array.isArray(S.settings.techChecklist) && S.settings.techChecklist.length ? S.settings.techChecklist : TECH_DEFAULT; }
+function canTech() { const r = deviceRole(); return canWrite() && (r === 'admin' || r === 'operator' || r === 'tech'); }
+function techChip(t) {
+  if (!t || !TECH_STATUS[t.status]) return '<span class="badge badge-dim">Not checked</span>';
+  const st = TECH_STATUS[t.status];
+  return '<span class="badge ' + st.cls + '">' + st.ico + ' ' + st.label + '</span>';
+}
+function techMini(e) {
+  const t = e && techOf(e.driverId, e.classId);
+  return t && TECH_STATUS[t.status] ? ' <span title="Tech: ' + TECH_STATUS[t.status].label + '">' + TECH_STATUS[t.status].ico + '</span>' : '';
+}
+function techCars() {
+  return S.raceDay.entries.map(e => {
+    const d = driverById(e.driverId) || { name: '?', num: '?' }, c = classById(e.classId) || { name: '?' };
+    return { dId: e.driverId, cId: e.classId, name: d.name, num: d.num, cls: c.name, t: techOf(e.driverId, e.classId) };
+  });
+}
+function renderTech(wrapId) {
+  const id = wrapId || 'techWrap';
+  const el = document.getElementById(id); if (!el) return;
+  const cars = techCars();
+  const n = k => cars.filter(x => k === 'none' ? !(x.t && TECH_STATUS[x.t.status]) : x.t && x.t.status === k).length;
+  const f = UI.techFilter || 'all';
+  const chip = (k, label) => '<button type="button" class="chip' + (f === k ? ' on' : '') + '" onclick="UI.techFilter=\'' + k + '\';renderTech(\'' + (wrapId || '') + '\')">' + label + '</button>';
+  let h = (wrapId ? '' : '<h2>Tech inspection</h2>')
+    + '<p class="sub">' + plural(cars.length, 'car', 'cars') + ' tonight · ✅ ' + n('pass') + ' passed · ❌ ' + n('fail') + ' failed · 🔁 ' + n('recheck') + ' recheck · ' + n('none') + ' not checked</p>'
+    + '<div class="chips" style="margin:12px 0">' + chip('all', 'All') + chip('none', 'Not checked') + chip('fail', 'Failed') + chip('recheck', 'Recheck') + chip('pass', 'Passed') + '</div>'
+    + '<input type="text" placeholder="Find a car — name or number" value="' + esc(UI.techQ || '') + '" oninput="UI.techQ=this.value;renderTechList(\'' + id + '\')" autocomplete="off">'
+    + '<div id="' + id + 'List" style="margin-top:12px"></div>';
+  if (deviceRole() === 'admin' || deviceRole() === 'operator') {
+    h += '<details class="card card-tight" style="margin-top:16px"><summary class="tiny" style="cursor:pointer"><b>Edit checklist</b> — one item per line</summary>'
+      + '<textarea id="techListEdit" rows="6" style="margin-top:8px">' + esc(techChecklist().join('\n')) + '</textarea>'
+      + '<button class="btn btn-sm" style="margin-top:8px" onclick="saveTechChecklist()">Save checklist</button></details>';
+  }
+  el.innerHTML = h;
+  renderTechList(id);
+}
+function renderTechList(id) {
+  const el = document.getElementById(id + 'List'); if (!el) return;
+  const f = UI.techFilter || 'all', q = (UI.techQ || '').trim().toLowerCase();
+  const cars = techCars()
+    .filter(x => f === 'all' || (f === 'none' ? !(x.t && TECH_STATUS[x.t.status]) : x.t && x.t.status === f))
+    .filter(x => !q || x.name.toLowerCase().includes(q) || String(x.num).toLowerCase().includes(q))
+    .sort((a, b) => a.cls.localeCompare(b.cls) || String(a.num).localeCompare(String(b.num), undefined, { numeric: true }));
+  if (!S.raceDay.entries.length) { el.innerHTML = emptyState('🔧', 'No cars signed in yet tonight.'); return; }
+  if (!cars.length) { el.innerHTML = emptyState('⌕', 'No cars match.'); return; }
+  el.innerHTML = '<div class="stack">' + cars.map(x =>
+    '<button type="button" class="tech-row" onclick="openTech(' + x.dId + ',' + x.cId + ')">'
+    + discNum(x.num) + '<span class="tech-who"><b>' + esc(x.name) + '</b><span class="tiny">' + esc(x.cls)
+    + (x.t && x.t.weight ? ' · ' + esc(String(x.t.weight)) + ' lb' : '') + (x.t && x.t.notes ? ' · 📝' : '') + '</span></span>'
+    + techChip(x.t) + '</button>').join('') + '</div>';
+}
+function openTech(dId, cId) {
+  const d = driverById(dId) || { name: '?', num: '?' }, c = classById(cId) || { name: '?' };
+  const t = techOf(dId, cId) || {}, items = t.items || {}, ro = !canTech();
+  const body = '<p class="sub" style="margin-bottom:12px">#' + esc(d.num) + ' · ' + esc(c.name) + ' · ' + techChip(t.status ? t : null) + '</p>'
+    + '<div class="stack" style="gap:8px">' + techChecklist().map((name, i) =>
+        '<label class="check"><input type="checkbox" data-tech-item="' + esc(name) + '"' + (items[name] ? ' checked' : '') + (ro ? ' disabled' : '') + '><span>' + esc(name) + '</span></label>').join('') + '</div>'
+    + '<div class="field" style="margin-top:14px"><label>Weight (lb)</label><input id="techWeight" type="number" inputmode="decimal" min="0" max="9999" step="0.1" value="' + esc(String(t.weight || '')) + '"' + (ro ? ' disabled' : '') + '></div>'
+    + '<div class="field"><label>Notes</label><textarea id="techNotes" rows="3" maxlength="300" placeholder="e.g. 2 lb light — add weight, recheck before the feature"' + (ro ? ' disabled' : '') + '>' + esc(t.notes || '') + '</textarea></div>'
+    + (t.at ? '<p class="tiny">Last updated ' + esc(new Date(t.at).toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' })) + '</p>' : '');
+  openSheet('Tech — ' + d.name, body, ro
+    ? '<button class="btn" onclick="closeSheet()">Close</button>'
+    : '<button class="btn btn-sm" onclick="saveTech(' + dId + ',' + cId + ',\'\')">Clear</button>'
+      + '<button class="btn" onclick="saveTech(' + dId + ',' + cId + ',\'recheck\')">🔁 Recheck</button>'
+      + '<button class="btn btn-danger" onclick="saveTech(' + dId + ',' + cId + ',\'fail\')">❌ Fail</button>'
+      + '<button class="btn btn-primary" onclick="saveTech(' + dId + ',' + cId + ',\'pass\')">✅ Pass</button>');
+}
+function saveTech(dId, cId, status) {
+  if (!canTech()) return;
+  if (!S.raceDay.tech) S.raceDay.tech = {};
+  const key = techKey(dId, cId);
+  if (!status) delete S.raceDay.tech[key];
+  else {
+    const items = {};
+    document.querySelectorAll('[data-tech-item]').forEach(cb => { if (cb.checked) items[cb.getAttribute('data-tech-item')] = true; });
+    const w = parseFloat((document.getElementById('techWeight') || {}).value);
+    S.raceDay.tech[key] = { status: TECH_STATUS[status] ? status : 'recheck', weight: isFinite(w) && w > 0 ? Math.round(w * 10) / 10 : '',
+      items, notes: String((document.getElementById('techNotes') || {}).value || '').trim().slice(0, 300), at: Date.now() };
+  }
+  save();
+  closeSheet();
+  refreshTech();
+}
+function saveTechChecklist() {
+  if (!adminOk()) return;
+  const ta = document.getElementById('techListEdit'); if (!ta) return;
+  const seen = new Set(), list = [];
+  ta.value.split('\n').map(x => x.trim().slice(0, 40)).filter(Boolean).forEach(x => { const k = x.toLowerCase(); if (!seen.has(k)) { seen.add(k); list.push(x); } });
+  S.settings.techChecklist = list.length ? list.slice(0, 20) : TECH_DEFAULT.slice();
+  save(); toast('Checklist saved'); refreshTech();
+}
+function refreshTech() {
+  if (curPage === 'tech') renderTech();
+  if (document.getElementById('techAdminWrap')) renderTech('techAdminWrap');
+  if (document.getElementById('entryList')) renderEntryList();
 }
 
 /* ------------------------------------------------------------- payouts ---- */
@@ -6750,7 +6880,7 @@ function renderEntryList() {
     + '<b>To fix an entry:</b> change <b>Car #</b> for a wrong number (updates every heat today) · '
     + 'change <b>Class</b> to move the driver · use <b>▲ ▼</b> on <b>Grid spot</b> to adjust their start.</div>'
     + '<div class="scroll-x"><table class="tbl"><thead><tr><th>Driver</th><th>Car #</th><th>Class</th><th>Grid spot</th><th></th></tr></thead><tbody>'
-    + rows.map(r => '<tr><td style="font-weight:600">' + esc(r.name) + '</td>'
+    + rows.map(r => '<tr><td style="font-weight:600">' + esc(r.name) + techMini(S.raceDay.entries[r.i]) + '</td>'
       + '<td><input type="text" maxlength="5" value="' + esc(r.num) + '" style="width:60px;text-align:center" onchange="setEntryNum(' + r.i + ',this.value)"></td>'
       + '<td><select style="max-width:150px" onchange="moveEntryClass(' + r.i + ',this.value)">'
         + S.classes.map(c => '<option value="' + c.id + '"' + (c.id === r.clsId ? ' selected' : '') + '>' + esc(c.name) + '</option>').join('') + '</select></td>'
@@ -7255,7 +7385,7 @@ function renderSyncCard() {
   if (!configured && !(S.sync && S.sync.enabled)) { el.innerHTML = '<p>Live sync isn\'t set up on this build yet. The app owner enables it once.</p>'; return; }
   if (!configured) { el.innerHTML = '<p>Live sync isn\'t set up on this build yet. The app owner enables it once.</p>'; return; }
   const role = deviceRole();
-  const roleName = { admin:'Admin (full control)', register:'Registration', scoring:'Scoring tower', tv:'TV display' }[role] || role;
+  const roleName = { admin:'Admin (full control)', register:'Registration', scoring:'Scoring tower', tv:'TV display', tech:'Tech inspection' }[role] || role;
   let h = '';
   if (syncOn()) {
     const base = location.origin + location.pathname;
@@ -7264,7 +7394,7 @@ function renderSyncCard() {
     h += '<p>✅ Live sync is <b>ON</b> for this track. Sync code: <b>' + esc(k) + '</b> <button class="btn btn-sm" onclick="copyText(\'' + esc(k) + '\',\'Code\')">Copy code</button></p>';
     h += '<p style="margin-top:10px">This device\'s job: <b>' + esc(roleName) + '</b> <button class="btn btn-sm" onclick="setRolePrompt()">Change</button></p>';
     h += '<p class="tiny" style="margin-top:12px">Set up another device — send it one of these links:</p>';
-    h += '<div style="margin-top:6px">' + linkRow('Registration link', link('register')) + linkRow('Scoring tower link', link('scoring')) + linkRow('TV display link', link('tv')) + '</div>';
+    h += '<div style="margin-top:6px">' + linkRow('Registration link', link('register')) + linkRow('Scoring tower link', link('scoring')) + linkRow('TV display link', link('tv')) + linkRow('Tech inspection link', link('tech')) + '</div>';
     h += '<div style="margin-top:14px;border-top:1px solid var(--line);padding-top:12px">'
       + '<div class="slbl" style="margin:0 0 6px">🛡 Operator link (private)</div>'
       + '<p class="tiny" style="margin:0 0 8px">For YOUR own device only. Opens in <b>watch</b> mode; Take control (your Operator PIN) makes live changes.</p>'
