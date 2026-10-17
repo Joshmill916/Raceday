@@ -140,6 +140,14 @@ profile that follows them across every RaceDay track they race at.
 - After merging to main: VERIFY the GitHub Pages build succeeds (a deploy can fail transiently) before telling the user it's live; bump `raceday/sw.js` CACHE on cache-breaking changes
 - **Bumping an app's sw.js CACHE? Bump its `APP_VERSION` too** (`YYYY-MM-DD.vN`, N = the CACHE
   number) — `tests/test-analytics.js` fails if they drift. It's what usage/crash rows report.
+- **Staff-only sync rooms** (2026-10-16): the spectator QR carries only the room code (tracks/<code>,
+  public read). Writing needs the room's staff key (`S.sync.staffKey`, never synced) carried by staff
+  links as `&st=` (`staffLinkParams()`); each staff device signs in to Firebase **anonymously**
+  (`staffJoin()`) and registers `trackStaff/<code>/<uid>`; database.rules.json only lets registered
+  devices write. The first admin device claims `trackOwner/<code>` = its uid. The PIN hash is shared at
+  `trackPin/<code>` (staff-read) so every staff device enforces it. A link asking for a staff job without
+  a valid key only watches; a spectator device never changes job without one. Guards:
+  `tests/test-staff-lock.js` + both roles-security suites. Needs Anonymous sign-in ON in Firebase Auth.
 - Analytics: every page loads the Cloudflare beacon through an inline loader that skips devices
   with `localStorage.rd_dont_count === '1'` (set at `/me/`); both apps' `sendUsage()` then sends
   crash rows only. Never add a direct `<script src=…cloudflareinsights…>` tag. Short links
