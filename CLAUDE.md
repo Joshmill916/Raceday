@@ -109,6 +109,11 @@ profile that follows them across every RaceDay track they race at.
   (`profileTracks/`+`results/`), and Driven pulls it live via `pullRaceDayResults()`/
   `checkRaceDayResults()` (a "Check for new results" Settings button), source-tagged
   `'raceday'` as verified — corrected here after an audit found this doc stale
+- **Results lock** (added 2026-10-18): `results/<trackId>` and `profileTracks/<pid>/<trackId>` accept
+  writes only from devices registered at `resultsWriter/<trackId>/<uid>` with the track's results key
+  (`resultsKey/<trackId>`, unreadable). `resultsJoin(claim)` in both apps: the admin device that first
+  shares results makes the key (kept in `S.resultsKey` — never synced, but in backups). Other devices need
+  the key (restore a backup). Guard: `tests/test-results-lock.js`
 - Career stats computed live from `raceResults` via `computeStats()` — no stored cache
 - **Other results** (`P.otherResults`, added 2026-10-15): races a driver adds from other apps
   (Speedhive, MyRacePass…), each labeled with its app (`cleanOther()` normalizes). A separate list
