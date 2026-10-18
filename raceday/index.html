@@ -1190,7 +1190,7 @@ const ACTIVE_TRACK_KEY = 'rd_active_track';
 // paste the Google Apps Script web-app URL between the quotes.
 // Reported with every usage row and crash. The part after the dot MUST match this app's
 // sw.js CACHE number (tests/test-app-version.js) — bump both together on each release.
-const APP_VERSION = '2026-10-18.v21';
+const APP_VERSION = '2026-10-18.v22';
 const LEGAL_VERSION = '2026-06';   // bump when Terms / Privacy wording changes, so acceptances are versioned
 const TELEMETRY_URL = 'https://script.google.com/macros/s/AKfycbxa3i3y17TLp_NfXOOu2jM7-YzXH2fScxcXoQYmIh0-873rxWfxg0HdRP1DVsxZq6iR/exec';
 
@@ -3760,7 +3760,8 @@ function shareResultsWithDriven(idx) {
     alert('✅ Results shared — ' + rows.length + ' driver' + (rows.length === 1 ? '' : 's') + ' will see tonight\'s results in Driven.');
     return;
   }
-  ensureFirebase().then(() => {
+  resultsJoin(deviceRole() === 'admin').then(ok => {
+    if (!ok) throw Object.assign(new Error('not a results device'), { denied: true });
     const db = firebase.database();
     return Promise.all(rows.map(r => db.ref(r.path).set(r.payload)
       .then(() => db.ref('profileTracks/' + r.profileId + '/' + trackId).set({ trackName: trackName, lastSeen: Date.now() }))));
@@ -3769,7 +3770,8 @@ function shareResultsWithDriven(idx) {
     save();
     renderResultsShareBanner();
     alert('✅ Results shared — ' + rows.length + ' driver' + (rows.length === 1 ? '' : 's') + ' will see tonight\'s results in Driven.');
-  }).catch(() => {
+  }).catch(e => {
+    if (e && e.denied) { alert('This device can\'t publish this track\'s results to Driven.\n\nResults are shared from the track\'s admin device (the one that first shared results). On a replacement device, restore your RaceDay backup first so it carries the Driven key over.'); return; }
     alert("Couldn't reach Driven — check your connection and try again. Nothing was lost; you can share from Race day history anytime.");
   });
 }
@@ -5349,6 +5351,28 @@ function newStaffKey() {
   return Array.from(b, x => ('0' + x.toString(16)).slice(-2)).join('');
 }
 function validStaffKey(k) { return typeof k === 'string' && /^[a-f0-9]{32}$/.test(k); }
+/* ---------- Driven results: only the track's own device may publish them ----------
+   results/<trackId>/… is what Driven shows as verified, so publishing takes the track's
+   RESULTS KEY. The admin device that first shares results makes it (resultsKey/<trackId>,
+   unreadable) and registers resultsWriter/<trackId>/<its sign-in id> = key; the rules accept
+   results and profileTracks writes for that track only from registered devices. The key
+   lives in S.resultsKey, which never syncs (tracks/<code> is readable by anyone) but is
+   in backups, so restoring a backup on a replacement device carries it over. */
+function resultsJoin(claim) {
+  const tid = S.track && S.track.id;
+  if (!tid || S.demo) return Promise.resolve(false);
+  return ensureFirebase().then(loadFirebaseAuth).then(() => {
+    const auth = firebase.auth();
+    return auth.currentUser ? auth.currentUser : auth.signInAnonymously().then(c => c.user);
+  }).then(user => {
+    const db = firebase.database();
+    const join = () => db.ref('resultsWriter/' + tid + '/' + user.uid).set(S.resultsKey).then(() => true, () => false);
+    if (validStaffKey(S.resultsKey)) return join();
+    if (!claim) return false;
+    const key = newStaffKey();
+    return db.ref('resultsKey/' + tid).set(key).then(() => { S.resultsKey = key; persistLocal(); return join(); }, () => false);
+  }).catch(() => false);
+}
 // Signs this device in and registers it as staff for the room. Resolves true once
 // registered; false without a key, with a wrong one, or when another device owns the room.
 function staffJoin() {
@@ -5473,7 +5497,7 @@ function linkProfile(driverId, codeOrId) {
       // Fire-and-forget: lets a driver's Driven app show "linked track: X" right away,
       // before any results exist. Never blocks/fails the link itself on a hiccup here —
       // shareResultsWithDriven() writes this same path again at publish time regardless.
-      firebase.database().ref('profileTracks/' + id + '/' + S.track.id).set({ trackName: S.track.name || '', lastSeen: Date.now() }).catch(() => {});
+      resultsJoin(deviceRole() === 'admin').then(ok => ok && firebase.database().ref('profileTracks/' + id + '/' + S.track.id).set({ trackName: S.track.name || '', lastSeen: Date.now() })).catch(() => {});
       return d;
     })
   ).catch(err => {

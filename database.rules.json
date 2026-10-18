@@ -89,7 +89,7 @@
           "$className": {
             "$driverKey": {
               ".read": true,
-              ".write": true,
+              ".write": "auth != null && root.child('resultsWriter').child($trackId).child(auth.uid).exists()",
               ".validate": "newData.hasChildren(['profileId','name','num','position'])",
               "profileId": { ".validate": "newData.isString() && newData.val().matches(/^prof_[a-z0-9]{6,20}$/i)" },
               "name": { ".validate": "newData.isString() && newData.val().length <= 40" },
@@ -108,11 +108,27 @@
         ".read": true,
         "$trackId": {
           ".read": true,
-          ".write": true,
+          ".write": "auth != null && root.child('resultsWriter').child($trackId).child(auth.uid).exists()",
           ".validate": "newData.hasChildren(['trackName'])",
           "trackName": { ".validate": "newData.isString() && newData.val().length <= 60" },
           "lastSeen": { ".validate": "newData.isNumber()" },
           "$other": { ".validate": false }
+        }
+      }
+    },
+    "resultsKey": {
+      "$trackId": {
+        ".read": false,
+        ".write": "auth != null && (!data.exists() || root.child('resultsWriter').child($trackId).child(auth.uid).exists())",
+        ".validate": "newData.isString() && newData.val().matches(/^[a-f0-9]{32}$/)"
+      }
+    },
+    "resultsWriter": {
+      "$trackId": {
+        "$uid": {
+          ".read": "auth != null && auth.uid === $uid",
+          ".write": "auth != null && auth.uid === $uid && newData.exists() && newData.val() === root.child('resultsKey').child($trackId).val()",
+          ".validate": "newData.isString()"
         }
       }
     },
