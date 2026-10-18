@@ -117,6 +117,19 @@ const check = (name, ok, extra) => {
   check('spectator QR device is the viewer role', (await role()) === 'viewer');
   check('spectator QR device shows only [grid, help]', JSON.stringify(await navVisible()) === JSON.stringify(['grid', 'help']));
 
+  // A driver's "My lineup" QR (sign-up screen) is the spectator link + &me=<id>. It must only
+  // pick who to follow — never more access, never a write to this device's own track.
+  resetDlg();
+  answer = () => true;
+  await page.evaluate(() => localStorage.clear());
+  await go(base + '?sync=LIVEROOM&role=viewer&me=12345');
+  await page.waitForTimeout(500);
+  check('a driver\'s lineup link (role=viewer&me=) is a read-only guest viewer',
+    await page.evaluate(() => GUEST === true && deviceRole() === 'viewer' && canWrite() === false && adminOk() === false && UI.followId === 12345));
+  check('…shows only [grid, help]', JSON.stringify(await navVisible()) === JSON.stringify(['grid', 'help']));
+  check('…and saves nothing but which driver it follows (no track, no role)',
+    await page.evaluate(() => localStorage.getItem('raceday_v2') === null && localStorage.getItem('rd_role_v2') === null && localStorage.getItem('rd_follow_LIVEROOM') === '12345'));
+
   resetDlg();
   answer = () => true;
   await page.evaluate(() => localStorage.clear());

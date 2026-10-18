@@ -5239,21 +5239,20 @@ function pingOpen() {
   } catch (e) { return; }
   sendUsage('open', currentCounts());
 }
-// Devices opted out at victoryraceday.com/me/ (the owner testing) send crash reports only,
-// so their opens and race nights don't count as track usage.
+// Devices opted out at victoryraceday.com/me/ (the owner testing) still send rows, but with
+// the track column marked OWNER, so the sheet can sort them away from possible customers.
 function dontCount() { try { return localStorage.getItem('rd_dont_count') === '1'; } catch (e) { return false; } }
 // A copy running on this computer (tests, local preview) never reports: its opens, race nights and
 // crashes are ours, not a track's. rd_count_local='1' turns reporting back on for the analytics test.
 function devHost() { try { return /^(localhost|127\.0\.0\.1|\[::1\])$|\.(localhost|test)$/.test(location.hostname) && localStorage.getItem('rd_count_local')!=='1'; } catch (e) { return true; } }
 function sendUsage(event, extra) {
   if (!TELEMETRY_URL || devHost()) return;
-  if (event !== 'crash' && dontCount()) return;
   try {
     const body = JSON.stringify(Object.assign({
       event: event,
       version: APP_VERSION,
       date: (S.raceDay && S.raceDay.date) || today(),
-      track: (S.license && S.license.name) || 'unknown',
+      track: (dontCount() ? 'OWNER · ' : '') + ((S.license && S.license.name) || 'unknown'),
       device: deviceId(),
       demo: !!S.demo
     }, extra || {}));

@@ -149,6 +149,8 @@ profile that follows them across every RaceDay track they race at.
   a valid key only watches; a spectator device never changes job without one. Guards:
   `tests/test-staff-lock.js` + both roles-security suites. Needs Anonymous sign-in ON in Firebase Auth.
 - Analytics: every page loads the Cloudflare beacon through an inline loader that skips devices
-  with `localStorage.rd_dont_count === '1'` (set at `/me/`); both apps' `sendUsage()` then sends
-  crash rows only. Never add a direct `<script src=…cloudflareinsights…>` tag. Short links
+  with `localStorage.rd_dont_count === '1'` (set at `/me/`); both apps' `sendUsage()` still sends
+  every row from such a device but prefixes its track column `OWNER · ` (so the owner's testing
+  sorts away from possible customers). Local copies (localhost, *.test — `devHost()`) send nothing
+  unless `rd_count_local='1'` (the analytics test). Never add a direct `<script src=…cloudflareinsights…>` tag. Short links
   `/fb/`, `/li/`, `/qr/` (+ `/drivers/` versions) record a visit, then forward — use them in posts.

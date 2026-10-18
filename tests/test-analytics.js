@@ -62,7 +62,7 @@ const TOKEN = '07e858325a984890a4f60c1cec1942bc';
     const page = await ctx.newPage();
     const hits = { beacon: 0, usage: [] };
     await page.route(/cloudflareinsights/, r => { hits.beacon++; r.fulfill({ status: 200, contentType: 'application/javascript', body: '' }); });
-    await page.route(/script\.google\.com/, r => { try { hits.usage.push(JSON.parse(r.request().postData() || '{}').event); } catch (e) { hits.usage.push('?'); } r.fulfill({ status: 200, body: '' }); });
+    await page.route(/script\.google\.com/, r => { try { const b = JSON.parse(r.request().postData() || '{}'); hits.usage.push(b.event); (hits.rows = hits.rows || []).push(b); } catch (e) { hits.usage.push('?'); } r.fulfill({ status: 200, body: '' }); });
     await page.route(/firebaseio\.com|gstatic\.com|fonts\.googleapis/, r => r.abort());
     page.on('dialog', d => d.accept());
     await page.goto(base + '/me/');
@@ -91,15 +91,16 @@ const TOKEN = '07e858325a984890a4f60c1cec1942bc';
     await on.ctx.close(); await off.ctx.close();
   }
 
-  console.log('\n=== 5. Usage rows: opens skipped when opted out, crashes still sent ===');
+  console.log('\n=== 5. Usage rows: opted-out devices still report, labeled OWNER ===');
   for (const app of ['raceday', 'raceday2']) {
     const on = await fresh(false); await on.page.goto(base + '/' + app + '/'); await on.page.waitForTimeout(900);
     const off = await fresh(true); await off.page.goto(base + '/' + app + '/'); await off.page.waitForTimeout(900);
-    check(app + ': a normal device logs its daily open', on.hits.usage.includes('open'), JSON.stringify(on.hits.usage));
-    check(app + ': an opted-out device does not', !off.hits.usage.includes('open'), JSON.stringify(off.hits.usage));
+    const tracks = h => (h.rows || []).map(r => r.track);
+    check(app + ': a normal device logs its daily open, track not labeled', on.hits.usage.includes('open') && tracks(on.hits).every(t => !/OWNER/.test(t)), JSON.stringify(tracks(on.hits)));
     await off.page.evaluate(() => { sendUsage('night', {}); reportCrash('Test crash', location.href, 1, 1, null); });
     await off.page.waitForTimeout(400);
-    check(app + ': opted out still sends crash reports, not race nights', off.hits.usage.includes('crash') && !off.hits.usage.includes('night'), JSON.stringify(off.hits.usage));
+    check(app + ': an opted-out device sends opens, nights and crashes', ['open', 'night', 'crash'].every(e => off.hits.usage.includes(e)), JSON.stringify(off.hits.usage));
+    check(app + ': …every one labeled OWNER in the track column', tracks(off.hits).length >= 3 && tracks(off.hits).every(t => /^OWNER · /.test(t)), JSON.stringify(tracks(off.hits)));
     await on.ctx.close(); await off.ctx.close();
   }
 
