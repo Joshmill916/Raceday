@@ -54,8 +54,11 @@ const TOKEN = '07e858325a984890a4f60c1cec1942bc';
   }).listen(PORT);
   const browser = await chromium.launch({ executablePath: '/opt/pw-browsers/chromium' });
   const base = `http://localhost:${PORT}`;
-  const fresh = async (flag) => {
+  // These pages run on localhost, which every page treats as a dev/test copy and keeps silent.
+  // rd_count_local='1' switches reporting back on so this suite can check it (local=false: off).
+  const fresh = async (flag, local = true) => {
     const ctx = await browser.newContext();
+    if (local) await ctx.addInitScript(() => { try { localStorage.setItem('rd_count_local', '1'); } catch (e) {} });
     const page = await ctx.newPage();
     const hits = { beacon: 0, usage: [] };
     await page.route(/cloudflareinsights/, r => { hits.beacon++; r.fulfill({ status: 200, contentType: 'application/javascript', body: '' }); });
@@ -98,6 +101,29 @@ const TOKEN = '07e858325a984890a4f60c1cec1942bc';
     await off.page.waitForTimeout(400);
     check(app + ': opted out still sends crash reports, not race nights', off.hits.usage.includes('crash') && !off.hits.usage.includes('night'), JSON.stringify(off.hits.usage));
     await on.ctx.close(); await off.ctx.close();
+  }
+
+  console.log('\n=== 5b. A copy on this computer (tests, local preview) reports nothing ===');
+  // Regression: on 2026-10-17 a full test run on a Mac with internet logged ~40 fake devices and
+  // race nights into the usage sheet. Local hosts must stay silent unless rd_count_local is set.
+  for (const p of ['/', '/drivers/', '/raceday/', '/raceday2/']) {
+    const t = await fresh(false, false); await t.page.goto(base + p); await t.page.waitForTimeout(900);
+    check(p + ' on localhost: no beacon', t.hits.beacon === 0, String(t.hits.beacon));
+    await t.ctx.close();
+  }
+  for (const app of ['raceday', 'raceday2']) {
+    const t = await fresh(false, false); await t.page.goto(base + '/' + app + '/'); await t.page.waitForTimeout(900);
+    await t.page.evaluate(() => { sendUsage('night', {}); reportCrash('Test crash', location.href, 1, 1, null); });
+    await t.page.waitForTimeout(400);
+    check(app + ' on localhost: no opens, nights or crashes sent', t.hits.usage.length === 0, JSON.stringify(t.hits.usage));
+    check(app + ' on localhost: devHost() is true', await t.page.evaluate(() => devHost()) === true);
+    await t.ctx.close();
+  }
+  {
+    const t = await fresh(false, false); await t.page.goto(base + '/fb/');
+    await t.page.waitForURL(u => new URL(u).pathname === '/', { timeout: 4000 }).catch(() => {});
+    check('/fb/ on localhost forwards with no beacon', new URL(t.page.url()).pathname === '/' && t.hits.beacon === 0, String(t.hits.beacon));
+    await t.ctx.close();
   }
 
   console.log('\n=== 6. Short links record the visit, then forward ===');

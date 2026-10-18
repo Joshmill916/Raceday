@@ -19,7 +19,7 @@
 (function () {
   var done = false, go = function () { if (done) return; done = true; location.replace('/' + location.search + location.hash); };
   var off = false;
-  try { off = localStorage.getItem('rd_dont_count') === '1'; } catch (e) {}
+  try { off = localStorage.getItem('rd_dont_count') === '1' || (/^(localhost|127\.0\.0\.1|\[::1\])$|\.(localhost|test)$/.test(location.hostname)&&localStorage.getItem('rd_count_local')!=='1'); } catch (e) {}
   if (off) { go(); return; }
   var s = document.createElement('script');
   s.defer = true;
