@@ -550,6 +550,18 @@ body.kiosk .wrap-narrow { max-width:600px; width:100%; }
 .fan-hero::after { content:''; position:absolute; top:0; right:0; bottom:0; width:64px; opacity:.05; color:var(--ink); background-image:repeating-conic-gradient(currentColor 0% 25%, transparent 0% 50%); background-size:16px 16px; }
 .fan-hero .eyebrow { font-family:var(--display); font-size:11.5px; font-weight:700; letter-spacing:.14em; text-transform:uppercase; color:var(--plate); margin-bottom:7px; }
 .fan-hero h3 { font-size:clamp(21px,4.6vw,30px); margin-bottom:5px; }
+.my-lineup { display:flex; gap:16px; align-items:center; text-align:left; max-width:440px; margin:22px auto 0; padding:14px; border:1px solid var(--plate); border-radius:var(--r); }
+.my-lineup canvas { flex:none; width:132px; height:132px; background:#fff; border-radius:8px; padding:6px; }
+@media (max-width:420px) { .my-lineup { flex-direction:column; text-align:center; } }
+.my-night { border:1px solid var(--plate); border-radius:var(--r); margin-bottom:16px; overflow:hidden; }
+.my-night > .follow-strip { border:0; border-radius:0; }
+.mn-cls { padding:10px 16px 12px; border-top:1px solid var(--line); }
+.mn-hd { display:flex; flex-wrap:wrap; align-items:baseline; gap:4px 10px; margin-bottom:6px; }
+.mn-race { display:flex; flex-wrap:wrap; align-items:center; gap:4px 10px; padding:6px 0; border-top:1px dashed var(--line); }
+.mn-hd + .mn-race { border-top:0; }
+.mn-race.now .mn-lbl { color:var(--plate); }
+.mn-lbl { font-family:var(--display); font-weight:700; min-width:9ch; }
+.mn-spot { font-weight:600; flex:1; min-width:12ch; }
 .follow-strip { display:flex; align-items:center; gap:12px; padding:13px 16px; border:1px solid var(--plate); border-radius:var(--r); background:linear-gradient(100deg,rgba(255,212,73,.10),transparent 70%); margin-bottom:16px; }
 
 /* ============================================================================
@@ -800,7 +812,7 @@ const GARAGE_KEY = 'rd_garage_v2';
 const ACTIVE_TRACK_KEY = 'rd_active_track_v2';
 // Reported with every usage row and crash. The part after the dot MUST match this app's
 // sw.js CACHE number (tests/test-app-version.js) — bump both together on each release.
-const APP_VERSION = '2026-10-18.v10';
+const APP_VERSION = '2026-10-18.v11';
 const LEGAL_VERSION = '2026-06';   // bump when Terms / Privacy wording changes, so acceptances are versioned
 const TELEMETRY_URL = 'https://script.google.com/macros/s/AKfycbxa3i3y17TLp_NfXOOu2jM7-YzXH2fScxcXoQYmIh0-873rxWfxg0HdRP1DVsxZq6iR/exec';
 const FIREBASE_CONFIG = {
@@ -1216,6 +1228,19 @@ try { UI.scoreMode = localStorage.getItem('rd_score_mode') || 'tap'; } catch (e)
    inside one track's roster — restoring it while visiting would "follow" whichever
    unrelated driver happens to share that id. */
 if (!GUEST) { try { UI.followId = parseInt(localStorage.getItem('rd_follow') || '', 10) || null; } catch (e) {} }
+/* A guest remembers its followed driver per room (rd_follow_<code>), where the id does mean
+   one driver. A driver's own "My lineup" link (&me=<id>, handed out at sign-up) sets it —
+   read here, before the link params are stripped from the address bar. */
+function followKey() { return 'rd_follow_' + GUEST_CODE; }
+if (GUEST) {
+  let me = null;
+  try { me = parseInt(new URLSearchParams(location.search).get('me') || '', 10) || null; } catch (e) {}
+  try {
+    if (me) localStorage.setItem(followKey(), String(me));
+    else me = parseInt(localStorage.getItem(followKey()) || '', 10) || null;
+  } catch (e) {}
+  UI.followId = me;
+}
 
 /* ============================================================================
    §1b  ENGINE — license, trial, PINs, premium codes (verbatim)
@@ -1785,7 +1810,7 @@ function dupFinishWarn(res, ids, keyFn) {
    §1d  ENGINE — Firebase sync + Driven profile cards (verbatim)
    ========================================================================= */
 function fbKey(s) { return String(s || '').replace(/[.#$\[\]/]/g, '_'); }
-const Sync = { db: null, timer: null, applying: false, activating: false, connected: false, joinFailed: false };
+const Sync = { db: null, timer: null, applying: false, activating: false, connected: false, joinFailed: false, haveData: false };
 let _operatorControl = false;   // operator mode: false = watching (read-only), true = controlling (writes live)
 const _syncLast = {};   // field -> last JSON string seen, so we only push real changes
 function operatorWatching() { return deviceRole() === 'operator' && !_operatorControl; }
@@ -2124,6 +2149,7 @@ function initSync() {
 function syncApplySnapshot(v) {
   if (!v) return;
   Sync.joinFailed = false;
+  Sync.haveData = true;   // a guest's roster is now in — a followed id that's still missing really is gone
   const wasViewer = deviceRole() === 'viewer';
   const prevFin = wasViewer ? JSON.stringify(S.classes.map(c => featureFinish(c.id))) : null;
   const prevTrackName = S.track && S.track.name;
@@ -3613,7 +3639,7 @@ let signupDone = null;      /* {driver, drawn} while the pill reveal is showing 
 
 function renderSignup() {
   const el = document.getElementById('signupWrap');
-  if (signupDone) { el.innerHTML = doneMarkup(signupDone.driver, signupDone.drawn); return; }
+  if (signupDone) { el.innerHTML = doneMarkup(signupDone.driver, signupDone.drawn); drawMyLineupQR(signupDone.driver.id); return; }
 
   if (!S.classes.length) {
     el.innerHTML = '<h2>Driver sign-up</h2>'
@@ -3904,11 +3930,39 @@ function doneMarkup(driver, drawn) {
       + '<div class="tiny">Row ' + pt.row + ' · ' + pt.side + ' · Pill #' + x.pill + '</div></div></div>';
   });
   h += '</div>'
+    + myLineupMarkup(driver.id)
     + '<p class="tiny" style="max-width:44ch;margin:16px auto 0">Running a qualifying race? The pill is just a placeholder — setting the grid from qualifying times replaces it with the qualifying order.</p>'
     + '<div class="rowflex" style="justify-content:center;margin-top:22px">'
     + '<button class="btn btn-primary" onclick="resetReg()">Sign up the next driver</button>'
     + '<button class="btn" onclick="nav(\'grid\')">See the full grid →</button></div></div>';
   return h;
+}
+
+/* A driver's own lineup on their phone: the spectator link (room code only — never the staff
+   key, so it can't change anything) plus &me=<id>, which opens it following that driver. */
+function myLineupLink(driverId) {
+  return location.origin + location.pathname + '?sync=' + encodeURIComponent(syncKey()) + '&role=viewer&me=' + encodeURIComponent(driverId);
+}
+function myLineupMarkup(driverId) {
+  if (!syncOn() || !syncKey()) {
+    return ['admin', 'operator'].indexOf(deviceRole()) >= 0
+      ? '<p class="tiny" style="max-width:44ch;margin:16px auto 0">📱 Turn on Multi-device sync (Admin → Multi-device sync) and each driver gets a QR code here to follow their own lineup on their phone.</p>'
+      : '';
+  }
+  return '<div class="my-lineup"><canvas id="myLineupQR" width="168" height="168"></canvas>'
+    + '<div><b>📱 Your lineup on your phone</b>'
+    + '<p class="tiny" style="margin:4px 0 10px">Scan to follow your heats, starting spots and results live tonight.</p>'
+    + '<button class="btn btn-sm" onclick="copyText(myLineupLink(' + Number(driverId) + '),\'Lineup link\')">Copy link</button></div></div>';
+}
+function drawMyLineupQR(driverId) {
+  const cv = document.getElementById('myLineupQR');
+  if (cv && typeof drawQR === 'function') drawQR(cv, myLineupLink(driverId));
+}
+function showMyLineup(driverId) {
+  const d = driverById(driverId); if (!d) return;
+  openSheet('📱 ' + d.name + ' — lineup link', myLineupMarkup(driverId)
+    + '<p class="tiny" style="margin-top:12px">Opens a read-only view on their phone that follows them all night. It\'s the same view fans get, pinned to this driver.</p>');
+  drawMyLineupQR(driverId);
 }
 
 function resetReg() {
@@ -4162,14 +4216,16 @@ function openDriverCard(driverId) {
   if (rows.length) h += '<div class="dc-rows" style="margin:0 -20px -18px">'
     + rows.map(r => '<div class="dc-row"><b>' + esc(r[0]) + '</b><span>' + esc(String(r[1])) + '</span></div>').join('') + '</div>';
 
+  const lineupBtn = deviceRole() !== 'viewer' && !GUEST && syncOn() && syncKey() && S.raceDay.entries.some(e => e.driverId === driverId)
+    ? '<button class="btn btn-sm" onclick="showMyLineup(' + driverId + ')">📱 Lineup link</button>' : '';
   openSheet(d.name, h,
-    deviceRole() === 'admin'
+    lineupBtn + (deviceRole() === 'admin'
       ? '<button class="btn" onclick="editDriverCard()">Edit profile</button>'
         + '<button class="btn btn-sm" onclick="editPayee()">Payout info</button>'
         + (d.profileId
             ? '<button class="btn btn-sm" onclick="refreshProfile()">↻ Refresh from Driven</button>'
             : '<button class="btn btn-sm" onclick="linkProfilePrompt()">Link Driven card</button>')
-      : '',
+      : ''),
     { cls: 'sheet dc' + (prem ? ' prem' : '') + (teamColor ? ' team' : ''), onClose: () => { driverCardId = null; } });
   autoRefreshProfile(d);
 }
@@ -5024,9 +5080,8 @@ function openPrint() {
 
 function followDriver(id) {
   UI.followId = id;
-  /* Follow still works for the session, it just isn't remembered: a guest's driver id
-     belongs to the visited track's roster, not this device's. */
-  if (!GUEST) { try { localStorage.setItem('rd_follow', id ? String(id) : ''); } catch (e) {} }
+  /* A guest's driver id belongs to the visited track's roster, so it's remembered per room. */
+  try { localStorage.setItem(GUEST ? followKey() : 'rd_follow', id ? String(id) : ''); } catch (e) {}
   renderGrid();
 }
 function unfollowDriver() { followDriver(null); }
@@ -5056,17 +5111,70 @@ function fanHero() {
 function fanFollowStrip() {
   if (!UI.followId) {
     return '<button class="follow-strip" style="width:100%;background:none;border:1px dashed var(--line);cursor:pointer;text-align:left" onclick="openFollowPicker()">'
-      + '<span style="font-size:20px">⭐</span><span><b>Follow a driver</b><br><span class="tiny">Their card and next race pin to the top</span></span></button>';
+      + '<span style="font-size:20px">⭐</span><span><b>Follow a driver</b><br><span class="tiny">Their heats, starting spots and results pin to the top</span></span></button>';
   }
   const d = driverById(UI.followId);
-  if (!d) { UI.followId = null; return ''; }
-  const entries = S.raceDay.entries.filter(e => e.driverId === d.id);
-  const next = entries.map(e => classById(e.classId)).filter(Boolean).map(c => c.name);
-  return '<div class="follow-strip">' + discNum(d.num)
+  if (!d) {
+    // A guest's roster lands a moment after boot — keep a "My lineup" link's driver until it does.
+    if (GUEST && !Sync.haveData) return '<div class="follow-strip"><span style="font-size:20px">⭐</span><span class="tiny">Loading your lineup…</span></div>';
+    UI.followId = null; return '';
+  }
+  const night = myNight(d.id);
+  return '<div class="my-night">'
+    + '<div class="follow-strip" style="margin:0">' + discNum(d.num)
     + '<div style="flex:1;min-width:0"><b>' + esc(d.name) + '</b>'
-    + '<div class="tiny">' + (next.length ? 'Racing: ' + esc(next.join(' · ')) : 'Not entered tonight') + '</div></div>'
+    + '<div class="tiny">' + (night.classes.length ? esc(night.next ? 'Next: ' + night.next.cls.name + ' · ' + night.next.label + ' — ' + night.next.when : 'Racing: ' + night.classes.map(c => c.cls.name).join(' · ')) : 'Not entered tonight') + '</div></div>'
     + '<button class="btn btn-sm" onclick="openDriverCard(' + d.id + ')">Card</button>'
-    + '<button class="btn btn-sm btn-ghost" onclick="unfollowDriver()">✕</button></div>';
+    + '<button class="btn btn-sm btn-ghost" onclick="unfollowDriver()" title="Stop following">✕</button></div>'
+    + night.classes.map(myNightClassMarkup).join('')
+    + '</div>';
+}
+
+/* "My night": one driver's own races tonight, from the same running order the announcer
+   uses (raceOrder) — each race's starting spot, and whether it's on track, coming up or done. */
+function myNight(driverId) {
+  const order = raceOrder();
+  const open = order.filter(r => r.ready && !r.done);
+  const single = S.settings.gridStyle === 'single';
+  const spot = pos => { const pt = posText(pos); return 'P' + pos + (single ? '' : ' · Row ' + pt.row + ' ' + pt.side.toLowerCase()); };
+  const classes = [];
+  let next = null;
+  S.raceDay.entries.filter(e => e.driverId === driverId).forEach(e => {
+    const cls = classById(e.classId); if (!cls) return;
+    const res = getRes(cls.id), races = [];
+    order.filter(r => r.cls.id === cls.id).forEach(r => {
+      const i = r.grid.findIndex(g => g.id === driverId);
+      if (r.feature && !r.ready) { races.push({ label: 'Feature', note: 'Lineup posts after the B-mains' }); return; }
+      if (i < 0) {
+        if (r.feature && r.ready && !r.done) races.push({ label: 'Feature', note: 'Did not make the feature' });
+        return;
+      }
+      const v = res[r.key({ id: driverId })];
+      const oi = open.indexOf(r);
+      const when = r.done ? '' : oi === 0 ? 'On track now' : oi === 1 ? 'Up next' : oi > 1 ? oi + ' races away' : '';
+      const row = { label: r.label, spot: spot(i + 1), done: r.done, fin: v, when, now: oi === 0 };
+      races.push(row);
+      if (!r.done && oi >= 0 && (!next || oi < next.oi)) next = { cls, label: r.label, when, oi };
+    });
+    if (!classComplete(cls.id) && classHeats(cls) > 0) races.push({ label: 'Feature', note: 'Lineup posts once the heats are in' });
+    const st = calcStandings(cls.id).find(x => x.id === driverId);
+    const dp = isPointsRace(cls.id) && featureFinish(cls.id).length ? dayPoints(cls.id)[driverId] : null;
+    classes.push({ cls, races, total: st && st.scored ? heatTotalTag(cls, st) : '', pts: dp != null ? dp : null });
+  });
+  return { classes, next };
+}
+function myNightClassMarkup(c) {
+  const fin = v => typeof v === 'number' ? 'Finished P' + v : esc(String(v));
+  return '<div class="mn-cls"><div class="mn-hd"><b>' + esc(c.cls.name) + '</b>'
+    + [c.total, c.pts != null ? c.pts + ' pts tonight' : ''].filter(Boolean).map(t => '<span class="tiny">' + esc(t) + '</span>').join('') + '</div>'
+    + c.races.map(r => '<div class="mn-race' + (r.now ? ' now' : '') + '">'
+      + '<span class="mn-lbl">' + esc(r.label) + '</span>'
+      + (r.note ? '<span class="tiny">' + esc(r.note) + '</span>'
+        : '<span class="mn-spot">Start ' + esc(r.spot) + '</span>'
+          + (r.done ? '<span class="badge badge-dim">' + fin(r.fin) + '</span>'
+            : r.when ? '<span class="badge ' + (r.now ? 'badge-green' : 'badge-amber') + '">' + esc(r.when) + '</span>' : ''))
+      + '</div>').join('')
+    + '</div>';
 }
 function openFollowPicker() {
   const list = [...S.roster].sort((a, b) => a.name.localeCompare(b.name));
@@ -8023,7 +8131,8 @@ function renderHelp() {
       + guideStep(1, 'Pick your class', '<p>Use the class tabs at the top of Lineups to find yours.</p>')
       + guideStep(2, 'Follow along', '<p>Qualifying, Heats, B-mains, Feature and Results fill in through the night as each round is scored — a toast pops up when results update.</p>')
       + guideStep(3, 'Reading the grid', '<p><b>Lowest spot starts up front.</b> Find your car number — that\'s where you line up.</p>')
-      + guideStep(4, 'Tap for more', '<p>Tap a <b>driver\'s name</b> to see their car number, classes and career stats.</p>');
+      + guideStep(4, 'Tap for more', '<p>Tap a <b>driver\'s name</b> to see their car number, classes and career stats.</p>')
+      + guideStep(5, 'Racing tonight? Follow yourself', '<p>Tap <b>⭐ Follow a driver</b> and pick your name (the QR code from sign-up does this for you). Your heats, starting spots and results pin to the top, with <b>On track now</b>, <b>Up next</b> or how many races away.</p>');
     return;
   }
   if (deviceRole() === 'tech') {
@@ -8053,7 +8162,8 @@ function renderHelp() {
     + guideStep(5, 'Admin — set it up once',
         '<p>Search for any setting, or use the four doors: <b>Race night</b> (entries, history), <b>Season setup</b> (track, classes, format, points, sync), <b>Account</b> (PIN, license, backups, records), and <b>Danger zone</b> (new race day, demo, resets). First time here? Use the <b>Setup wizard</b>.</p>')
     + guideStep(6, 'Multi-device sync (optional)',
-        '<p>Run a registration tablet, scoring tower and TV screen on the same race day at once — Admin → Multi-device sync → Start sync, then open the matching link on each device. The free spectator QR link is the same place.</p>')
+        '<p>Run a registration tablet, scoring tower and TV screen on the same race day at once — Admin → Multi-device sync → Start sync, then open the matching link on each device. The free spectator QR link is the same place. '
+        + 'With sync on, every driver also gets <b>📱 their own lineup on their phone</b>: a QR code on the "You\'re on the grid" screen after sign-up (or <b>📱 Lineup link</b> on their driver card) shows their heats, starting spots and results live all night.</p>')
     + guideStep(7, 'Race-night extras',
         '<p><b>🔧 Tech inspection</b> — Admin → Race night → Tech inspection, or send the <b>Tech inspection link</b> to a tablet: checklist, weight, Pass / Fail / Recheck per car. '
         + '<b>💵 Payouts</b> — set a purse per class in Race classes; tonight\'s payouts, a paid/unpaid ledger and season totals for 1099s are in Admin → Payouts, and Print has a payout sheet. '
