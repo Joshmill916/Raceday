@@ -282,7 +282,7 @@ footer a:hover{color:#fff}
       <div class="plan feature fade-up d1">
         <span class="plan-tag">Weekly tracks</span>
         <h3>Season pass</h3>
-        <div class="price">$350<small>Unlimited, through Dec 31 2026</small></div>
+        <div class="price">$350<small>Unlimited, through Dec 31 <span data-season>2027</span></small></div>
         <p class="who">Race every week and stop counting. Cheaper than packets past about 17 nights.</p>
         <ul>
           <li>Unlimited race days all season</li>
@@ -291,7 +291,7 @@ footer a:hover{color:#fff}
         </ul>
         <div class="plan-cta">
           <a class="btn" href="https://buy.stripe.com/3cIdRbboe0B83J17PkaMU00">Buy a season pass <span class="btn-arrow">→</span></a>
-          <p class="fineprint">Code arrives on screen, instantly &middot; expires Dec 31 no matter when you buy</p>
+          <p class="fineprint">Code arrives on screen, instantly &middot; covers the <span data-season>2027</span> season &middot; bought from October on, it's next season's pass</p>
         </div>
       </div>
 
@@ -374,5 +374,8 @@ footer a:hover{color:#fff}
   </div>
 </footer>
 <!-- Cloudflare Web Analytics --><script>/* skipped on devices opted out at /me/ (the owner's own testing) and on local dev/test copies */try{if(localStorage.getItem('rd_dont_count')!=='1'&&!(/^(localhost|127\.0\.0\.1|\[::1\])$|\.(localhost|test)$/.test(location.hostname)&&localStorage.getItem('rd_count_local')!=='1')){var cfb=document.createElement('script');cfb.defer=true;cfb.src='https://static.cloudflareinsights.com/beacon.min.js';cfb.setAttribute('data-cf-beacon','{"token": "07e858325a984890a4f60c1cec1942bc"}');(document.body||document.head).appendChild(cfb);}}catch(e){}</script><!-- End Cloudflare Web Analytics -->
+<script>/* Season on sale: from October 1 on, next year's (same rule as functions/lib/season.js). */
+(function () { var d = new Date(), y = d.getUTCFullYear() + (d.getUTCMonth() >= 9 ? 1 : 0);
+  document.querySelectorAll('[data-season]').forEach(function (e) { e.textContent = y; }); })();</script>
 </body>
 </html>

@@ -73,7 +73,7 @@ function mintForLineItem(session, price, codegen) {
     if (!name) throw new Error('No track/customer name on the session (custom field or billing name)');
     let exp;
     if (kind === 'forever') exp = '0';
-    else if (kind === 'season') exp = 'S' + (parseInt(meta.season_year, 10) || currentYear());
+    else if (kind === 'season') exp = require('./lib/season').seasonExp(meta.season_year);
     else exp = 'R' + (parseInt(meta.packet_days, 10) || 0);
     if (kind === 'packet' && !/^R[1-9]\d{0,3}$/.test(exp)) throw new Error('Price is missing a valid packet_days metadata value');
     return { plan_kind: kind, code: codegen.mintLicenseCode(name, exp) };
