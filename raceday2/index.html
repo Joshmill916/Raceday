@@ -643,6 +643,13 @@ body.kiosk .wrap-narrow { max-width:600px; width:100%; }
 @media (prefers-reduced-motion:reduce) {
   *,*::before,*::after { animation-duration:.001ms !important; animation-iteration-count:1 !important; transition-duration:.001ms !important; }
 }
+/* Demo watermark — on every screen (TV and announcer included) so a demo can't pass as a real night. */
+body.is-demo::after {
+  content:'DEMO'; position:fixed; right:12px; bottom:12px; z-index:9999; pointer-events:none;
+  font-weight:800; letter-spacing:.12em; font-size:13px; padding:4px 10px; border-radius:20px;
+  background:var(--flag-amber-bg); color:var(--flag-amber-ink); opacity:.92;
+}
+@media print { body.is-demo::after { position:absolute; } }
 </style>
 </head>
 <body>
@@ -1314,7 +1321,7 @@ function canEnter() {
   return !st.expired;
 }
 function consumeTrialDay() {   // counts a race day against the trial or an active packet (forever/season/month: no count)
-  if (S.raceDay && S.raceDay.demo) return;   // showing the app off never uses a trial or packet day
+  if (S.demo || (S.raceDay && S.raceDay.demo)) return;   // showing the app off never uses a trial or packet day
   const st = licStatus();
   if (!st.licensed) {
     if (!S.trialDays.includes(S.raceDay.date)) { S.trialDays.push(S.raceDay.date); renderLicBanner(); }
@@ -2217,6 +2224,7 @@ function syncPushFull() {
   Sync.db.update(upd).catch(syncWriteFailed);
 }
 function syncActivate() {
+  if (S.demo) { alert('Multi-device sync is off in the demo.\n\nTo run a real race night, go to Admin → Exit demo mode first. That starts your free trial on this device.'); return; }
   if (!FIREBASE_CONFIG.apiKey) { alert('Live sync is not set up on this build yet — the app owner adds the Firebase settings once to turn it on.'); return; }
   // Keep an existing code as-is (devices/QR posters already use it); only suggest a
   // fresh code for a brand-new setup, with a random suffix so two tracks can't collide
@@ -2236,6 +2244,7 @@ function syncActivate() {
   renderSyncCard();
 }
 function syncJoin() {
+  if (S.demo) { alert('Multi-device sync is off in the demo.\n\nTo run a real race night, go to Admin → Exit demo mode first. That starts your free trial on this device.'); return; }
   if (!FIREBASE_CONFIG.apiKey) { alert('Live sync is not set up on this build yet.'); return; }
   const k = prompt('Enter the track sync code shown on the main (admin) device:');
   if (!k) return;
@@ -2734,7 +2743,7 @@ function newRaceDay() {
   const justArchived = S.history.length > histLenBefore ? 0 : -1;   // unshift() puts it at index 0
   logAudit('Started new race day', S.raceDay.date, today(), 'Race day');
   resOverride = {};
-  S.raceDay = { date: today(), entries: [], heatResults: {}, pointsRace: {}, resultGov: {}, resultVersions: {}, tech: {} };
+  S.raceDay = { date: today(), entries: [], heatResults: {}, pointsRace: {}, resultGov: {}, resultVersions: {}, tech: {}, demo: !!S.demo };
   save();
   resetReg();
   render(curPage);
@@ -2793,6 +2802,7 @@ function resetForNewTrack() {
 }
 function clearDemoResidue() {
   S.demo = false;
+  if (S.raceDay) S.raceDay.demo = false;
   const demoIds = new Set(S.roster.filter(d => d.demoSeed).map(d => d.id));
   if (demoIds.size) {
     S.roster = S.roster.filter(d => !demoIds.has(d.id));
@@ -2997,6 +3007,7 @@ function seedFullDemoNight() {
   S.history[0].published = true;
   S.history[0].publishedAt = Date.now();
   S.history[0].demo = true;
+  S.raceDay.demo = true;   // the scored board left on screen is still the showcase
   save();
   render(curPage);
   nav('grid');
@@ -3192,6 +3203,7 @@ function handleUrlParams() {
         history.replaceState({}, '', location.pathname);
         return;
       }
+      if (S.demo) clearDemoResidue();   // a real station link turns this device into a live staff device
       S.sync.key = incoming; S.sync.enabled = true;
       if (role && role !== 'viewer' && validStaffKey(st)) S.sync.staffKey = st;
       else if (diff) S.sync.staffKey = '';
@@ -3294,6 +3306,7 @@ function renderHeader() {
 
   const bits = [];
   if (S.demo) bits.push('<span class="badge badge-amber">Demo</span>');
+  document.body.classList.toggle('is-demo', !!S.demo);
   if (syncOn()) bits.push('<span class="badge ' + (Sync.connected ? 'badge-green' : 'badge-dim') + '">'
     + (Sync.connected ? '◉ Synced' : '○ Offline') + '</span>');
   if (deviceRole() === 'viewer') bits.push('<span class="badge badge-dim">Spectator</span>');
@@ -8208,6 +8221,7 @@ function applyRole() {
   const allowed = ROLE_PAGES[role] || ROLE_PAGES.admin;
   const kiosk = role === 'register' && S.settings && S.settings.kioskReg;
   document.body.classList.toggle('kiosk', !!kiosk);
+  document.body.classList.toggle('is-demo', !!S.demo);
   document.body.classList.toggle('op-watch', operatorWatching());
   renderOpBar();
   renderHeader();
