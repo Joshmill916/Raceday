@@ -593,6 +593,14 @@ body.kiosk .wrap-narrow { max-width:600px; width:100%; }
 .tv-hd img { height:6vh; max-width:16vw; object-fit:contain; background:#fff; border-radius:8px; padding:.6vh 1vw; }
 .tv-brand { font-family:var(--display); font-weight:800; font-size:3.4vh; letter-spacing:.03em; text-transform:uppercase; }
 .tv-lock-tag { font-family:var(--display); font-size:1.6vh; font-weight:800; letter-spacing:.08em; color:var(--pit-red); border:1px solid var(--pit-red); padding:.3vh 1vw; border-radius:99px; }
+.tv-note { flex:1; min-width:0; text-align:center; font-family:var(--display); font-weight:800; font-size:3vh; color:var(--plate-ink); background:var(--plate); border-radius:8px; padding:.5vh 1.2vw; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+.tv-sched { display:flex; flex-direction:column; gap:2.4vh; max-width:70vw; margin:4vh auto 0; font-size:calc(5vh * var(--tvk, 1)); }
+.tv-sched div { display:flex; justify-content:space-between; gap:4vw; border-bottom:1px solid #23262d; padding-bottom:1.4vh; }
+.tv-sched span { font-family:var(--display); font-weight:800; text-transform:uppercase; }
+.tv-sched b { font-variant-numeric:tabular-nums; color:#9a9da6; }
+.fan-note { background:var(--plate); color:var(--plate-ink); font-weight:700; border-radius:var(--r-lg); padding:10px 14px; margin-bottom:12px; }
+.fan-sched { display:flex; flex-wrap:wrap; gap:6px 16px; margin-top:10px; font-size:13.5px; }
+.fan-sched b { color:var(--ink); }
 .tv-clock { margin-left:auto; font-family:var(--display); font-weight:700; font-size:2.6vh; font-variant-numeric:tabular-nums; color:#9a9da6; }
 .tv-body { flex:1; min-height:0; padding:2vh 3vw 3vh; overflow:hidden; }
 .tv-h { display:flex; align-items:baseline; gap:1.4vw; margin-bottom:1.6vh; }
@@ -819,7 +827,7 @@ const GARAGE_KEY = 'rd_garage_v2';
 const ACTIVE_TRACK_KEY = 'rd_active_track_v2';
 // Reported with every usage row and crash. The part after the dot MUST match this app's
 // sw.js CACHE number (tests/test-app-version.js) — bump both together on each release.
-const APP_VERSION = '2026-10-18.v12';
+const APP_VERSION = '2026-10-25.v13';
 const LEGAL_VERSION = '2026-06';   // bump when Terms / Privacy wording changes, so acceptances are versioned
 const TELEMETRY_URL = 'https://script.google.com/macros/s/AKfycbxa3i3y17TLp_NfXOOu2jM7-YzXH2fScxcXoQYmIh0-873rxWfxg0HdRP1DVsxZq6iR/exec';
 const FIREBASE_CONFIG = {
@@ -2744,6 +2752,7 @@ function newRaceDay() {
   logAudit('Started new race day', S.raceDay.date, today(), 'Race day');
   resOverride = {};
   S.raceDay = { date: today(), entries: [], heatResults: {}, pointsRace: {}, resultGov: {}, resultVersions: {}, tech: {}, demo: !!S.demo };
+  delete S.settings.raceNote;   // tonight's note doesn't carry into next week
   save();
   resetReg();
   render(curPage);
@@ -4736,7 +4745,7 @@ function tvStageSlides() {
   const order = raceOrder().filter(r => r.ready);
   const open = order.find(r => !r.done);
   const races = order.filter(r => r.stage === stage).map(r => ({
-    title: r.cls.name, label: r.label.replace(/ · Set \d$/, ''), drivers: r.grid.map(x => ({ name: x.name, num: x.num })),
+    title: r.cls.name, label: withLaps(r.label.replace(/ · Set \d$/, ''), r.cls, LAP_KIND[r.stage]), drivers: r.grid.map(x => ({ name: x.name, num: x.num })),
     status: r.done ? 'done' : r === open ? 'now' : 'next'
   }));
   if (!races.length) return [...tvResultSlides(), ...tvPointsSlides()];
@@ -4770,7 +4779,7 @@ function tvNowSlides() {
   const a = announceNow();
   if (!a.now) return [...tvResultSlides(), ...tvPointsSlides()];
   const toRow = x => ({ name: x.name, num: x.num });
-  return [{ kind: 'grid', title: a.now.cls.name, sub: 'On track now · ' + a.now.label + (a.next ? '   ·   Up next: ' + a.next.cls.name + ' ' + a.next.label : ''), racers: a.now.grid.map(toRow) }];
+  return [{ kind: 'grid', title: a.now.cls.name, sub: 'On track now · ' + withLaps(a.now.label, a.now.cls, LAP_KIND[a.now.stage]) + (a.next ? '   ·   Up next: ' + a.next.cls.name + ' ' + a.next.label : ''), racers: a.now.grid.map(toRow) }];
 }
 
 /* ============================================================================
@@ -4784,6 +4793,61 @@ function tvNowSlides() {
    overflow past 16 cars still splits into two columns on the same screen.
    ========================================================================= */
 
+/* Laps per class (cls.laps = {heat, bmain, feature}; blank = not shown) and the night's schedule
+   and race note (S.settings.schedule = [{label, time}], S.settings.raceNote = {text, at}) — the
+   things tracks used to write on the paper sheets taped to the wall. Shown on the TV and fan view;
+   the note is cleared when a new race day starts. */
+const LAP_KIND = { set1: 'heat', set2: 'heat', bmain: 'bmain', feature: 'feature' };
+function classLaps(cls, kind) { const n = cls && cls.laps ? parseInt(cls.laps[kind], 10) : 0; return n > 0 ? n : 0; }
+function withLaps(txt, cls, kind) { const n = classLaps(cls, kind); return n ? txt + ' · ' + n + ' laps' : txt; }
+function nightSchedule() { return (S.settings.schedule || []).filter(r => r && (r.label || r.time)); }
+function raceNote() { const n = S.settings.raceNote; return n && n.text ? n.text : ''; }
+function setClassLaps(id, kind, val) {
+  if (!adminOk()) return;
+  const c = classById(id); if (!c || ['heat', 'bmain', 'feature'].indexOf(kind) < 0) return;
+  const n = Math.min(999, Math.max(0, parseInt(val, 10) || 0));
+  const laps = Object.assign({}, c.laps || {});
+  if (n) laps[kind] = n; else delete laps[kind];
+  if (Object.keys(laps).length) c.laps = laps; else delete c.laps;
+  save();
+}
+function setScheduleRow(i, field, val) {
+  if (!adminOk() || ['label', 'time'].indexOf(field) < 0) return;
+  const rows = (S.settings.schedule || []).slice();
+  while (rows.length <= i) rows.push({ label: '', time: '' });
+  rows[i] = Object.assign({}, rows[i], { [field]: String(val || '').trim().slice(0, 40) });
+  const kept = rows.filter(r => r.label || r.time);
+  if (kept.length) S.settings.schedule = kept; else delete S.settings.schedule;
+  save(); renderAdmin();
+}
+function postRaceNote() {
+  if (!adminOk()) return;
+  const t = String(document.getElementById('raceNoteIn').value || '').trim().slice(0, 140);
+  if (t) S.settings.raceNote = { text: t, at: Date.now() }; else delete S.settings.raceNote;
+  save(); renderAdmin();
+  toast(t ? 'Posted to the TV and every phone following the track' : 'Note cleared');
+}
+function clearRaceNote() {
+  if (!adminOk()) return;
+  delete S.settings.raceNote;
+  save(); renderAdmin();
+}
+function secSchedule() {
+  const rows = nightSchedule().concat([{ label: '', time: '' }]).slice(0, 8);
+  const note = raceNote();
+  return '<div class="card"><h3 style="margin-top:0">Race note</h3>'
+    + '<p class="tiny">Shows across the top of the TV and on every phone following the track — drivers, crews, parents and fans — until you clear it, or until the next race day starts.</p>'
+    + '<div class="field"><input id="raceNoteIn" type="text" maxlength="140" value="' + esc(note) + '" placeholder="e.g. Kid Karts to the grid — heats start at 1:00"></div>'
+    + '<div class="rowflex"><button class="btn btn-primary btn-sm" onclick="postRaceNote()">📣 Post note</button>'
+    + (note ? '<button class="btn btn-sm" onclick="clearRaceNote()">Clear</button>' : '') + '</div></div>'
+    + '<div class="card"><h3 style="margin-top:0">Tonight\'s schedule</h3>'
+    + '<p class="tiny">Practice, heats, mains — whatever you\'d write on the board. Shows as its own screen on the TV and at the top of the fan view. Leave it blank to hide it.</p>'
+    + rows.map((r, i) => '<div class="cols" style="margin-bottom:8px">'
+      + '<input type="text" maxlength="40" value="' + esc(r.label || '') + '" placeholder="' + (['Practice', 'Heats', 'Features'][i] || 'What') + '" onchange="setScheduleRow(' + i + ',\'label\',this.value)">'
+      + '<input type="text" maxlength="40" value="' + esc(r.time || '') + '" placeholder="' + (['10:30 AM', '1:00 PM', '6:30 PM'][i] || 'Time') + '" onchange="setScheduleRow(' + i + ',\'time\',this.value)"></div>').join('')
+    + '<p class="tiny">Laps for each class are set under <a href="#" onclick="admOpen(\'classes\');return false">Race classes</a>.</p></div>';
+}
+
 /* Lineup/heat/main/feature slides — verbatim v1 tvSlides(), renamed. */
 function tvGridSlides() {
   const slides = [];
@@ -4796,11 +4860,11 @@ function tvGridSlides() {
     if (heats === 0) {
       slides.push({ title: cls.name, sub: 'Qualifying order — straight to mains', racers, kind:'grid' });
     } else if (set1.length === 1) {
-      slides.push({ title: cls.name, sub: 'Starting grid — Set 1', racers: set1[0], kind:'grid' });
-      slides.push({ title: cls.name, sub: 'Set 2 — inverted', racers: set2[0], kind:'grid' });
+      slides.push({ title: cls.name, sub: withLaps('Starting grid — Set 1', cls, 'heat'), racers: set1[0], kind:'grid' });
+      slides.push({ title: cls.name, sub: withLaps('Set 2 — inverted', cls, 'heat'), racers: set2[0], kind:'grid' });
     } else {
-      set1.forEach((h, i) => slides.push({ title: cls.name, sub: 'Heat ' + (i + 1) + ' — Set 1', racers: h, kind:'grid' }));
-      set2.forEach((h, i) => slides.push({ title: cls.name, sub: 'Heat ' + (i + 1) + ' — Set 2 · inverted', racers: h, kind:'grid' }));
+      set1.forEach((h, i) => slides.push({ title: cls.name, sub: withLaps('Heat ' + (i + 1) + ' — Set 1', cls, 'heat'), racers: h, kind:'grid' }));
+      set2.forEach((h, i) => slides.push({ title: cls.name, sub: withLaps('Heat ' + (i + 1) + ' — Set 2 · inverted', cls, 'heat'), racers: h, kind:'grid' }));
     }
     if (classComplete(cls.id)) {
       const fd = featureData(cls.id);
@@ -4808,11 +4872,11 @@ function tvGridSlides() {
       if (fd.mains.length) {
         fd.mains.forEach(m => {
           const feedTxt = m.feeds === 'the feature' ? 'feature' : m.feeds;
-          slides.push({ title: cls.name, sub: m.label + ' — top ' + fd.transfers + ' to ' + feedTxt, racers: m.drivers.map(toRow), kind:'grid' });
+          slides.push({ title: cls.name, sub: withLaps(m.label + ' — top ' + fd.transfers + ' to ' + feedTxt, cls, 'bmain'), racers: m.drivers.map(toRow), kind:'grid' });
         });
-        if (fd.toFeatureSpots > 0 && fd.transferred.length >= fd.toFeatureSpots) slides.push({ title: cls.name, sub: '🏁 Feature lineup', racers: featureGridOrder(fd, cls.id).map(toRow), kind:'grid' });
+        if (fd.toFeatureSpots > 0 && fd.transferred.length >= fd.toFeatureSpots) slides.push({ title: cls.name, sub: withLaps('🏁 Feature lineup', cls, 'feature'), racers: featureGridOrder(fd, cls.id).map(toRow), kind:'grid' });
       } else {
-        slides.push({ title: cls.name, sub: '🏁 Feature lineup', racers: featureGridOrder(fd, cls.id).map(toRow), kind:'grid' });
+        slides.push({ title: cls.name, sub: withLaps('🏁 Feature lineup', cls, 'feature'), racers: featureGridOrder(fd, cls.id).map(toRow), kind:'grid' });
       }
     }
   });
@@ -4845,7 +4909,9 @@ function tvSlides() {
   const m = tvCfg().mode;
   if (m === 'stage') return tvStageSlides();
   if (m === 'now') return tvNowSlides();
-  return [...tvGridSlides(), ...tvResultSlides(), ...tvPointsSlides()];
+  const sched = nightSchedule();
+  return [...(sched.length ? [{ kind: 'schedule', title: 'Tonight', sub: 'Schedule', rows: sched }] : []),
+    ...tvGridSlides(), ...tvResultSlides(), ...tvPointsSlides()];
 }
 
 /* Lineup/grid rendering — verbatim v1. */
@@ -4907,6 +4973,8 @@ function tvRender() {
   document.getElementById('tvClock').style.display = cfg.clock ? '' : 'none';
   document.getElementById('tvClock').textContent = new Date().toLocaleTimeString([], { hour:'numeric', minute:'2-digit' });
   document.getElementById('tvLockTag').style.display = TV.locked ? '' : 'none';
+  const note = raceNote(), noteEl = document.getElementById('tvNote');
+  noteEl.textContent = note ? '📣 ' + note : ''; noteEl.style.display = note ? '' : 'none';
   const sl = document.getElementById('tvSlide');
   const slides = tvSlides();
   if (!slides.length) {
@@ -4916,7 +4984,8 @@ function tvRender() {
   }
   TV.idx = ((TV.idx % slides.length) + slides.length) % slides.length;
   const s = slides[TV.idx];
-  const body = s.kind === 'board' ? tvBoardMarkup(s)
+  const body = s.kind === 'schedule' ? '<div class="tv-sched">' + s.rows.map(r => '<div><span>' + esc(r.label) + '</span><b>' + esc(r.time) + '</b></div>').join('') + '</div>'
+    : s.kind === 'board' ? tvBoardMarkup(s)
     : s.kind === 'grid' ? tvGridMarkup(s.racers, tvSingle())
     : tvTableMarkup(s.rows, s.kind === 'points' || s.rows.some(r => r.pts != null));
   sl.innerHTML = '<div class="tv-h"><span>' + esc(s.title) + '</span><span class="tv-sub">' + esc(s.sub) + '</span></div>' + body;
@@ -4960,6 +5029,7 @@ function tvShellMarkup() {
   return '<div class="tv-hd"><img id="tvLogo" alt="" style="display:none">'
     + '<span id="tvTrack" class="tv-brand"></span>'
     + '<span class="tv-lock-tag" id="tvLockTag" style="display:none">🔒 LOCKED</span>'
+    + '<span class="tv-note" id="tvNote" style="display:none"></span>'
     + '<span class="tv-clock" id="tvClock"></span></div>'
     + '<div class="tv-body" id="tvSlide" onclick="tvShowCtl()"></div>'
     + '<div class="tv-ctl" id="tvCtl" onclick="tvShowCtl()">'
@@ -5136,10 +5206,13 @@ function fanNowNext() {
 function fanHero() {
   const t = S.track;
   const { phase, cls } = fanNowNext();
-  return '<div class="fan-hero">'
+  const note = raceNote(), sched = nightSchedule();
+  return (note ? '<div class="fan-note">📣 <span style="font-weight:800">Track update:</span> ' + esc(note) + '</div>' : '')
+    + '<div class="fan-hero">'
     + '<div class="eyebrow">' + esc(t.name || 'RaceDay') + (t.length || t.surface ? ' · ' + [t.surface, t.length].filter(Boolean).join(' · ') : '') + '</div>'
     + '<h3>' + esc(phase.note) + '</h3>'
     + (cls ? '<p class="sub" style="margin:0">Now up: <b style="color:var(--ink)">' + esc(cls.name) + '</b></p>' : '')
+    + (sched.length ? '<div class="fan-sched">' + sched.map(r => '<span>' + esc(r.label) + ' <b>' + esc(r.time) + '</b></span>').join('') + '</div>' : '')
     + '<div class="rowflex" style="margin-top:10px">'
     +   '<button class="btn btn-sm" onclick="showTrackCard()">🏟 About this track</button>'
     + '</div></div>';
@@ -5189,7 +5262,7 @@ function myNight(driverId) {
       const v = res[r.key({ id: driverId })];
       const oi = open.indexOf(r);
       const when = r.done ? '' : oi === 0 ? 'On track now' : oi === 1 ? 'Up next' : oi > 1 ? oi + ' races away' : '';
-      const row = { label: r.label, spot: spot(i + 1), done: r.done, fin: v, when, now: oi === 0 };
+      const row = { label: r.label, spot: spot(i + 1), done: r.done, fin: v, when, now: oi === 0, laps: classLaps(cls, LAP_KIND[r.stage]) };
       races.push(row);
       if (!r.done && oi >= 0 && (!next || oi < next.oi)) next = { cls, label: r.label, when, oi };
     });
@@ -5207,7 +5280,7 @@ function myNightClassMarkup(c) {
     + c.races.map(r => '<div class="mn-race' + (r.now ? ' now' : '') + '">'
       + '<span class="mn-lbl">' + esc(r.label) + '</span>'
       + (r.note ? '<span class="tiny">' + esc(r.note) + '</span>'
-        : '<span class="mn-spot">Start ' + esc(r.spot) + '</span>'
+        : '<span class="mn-spot">Start ' + esc(r.spot) + (r.laps ? ' · ' + r.laps + ' laps' : '') + '</span>'
           + (r.done ? '<span class="badge badge-dim">' + fin(r.fin) + '</span>'
             : r.when ? '<span class="badge ' + (r.now ? 'badge-green' : 'badge-amber') + '">' + esc(r.when) + '</span>' : ''))
       + '</div>').join('')
@@ -5273,7 +5346,7 @@ function renderFanView() {
       : '<div class="slbl">Qualifying order</div>' + gridMarkup(invertField(racers, cls), single);
   } else if (UI.viewStage === 'heats') {
     const set1 = invertWithinHeats(heatArrays(racers, cls), cls);
-    h += '<div class="slbl">' + (heats === 1 ? 'Heat lineups' : 'Set 1 heats') + '</div>';
+    h += '<div class="slbl">' + esc(withLaps(heats === 1 ? 'Heat lineups' : 'Set 1 heats', cls, 'heat')) + '</div>';
     set1.forEach((heat, hi) => { h += '<p class="heat-cap"><b>Heat ' + (hi + 1) + '</b> · ' + plural(heat.length, 'car') + '</p>' + gridMarkup(heat, single); });
     if (heats === 2) {
       h += '<div class="slbl">Set 2 — inverted</div>';
@@ -5284,7 +5357,7 @@ function renderFanView() {
     else {
       const fd = featureData(cls.id);
       h += fd.mains.length
-        ? fd.mains.map(mn => '<div class="slbl">' + esc(mn.label) + '</div>' + gridMarkup(mn.drivers.map(toRow), single)).join('')
+        ? fd.mains.map(mn => '<div class="slbl">' + esc(withLaps(mn.label, cls, 'bmain')) + '</div>' + gridMarkup(mn.drivers.map(toRow), single)).join('')
         : emptyState('🏁', 'This class runs straight to the feature — no B-mains.');
     }
   } else if (UI.viewStage === 'feat') {
@@ -5292,7 +5365,7 @@ function renderFanView() {
     else {
       const fd = featureData(cls.id);
       const complete = !fd.mains.length || (fd.toFeatureSpots > 0 && fd.transferred.length >= fd.toFeatureSpots);
-      h += complete ? '<div class="slbl">🏁 Feature lineup</div>' + gridMarkup(featureGridOrder(fd, cls.id).map(toRow), single)
+      h += complete ? '<div class="slbl">' + esc(withLaps('🏁 Feature lineup', cls, 'feature')) + '</div>' + gridMarkup(featureGridOrder(fd, cls.id).map(toRow), single)
                     : emptyState('🏁', 'The feature lineup posts once the B-main finishes are entered.');
     }
   } else if (UI.viewStage === 'points') {
@@ -6947,6 +7020,7 @@ const ADMIN_SECTIONS = [
   { id:'today',    door:'night',  ico:'📋', label:"Today's entries",    hint:'Add, move, or fix who\'s racing tonight', kw:'entries pill grid spot number quick add refill' },
   { id:'history',  door:'night',  ico:'📅', label:'Race day history',   hint:'Past nights, CSV export, edit an import', kw:'archive export csv delete edit imported' },
   { id:'tech',     door:'night',  ico:'🔧', label:'Tech inspection',    hint:'Checklist, pass/fail per car, tech tablet link', kw:'tech inspection weight tires safety fuel seal claim pass fail recheck' },
+  { id:'schedule', door:'night',  ico:'📣', label:'Schedule & notes',   hint:'Tonight\'s times and a note for the TV and fans', kw:'schedule time practice laps note announcement red flag restart message board' },
   { id:'payouts',  door:'night',  ico:'💵', label:'Payouts',            hint:'Purse payouts, paid/unpaid, season totals', kw:'payout purse pay money owner check cash 1099 season totals' },
   { id:'track',    door:'setup',  ico:'🏁', label:'Track identity',     hint:'Name, logo, length, surface', kw:'name logo header surface configuration oval' },
   { id:'classes',  door:'setup',  ico:'🏎',  label:'Race classes',      hint:'Add classes, pills, invert, running order', kw:'class pill invert heat qualifying age group specs' },
@@ -7036,6 +7110,7 @@ function secMarkup(id) {
   switch (id) {
     case 'today':   return secToday();
     case 'history':  return '<div class="card" id="historyList"></div>';
+    case 'schedule': return secSchedule();
     case 'payouts':  return '<div id="payoutsWrap"></div>';
     case 'tech':     return '<div id="techAdminWrap"></div>';
     case 'track':    return secTrack();
@@ -7518,6 +7593,9 @@ function renderClsList() {
       +   '<label style="margin:0;display:inline-flex;align-items:center;gap:4px">heat <input class="inline-num" type="number" min="2" max="30" value="' + (c.maxHeat || '') + '" placeholder="' + S.settings.maxHeat + '" onchange="setClassSize(' + c.id + ',\'maxHeat\',this.value)"></label>'
       +   '<label style="margin:0;display:inline-flex;align-items:center;gap:4px">feature <input class="inline-num" type="number" min="2" max="40" value="' + (c.maxFeature || '') + '" placeholder="' + S.settings.maxFeature + '" onchange="setClassSize(' + c.id + ',\'maxFeature\',this.value)"></label>'
       +   '<label style="margin:0;display:inline-flex;align-items:center;gap:4px">B-main <input class="inline-num" type="number" min="2" max="30" value="' + (c.maxBMain || '') + '" placeholder="' + S.settings.maxBMain + '" onchange="setClassSize(' + c.id + ',\'maxBMain\',this.value)"></label></div>'
+      + '<div class="rowflex tiny" style="margin-top:6px" title="Shown with each lineup on the TV and fan view. Blank = not shown."><b>Laps</b>'
+      +   ['heat', 'bmain', 'feature'].map(k => '<label style="margin:0;display:inline-flex;align-items:center;gap:4px">' + { heat: 'heats', bmain: 'B-mains', feature: 'feature' }[k]
+        + ' <input class="inline-num" type="number" min="1" max="999" value="' + (classLaps(c, k) || '') + '" placeholder="—" onchange="setClassLaps(' + c.id + ',\'' + k + '\',this.value)"></label>').join('') + '</div>'
       + '<div class="rowflex tiny" style="margin-top:6px" title="After the heats are scored: flip that many starting spots at the front of the main. Who qualifies is unchanged — only where they start."><b>Main invert</b>'
       +   '<label style="margin:0;display:inline-flex;align-items:center;gap:4px">feature <input class="inline-num" type="number" min="2" max="40" value="' + (clsFeatInvert(c) || '') + '" placeholder="—" onchange="setClassMainInvert(' + c.id + ',\'invertFeature\',this.value)"></label>'
       +   '<label style="margin:0;display:inline-flex;align-items:center;gap:4px">B-mains <input class="inline-num" type="number" min="2" max="30" value="' + (clsBMainInvert(c) || '') + '" placeholder="—" onchange="setClassMainInvert(' + c.id + ',\'invertBMain\',this.value)"></label></div>'

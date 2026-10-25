@@ -72,7 +72,7 @@ Persisted as JSON under `localStorage['raceday_v1']`.
   licUse:   {},                       // { code: [dates] } packet usage
   classLib: [{ name, maxPill }],       // every class ever used (re-add menu)
   roster:   [{ id, name, num, trans? }], // persistent driver book
-  classes:  [{ id, name, maxPill }],   // today's active classes
+  classes:  [{ id, name, maxPill, laps? }], // today's active classes; laps = {heat, bmain, feature} (v2, optional)
   settings: {
     maxHeat, maxBMain, maxFeature, transfers,
     gridStyle: 'double'|'single',
@@ -80,7 +80,9 @@ Persisted as JSON under `localStorage['raceday_v1']`.
     bmainMode: 'single'|'parallel'|'cascade',
     bmainCount,
     kioskReg:  false,                  // self-serve registration kiosk
-    points:    { table: [10,8,6,…], beyond: 0 }
+    points:    { table: [10,8,6,…], beyond: 0 },
+    schedule?: [{ label, time }],      // v2: tonight's times — TV screen + fan view
+    raceNote?: { text, at }            // v2: note on the TV header + fan view; cleared by newRaceDay()
   },
   raceDay: {
     date,                              // 'YYYY-MM-DD'
