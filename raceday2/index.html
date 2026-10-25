@@ -4825,7 +4825,7 @@ function postRaceNote() {
   const t = String(document.getElementById('raceNoteIn').value || '').trim().slice(0, 140);
   if (t) S.settings.raceNote = { text: t, at: Date.now() }; else delete S.settings.raceNote;
   save(); renderAdmin();
-  toast(t ? 'Posted to the TV and fans\' phones' : 'Note cleared');
+  toast(t ? 'Posted to the TV and every phone following the track' : 'Note cleared');
 }
 function clearRaceNote() {
   if (!adminOk()) return;
@@ -4836,7 +4836,7 @@ function secSchedule() {
   const rows = nightSchedule().concat([{ label: '', time: '' }]).slice(0, 8);
   const note = raceNote();
   return '<div class="card"><h3 style="margin-top:0">Race note</h3>'
-    + '<p class="tiny">Shows across the top of the TV and on every fan\'s phone until you clear it, or until the next race day starts.</p>'
+    + '<p class="tiny">Shows across the top of the TV and on every phone following the track — drivers, crews, parents and fans — until you clear it, or until the next race day starts.</p>'
     + '<div class="field"><input id="raceNoteIn" type="text" maxlength="140" value="' + esc(note) + '" placeholder="e.g. Kid Karts to the grid — heats start at 1:00"></div>'
     + '<div class="rowflex"><button class="btn btn-primary btn-sm" onclick="postRaceNote()">📣 Post note</button>'
     + (note ? '<button class="btn btn-sm" onclick="clearRaceNote()">Clear</button>' : '') + '</div></div>'
