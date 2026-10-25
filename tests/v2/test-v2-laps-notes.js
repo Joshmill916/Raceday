@@ -27,6 +27,20 @@ const check = (n, ok, x) => { if (ok) { pass++; console.log('  ✅ ' + n); } els
     Element.prototype.requestFullscreen = () => Promise.resolve();
   });
 
+  console.log('— all optional: nothing set = nothing changes —');
+  check('a track that sets none of it sees no laps, schedule or note anywhere', await p.evaluate(() => {
+    S.classes.forEach(c => delete c.laps); delete S.settings.schedule; delete S.settings.raceNote; save();
+    const subs = ['cycle', 'stage', 'now'].flatMap(m => { S.settings.tv = { mode: m }; return tvSlides().map(s => JSON.stringify(s)); });
+    openTV(); tvRender(); const noteHidden = document.getElementById('tvNote').style.display === 'none'; closeTV();
+    const fan = fanHero();
+    const card = S.classes.map(c => { const d = classRacers(c.id)[0]; return d ? myNightClassMarkup(myNight(d.id).classes.find(x => x.cls.id === c.id)) : ''; }).join('');
+    return !subs.some(s => /laps|"schedule"/.test(s)) && noteHidden && !/fan-note|fan-sched/.test(fan) && !/laps/.test(card);
+  }));
+  check('nothing new is required: no laps/schedule/note fields are added by save or migrate', await p.evaluate(() => {
+    const st = JSON.parse(localStorage.getItem(activeKey()));
+    return !st.settings.schedule && !st.settings.raceNote && st.classes.every(c => !('laps' in c));
+  }));
+
   console.log('— laps per class —');
   check('setClassLaps stores, clamps and clears', await p.evaluate(() => {
     const c = S.classes[0];
