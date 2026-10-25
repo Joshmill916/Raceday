@@ -46,6 +46,10 @@ const check = (n, ok, x) => { if (ok) { pass++; console.log('  ✅ ' + n); } els
     const c = S.classes[0]; S.settings.tv = { mode: 'stage', stage: 'set1' };
     return tvSlides().some(s => s.kind === 'board' && s.races.some(r => r.title === c.name && /8 laps$/.test(r.label)));
   }));
+  check("the driver's own heat card (My night) shows laps", await p.evaluate(() => {
+    const c = S.classes[0], d = classRacers(c.id)[0];
+    return /Start P\d[^<]* · 8 laps/.test(myNightClassMarkup(myNight(d.id).classes.find(x => x.cls.id === c.id)));
+  }));
   check('class card has the laps inputs', await p.evaluate(() => {
     admOpen('classes'); return document.querySelectorAll('input[onchange^="setClassLaps(' + S.classes[0].id + '"]').length === 3;
   }));

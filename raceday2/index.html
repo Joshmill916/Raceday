@@ -4837,7 +4837,7 @@ function secSchedule() {
   const note = raceNote();
   return '<div class="card"><h3 style="margin-top:0">Race note</h3>'
     + '<p class="tiny">Shows across the top of the TV and on every fan\'s phone until you clear it, or until the next race day starts.</p>'
-    + '<div class="field"><input id="raceNoteIn" type="text" maxlength="140" value="' + esc(note) + '" placeholder="e.g. Red flag at lap 20 — restart single file"></div>'
+    + '<div class="field"><input id="raceNoteIn" type="text" maxlength="140" value="' + esc(note) + '" placeholder="e.g. Kid Karts to the grid — heats start at 1:00"></div>'
     + '<div class="rowflex"><button class="btn btn-primary btn-sm" onclick="postRaceNote()">📣 Post note</button>'
     + (note ? '<button class="btn btn-sm" onclick="clearRaceNote()">Clear</button>' : '') + '</div></div>'
     + '<div class="card"><h3 style="margin-top:0">Tonight\'s schedule</h3>'
@@ -5207,7 +5207,7 @@ function fanHero() {
   const t = S.track;
   const { phase, cls } = fanNowNext();
   const note = raceNote(), sched = nightSchedule();
-  return (note ? '<div class="fan-note">📣 ' + esc(note) + '</div>' : '')
+  return (note ? '<div class="fan-note">📣 <span style="font-weight:800">Track update:</span> ' + esc(note) + '</div>' : '')
     + '<div class="fan-hero">'
     + '<div class="eyebrow">' + esc(t.name || 'RaceDay') + (t.length || t.surface ? ' · ' + [t.surface, t.length].filter(Boolean).join(' · ') : '') + '</div>'
     + '<h3>' + esc(phase.note) + '</h3>'
@@ -5262,7 +5262,7 @@ function myNight(driverId) {
       const v = res[r.key({ id: driverId })];
       const oi = open.indexOf(r);
       const when = r.done ? '' : oi === 0 ? 'On track now' : oi === 1 ? 'Up next' : oi > 1 ? oi + ' races away' : '';
-      const row = { label: r.label, spot: spot(i + 1), done: r.done, fin: v, when, now: oi === 0 };
+      const row = { label: r.label, spot: spot(i + 1), done: r.done, fin: v, when, now: oi === 0, laps: classLaps(cls, LAP_KIND[r.stage]) };
       races.push(row);
       if (!r.done && oi >= 0 && (!next || oi < next.oi)) next = { cls, label: r.label, when, oi };
     });
@@ -5280,7 +5280,7 @@ function myNightClassMarkup(c) {
     + c.races.map(r => '<div class="mn-race' + (r.now ? ' now' : '') + '">'
       + '<span class="mn-lbl">' + esc(r.label) + '</span>'
       + (r.note ? '<span class="tiny">' + esc(r.note) + '</span>'
-        : '<span class="mn-spot">Start ' + esc(r.spot) + '</span>'
+        : '<span class="mn-spot">Start ' + esc(r.spot) + (r.laps ? ' · ' + r.laps + ' laps' : '') + '</span>'
           + (r.done ? '<span class="badge badge-dim">' + fin(r.fin) + '</span>'
             : r.when ? '<span class="badge ' + (r.now ? 'badge-green' : 'badge-amber') + '">' + esc(r.when) + '</span>' : ''))
       + '</div>').join('')
