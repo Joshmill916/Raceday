@@ -111,6 +111,8 @@ footer a{text-decoration:underline;text-decoration-color:rgba(255,255,255,.3);te
 footer a:hover{color:#fff}
 .help{margin-top:46px;border:2px solid var(--clay);border-radius:12px;padding:22px 26px;display:flex;justify-content:space-between;gap:18px;align-items:center;flex-wrap:wrap}
 .help p{color:var(--muted);max-width:56ch}
+.help-links{display:flex;flex-direction:column;gap:8px;align-items:flex-start}
+.help a.help-email{color:var(--muted);font-size:.72rem}
 .help a{font-family:var(--mono);font-weight:700;text-transform:uppercase;letter-spacing:.05em;font-size:.82rem;color:var(--clay);text-decoration:none;white-space:nowrap}
 
 /* Driver strip above the top bar: the way over to Driven from every RaceDay page. */

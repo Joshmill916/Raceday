@@ -827,7 +827,7 @@ const GARAGE_KEY = 'rd_garage_v2';
 const ACTIVE_TRACK_KEY = 'rd_active_track_v2';
 // Reported with every usage row and crash. The part after the dot MUST match this app's
 // sw.js CACHE number (tests/test-app-version.js) — bump both together on each release.
-const APP_VERSION = '2026-10-25.v14';
+const APP_VERSION = '2026-10-25.v15';
 const LEGAL_VERSION = '2026-06';   // bump when Terms / Privacy wording changes, so acceptances are versioned
 const TELEMETRY_URL = 'https://script.google.com/macros/s/AKfycbxa3i3y17TLp_NfXOOu2jM7-YzXH2fScxcXoQYmIh0-873rxWfxg0HdRP1DVsxZq6iR/exec';
 const FIREBASE_CONFIG = {
@@ -1343,10 +1343,10 @@ function consumeTrialDay() {   // counts a race day against the trial or an acti
 }
 function entryBlockedMsg() {
   const st = licStatus();
-  if (!st.licensed) return 'The free trial (' + TRIAL_DAYS + ' race days) has ended — contact the app owner for an access code. Lineups, results, and exports still work.';
-  if (st.plan === 'packet') return 'Your race packet is used up (' + st.total + ' race days) — contact the app owner for a new packet. Lineups, results, and exports still work.';
-  if (st.plan === 'season') return 'Your ' + st.year + ' season pass has ended — contact the app owner to renew for ' + (st.year + 1) + '. Lineups, results, and exports still work.';
-  return "This track's license has expired — contact the app owner to renew. Lineups, results, and exports still work.";
+  if (!st.licensed) return 'The free trial (' + TRIAL_DAYS + ' race days) has ended — text Josh at (260) 207-4983 for an access code. Lineups, results, and exports still work.';
+  if (st.plan === 'packet') return 'Your race packet is used up (' + st.total + ' race days) — text Josh at (260) 207-4983 for a new packet. Lineups, results, and exports still work.';
+  if (st.plan === 'season') return 'Your ' + st.year + ' season pass has ended — text Josh at (260) 207-4983 to renew for ' + (st.year + 1) + '. Lineups, results, and exports still work.';
+  return "This track's license has expired — text Josh at (260) 207-4983 to renew. Lineups, results, and exports still work.";
 }
 function fmtExp(k) {
   k = String(k);
@@ -8287,7 +8287,8 @@ function renderHelp() {
         + '<b>🎙 Announcer</b> — Lineups → Announcer, or the <b>Announcer link</b>: who\'s on track, in order, with talking points. '
         + '<b>Passing points</b> and a <b>points table per class</b> are options in Race classes.</p>')
     + '<div class="card" style="text-align:center"><p style="margin-bottom:10px">Step-by-step guides with screenshots for every setup, staff job and race format.</p>'
-    + '<a class="btn btn-primary" href="/guides/" target="_blank" rel="noopener">Open the full guides →</a></div>';
+    + '<a class="btn btn-primary" href="/guides/" target="_blank" rel="noopener">Open the full guides →</a>'
+    + '<p class="tiny" style="margin-top:12px">Stuck, or have an idea? <a href="sms:+12602074983">💬 Text Josh at (260) 207-4983</a>. Texting gets the fastest answer.</p></div>';
 }
 /* ============================================================================
    §8  ROLES ON SCREEN  +  §9  BOOT
