@@ -827,7 +827,7 @@ const GARAGE_KEY = 'rd_garage_v2';
 const ACTIVE_TRACK_KEY = 'rd_active_track_v2';
 // Reported with every usage row and crash. The part after the dot MUST match this app's
 // sw.js CACHE number (tests/test-app-version.js) — bump both together on each release.
-const APP_VERSION = '2026-10-25.v13';
+const APP_VERSION = '2026-10-25.v14';
 const LEGAL_VERSION = '2026-06';   // bump when Terms / Privacy wording changes, so acceptances are versioned
 const TELEMETRY_URL = 'https://script.google.com/macros/s/AKfycbxa3i3y17TLp_NfXOOu2jM7-YzXH2fScxcXoQYmIh0-873rxWfxg0HdRP1DVsxZq6iR/exec';
 const FIREBASE_CONFIG = {
@@ -8247,7 +8247,8 @@ function renderHelp() {
       + guideStep(2, 'Follow along', '<p>Qualifying, Heats, B-mains, Feature and Results fill in through the night as each round is scored — a toast pops up when results update.</p>')
       + guideStep(3, 'Reading the grid', '<p><b>Lowest spot starts up front.</b> Find your car number — that\'s where you line up.</p>')
       + guideStep(4, 'Tap for more', '<p>Tap a <b>driver\'s name</b> to see their car number, classes and career stats.</p>')
-      + guideStep(5, 'Racing tonight? Follow yourself', '<p>Tap <b>⭐ Follow a driver</b> and pick your name (the QR code from sign-up does this for you). Your heats, starting spots and results pin to the top, with <b>On track now</b>, <b>Up next</b> or how many races away.</p>');
+      + guideStep(5, 'Track updates', '<p>When the track posts an update or tonight\'s schedule, it shows in yellow at the top of this page.</p>')
+      + guideStep(6, 'Racing tonight? Follow yourself', '<p>Tap <b>⭐ Follow a driver</b> and pick your name (the QR code from sign-up does this for you). Your heats, starting spots and results pin to the top, with <b>On track now</b>, <b>Up next</b> or how many races away.</p>');
     return;
   }
   if (deviceRole() === 'tech') {
@@ -8280,7 +8281,8 @@ function renderHelp() {
         '<p>Run a registration tablet, scoring tower and TV screen on the same race day at once — Admin → Multi-device sync → Start sync, then open the matching link on each device. The free spectator QR link is the same place. '
         + 'With sync on, every driver also gets <b>📱 their own lineup on their phone</b>: a QR code on the "You\'re on the grid" screen after sign-up (or <b>📱 Lineup link</b> on their driver card) shows their heats, starting spots and results live all night.</p>')
     + guideStep(7, 'Race-night extras',
-        '<p><b>🔧 Tech inspection</b> — Admin → Race night → Tech inspection, or send the <b>Tech inspection link</b> to a tablet: checklist, weight, Pass / Fail / Recheck per car. '
+        '<p><b>📣 Schedule &amp; track updates</b> — Admin → Race night → Schedule &amp; notes: tonight\'s times and a note ("Drivers meeting at 12:45") on the TV and every phone following the track. Set <b>laps</b> per class in Race classes. All optional. '
+        + '<b>🔧 Tech inspection</b> — Admin → Race night → Tech inspection, or send the <b>Tech inspection link</b> to a tablet: checklist, weight, Pass / Fail / Recheck per car. '
         + '<b>💵 Payouts</b> — set a purse per class in Race classes; tonight\'s payouts, a paid/unpaid ledger and season totals for 1099s are in Admin → Payouts, and Print has a payout sheet. '
         + '<b>🎙 Announcer</b> — Lineups → Announcer, or the <b>Announcer link</b>: who\'s on track, in order, with talking points. '
         + '<b>Passing points</b> and a <b>points table per class</b> are options in Race classes.</p>')
