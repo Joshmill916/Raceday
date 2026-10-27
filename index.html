@@ -378,9 +378,22 @@ footer .wrap{display:flex;justify-content:space-between;gap:16px;flex-wrap:wrap}
 .sitebar a{font-family:var(--mono);font-size:.72rem;font-weight:700;text-transform:uppercase;letter-spacing:.06em;color:#c7c8cd;text-decoration:none;padding:8px 0}
 .sitebar a:hover,.sitebar a:focus-visible{color:#fff}
 .sitebar .sb-right{color:#4b93ee}
+
+/* ---------- Halloween sale (2026) — shows itself until the end of Sun Nov 1 ET, then hides ---------- */
+.hw-bar{background:#16121c;color:#f2f1ec;border-bottom:3px solid #e0742f}
+.hw-row{display:flex;align-items:center;justify-content:center;gap:14px;flex-wrap:wrap;padding:12px 16px;text-align:center;font-size:1rem}
+.hw-row b{color:#ff8a3d;font-family:var(--display);font-size:1.35rem;letter-spacing:.03em;text-transform:uppercase}
+.hw-row a{background:#e0742f;color:#111;font-weight:800;padding:7px 14px;border-radius:999px;text-decoration:none;white-space:nowrap}
+.hw-end{font-family:var(--mono);font-size:.78rem;color:#c9b8a8}
 </style>
 </head>
 <body>
+<div class="hw-bar" id="hwBar" hidden><div class="hw-row">
+<span>🎃 <b>Halloween price</b></span>
+<span>10 race nights for <strong>$150</strong> <s style="opacity:.6">$200</s> · they never expire, use them next season</span>
+<a href="/pricing.html#plans">Get the deal →</a>
+<span class="hw-end">ends Sun, Nov 1</span>
+</div></div>
 <div class="sitebar"><div class="wrap sitebar-row"><a href="/drivers/">Driven — for drivers</a><a class="sb-right" href="/driven/">Open Driven →</a></div></div>
 <div class="topbar">
   <div class="wrap topbar-row">
@@ -628,5 +641,7 @@ footer .wrap{display:flex;justify-content:space-between;gap:16px;flex-wrap:wrap}
 <script>/* Season on sale: from October 1 on, next year's (same rule as functions/lib/season.js). */
 (function () { var d = new Date(), y = d.getUTCFullYear() + (d.getUTCMonth() >= 9 ? 1 : 0);
   document.querySelectorAll('[data-season]').forEach(function (e) { e.textContent = y; }); })();</script>
+<script>/* Halloween sale: banner shows until the end of Sun Nov 1, 2026 (Eastern). */
+(function () { if (Date.now() < Date.UTC(2026, 10, 2, 5)) document.getElementById('hwBar').hidden = false; })();</script>
 </body>
 </html>
