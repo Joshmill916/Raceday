@@ -22,6 +22,7 @@ const stubs = {
         retrieve: async (id) => { if (stripeBehavior.retrieveFails) throw new Error('Stripe API down'); return { id, status: stripeBehavior.status || 'active', customer: 'cus_1', metadata: { profileId: 'prof_abc123xy' }, items: { data: [{ current_period_end: 2000000000 }] } }; },
         update: async () => ({}),
       },
+      checkout: { sessions: { retrieve: async () => stripeBehavior.session } },
     };
   },
 };
@@ -67,6 +68,18 @@ const base = { mode: 'subscription', subscription: 'sub_1', customer: 'cus_1', c
   const ent = store['profiles/prof_abc123xy/entitlement'];
   check('stale active event after cancel -> entitlement stays canceled/free', res4.code === 200 && ent && ent.status === 'canceled' && ent.tier !== 'pro', ent);
   check('renewal date read from subscription items', ent && ent.currentPeriodEnd === 2000000000000, ent);
+
+  // 5. A packet bought through the live Payment Link: the code is minted for the TRACK
+  //    name typed in the "Your track's name" box (key `yourtracksname`), not the cardholder.
+  const packetPrice = { id: 'price_p', metadata: {}, product: { metadata: { plan_kind: 'packet', packet_days: '10' } } };
+  stripeBehavior.session = { id: 'cs_pkt', mode: 'payment', customer_details: { name: 'Card Holder' },
+    custom_fields: [{ key: 'yourtracksname', text: { value: 'Sample Speedway' } }],
+    line_items: { data: [{ price: packetPrice }] } };
+  r = await call({ id: 'cs_pkt', mode: 'payment' });
+  const g = store['codeGrants/cs_pkt'];
+  const codegen = require('./codegen'); // only after the handler has set LIC_SALT (it's read at load)
+  check('packet purchase -> code minted', r.code === 200 && g && g.code && g.plan_kind === 'packet', g);
+  check('packet code uses the track name, not the cardholder', g && g.code === codegen.mintLicenseCode('Sample Speedway', 'R10'), g);
 
   console.log(`\nwebhook: ${pass} passed, ${fail} failed`);
   process.exit(fail ? 1 : 0);

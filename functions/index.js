@@ -69,7 +69,10 @@ function mintForLineItem(session, price, codegen) {
     return { plan_kind: 'premium', code: codegen.mintPremiumCode(profileId) };
   }
   if (kind === 'forever' || kind === 'season' || kind === 'packet') {
-    const name = customField(session, 'track_name') || (session.customer_details && session.customer_details.name) || '';
+    // The Payment Links' "Your track's name" box has the Stripe key `yourtracksname`
+    // (Stripe derives it from the label); `track_name` is kept for any older link.
+    const name = customField(session, 'yourtracksname') || customField(session, 'track_name')
+      || (session.customer_details && session.customer_details.name) || '';
     if (!name) throw new Error('No track/customer name on the session (custom field or billing name)');
     let exp;
     if (kind === 'forever') exp = '0';
