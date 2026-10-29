@@ -976,6 +976,7 @@ function publishCard(silent) {
       P.shortCode = code;
       return db.ref('profiles/' + P.profileId + '/card').set(cardPayload());
     }).then(function () {
+      if (!P.publishedAt) sendUsage('driven-publish');
       P.publishedAt = Date.now();
       localStorage.setItem('profiles_v1', JSON.stringify(P));   // direct write: avoid save()'s republish loop
       if (!silent) { alert('✅ Card published — give the track your link code: ' + P.shortCode); nav('card'); }
@@ -1012,6 +1013,7 @@ function completeOnboarding() {
   save();
   $id('onboardModal').style.display = 'none';
   nav('home');
+  sendUsage('driven-profile');
 }
 
 function toggleRestore(e) {
@@ -2143,6 +2145,68 @@ function deleteProfile() {
   } else wipe();
 }
 
+/* ---------- Usage reporting ---------- */
+// The same anonymous beacons RaceDay sends (raceday/index.html, "Usage reporting"), to the same
+// sheet, so the owner can see whether drivers are using Driven: one 'driven-open' per device per
+// day, 'driven-profile' when someone makes a profile, 'driven-publish' the first time a card is
+// published, and crashes. No names, emails or numbers — only counts. The track column reads DRIVEN.
+// The part after the dot MUST match sw.js CACHE (tests/test-analytics.js) — bump both together.
+const APP_VERSION = '2026-10-28.v13';
+var TELEMETRY_URL = 'https://script.google.com/macros/s/AKfycbxa3i3y17TLp_NfXOOu2jM7-YzXH2fScxcXoQYmIh0-873rxWfxg0HdRP1DVsxZq6iR/exec';
+// Devices opted out at /me/ (the owner testing) still report, marked OWNER; copies on this
+// computer (localhost, *.test) report nothing unless rd_count_local='1' (the analytics test).
+function dontCount() { try { return localStorage.getItem('rd_dont_count') === '1'; } catch (e) { return false; } }
+function devHost() { try { return /^(localhost|127\.0\.0\.1|\[::1\])$|\.(localhost|test)$/.test(location.hostname) && localStorage.getItem('rd_count_local') !== '1'; } catch (e) { return true; } }
+// Shared with RaceDay on purpose (same site, same storage): one device has one id in both apps.
+function deviceId() {
+  try {
+    var id = localStorage.getItem('rd_device');
+    if (!id) { id = 'd' + Math.random().toString(36).slice(2, 10); localStorage.setItem('rd_device', id); }
+    return id;
+  } catch (e) { return 'nostore'; }
+}
+function todayStr() { var d = new Date(); return d.getFullYear() + '-' + ('0' + (d.getMonth() + 1)).slice(-2) + '-' + ('0' + d.getDate()).slice(-2); }
+function sendUsage(event, extra) {
+  if (!TELEMETRY_URL || devHost()) return;
+  try {
+    var body = JSON.stringify(Object.assign({
+      event: event,
+      version: APP_VERSION,
+      date: todayStr(),
+      track: (dontCount() ? 'OWNER · ' : '') + 'DRIVEN',
+      device: deviceId(),
+      demo: false,
+      total: P ? (P.raceResults || []).length : 0,
+      features: P ? [P.publishedAt ? 'published' : '', (P.linkedTracks || []).length ? 'tracks' : '', tierAtLeast('pro') ? 'pro' : ''].filter(Boolean).join(',') : 'no-profile'
+    }, extra || {}));
+    if (navigator.sendBeacon) navigator.sendBeacon(TELEMETRY_URL, body);
+    else fetch(TELEMETRY_URL, { method: 'POST', body: body, mode: 'no-cors' }).catch(function () {});
+  } catch (e) {}
+}
+// Its own key: RaceDay's rd_open_ping lives in this same storage and would hide Driven's open.
+function pingOpen() {
+  try {
+    if (localStorage.getItem('dv_open_ping') === todayStr()) return;
+    localStorage.setItem('dv_open_ping', todayStr());
+  } catch (e) { return; }
+  sendUsage('driven-open');
+}
+// Only this page's own errors, capped per load — same rules as RaceDay's reportCrash().
+var crashCount = 0;
+function reportCrash(msg, src, line, col, err) {
+  if (crashCount >= 5 || /^Script error\.?$/.test(String(msg))) return;
+  var page = function (u) { return String(u || '').split(/[?#]/)[0]; };
+  if (src && page(src) !== page(location.href)) return;
+  crashCount++;
+  var stack = err && err.stack ? String(err.stack).split('\n').slice(1, 4).map(function (s) { return s.trim(); }).join(' | ') : '';
+  sendUsage('crash', { msg: String(msg).slice(0, 200), line: line || '', col: col || '', page: location.pathname, stack: stack.slice(0, 300) });
+}
+window.onerror = function (msg, src, line, col, err) { reportCrash(msg, src, line, col, err); };
+window.addEventListener('unhandledrejection', function (e) {
+  var r = e.reason;
+  reportCrash('Unhandled rejection: ' + String((r && r.message) || r), '', '', '', r instanceof Error ? r : null);
+});
+
 /* ---------- Post-checkout return (?pro=1) ---------- */
 // Both the subscription Payment Links and billingPortalUrl()'s return_url land here —
 // there's no code to paste (unlike claim.html's flow for the offline path), so just
@@ -2181,6 +2245,7 @@ function handleBootParams() {
 P = load();
 ACCT = loadAcct();
 if (!P) { openOnboarding(); } else { nav('home'); }
+pingOpen();
 handleBootParams();
 handleRestoreParam();
 syncFromPublished();
