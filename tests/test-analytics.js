@@ -36,7 +36,7 @@ const TOKEN = '07e858325a984890a4f60c1cec1942bc';
   check('short links are noindex', ['fb', 'li', 'qr', 'fb/drivers', 'li/drivers', 'qr/drivers'].every(d => /name="robots" content="noindex"/.test(fs.readFileSync(path.join(ROOT, d, 'index.html'), 'utf8'))));
 
   console.log('\n=== 2. APP_VERSION follows each app\'s cache number ===');
-  for (const [app, prefix] of [['raceday', 'raceday-v'], ['raceday2', 'raceday2-v']]) {
+  for (const [app, prefix] of [['raceday', 'raceday-v'], ['raceday2', 'raceday2-v'], ['driven', 'driven-v']]) {
     const ver = (fs.readFileSync(path.join(ROOT, app, 'index.html'), 'utf8').match(/const APP_VERSION = '([^']+)'/) || [])[1];
     const cache = (fs.readFileSync(path.join(ROOT, app, 'sw.js'), 'utf8').match(/const CACHE = '([^']+)'/) || [])[1];
     check(app + ': APP_VERSION (' + ver + ') ends with the sw.js CACHE number (' + cache + ')',
@@ -102,6 +102,29 @@ const TOKEN = '07e858325a984890a4f60c1cec1942bc';
     check(app + ': an opted-out device sends opens, nights and crashes', ['open', 'night', 'crash'].every(e => off.hits.usage.includes(e)), JSON.stringify(off.hits.usage));
     check(app + ': …every one labeled OWNER in the track column', tracks(off.hits).length >= 3 && tracks(off.hits).every(t => /^OWNER · /.test(t)), JSON.stringify(tracks(off.hits)));
     await on.ctx.close(); await off.ctx.close();
+  }
+
+  console.log('\n=== 5a. Driven reports opens, new profiles and crashes, track column DRIVEN ===');
+  {
+    const on = await fresh(false); await on.page.goto(base + '/driven/'); await on.page.waitForTimeout(900);
+    const tracks = h => (h.rows || []).map(r => r.track);
+    check('driven: a normal device logs its daily open as DRIVEN', on.hits.usage.includes('driven-open') && tracks(on.hits).every(t => t === 'DRIVEN'), JSON.stringify(on.hits.rows));
+    check('driven: a device with no profile yet says so', (on.hits.rows || []).some(r => r.event === 'driven-open' && r.features === 'no-profile'));
+    await on.page.reload(); await on.page.waitForTimeout(700);
+    check('driven: only one open per device per day', on.hits.usage.filter(e => e === 'driven-open').length === 1, JSON.stringify(on.hits.usage));
+    await on.page.fill('#obName', 'Test Driver'); await on.page.fill('#obEmail', 'test@example.com');
+    await on.page.evaluate(() => completeOnboarding()); await on.page.waitForTimeout(400);
+    check('driven: making a profile logs driven-profile', on.hits.usage.includes('driven-profile'), JSON.stringify(on.hits.usage));
+    check('driven: no name or email ever leaves the device', !JSON.stringify(on.hits.rows).includes('Test Driver') && !JSON.stringify(on.hits.rows).includes('example.com'));
+    check('driven: same device id as RaceDay (shared rd_device)', (on.hits.rows || []).every(r => r.device === on.hits.rows[0].device) && await on.page.evaluate(() => localStorage.getItem('rd_device')) === on.hits.rows[0].device);
+    const off = await fresh(true); await off.page.goto(base + '/driven/'); await off.page.waitForTimeout(900);
+    await off.page.evaluate(() => reportCrash('Test crash', location.href, 1, 1, null)); await off.page.waitForTimeout(400);
+    check('driven: an opted-out device sends opens and crashes labeled OWNER · DRIVEN', ['driven-open', 'crash'].every(e => off.hits.usage.includes(e)) && tracks(off.hits).every(t => t === 'OWNER · DRIVEN'), JSON.stringify(tracks(off.hits)));
+    await on.ctx.close(); await off.ctx.close();
+    const t = await fresh(false, false); await t.page.goto(base + '/driven/'); await t.page.waitForTimeout(900);
+    await t.page.evaluate(() => { sendUsage('driven-profile'); reportCrash('Test crash', location.href, 1, 1, null); }); await t.page.waitForTimeout(400);
+    check('driven on localhost: nothing sent', t.hits.usage.length === 0, JSON.stringify(t.hits.usage));
+    await t.ctx.close();
   }
 
   console.log('\n=== 5b. A copy on this computer (tests, local preview) reports nothing ===');

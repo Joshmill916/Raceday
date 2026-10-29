@@ -157,5 +157,6 @@ profile that follows them across every RaceDay track they race at.
   with `localStorage.rd_dont_count === '1'` (set at `/me/`); both apps' `sendUsage()` still sends
   every row from such a device but prefixes its track column `OWNER · ` (so the owner's testing
   sorts away from possible customers). Local copies (localhost, *.test — `devHost()`) send nothing
-  unless `rd_count_local='1'` (the analytics test). Never add a direct `<script src=…cloudflareinsights…>` tag. Short links
+  unless `rd_count_local='1'` (the analytics test). Driven's rows (added 2026-10-28) go to the same sheet with track
+  `DRIVEN`: `driven-open` (daily, own `dv_open_ping` key), `driven-profile`, `driven-publish` (first publish), `crash`. Never add a direct `<script src=…cloudflareinsights…>` tag. Short links
   `/fb/`, `/li/`, `/qr/` (+ `/drivers/` versions) record a visit, then forward — use them in posts.
