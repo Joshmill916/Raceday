@@ -140,6 +140,8 @@ profile that follows them across every RaceDay track they race at.
 - After ANY `raceday/index.html` change: run all Playwright suites — `for t in tests/test-*.js; do node "$t" | tail -1; done`
 - Touching roles, permissions, the setup wizard, sync, or the boot sequence? `tests/test-roles-security.js` is the guard for those invariants — add/update a check there for the new behavior, and confirm it would catch a regression (see that file's header + `tests/README.md`). Three live security bugs came from this area with no test coverage; this suite is how it stays fixed.
 - Commit + push current branch: `/push <message>`
+- Weekly marketing: `/growth` (`.claude/skills/growth/`) — site audit (fixes go in a PR, never merged
+  without asking), next week's posts, new outreach tracks; output is the Growth Playbook artifact
 - See branch state: `/check`
 - Merge to main: only with explicit user approval — always ask first
 - After merging to main: VERIFY the GitHub Pages build succeeds (a deploy can fail transiently) before telling the user it's live; bump `raceday/sw.js` CACHE on cache-breaking changes

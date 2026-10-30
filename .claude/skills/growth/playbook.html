@@ -1,0 +1,303 @@
+<title>RaceDay Growth Playbook</title>
+<meta name="claude:viewport-fit-sides" content="cover">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Big+Shoulders+Display:wght@700;800&family=Overpass:wght@400;600;700&family=Overpass+Mono:wght@600;700&display=swap">
+<style>
+/* Layout: one reading column; a sticky section nav; post cards stack as a week; outreach is a scrollable table with per-viewer checkboxes. Tokens follow victoryraceday.com. */
+:root{
+  --bg:#f4f4f1; --surface:#ffffff; --ink:#17181c; --muted:#5f6168; --line:#e0e0da;
+  --accent:#c1571f; --accent-ink:#ffffff; --blue:#1f6fd6; --good:#0e8a4d; --chip:#efe9e3;
+  --display:'Big Shoulders Display',Impact,'Arial Narrow',sans-serif;
+  --body:'Overpass',system-ui,-apple-system,sans-serif;
+  --mono:'Overpass Mono',ui-monospace,Menlo,Consolas,monospace;
+}
+@media (prefers-color-scheme: dark){:root:not([data-theme="light"]){
+  --bg:#101114; --surface:#1a1c21; --ink:#f2f1ec; --muted:#a0a3ab; --line:#2c2f36;
+  --accent:#e0742f; --accent-ink:#101114; --blue:#4b93ee; --good:#2fbf78; --chip:#26221f; color-scheme:dark}}
+:root[data-theme="dark"]{
+  --bg:#101114; --surface:#1a1c21; --ink:#f2f1ec; --muted:#a0a3ab; --line:#2c2f36;
+  --accent:#e0742f; --accent-ink:#101114; --blue:#4b93ee; --good:#2fbf78; --chip:#26221f; color-scheme:dark}
+*{box-sizing:border-box}
+body{background:var(--bg);color:var(--ink);font-family:var(--body);font-size:16px;line-height:1.55}
+.wrap{max-width:920px;margin:0 auto;padding-left:max(16px,env(safe-area-inset-left,0px));padding-right:max(16px,env(safe-area-inset-right,0px));padding-block:40px 80px}
+h1,h2{font-family:var(--display);text-transform:uppercase;line-height:.95;text-wrap:balance;margin:0}
+h1{font-size:clamp(2.6rem,7vw,4.2rem);font-weight:800}
+h1 em{font-style:normal;color:var(--accent)}
+h2{font-size:2rem;font-weight:800;margin-bottom:6px}
+h3{margin:0;font-size:1.05rem}
+.eyebrow{font-family:var(--mono);font-size:.78rem;font-weight:700;letter-spacing:.12em;text-transform:uppercase;color:var(--accent)}
+.lede{color:var(--muted);max-width:62ch;margin:14px 0 0}
+p{max-width:68ch}
+section{margin-top:56px;display:grid;gap:16px}
+.sub{color:var(--muted);margin:0}
+nav{position:sticky;top:env(safe-area-inset-top,0px);z-index:5;background:var(--bg);border-bottom:1px solid var(--line);margin-top:28px}
+body::before{content:"";position:fixed;inset:0 0 auto;height:env(safe-area-inset-top,0px);z-index:10;background:var(--bg)}
+nav ul{list-style:none;margin:0;padding:10px 0;display:flex;flex-wrap:wrap;gap:6px 18px}
+nav a{font-family:var(--mono);font-size:.8rem;font-weight:700;text-transform:uppercase;letter-spacing:.08em;color:var(--ink);text-decoration:none}
+nav a:hover,nav a:focus-visible{color:var(--accent)}
+a{color:var(--blue)}
+:focus-visible{outline:2px solid var(--accent);outline-offset:2px}
+.shipped{display:grid;grid-template-columns:repeat(auto-fit,minmax(240px,1fr));gap:12px}
+.ship{border-top:3px solid var(--good);background:var(--surface);padding:14px 16px;min-width:0}
+.ship b{display:block;margin-bottom:4px}
+.ship span{color:var(--muted);font-size:.92rem}
+.day{display:grid;grid-template-columns:110px minmax(0,1fr);gap:16px;padding:18px 0;border-top:1px solid var(--line)}
+.date{font-family:var(--display);font-weight:800;text-transform:uppercase;font-size:1.5rem;line-height:1}
+.date small{display:block;font-family:var(--mono);font-size:.72rem;font-weight:700;color:var(--muted);letter-spacing:.08em;margin-top:4px}
+.meta{display:flex;flex-wrap:wrap;gap:6px;margin:6px 0 10px}
+.chip{font-family:var(--mono);font-size:.7rem;font-weight:700;letter-spacing:.06em;text-transform:uppercase;background:var(--chip);padding:3px 8px;border-radius:3px}
+.chip.rd{color:var(--accent)} .chip.dv{color:var(--blue)}
+.copybox{position:relative;background:var(--surface);border:1px solid var(--line);border-radius:4px;padding:14px 16px 14px;white-space:pre-wrap;font-size:.95rem;min-width:0;overflow-wrap:anywhere}
+.copy{font-family:var(--mono);font-size:.72rem;font-weight:700;text-transform:uppercase;letter-spacing:.06em;border:1px solid var(--line);background:var(--bg);color:var(--ink);padding:5px 10px;border-radius:3px;cursor:pointer;margin-top:8px}
+.copy:hover{border-color:var(--accent);color:var(--accent)}
+.note{font-size:.9rem;color:var(--muted);margin:8px 0 0}
+.tiers{display:grid;grid-template-columns:repeat(auto-fit,minmax(250px,1fr));gap:12px}
+.tier{background:var(--surface);padding:14px 16px;border-left:3px solid var(--accent);min-width:0}
+.tier.t2{border-left-color:var(--blue)} .tier.t3{border-left-color:var(--muted)}
+.tier p{margin:6px 0 0;color:var(--muted);font-size:.92rem}
+.filters{display:flex;flex-wrap:wrap;gap:8px;align-items:center}
+.filters button{font-family:var(--mono);font-size:.74rem;font-weight:700;text-transform:uppercase;letter-spacing:.06em;border:1px solid var(--line);background:var(--surface);color:var(--ink);padding:6px 10px;border-radius:3px;cursor:pointer}
+.filters button[aria-pressed="true"]{background:var(--accent);color:var(--accent-ink);border-color:var(--accent)}
+.count{font-family:var(--mono);font-size:.8rem;color:var(--muted);margin-left:auto;font-variant-numeric:tabular-nums}
+.tablewrap{overflow-x:auto;border:1px solid var(--line);background:var(--surface)}
+table{border-collapse:collapse;width:100%;min-width:720px;font-size:.92rem}
+th,td{text-align:left;padding:9px 12px;border-bottom:1px solid var(--line);vertical-align:top}
+th{font-family:var(--mono);font-size:.7rem;text-transform:uppercase;letter-spacing:.08em;color:var(--muted);font-weight:700;position:sticky;top:0;background:var(--surface)}
+td.p{font-family:var(--mono);font-weight:700;font-variant-numeric:tabular-nums}
+tr.done td{opacity:.5} tr.done td:first-child{opacity:1}
+.tag{font-family:var(--mono);font-size:.68rem;font-weight:700;text-transform:uppercase;white-space:nowrap}
+.rhythm{display:grid;grid-template-columns:repeat(auto-fit,minmax(200px,1fr));gap:12px}
+.rhythm div{background:var(--surface);padding:14px 16px;min-width:0}
+.rhythm b{font-family:var(--mono);font-size:.74rem;text-transform:uppercase;letter-spacing:.08em;color:var(--accent);display:block;margin-bottom:4px}
+.foot{margin-top:56px;font-size:.85rem;color:var(--muted);border-top:1px solid var(--line);padding-top:16px}
+@media (max-width:560px){.day{grid-template-columns:1fr;gap:6px}.date small{display:inline;margin-left:8px}}
+@media (prefers-reduced-motion:reduce){*{transition:none!important}}
+</style>
+
+<div class="wrap">
+  <div class="eyebrow">victoryraceday.com · offseason push · Oct 30 2026</div>
+  <h1>Sell the <em>2027 season</em> this winter.</h1>
+  <p class="lede">Most short tracks just wrapped up 2026, and promoters plan next season over the winter. A season pass bought from October on already covers 2027. This page has what was fixed on the site, a week of posts ready to copy, and a list of tracks to contact.</p>
+
+  <nav aria-label="Sections"><ul>
+    <li><a href="#shipped">Site fixes</a></li>
+    <li><a href="#week">This week's posts</a></li>
+    <li><a href="#messages">Promoter messages</a></li>
+    <li><a href="#tracks">Tracks to contact</a></li>
+    <li><a href="#rhythm">Weekly rhythm</a></li>
+  </ul></nav>
+
+  <section id="shipped">
+    <div><h2>Site fixes</h2><p class="sub">On branch <code>claude/growth-audit</code>. Not live until it's merged to main.</p></div>
+    <div class="shipped">
+      <div class="ship"><b>Homepage 1.6 MB → 36 KB</b><span>Screenshots moved out of the page and compressed. Matters most for Facebook ad clicks on track cell signal.</span></div>
+      <div class="ship"><b>Real link previews</b><span>1200×630 share cards for RaceDay and Driven pages replace the small app icon on Facebook and in texts.</span></div>
+      <div class="ship"><b>Google rich results</b><span>Canonical URLs on every page, plans and prices described to Google, all 21 FAQ answers marked up.</span></div>
+    </div>
+  </section>
+
+  <section id="week">
+    <div><h2>This week's posts</h2><p class="sub">One a day. Every link goes through <code>/fb/</code> or <code>/fb/drivers/</code> so the visits show up in your usage sheet. Swap in <code>/li/</code> on LinkedIn.</p></div>
+    <div id="days"></div>
+  </section>
+
+  <section id="messages">
+    <div><h2>Promoter messages</h2><p class="sub">Send these one at a time and personalize the first line. Facebook messages to the track page get answered more often than email at small tracks.</p></div>
+    <div id="msgs"></div>
+  </section>
+
+  <section id="tracks">
+    <div><h2>Tracks to contact</h2><p class="sub">45 tracks and clubs from this week's research, nationwide. Every row links to the page it came from. Contact details aren't included because none were confirmed. Find the promoter on the track's Facebook page. Checkboxes are saved in this browser only.</p></div>
+    <div class="tiers">
+      <div class="tier"><b>Priority 1 · Kart and quarter midget clubs</b><p>Volunteer-run, scored by parents, lots of Junior classes and pill draws. A $200 packet is easy to approve, and they're the least likely to already be locked into a platform.</p></div>
+      <div class="tier t2"><b>Priority 2 · Small weekly dirt and micro tracks</b><p>Weekly cards with several classes and points. Many use MyRacePass already, so pitch “keep your MRP site, run race night on RaceDay”.</p></div>
+      <div class="tier t3"><b>Priority 3 · Bigger NASCAR-sanctioned asphalt</b><p>Established systems and staff. Worth one message each, mostly to learn what they use.</p></div>
+    </div>
+    <div class="filters" role="group" aria-label="Filter tracks">
+      <button type="button" data-f="all" aria-pressed="true">All</button>
+      <button type="button" data-f="Kart">Kart</button>
+      <button type="button" data-f="Quarter midget">Quarter midget</button>
+      <button type="button" data-f="Micro sprint">Micro sprint</button>
+      <button type="button" data-f="Dirt oval">Dirt oval</button>
+      <button type="button" data-f="Asphalt">Asphalt</button>
+      <span class="count" id="count"></span>
+    </div>
+    <div class="tablewrap"><table>
+      <thead><tr><th>Sent</th><th>Pri</th><th>Track / club</th><th>Where</th><th>Type</th><th>Why it fits</th><th>Source</th></tr></thead>
+      <tbody id="rows"></tbody>
+    </table></div>
+  </section>
+
+  <section id="rhythm">
+    <div><h2>Weekly rhythm</h2><p class="sub">About 30 minutes a day keeps this going through the winter.</p></div>
+    <div class="rhythm">
+      <div><b>Every day</b>One post from the calendar. Reply to every comment the same day.</div>
+      <div><b>Mon–Fri</b>Message 5 tracks from the list. Follow up once after 5 days, then stop.</div>
+      <div><b>Weekly</b>Post one 15-second screen recording: pill draw, lineup on TV, points updating.</div>
+      <div><b>Fridays</b>Check the usage sheet: <code>/fb/</code> visits, demo opens, new tracks. Keep what got clicks.</div>
+    </div>
+  </section>
+
+  <p class="foot">Track list compiled Oct 30 2026 from public web pages, linked in each row. Schedules and promoters change, so check a track's page before messaging. Prices match victoryraceday.com/pricing.html: free race day, $200 for 10 race days, $350 season pass.</p>
+</div>
+
+<script>
+const DAYS=[
+ {d:"Sat",n:"Oct 31",tag:["rd","RaceDay"],ch:"Facebook page + racing groups",t:
+`🎃 Last call: 10 race nights of RaceDay for $150 (normally $200). The deal ends Sunday night.
+
+The nights never expire, so you can lock in next season now.
+
+✅ Sign-up and pill draw in about 15 seconds a driver
+✅ Heats build themselves when sign-up closes
+✅ Points update the moment the feature's scored
+✅ Fans follow lineups free on their phones. No app, no account.
+
+victoryraceday.com/fb/`},
+ {d:"Sun",n:"Nov 1",tag:["rd","RaceDay"],ch:"Facebook page",t:
+`Halloween pricing ends tonight at midnight Eastern. 10 RaceDay race nights for $150, and they don't expire.
+
+If you run a weekly track, kart club or quarter midget club, this is the cheapest it gets before 2027.
+
+victoryraceday.com/fb/`},
+ {d:"Mon",n:"Nov 2",tag:["rd","RaceDay"],ch:"Facebook page + promoter groups",t:
+`Promoters: how many Monday mornings did you spend re-adding points in a spreadsheet this year?
+
+RaceDay updates season points the moment a feature is scored. Tap the cars in the order they finish, or import from your timing system, and standings, the B-main and the feature lineup all build from that.
+
+One free race day to try it. No card, no account.
+victoryraceday.com/fb/`},
+ {d:"Tue",n:"Nov 3",tag:["dv","Driven"],ch:"Driver and karting groups",t:
+`Drivers: winter is sponsor-pitch season. Send them a link instead of a screenshot.
+
+Driven gives you a free driver page with your number, sponsors and crew, plus results posted by the track. Drivers can't type in their own finishes, so a win on your page is a real win.
+
+Build yours in a couple of minutes: victoryraceday.com/fb/drivers/`},
+ {d:"Wed",n:"Nov 4",tag:["rd","RaceDay"],ch:"Facebook Reel / short video",t:
+`Shot list, 15 seconds, no voiceover needed:
+1. (0–4s) Phone at the sign-up table: type a name, tap two classes, “Draw my pills”.
+2. (4–9s) Cut to the TV: the lineup appears with inside/outside lines.
+3. (9–15s) A fan's phone scanning the QR code and showing the same lineup.
+
+Caption:
+Sign-up to lineup on the TV in under 15 seconds a driver. Fans see it on their phones too. victoryraceday.com/fb/`},
+ {d:"Thu",n:"Nov 5",tag:["rd","RaceDay"],ch:"Facebook page",t:
+`Your fans shouldn't need a subscription to see tonight's lineups.
+
+With RaceDay, fans, drivers, crews and parents scan one QR code at the track and follow lineups and results live. It's free for them, with no app and no account.
+
+Tracks pay one price: $200 for 10 race nights or $350 for the whole season. Every feature is included.
+
+victoryraceday.com/fb/`,
+ note:"This is the MyRacePass contrast without naming them. Their fan app costs $8–55 a year (COMPETITORS.md)."},
+ {d:"Fri",n:"Nov 6",tag:["rd","RaceDay"],ch:"Karting and quarter midget groups",t:
+`Kart clubs and quarter midget clubs: if your scorer is a parent volunteer with a clipboard, this is for them.
+
+RaceDay runs sign-up, pill draw, heats, scoring and points from one laptop or tablet. It keeps working when the Wi-Fi drops, and every parent can follow their kid's heat and starting spot on their own phone.
+
+Your first race day is free. After that it's $20 a night.
+victoryraceday.com/fb/`}
+];
+const MSGS=[
+ {h:"First message to a track (Facebook)",t:
+`Hi [name], I'm [your name]. I built RaceDay, race-night software for weekly tracks like [track].
+
+It handles sign-up and pill draw in about 15 seconds a driver. Heats build themselves, points update when the feature's scored, and fans follow lineups free from a QR code.
+
+The season pass is $350, and your first race day is free. There's a live demo you can try over the winter: victoryraceday.com/fb/
+
+Happy to walk you through it on a call if that's easier.`},
+ {h:"Kart or quarter midget club version",t:
+`Hi [name], I'm [your name]. I built RaceDay for clubs like [club]. It runs sign-up, pill draw, heats, scoring and season points from one laptop or tablet, so the scoring table isn't stuck with a clipboard.
+
+Parents follow their kid's heat and starting spot on their own phones for free. It's $20 a night in packets of 10 that never expire, and the first race day is free.
+
+Live demo: victoryraceday.com/fb/`},
+ {h:"Track already on MyRacePass",t:
+`Hi [name], I see [track] is on MyRacePass. You don't have to switch your website or tickets.
+
+RaceDay is just the race-night tool: sign-up, pill draw, lineups on a TV, tap scoring and points. It's $350 for the season, and your fans see lineups free from a QR code with no subscription.
+
+Free race day to try it: victoryraceday.com/fb/`},
+ {h:"Follow-up after 5 days (send once)",t:
+`Hi [name], just following up on RaceDay. If winter is when you set up next season, the free race day doesn't expire, so you can set up your classes now and try it on opening night.
+
+victoryraceday.com/fb/
+
+I won't keep messaging, but I'm here if you have questions.`}
+];
+const T=[
+ [1,"Newton Kart Klub","Newton, IA","Kart","1/8-mile dirt oval, Saturday cards with Junior and Clone classes","https://www.myracepass.com/tracks/3122"],
+ [1,"ToNers Lake Karting","See site","Kart","1/10-mile banked clay oval with Rookie, Jr 1 and Jr 2 classes","http://www.tonerslakekarting.org/"],
+ [1,"Ohio Valley Karting Association","OH / PA / KY / IN","Kart","Volunteer-run club with a points series and events at G&J Kartway","https://ovka.com/"],
+ [1,"Coweta Raceway","Newnan, GA","Kart","WKA-listed dirt oval","https://www.worldkarting.com/tracks/"],
+ [1,"Hillbilly Raceway","Olmstead, KY","Kart","WKA-listed dirt oval","https://www.worldkarting.com/tracks/"],
+ [1,"Pitt International Race Complex (karts)","Pittsfield, PA","Kart","WKA-listed dirt oval","https://www.worldkarting.com/tracks/"],
+ [1,"NCM Motorsports Park (indoor dirt oval)","Russellville, KY","Kart","Indoor dirt oval, can race through the winter","https://www.worldkarting.com/tracks/"],
+ [1,"Cochran Motor Speedway (go-karts)","Cochran, GA","Kart","Listed running go-kart events","https://dirtfan.com/dirt-track-races/"],
+ [1,"Washington Quarter Midget Association","Monroe, WA","Quarter midget","QMA club","https://quartermidgets.org/clubs/"],
+ [1,"509 QMA","Yakima, WA","Quarter midget","QMA club","https://quartermidgets.org/clubs/"],
+ [1,"Southern Nevada QMA","Logandale & Mesquite, NV","Quarter midget","QMA club, two tracks","https://quartermidgets.org/clubs/"],
+ [1,"Magic City QMA","Billings, MT","Quarter midget","QMA club","https://quartermidgets.org/clubs/"],
+ [1,"The Falls QMA","Great Falls, MT","Quarter midget","QMA member club","https://quartermidgets.org/wp-content/uploads/2024/03/2024-QMA-Rulebook-_FINAL-5.pdf"],
+ [1,"Oregon Raceway","St. Helens, OR","Quarter midget","QMA member club","https://quartermidgets.org/wp-content/uploads/2024/03/2024-QMA-Rulebook-_FINAL-5.pdf"],
+ [1,"Silver City QMA","Meriden, CT","Quarter midget","QMA member club","https://quartermidgets.org/wp-content/uploads/2024/03/2024-QMA-Rulebook-_FINAL-5.pdf"],
+ [1,"Creekside QMA","Kennett Square, PA","Quarter midget","QMA member club","https://quartermidgets.org/wp-content/uploads/2024/03/2024-QMA-Rulebook-_FINAL-5.pdf"],
+ [1,"Twin Cities Raceway","Kenai, AK","Quarter midget","QMA member club","https://quartermidgets.org/wp-content/uploads/2024/03/2024-QMA-Rulebook-_FINAL-5.pdf"],
+ [1,"Langley QMA","Langley, BC (Canada)","Quarter midget","QMA club. Check that you can sell in Canada first","https://quartermidgets.org/clubs/"],
+ [1,"Michigan Motorsports Racing Association","Michigan","Quarter midget","USAC-sanctioned 1/20-mile club track","https://ocsportsmensclub.com/clubs/quarter-midgets/"],
+ [1,"Montgomery County Quarter Midget Racing Club","See site","Quarter midget","USAC club","https://mcqmrc.com/usac-dirt-track-links"],
+ [2,"Limerock Speedway","New York","Micro sprint","Weekly classes: Micro 600, Restricted 600, Winged and Wingless 600","https://www.lrspeedway.com/2026-schedule.html"],
+ [2,"Antioch Speedway","Antioch, CA","Micro sprint","600 micro sprints on several Saturday nights","https://www.raceantiochspeedway.com/schedules/"],
+ [2,"Delta Speedway","Stockton, CA","Micro sprint","On the 2026 micro sprint championship circuit","https://www.shorttracklive.com/micro-sprints/race-six-for-2026-this-saturday-in-stockton-at-delta-speedway/"],
+ [2,"Lincoln Park Speedway","Putnamville, IN","Dirt oval","Weekly Saturdays Apr–Sep with 5+ classes","https://www.lincolnparkspeedway.com/schedules/"],
+ [2,"Lawrenceburg Speedway","Lawrenceburg, IN","Dirt oval","Weekly Saturdays Mar–Oct, sprints and support classes","https://www.lawrenceburgspeedway.com/schedules/"],
+ [2,"Sycamore Speedway","Sycamore, IL","Dirt oval","Friday and Saturday programs","https://sycamorespeedway.com/race-schedule/"],
+ [2,"Midway Speedway","Missouri","Dirt oval","Weekly Fridays late May–Sep","https://www.myracepass.com/tracks/2125/schedule"],
+ [2,"Central Missouri Speedway","Warrensburg, MO","Dirt oval","Friday and Saturday cards with 4+ classes","https://centralmissourispeedway.com/schedule/"],
+ [2,"Wilmot Raceway","Wilmot, WI","Dirt oval","Weekly “Saturday Night Thunder” with theme nights","https://en.wikipedia.org/wiki/Wilmot_Raceway"],
+ [2,"Florence Speedway","Union, KY","Dirt oval","Saturdays Mar–Oct with 5 weekly classes","https://www.florencespeedway.com/"],
+ [2,"Cedar Ridge Speedway","Morgantown, KY","Dirt oval","Weekly racing on the DIRTcar calendar","https://dirtcar.com/schedule/"],
+ [2,"Western Kentucky Speedway","Madisonville, KY","Dirt oval","Weekly racing on the DIRTcar calendar","https://dirtcar.com/schedule/"],
+ [2,"Volunteer Speedway","Bulls Gap, TN","Dirt oval","Weekly points May–Aug with 4 classes","https://volunteerspeedway.com/schedule/"],
+ [2,"Heart O' Texas Speedway","Waco, TX","Dirt oval","Weekly IMCA Modifieds, Stock Cars and SportMods","https://www.imca.com/?p=57543"],
+ [2,"I-37 Speedway","Pleasanton, TX","Dirt oval","Saturday nights, IMCA classes","https://www.myracepass.com/tracks/1714/schedule"],
+ [2,"Abilene Speedway","Abilene, TX","Dirt oval","IMCA Modifieds","https://www.imca.com/?p=41544"],
+ [2,"Bakersfield Speedway","Bakersfield, CA","Dirt oval","Saturday nights on a 1/3-mile track","https://www.bakersfieldspeedway.com/"],
+ [2,"Penn Can Speedway","Susquehanna, PA","Dirt oval","Fridays May–Sep with Modifieds, Factory Stocks and 4-Cylinders","https://discovernepa.com/event/racing-season-at-penn-can-speedway-2026/2026-07-17/"],
+ [2,"Port Royal Speedway","Port Royal, PA","Dirt oval","Weekly programs Mar–Sep","https://www.portroyalspeedway.com/press/article/185360"],
+ [2,"Grandview Speedway","Bechtelsville, PA","Dirt oval","Weekly racing, NASCAR-sanctioned","https://dirt.raceproweekly.news/2026/01/grandview-speedway-announces-2026-schedule-of-events/"],
+ [2,"Evergreen Raceway","St. Johns, PA","Asphalt","Paved 1/3-mile, weekly series May–Oct","https://discovernepa.com/event/weekly-racing-series/2026-09-20/"],
+ [3,"New Smyrna Speedway","New Smyrna Beach, FL","Asphalt","NASCAR local racing series","https://www.nascar.com/galleries/archive/advance-auto-parts-weekly-series/"],
+ [3,"Tucson Speedway","Tucson, AZ","Asphalt","NASCAR local racing series","https://www.nascar.com/galleries/archive/advance-auto-parts-weekly-series/"],
+ [3,"Riverhead Raceway","Riverhead, NY","Asphalt","NASCAR local racing series","https://www.nascar.com/galleries/archive/advance-auto-parts-weekly-series/"],
+ [3,"Berlin Raceway","Marne, MI","Asphalt","NASCAR local racing series","https://m.nascar.com/videos/franchise/advance-auto-parts-weekly-series-highlights"]
+];
+const KEY="rd_growth_sent";
+let sent={};try{sent=JSON.parse(localStorage.getItem(KEY)||"{}")}catch(e){}
+const esc=s=>s.replace(/[&<>"]/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;"}[c]));
+function copyBtn(id){return `<button type="button" class="copy" data-copy="${id}">Copy text</button>`}
+document.getElementById("days").innerHTML=DAYS.map((x,i)=>`
+ <div class="day"><div class="date">${x.d}<small>${x.n}</small></div>
+ <div style="min-width:0"><div class="meta"><span class="chip ${x.tag[0]}">${x.tag[1]}</span><span class="chip">${x.ch}</span></div>
+ <div class="copybox" id="p${i}">${esc(x.t)}</div>${copyBtn("p"+i)}${x.note?`<p class="note">${esc(x.note)}</p>`:""}</div></div>`).join("");
+document.getElementById("msgs").innerHTML=MSGS.map((m,i)=>`<div><h3>${m.h}</h3><div class="copybox" id="m${i}" style="margin-top:8px">${esc(m.t)}</div>${copyBtn("m"+i)}</div>`).join("");
+let filter="all";
+function render(){
+  const list=T.filter(r=>filter==="all"||r[3]===filter);
+  document.getElementById("rows").innerHTML=list.map(r=>{const id=r[1];const on=!!sent[id];return `
+  <tr class="${on?"done":""}"><td><input type="checkbox" id="c-${esc(id).replace(/[^A-Za-z0-9]/g,"")}" data-id="${esc(id)}" ${on?"checked":""} aria-label="Contacted ${esc(id)}"></td>
+  <td class="p">${r[0]}</td><td><b>${esc(r[1])}</b></td><td>${esc(r[2])}</td><td><span class="tag">${r[3]}</span></td><td>${esc(r[4])}</td>
+  <td><a href="${r[5]}" target="_blank" rel="noopener">${new URL(r[5]).hostname.replace(/^www\./,"")}</a></td></tr>`}).join("");
+  const done=T.filter(r=>sent[r[1]]).length;
+  document.getElementById("count").textContent=`${list.length} shown · ${done} of ${T.length} contacted`;
+}
+document.getElementById("rows").addEventListener("change",e=>{const id=e.target.dataset.id;if(!id)return;
+  if(e.target.checked)sent[id]=1;else delete sent[id];try{localStorage.setItem(KEY,JSON.stringify(sent))}catch(err){}render()});
+document.querySelector(".filters").addEventListener("click",e=>{const b=e.target.closest("button");if(!b)return;filter=b.dataset.f;
+  document.querySelectorAll(".filters button").forEach(x=>x.setAttribute("aria-pressed",x===b));render()});
+document.addEventListener("click",e=>{const b=e.target.closest(".copy");if(!b)return;const el=document.getElementById(b.dataset.copy);
+  const done=()=>{b.textContent="Copied";setTimeout(()=>b.textContent="Copy text",1500)};
+  const fallback=()=>{const r=document.createRange();r.selectNodeContents(el);const s=getSelection();s.removeAllRanges();s.addRange(r);b.textContent="Selected, press copy"};
+  try{navigator.clipboard.writeText(el.textContent).then(done,fallback)}catch(err){fallback()}});
+render();
+</script>
