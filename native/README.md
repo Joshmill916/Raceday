@@ -56,17 +56,37 @@ Guard: `tests/test-native-shell.js`.
    unless the site has a `.nojekyll` file or a `_config.yml` `include: [".well-known"]`.
    Don't publish them until the real IDs are filled in.
 
-## Still to do before store submission
+## Also handled (store must-fixes)
 
-See the phase plan in `../NATIVE-APP.md`. The must-fixes are:
+- **Backup download / CSV export.** `downloadFile()` writes to the app cache (`@capacitor/filesystem`)
+  and opens the share sheet (`@capacitor/share`): Save to Files, Mail, AirDrop, Drive. If the person
+  cancels a backup, it doesn't count as a backup, so the "back up tonight" reminder stays up.
+- **Printing** (heat sheet, QR posters). `printHtml()` draws the sheet over the app in a shadow root,
+  then prints the app's own page with `@capgo/capacitor-printer` `printWebView()`. Print CSS hides
+  everything but the sheet. The sheet is removed when the print dialog closes, and a ✕ Close button
+  is there in case it never reports back. This uses the real web view, so QR images print. The
+  plugin's `printHtml()` uses a limited HTML renderer on iOS that likely drops them.
+- **No Buy buttons.** `licBuyLinksHtml()` returns nothing in the native app. Tracks buy on the
+  website and enter the code here.
+- **Icons and splash screens** are generated from `assets/` (built from `raceday/icon-rd.png`). After changing
+  `assets/`, run `npm run assets`.
 
-- **Backup download / CSV export.** `<a download>` blob links don't save files in the iOS
-  web view. Use `@capacitor/filesystem` + `@capacitor/share` when `isNativeApp()`.
-- **Printing** (QR poster, lineup sheets). These use `window.open('')` + `document.write`, which
-  opens nothing in the shell. Print from a hidden iframe, or use a print plugin.
-- **License purchase buttons.** Hide the Stripe "Buy" links in the native build, or show
-  them only on the US storefront. Code entry stays.
-- **Firebase.** Test anonymous sign-in on a real iPhone. If the Firebase API key has HTTP-referrer
-  restrictions, add the app's bundle id / origins.
-- **App icons and splash screens.** Generate them with `npx @capacitor/assets generate` from a
-  1024×1024 icon.
+## Real-phone test checklist (do this before submitting)
+
+None of this can be checked in a browser. Run it on one iPhone and one Android phone.
+
+1. **Staff sign-in (most important).** On a scoring station link, turn on sync and change a
+   result. Then check that a second device sees the change. If it never syncs on iPhone, Firebase's
+   compat auth may be hanging in the app's web view (a known problem on `capacitor://`). The fix is to
+   load modular `firebase/auth` with `initializeAuth(app, { persistence: indexedDBLocalPersistence })`
+   in the native build. Ask Claude to do it, and run `tests/test-roles-security.js` + `tests/test-staff-lock.js`
+   afterwards.
+2. **Firebase API key.** If sync fails with an "API key not valid / referer" error, the key has
+   website restrictions. In Google Cloud Console → Credentials, allow the app (iOS bundle id /
+   Android package + SHA-1).
+3. **Backup:** Admin → Download full backup → Save to Files. Restore it on a second phone.
+4. **CSV exports** (results, entries, audit) open in Numbers / Sheets.
+5. **Print** the heat sheet and both posters: AirPrint on iPhone, the system print dialog on Android. "Save as PDF" works too.
+6. **Deep links** (after the `.well-known` files are live): scan the spectator QR with the phone camera.
+   The app should open as a spectator.
+7. **Rotation, the notch and the keyboard** on sign-up and scoring screens.

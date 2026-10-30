@@ -6,15 +6,20 @@
     "copy-web": "node scripts/copy-web.mjs",
     "sync": "node scripts/copy-web.mjs && cap sync",
     "ios": "node scripts/copy-web.mjs && cap sync ios && cap open ios",
-    "android": "node scripts/copy-web.mjs && cap sync android && cap open android"
+    "android": "node scripts/copy-web.mjs && cap sync android && cap open android",
+    "assets": "capacitor-assets generate --ios --android"
   },
   "dependencies": {
     "@capacitor/android": "^8.6.0",
     "@capacitor/app": "^8.0.0",
     "@capacitor/core": "^8.6.0",
-    "@capacitor/ios": "^8.6.0"
+    "@capacitor/filesystem": "^8.1.5",
+    "@capacitor/ios": "^8.6.0",
+    "@capacitor/share": "^8.0.3",
+    "@capgo/capacitor-printer": "^8.1.8"
   },
   "devDependencies": {
+    "@capacitor/assets": "^3.0.5",
     "@capacitor/cli": "^8.6.0"
   }
 }

@@ -27,13 +27,13 @@ presence, push notifications, the camera and storage that doesn't get wiped. The
 | Service worker / offline | Not needed: files ship inside the app | ✅ Turned off in native |
 | Usage analytics | Would have been dropped (`devHost()` reads "localhost" as a dev copy) | ✅ **Fixed** |
 | Site links (`/?home=1`, `/raceday2/`) | Would have broken | ✅ Open the website |
-| **Backup download, CSV export** (`<a download>`) | Doesn't save on iOS | ❌ **Must fix:** Filesystem + Share plugins |
-| **Print** (QR poster, lineup sheets) | `window.open('')` + `document.write` opens nothing | ❌ **Must fix:** iframe print or plugin |
+| Backup download, CSV export | `<a download>` doesn't save in the app | ✅ **Fixed:** share sheet (Files, Mail, AirDrop…) |
+| Print (heat sheet, QR posters) | `window.open('')` opens nothing in the app | ✅ **Fixed:** sheet over the app + native print dialog |
 | CSV / backup import (`<input type=file>`) | Works (Files app picker) | ✅ |
 | Copy to clipboard | Works | ✅ |
 | TV mode fullscreen | No `requestFullscreen` on iPhone | ⚠️ Fine: TV mode belongs on a laptop/TV browser |
 | Google Fonts | First launch with no internet uses the system font | ⚠️ Optional: bundle the font |
-| License **Buy** buttons (Stripe Payment Links) | Opens fine, but store rules apply | ⚠️ See *Payments* |
+| License **Buy** buttons (Stripe Payment Links) | Store payment rules | ✅ Hidden in the app; code entry stays |
 | http→https "Move this track" banner | Doesn't run in native (origin check) | ✅ |
 | Driven (`driven/`) | Separate app; same recipe later, under its own app id | ⏸ Not wrapped yet |
 
@@ -119,7 +119,7 @@ $75–150/hour. A full native rewrite is commonly quoted at $40k–150k+, which 
 | Phase | Work | Rough effort | If hired out |
 |---|---|---|---|
 | 1. Shell ✅ | Capacitor project, link/QR/analytics/SW fixes, deep-link code, test | Done on this branch | — |
-| 2. Must-fixes | Backup/CSV via Share sheet, printing, hide Buy buttons, icons/splash, real-device Firebase test | 3–5 days | $2k–5k |
+| 2. Must-fixes ✅ | Backup/CSV via Share sheet, printing, hide Buy buttons, icons/splash. **Left:** real-phone test (`native/README.md` checklist) | Done, except phone test | — |
 | 3. Native value | Push notifications, camera QR scan, keep-awake | 1–2 weeks | $4k–10k |
 | 4. Store launch | Accounts, privacy policy page, screenshots, store listings, review back-and-forth | 2–4 days + review wait | $1k–3k |
 
@@ -128,6 +128,6 @@ $75–150/hour. A full native rewrite is commonly quoted at $40k–150k+, which 
 1. **Now:** review this branch. The web app behaves exactly as before (all suites pass, plus the new
    `tests/test-native-shell.js`).
 2. Open the developer accounts early. D-U-N-S and Apple's organization checks can take weeks.
-3. Do Phase 2 on a feature branch. Test on a real iPhone and a real Android phone at a practice night.
+3. Run the real-phone checklist in `native/README.md` on an iPhone and an Android phone, ideally at a practice night.
 4. Add push or camera scan (Phase 3), then submit to both stores.
 5. Later: wrap Driven the same way (`com.victoryraceday.driven`), once its Pro payments plan is settled.
