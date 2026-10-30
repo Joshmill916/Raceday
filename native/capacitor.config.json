@@ -1,0 +1,8 @@
+{
+  "appId": "com.victoryraceday.raceday",
+  "appName": "RaceDay",
+  "webDir": "www",
+  "backgroundColor": "#17181c",
+  "ios": { "contentInset": "automatic" },
+  "android": { "allowMixedContent": false }
+}

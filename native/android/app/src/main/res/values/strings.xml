@@ -1,0 +1,7 @@
+<?xml version='1.0' encoding='utf-8'?>
+<resources>
+    <string name="app_name">RaceDay</string>
+    <string name="title_activity_main">RaceDay</string>
+    <string name="package_name">com.victoryraceday.raceday</string>
+    <string name="custom_url_scheme">com.victoryraceday.raceday</string>
+</resources>

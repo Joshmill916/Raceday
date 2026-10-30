@@ -19,7 +19,8 @@ location.replace('https://'+location.host+location.pathname+location.search+loca
 <meta name="apple-mobile-web-app-title" content="RaceDay">
 <link rel="apple-touch-icon" href="icon-rd.png">
 <link rel="icon" type="image/png" sizes="512x512" href="icon-rd.png">
-<script>if('serviceWorker' in navigator){addEventListener('load',function(){navigator.serviceWorker.register('sw.js').catch(function(){})})}</script>
+<script>/* no service worker in the native app — its files ship inside the app (see native/) */
+if('serviceWorker' in navigator&&!(window.Capacitor&&Capacitor.isNativePlatform&&Capacitor.isNativePlatform())){addEventListener('load',function(){navigator.serviceWorker.register('sw.js').catch(function(){})})}</script>
 <style>
   :root {
     --asphalt: #17181c;
@@ -5246,7 +5247,12 @@ function pingOpen() {
 function dontCount() { try { return localStorage.getItem('rd_dont_count') === '1'; } catch (e) { return false; } }
 // A copy running on this computer (tests, local preview) never reports: its opens, race nights and
 // crashes are ours, not a track's. rd_count_local='1' turns reporting back on for the analytics test.
-function devHost() { try { return /^(localhost|127\.0\.0\.1|\[::1\])$|\.(localhost|test)$/.test(location.hostname) && localStorage.getItem('rd_count_local')!=='1'; } catch (e) { return true; } }
+// Native app builds (native/, Capacitor) load from capacitor://localhost or https://localhost,
+// so a link or QR meant for ANOTHER device must point at the public site instead.
+const PUBLIC_APP_URL = 'https://victoryraceday.com/raceday/';
+function isNativeApp() { try { return !!(window.Capacitor && Capacitor.isNativePlatform()); } catch (e) { return false; } }
+function appBaseUrl() { return isNativeApp() ? PUBLIC_APP_URL : location.origin + location.pathname; }
+function devHost() { if (isNativeApp()) return false; try { return /^(localhost|127\.0\.0\.1|\[::1\])$|\.(localhost|test)$/.test(location.hostname) && localStorage.getItem('rd_count_local')!=='1'; } catch (e) { return true; } }
 function sendUsage(event, extra) {
   if (!TELEMETRY_URL || devHost()) return;
   try {
@@ -5959,7 +5965,7 @@ function renderSyncCard() {
     el.innerHTML = h; return;
   }
   if (syncOn()) {
-    const base = location.origin + location.pathname;
+    const base = appBaseUrl();
     const k = syncKey();
     const link = r => base + staffLinkParams(r);
     h += '<p style="font-size:13.5px">✅ Live sync is <b>ON</b> for this track. Sync code: <b>' + esc(k) + '</b> '
@@ -6024,13 +6030,13 @@ function renderSyncCard() {
   el.innerHTML = h;
   if (syncOn()) {
     const cv = document.getElementById('specQR');
-    if (cv && typeof drawQR === 'function') drawQR(cv, location.origin + location.pathname + '?sync=' + encodeURIComponent(syncKey()) + '&role=viewer');
+    if (cv && typeof drawQR === 'function') drawQR(cv, appBaseUrl() + '?sync=' + encodeURIComponent(syncKey()) + '&role=viewer');
   }
 }
 // Printable spectator poster: track name + scannable QR to the read-only lineups view.
 function printQRPoster() {
   if (!syncOn()) { alert('Turn on Multi-device sync first — the spectator view rides on it.'); return; }
-  const url = location.origin + location.pathname + '?sync=' + encodeURIComponent(syncKey()) + '&role=viewer';
+  const url = appBaseUrl() + '?sync=' + encodeURIComponent(syncKey()) + '&role=viewer';
   const cv = document.createElement('canvas'); cv.width = 600;
   if (typeof drawQR !== 'function' || !drawQR(cv, url)) { alert('Could not build the QR code.'); return; }
   const img = cv.toDataURL('image/png');
@@ -7151,6 +7157,34 @@ function wizRemoveLogo() {
 // defaults() anyway, blanking the screen).
 window.addEventListener('storage', e => { if (e.key === activeKey() && !GUEST) { S = load(); renderHeader(); render(curPage); checkLoadFailure(); if (TV.on) tvRender(); } });
 handleUrlParams();
+// Native: a station/sync link opened from the camera or Messages (Universal/App Link) reloads
+// the bundled page with that link's query, so handleUrlParams() treats it like the web does.
+// The session flag stops a launch link from reloading again after it's been consumed.
+if (isNativeApp()) {
+  try {
+    const A = Capacitor.Plugins && Capacitor.Plugins.App;
+    const open = u => {
+      try {
+        const q = new URL(u).search;
+        if (!q || sessionStorage.getItem('rd_link_opened') === u) return;
+        sessionStorage.setItem('rd_link_opened', u);
+        location.href = location.pathname + q;
+      } catch (e) {}
+    };
+    if (A) {
+      A.addListener('appUrlOpen', e => open(e.url));
+      if (A.getLaunchUrl) A.getLaunchUrl().then(r => r && r.url && open(r.url)).catch(() => {});
+    }
+    // Site links like /?home=1 would resolve inside the app bundle — send them to the public
+    // site (an off-app URL, so the native shell hands it to the phone's browser).
+    document.addEventListener('click', e => {
+      const a = e.target.closest && e.target.closest('a[href^="/"]');
+      if (!a) return;
+      e.preventDefault();
+      location.href = 'https://victoryraceday.com' + a.getAttribute('href');
+    }, true);
+  } catch (e) {}
+}
 renderHeader();
 renderFooter();
 applyRole();

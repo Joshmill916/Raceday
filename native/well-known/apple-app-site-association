@@ -1,0 +1,10 @@
+{
+  "applinks": {
+    "details": [
+      {
+        "appIDs": ["TEAMID.com.victoryraceday.raceday"],
+        "components": [{ "/": "/raceday/*", "?": { "sync": "*" } }]
+      }
+    ]
+  }
+}
