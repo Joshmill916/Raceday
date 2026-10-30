@@ -1,0 +1,12 @@
+# victoryraceday.com: the marketing pages and guides are for search engines;
+# the apps, short links and owner tools are not.
+User-agent: *
+Disallow: /me/
+Disallow: /claim.html
+Disallow: /sync-test.html
+Disallow: /raceday2/
+Disallow: /fb/
+Disallow: /li/
+Disallow: /qr/
+
+Sitemap: https://victoryraceday.com/sitemap.xml
