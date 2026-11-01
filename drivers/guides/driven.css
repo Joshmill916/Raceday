@@ -1,5 +1,5 @@
 /* Driven guides: the RaceDay guide styles (/guides/guides.css) in Driven blue. */
-:root{--clay:#1f6fd6;--clay-2:#1858ab;--clay-bright:#4b93ee;--asphalt:#0d0f14;--asphalt-2:#181b22;--note:#eaf1fb}
+:root{--clay:#1f6fd6;--clay-2:#1858ab;--clay-bright:#4b93ee;--btn:#1f6fd6;--btn-2:#1858ab;--on-btn:#fff;--asphalt:#0d0f14;--asphalt-2:#181b22;--note:#eaf1fb}
 @media (prefers-color-scheme: dark){:root:not([data-theme="light"]){--clay:var(--clay-bright);--asphalt:#0a0b0e;--asphalt-2:#13151a;--note:#16202e}}
 :root[data-theme="dark"]{--clay:var(--clay-bright);--asphalt:#0a0b0e;--asphalt-2:#13151a;--note:#16202e}
 .ui{background:rgba(31,111,214,.12)}
