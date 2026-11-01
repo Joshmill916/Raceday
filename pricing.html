@@ -110,6 +110,9 @@ a{color:inherit}
   font-family:var(--display);font-weight:800;font-size:1rem;letter-spacing:.04em;
   color:#fff;text-transform:uppercase;text-decoration:none;
 }
+.topbar-brand{flex:none}
+.topbar-brand img{display:block;height:24px;width:auto}
+@media (max-width:600px){.topbar-row{flex-wrap:wrap;row-gap:10px}}
 .topbar-link{
   font-family:var(--mono);font-size:.82rem;font-weight:700;text-transform:uppercase;
   letter-spacing:.06em;color:#c7c8cd;text-decoration:none;
@@ -245,7 +248,7 @@ footer a:hover{color:#fff}
 <div class="sitebar"><div class="wrap sitebar-row"><a href="/drivers/">Driven — for drivers</a><a class="sb-right" href="/driven/">Open Driven →</a></div></div>
 <div class="topbar">
   <div class="wrap topbar-row">
-    <a class="topbar-brand" href="/?home=1">RaceDay</a>
+    <a class="topbar-brand" href="/?home=1"><img src="/img/logo-raceday.svg" alt="RaceDay" width="160" height="24"></a>
     <a class="topbar-link" href="/guides/">Guides</a>
     <a class="topbar-link" href="/faq.html">FAQ</a>
     <a class="topbar-link" href="/raceday2/">Open RaceDay <span class="btn-arrow">→</span></a>

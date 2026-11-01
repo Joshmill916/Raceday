@@ -36,6 +36,9 @@ b,strong{font-weight:700}
 .topbar{background:var(--asphalt);border-bottom:1px solid var(--line-dark)}
 .topbar-row{display:flex;align-items:center;justify-content:space-between;padding-block:14px;gap:16px}
 .topbar-brand{font-family:var(--display);font-weight:800;font-size:1rem;letter-spacing:.04em;color:#fff;text-transform:uppercase;text-decoration:none}
+.topbar-brand{flex:none}
+.topbar-brand img{display:block;height:24px;width:auto}
+@media (max-width:600px){.topbar-row{flex-wrap:wrap;row-gap:10px}}
 .topbar-links{display:flex;gap:22px;align-items:center;flex-wrap:wrap}
 .topbar-link{font-family:var(--mono);font-size:.8rem;font-weight:700;text-transform:uppercase;letter-spacing:.06em;color:#c7c8cd;text-decoration:none}
 .topbar-link:hover,.topbar-link.on{color:#fff}

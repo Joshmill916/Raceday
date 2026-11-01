@@ -73,8 +73,8 @@ img{max-width:100%;display:block;height:auto}
 .topbar{background:var(--asphalt);border-bottom:1px solid var(--line-dark)}
 .topbar-row{display:flex;align-items:center;justify-content:space-between;gap:16px;padding-block:14px}
 .topbar-brand{font-family:var(--display);font-weight:900;font-size:1.1rem;letter-spacing:.08em;color:#fff;text-transform:uppercase;text-decoration:none;display:inline-flex;align-items:center;gap:8px}
-.topbar-brand i{display:block;width:5px;height:16px;background:var(--red);transform:skewX(-18deg)}
-.topbar-brand i + i{background:var(--clay-bright);margin-left:-4px}
+.topbar-brand{flex:none}
+.topbar-brand img{display:block;height:24px;width:auto}
 .topbar-link{font-family:var(--mono);font-size:.82rem;font-weight:700;text-transform:uppercase;letter-spacing:.06em;color:#c7c8cd;text-decoration:none;display:inline-flex;align-items:center;gap:6px}
 .topbar-link:hover,.topbar-link.on{color:#fff}
 .topbar-link.on{text-decoration:underline;text-decoration-color:var(--clay-bright);text-underline-offset:6px;text-decoration-thickness:2px}

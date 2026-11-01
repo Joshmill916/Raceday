@@ -162,3 +162,6 @@ profile that follows them across every RaceDay track they race at.
   unless `rd_count_local='1'` (the analytics test). Driven's rows (added 2026-10-28) go to the same sheet with track
   `DRIVEN`: `driven-open` (daily, own `dv_open_ping` key), `driven-profile`, `driven-publish` (first publish), `crash`. Never add a direct `<script src=…cloudflareinsights…>` tag. Short links
   `/fb/`, `/li/`, `/qr/` (+ `/drivers/` versions) record a visit, then forward — use them in posts.
+
+## Logos
+Official logos (Josh, 2026-10-31): `img/logo-raceday.svg` (dark backgrounds), `img/logo-raceday-light.svg` (light), `img/logo-driven.svg` (dark). Use these files; never rebuild a logo from text or CSS. App icons: `raceday/icon-rd.png`, `raceday2/icon-rd.png`, `driven/icon-driven.png`.
