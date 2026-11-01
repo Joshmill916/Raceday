@@ -1,7 +1,7 @@
 /* RaceDay Guides — shares the marketing site's tokens and fonts (see faq.html / pricing.html). */
 :root{
   --paper:#f4f4f1; --ink:#17181c; --asphalt:#101114; --asphalt-2:#1c1e23;
-  --clay:#c1571f; --clay-2:#8f3f15; --clay-bright:#e0742f;
+  --clay:#8a6a14; --clay-2:#6f5410; --clay-bright:#eab942;--btn:#eab942;--btn-2:#d3a32f;--on-btn:#17181c;
   --line:#e3e3de; --line-dark:rgba(255,255,255,.12); --muted:#6b6d74; --muted-dark:#9a9da6;
   --card:#ffffff; --note:#fbf3ea;
   --display:'Big Shoulders Display',system-ui,sans-serif;
@@ -27,7 +27,7 @@ p{margin:0}
 a{color:inherit}
 img{max-width:100%;display:block}
 b,strong{font-weight:700}
-.ui{font-family:var(--mono);font-size:.86em;font-weight:700;background:rgba(193,87,31,.1);color:var(--clay);border-radius:4px;padding:1px 6px;white-space:nowrap}
+.ui{font-family:var(--mono);font-size:.86em;font-weight:700;background:rgba(138,106,20,.1);color:var(--clay);border-radius:4px;padding:1px 6px;white-space:nowrap}
 @media (max-width:420px){.ui{white-space:normal;box-decoration-break:clone;-webkit-box-decoration-break:clone}}
 .wrap{max-width:1040px;margin:0 auto;padding-inline:28px}
 @media (max-width:640px){.wrap{padding-inline:18px}}
@@ -36,13 +36,16 @@ b,strong{font-weight:700}
 .topbar{background:var(--asphalt);border-bottom:1px solid var(--line-dark)}
 .topbar-row{display:flex;align-items:center;justify-content:space-between;padding-block:14px;gap:16px}
 .topbar-brand{font-family:var(--display);font-weight:800;font-size:1rem;letter-spacing:.04em;color:#fff;text-transform:uppercase;text-decoration:none}
+.topbar-brand{flex:none}
+.topbar-brand img{display:block;height:24px;width:auto}
+@media (max-width:600px){.topbar-row{flex-wrap:wrap;row-gap:10px}}
 .topbar-links{display:flex;gap:22px;align-items:center;flex-wrap:wrap}
 .topbar-link{font-family:var(--mono);font-size:.8rem;font-weight:700;text-transform:uppercase;letter-spacing:.06em;color:#c7c8cd;text-decoration:none}
 .topbar-link:hover,.topbar-link.on{color:#fff}
 
 /* "Open RaceDay" in the top bar is the main action — style it as a button. */
-.topbar a[href="/raceday2/"]{background:var(--clay);color:#fff;border-radius:6px;padding:7px 12px;white-space:nowrap}
-.topbar a[href="/raceday2/"]:hover{background:var(--clay-2);color:#fff}
+.topbar a[href="/raceday2/"]{background:var(--btn);color:var(--on-btn);border-radius:6px;padding:7px 12px;white-space:nowrap}
+.topbar a[href="/raceday2/"]:hover{background:var(--btn-2);color:var(--on-btn)}
 @media (max-width:600px){.topbar a[href="/raceday2/"]{padding:6px 9px}.topbar a[href="/raceday2/"] .btn-arrow{display:none}}
 @media (max-width:380px){.topbar a[href="/faq.html"]{display:none}.topbar-links{gap:12px!important}.topbar-link{font-size:.7rem!important;letter-spacing:.02em!important}}
 @media (max-width:600px){.topbar-links{gap:14px}.topbar-link{font-size:.72rem}}

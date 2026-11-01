@@ -32,9 +32,9 @@ location.replace('https://'+location.host+location.pathname+location.search+loca
   --ink:#17181c;
   --asphalt:#101114;
   --asphalt-2:#1c1e23;
-  --clay:#c1571f;
-  --clay-2:#8f3f15;
-  --clay-bright:#e0742f;
+  --clay:#8a6a14;
+  --clay-2:#6f5410;
+  --clay-bright:#eab942;--btn:#eab942;--btn-2:#d3a32f;--on-btn:#17181c;
   --line:#e3e3de;
   --line-dark:rgba(255,255,255,.12);
   --muted:#6b6d74;
@@ -68,7 +68,7 @@ location.replace('https://'+location.host+location.pathname+location.search+loca
   --ink:#17181c;
   --asphalt:#101114;
   --asphalt-2:#1c1e23;
-  --clay:#c1571f;
+  --clay:#8a6a14;
   --line:#e3e3de;
   --muted:#6b6d74;
 }
@@ -110,6 +110,10 @@ a{color:inherit}
   font-family:var(--display);font-weight:800;font-size:1rem;letter-spacing:.04em;
   color:#fff;text-transform:uppercase;text-decoration:none;
 }
+.hero .eyebrow,.band.dark .eyebrow,.band.mid .eyebrow{color:var(--clay-bright)}
+.topbar-brand{flex:none}
+.topbar-brand img{display:block;height:24px;width:auto}
+@media (max-width:600px){.topbar-row{flex-wrap:wrap;row-gap:10px}}
 .topbar-link{
   font-family:var(--mono);font-size:.82rem;font-weight:700;text-transform:uppercase;
   letter-spacing:.06em;color:#c7c8cd;text-decoration:none;
@@ -126,11 +130,11 @@ a{color:inherit}
 
 .btn{
   display:inline-flex;align-items:center;justify-content:center;gap:10px;
-  background:var(--clay);color:#fff;font-family:var(--body-f);font-weight:700;font-size:1rem;
-  padding:15px 26px;border-radius:8px;text-decoration:none;border:1.5px solid var(--clay);
+  background:var(--btn);color:var(--on-btn);font-family:var(--body-f);font-weight:700;font-size:1rem;
+  padding:15px 26px;border-radius:8px;text-decoration:none;border:1.5px solid var(--btn);
   transition:transform .12s ease, background .15s ease;
 }
-.btn:hover{background:var(--clay-2);border-color:var(--clay-2)}
+.btn:hover{background:var(--btn-2);border-color:var(--btn-2)}
 .btn:focus-visible{outline:3px solid var(--clay-bright);outline-offset:3px}
 .btn.ghost{background:transparent;color:var(--ink);border-color:var(--line)}
 .btn.ghost:hover{background:transparent;border-color:var(--clay);color:var(--clay)}
@@ -154,7 +158,7 @@ a{color:inherit}
 }
 .plan.feature{border-color:var(--clay);border-width:2px;position:relative}
 .plan-tag{
-  position:absolute;top:-11px;left:26px;background:var(--clay);color:#fff;
+  position:absolute;top:-11px;left:26px;background:var(--btn);color:var(--on-btn);
   font-family:var(--mono);font-size:.66rem;font-weight:700;text-transform:uppercase;
   letter-spacing:.1em;padding:3px 10px;border-radius:20px;
 }
@@ -212,8 +216,8 @@ footer a:hover{color:#fff}
 }
 
 /* "Open RaceDay" in the top bar is the main action — style it as a button. */
-.topbar a[href="/raceday2/"]{background:var(--clay);color:#fff;border-radius:6px;padding:7px 12px;white-space:nowrap}
-.topbar a[href="/raceday2/"]:hover{background:var(--clay-2);color:#fff}
+.topbar a[href="/raceday2/"]{background:var(--btn);color:var(--on-btn);border-radius:6px;padding:7px 12px;white-space:nowrap}
+.topbar a[href="/raceday2/"]:hover{background:var(--btn-2);color:var(--on-btn)}
 @media (max-width:600px){.topbar a[href="/raceday2/"]{padding:6px 9px}.topbar a[href="/raceday2/"] .btn-arrow{display:none}}
 @media (max-width:380px){.topbar a[href="/faq.html"]{display:none}.topbar-links{gap:12px!important}.topbar-link{font-size:.7rem!important;letter-spacing:.02em!important}}
 
@@ -245,7 +249,7 @@ footer a:hover{color:#fff}
 <div class="sitebar"><div class="wrap sitebar-row"><a href="/drivers/">Driven — for drivers</a><a class="sb-right" href="/driven/">Open Driven →</a></div></div>
 <div class="topbar">
   <div class="wrap topbar-row">
-    <a class="topbar-brand" href="/?home=1">RaceDay</a>
+    <a class="topbar-brand" href="/?home=1"><img src="/img/logo-raceday.svg" alt="RaceDay" width="160" height="24"></a>
     <a class="topbar-link" href="/guides/">Guides</a>
     <a class="topbar-link" href="/faq.html">FAQ</a>
     <a class="topbar-link" href="/raceday2/">Open RaceDay <span class="btn-arrow">→</span></a>

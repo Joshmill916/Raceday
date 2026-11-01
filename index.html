@@ -57,9 +57,9 @@ location.replace('https://'+location.host+location.pathname+location.search+loca
   --ink:#17181c;
   --asphalt:#101114;
   --asphalt-2:#1c1e23;
-  --clay:#c1571f;
-  --clay-2:#8f3f15;
-  --clay-bright:#e0742f;
+  --clay:#8a6a14;
+  --clay-2:#6f5410;
+  --clay-bright:#eab942;--btn:#eab942;--btn-2:#d3a32f;--on-btn:#17181c;
   --line:#e3e3de;
   --line-dark:rgba(255,255,255,.12);
   --flag-green:#0e8a4d;
@@ -94,7 +94,7 @@ location.replace('https://'+location.host+location.pathname+location.search+loca
   --ink:#17181c;
   --asphalt:#101114;
   --asphalt-2:#1c1e23;
-  --clay:#c1571f;
+  --clay:#8a6a14;
   --line:#e3e3de;
   --muted:#6b6d74;
 }
@@ -157,6 +157,10 @@ img{max-width:100%;height:auto;display:block}
   font-family:var(--display);font-weight:800;font-size:1rem;
   letter-spacing:.04em;color:#fff;text-transform:uppercase;
 }
+.hero .eyebrow,.band.dark .eyebrow,.band.mid .eyebrow{color:var(--clay-bright)}
+.topbar-brand{flex:none}
+.topbar-brand img{display:block;height:24px;width:auto}
+@media (max-width:600px){.topbar-row{flex-wrap:wrap;row-gap:10px}}
 .topbar-link{
   font-family:var(--mono);font-size:.82rem;font-weight:700;
   text-transform:uppercase;letter-spacing:.06em;color:#c7c8cd;
@@ -171,8 +175,8 @@ img{max-width:100%;height:auto;display:block}
 .topbar-link:focus-visible{outline:3px solid var(--clay-bright);outline-offset:3px;border-radius:2px}
 
 /* "Open RaceDay" in the top bar is the main action — style it as a button. */
-.topbar a[href="/raceday2/"]{background:var(--clay);color:#fff;border-radius:6px;padding:7px 12px;white-space:nowrap}
-.topbar a[href="/raceday2/"]:hover{background:var(--clay-2);color:#fff}
+.topbar a[href="/raceday2/"]{background:var(--btn);color:var(--on-btn);border-radius:6px;padding:7px 12px;white-space:nowrap}
+.topbar a[href="/raceday2/"]:hover{background:var(--btn-2);color:var(--on-btn)}
 @media (max-width:600px){.topbar a[href="/raceday2/"]{padding:6px 9px}.topbar a[href="/raceday2/"] .btn-arrow{display:none}}
 @media (max-width:380px){.topbar a[href="/faq.html"]{display:none}.topbar-links{gap:12px!important}.topbar-link{font-size:.7rem!important;letter-spacing:.02em!important}}
 
@@ -197,13 +201,13 @@ img{max-width:100%;height:auto;display:block}
 .cta-row{display:flex;align-items:center;gap:22px;flex-wrap:wrap}
 .btn{
   display:inline-flex;align-items:center;gap:10px;
-  background:var(--clay);color:#fff;
+  background:var(--btn);color:var(--on-btn);
   font-family:var(--body-f);font-weight:700;font-size:1rem;
   padding:15px 26px;border-radius:8px;text-decoration:none;
-  border:1.5px solid var(--clay);
+  border:1.5px solid var(--btn);
   transition:transform .12s ease, background .15s ease;
 }
-.btn:hover{background:var(--clay-2);border-color:var(--clay-2)}
+.btn:hover{background:var(--btn-2);border-color:var(--btn-2)}
 .btn:focus-visible{outline:3px solid var(--clay-bright);outline-offset:3px}
 .btn-arrow{transition:transform .15s ease}
 .btn:hover .btn-arrow{transform:translateX(3px)}
@@ -328,9 +332,7 @@ img{max-width:100%;height:auto;display:block}
 
 /* ---------- Driven intro ---------- */
 .driven-pill{display:inline-block;margin-left:12px;padding:3px 11px;border:1px solid var(--clay-bright);border-radius:20px;font-family:var(--mono);font-size:.68rem;font-weight:700;letter-spacing:.1em;text-transform:uppercase;color:var(--clay-bright)}
-.driven-logo{display:flex;align-items:center;padding-left:.1em;gap:clamp(10px,1.4vw,16px);margin:14px 0 22px;font-family:var(--display);font-weight:900;font-size:clamp(3.4rem,9vw,6.5rem);line-height:.9;letter-spacing:.06em;text-transform:uppercase;color:#fff}
-.driven-logo i{display:block;width:clamp(12px,1.6vw,20px);height:.82em;background:#d62828;transform:skewX(-18deg)}
-.driven-logo i + i{background:#4b93ee;margin-left:clamp(-14px,-1.2vw,-8px)}
+.driven-logo{display:block;width:auto;height:clamp(3.4rem,9vw,6.5rem);max-width:100%;margin:14px 0 22px}
 .driven-h{font-size:clamp(1.8rem,4vw,2.9rem);font-weight:800;color:#fff;line-height:1.02;margin-top:6px}
 .driven-lede{margin-top:18px;font-size:1.15rem;line-height:1.55;max-width:62ch;color:#d7d8dc}
 .driven-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:20px;margin-top:40px}
@@ -436,7 +438,7 @@ footer .wrap{display:flex;justify-content:space-between;gap:16px;flex-wrap:wrap}
 <div class="sitebar"><div class="wrap sitebar-row"><a href="/drivers/">Driven — for drivers</a><a class="sb-right" href="/driven/">Open Driven →</a></div></div>
 <div class="topbar">
   <div class="wrap topbar-row">
-    <span class="topbar-brand">RaceDay</span>
+    <span class="topbar-brand"><img src="/img/logo-raceday.svg" alt="RaceDay" width="160" height="24"></span>
     <span class="topbar-links">
       <a class="topbar-link" href="/guides/">Guides</a>
       <a class="topbar-link" href="/pricing.html">Pricing</a>
@@ -603,7 +605,7 @@ footer .wrap{display:flex;justify-content:space-between;gap:16px;flex-wrap:wrap}
 <section class="band mid driven-band">
   <div class="wrap">
     <div class="eyebrow"><span class="flag"></span>Introducing<span class="driven-pill">Now live</span></div>
-    <div class="driven-logo" role="img" aria-label="Driven"><i></i><i></i>Driven</div>
+    <img class="driven-logo" src="/img/logo-driven.svg" alt="Driven" width="986" height="192">
     <h2 class="driven-h">Every driver gets a racing page<br>that fills itself in.</h2>
     <p class="driven-lede">Driven is a free profile that follows a driver to every RaceDay track. Their results come straight from the track's own scoring the night they race — real stats, never typed in, ready to share with fans, family and sponsors.</p>
     <div class="driven-grid">
