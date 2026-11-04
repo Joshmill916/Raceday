@@ -70,6 +70,26 @@ list stays nationwide unless `$ARGUMENTS` names one.
 - Never remove rows. The "Sent" checkboxes are keyed by track name, so keep names unchanged.
 - Update the row count in the "Tracks to contact" intro and the compiled date in the footer.
 
+## Decisions so far (keep this current, newest first)
+
+- 2026-11-04: Share cards `img/share-raceday.png` / `img/share-driven.png` predate the new logos and
+  gold accent (PR #57). Regenerate them to match (1200×630, rendered with Playwright from the site's
+  fonts and colors), then ask before merging.
+- 2026-11-04: The Monday scheduled task (`trig_017ZkyJWkiaYxY1Agsz4iEyJ`) has no repo or connectors
+  attached. Its 2026-11-02 run lasted 32 s. Until the owner attaches `joshmill916/raceday` + GitHub
+  at claude.ai, treat weekly output as possibly missing and check the playbook.
+- 2026-10-30: Meta ads can't target tracks, only people. The plan is Driven ads to drivers (big
+  audience), plus one small offseason promoter ad on interests (dirt track, karting, quarter midgets)
+  at ~$5–10/day, judged by demo opens through `/fb/`. Direct outreach stays the main channel for
+  promoters. No Meta Pixel on the site unless the owner decides to add one.
+- 2026-10-30: Outreach is nationwide, covering ovals, kart clubs and quarter midget/micro.
+  Priority 1 is kart and quarter midget clubs, then small weekly dirt and micro tracks, then large
+  asphalt tracks. The pitch for MyRacePass tracks is "keep your MRP site, run race night on RaceDay".
+- 2026-10-30: Gmail is for drafting outreach only. Never send without the owner's OK. There's no
+  Facebook posting connector, so the owner posts the drafts.
+- Keep marketing notes here, not in CLAUDE.md. CLAUDE.md loads into every session and this file
+  loads only on `/growth`.
+
 ## Finish
 
 Publish the playbook to its `url`. Then give a short summary: the audit result (any PR link),
