@@ -1731,6 +1731,7 @@ function nav(p) {
   if (p === 'admin' && !adminOk()) return;
   if (p === 'admin') UI.admOpen = null;
   curPage = p;
+  noteDemoPage(p);
   document.querySelectorAll('.page').forEach(el => el.classList.remove('active'));
   document.querySelectorAll('#mainNav button').forEach(b => b.classList.remove('active'));
   const pageEl = document.getElementById('page-' + p);
@@ -2000,6 +2001,7 @@ function resetForNewTrack() {
 // to check History/Driver book manually in that case.
 function clearDemoResidue() {
   S.demo = false;
+  try { localStorage.removeItem('rd_demo_for'); } catch (e) {}
   const demoIds = new Set(S.roster.filter(d => d.demoSeed).map(d => d.id));
   if (demoIds.size) {
     S.roster = S.roster.filter(d => !demoIds.has(d.id));
@@ -3717,7 +3719,8 @@ function archiveDay() {
   S.history.unshift(snap);
   if (S.history.length > 60) S.history.length = 60;
   // Report the night now, while S.raceDay still holds it — the caller clears the board next.
-  sendUsage('night', Object.assign(currentCounts(), { features: featuresUsed() }));
+  // Not in demo mode: the demo's sample night (and any night a visitor archives) isn't a real race.
+  if (!S.demo) sendUsage('night', Object.assign(currentCounts(), { features: featuresUsed() }));
   return true;
 }
 // Firebase keys can't contain . # $ [ ] / — a free-typed class name easily could.
@@ -5247,6 +5250,32 @@ function dontCount() { try { return localStorage.getItem('rd_dont_count') === '1
 // A copy running on this computer (tests, local preview) never reports: its opens, race nights and
 // crashes are ours, not a track's. rd_count_local='1' turns reporting back on for the analytics test.
 function devHost() { try { return /^(localhost|127\.0\.0\.1|\[::1\])$|\.(localhost|test)$/.test(location.hostname) && localStorage.getItem('rd_count_local')!=='1'; } catch (e) { return true; } }
+// Demo visitors report as DEMO in the track column, or 'DEMO · <label>' when they came in
+// on a personal link (?demo=1&for=Riverside), so the sheet shows who tried the demo. The
+// label lives in localStorage (rd_demo_for), never in S, so it never syncs or lands in backups.
+function noteDemoFor(v) {
+  const t = String(v || '').replace(/[^A-Za-z0-9 _-]/g, '').trim().slice(0, 30);
+  if (t) try { localStorage.setItem('rd_demo_for', t); } catch (e) {}
+}
+function demoLabel() {
+  let t = '';
+  try { t = localStorage.getItem('rd_demo_for') || ''; } catch (e) {}
+  return 'DEMO' + (t ? ' · ' + t : '');
+}
+// What a demo visitor looked at: the tabs they opened and their time on the page, sent as a
+// 'demo-use' row when they leave (page hidden), and again only if they open more tabs after
+// coming back. Every visit reports, not just the first open of the day.
+const DemoVisit = { start: Date.now(), pages: [], sent: -1 };
+function noteDemoPage(p) { if (S.demo && p && DemoVisit.pages.indexOf(p) < 0) DemoVisit.pages.push(p); }
+function sendDemoUse() {
+  if (!S.demo) return;
+  noteDemoPage(curPage);
+  if (DemoVisit.pages.length <= DemoVisit.sent) return;
+  DemoVisit.sent = DemoVisit.pages.length;
+  sendUsage('demo-use', { features: DemoVisit.pages.join(','), secs: Math.round((Date.now() - DemoVisit.start) / 1000) });
+}
+document.addEventListener('visibilitychange', () => { if (document.visibilityState === 'hidden') sendDemoUse(); });
+window.addEventListener('pagehide', sendDemoUse);
 function sendUsage(event, extra) {
   if (!TELEMETRY_URL || devHost()) return;
   try {
@@ -5254,7 +5283,7 @@ function sendUsage(event, extra) {
       event: event,
       version: APP_VERSION,
       date: (S.raceDay && S.raceDay.date) || today(),
-      track: (dontCount() ? 'OWNER · ' : '') + ((S.license && S.license.name) || 'unknown'),
+      track: (dontCount() ? 'OWNER · ' : '') + (S.demo ? demoLabel() : ((S.license && S.license.name) || 'unknown')),
       device: deviceId(),
       demo: !!S.demo
     }, extra || {}));
@@ -6102,13 +6131,16 @@ function handleUrlParams() {
     if (dm && !role && !sk && freshDevice && deviceRole() === 'admin' && !(S.sync && S.sync.enabled)) {
       let demoApplied = null;
       try { demoApplied = localStorage.getItem('rd_demo_applied'); } catch (e) {}
+      noteDemoFor(q.get('for'));
       if (location.search !== demoApplied) {
         seedFullDemoNight();
         try { localStorage.setItem('rd_demo_applied', location.search); } catch (e) {}
+        sendUsage('demo-start');
       }
       history.replaceState({}, '', location.pathname);
       return;
     }
+    if (dm && S.demo) noteDemoFor(q.get('for'));   // a returning demo device opened from a personal link
     if (!role && !sk) return;
     // Operator role requires the build-time OPERATOR_KEY as a URL param (?opk=...) — a
     // guessed/leaked ?role=operator link with no matching key is inert, same deterrent

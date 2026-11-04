@@ -160,7 +160,7 @@ profile that follows them across every RaceDay track they race at.
   every row from such a device but prefixes its track column `OWNER · ` (so the owner's testing
   sorts away from possible customers). Local copies (localhost, *.test — `devHost()`) send nothing
   unless `rd_count_local='1'` (the analytics test). Driven's rows (added 2026-10-28) go to the same sheet with track
-  `DRIVEN`: `driven-open` (daily, own `dv_open_ping` key), `driven-profile`, `driven-publish` (first publish), `crash`. Never add a direct `<script src=…cloudflareinsights…>` tag. Short links
+  `DRIVEN`: `driven-open` (daily, own `dv_open_ping` key), `driven-profile`, `driven-publish` (first publish), `crash`. **Demo visits** (added 2026-11-04, both `/raceday/` + `/raceday2/`): rows from a demo device say `DEMO` in the track column (`demoLabel()`), or `DEMO · <label>` from a personal link `?demo=1&for=<label>` (`rd_demo_for`, localStorage only); seeding sends `demo-start` and no `night`; each visit sends `demo-use` (`features` = tabs opened, `secs`) when the page is hidden. Guard: `tests/test-demo-tracking.js`. Never add a direct `<script src=…cloudflareinsights…>` tag. Short links
   `/fb/`, `/li/`, `/qr/` (+ `/drivers/` versions) record a visit, then forward — use them in posts.
 
 ## Logos
