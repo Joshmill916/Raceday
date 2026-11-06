@@ -127,6 +127,29 @@ const card = (over) => Object.assign({
   console.log('\n=== 6. No "move my profile" banner on a secure/local origin ===');
   check('offerSecureMove() is a no-op off http://victoryraceday.com', await page.evaluate(() => { offerSecureMove(); return !document.querySelector('[onclick="moveToSecure()"]'); }));
 
+  console.log('\n=== 7. Track results arrive on their own (no "Check for new results" tap) ===');
+  await page.evaluate((pid) => {
+    P = newProfile('Robin Park', '', 'Dayton', 15); P.profileId = pid; P.shortCode = 'SYNCTEST'; P.publishedAt = 2000000000000;
+    localStorage.setItem('profiles_v1', JSON.stringify(P)); nav('home'); _autoPullAt = 0;
+  }, PID);
+  await installMock({ ['profileTracks/' + PID]: { trk_a: { trackName: 'Test Track' } },
+    'results/trk_a': { '2026-11-06': { 'Junior 80cc': { d1: { profileId: PID, position: 1, trackName: 'Test Track' }, d2: { profileId: 'prof_someoneelse', position: 2 } } } } });
+  await page.evaluate(() => autoPullResults());
+  await page.waitForTimeout(200);
+  const r7 = await page.evaluate(() => ({ n: P.raceResults.length, pos: P.raceResults[0] && P.raceResults[0].position, src: P.raceResults[0] && P.raceResults[0].source,
+    stored: JSON.parse(localStorage.getItem('profiles_v1')).raceResults.length, toast: [...document.querySelectorAll('[role=status]')].some(t => /New result/.test(t.textContent)) }));
+  check('the win was pulled in automatically, only this driver\'s row', r7.n === 1 && r7.pos === 1 && r7.src === 'raceday', JSON.stringify(r7));
+  check('saved, and the driver is told', r7.stored === 1 && r7.toast, JSON.stringify(r7));
+  await page.evaluate(() => { P.raceResults = []; });
+  await page.evaluate(() => autoPullResults());
+  await page.waitForTimeout(150);
+  check('throttled: a second look within 2 minutes does nothing', (await page.evaluate(() => P.raceResults.length)) === 0);
+  await page.evaluate(() => { P.publishedAt = 0; _autoPullAt = 0; autoPullResults(); });
+  await page.waitForTimeout(150);
+  check('an unpublished profile never looks', (await page.evaluate(() => P.raceResults.length)) === 0);
+  const src = require('fs').readFileSync(path.join(ROOT, 'driven/index.html'), 'utf8');
+  check('boot and return-to-app both call it', /\nautoPullResults\(\);\n<\/script>/.test(src) && /visibilitychange[^\n]*autoPullResults\(\)/.test(src));
+
   console.log(`\n${fail ? '❌' : '✅'} driven-sync: ${pass} passed, ${fail} failed`);
   await browser.close(); server.close();
   process.exit(fail ? 1 : 0);
