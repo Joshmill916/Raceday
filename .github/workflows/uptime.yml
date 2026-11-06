@@ -1,0 +1,30 @@
+# Checks the live sites every 15 minutes. If one is down or broken, this run fails and
+# GitHub emails the repo owner. (Scheduled workflows only run from the main branch.)
+name: Uptime
+
+on:
+  schedule:
+    - cron: '7,22,37,52 * * * *'
+  workflow_dispatch:
+
+jobs:
+  check:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - name: Check each page loads and looks right
+        run: |
+          bad=""
+          check () {   # url, text that must be on the page
+            for try in 1 2 3; do
+              body=$(curl -fsSL --max-time 20 "$1") && echo "$body" | grep -qi "$2" && { echo "UP    $1"; return 0; }
+              sleep 20
+            done
+            echo "::error::DOWN  $1 (no response, or missing \"$2\")"; bad="$bad $1"
+          }
+          check https://victoryraceday.com/          "RaceDay"
+          check https://victoryraceday.com/raceday/  "RaceDay"
+          check https://victoryraceday.com/driven/   "Driven"
+          check https://victoryraceday.com/drivers/  "Driven"
+          if [ -n "$bad" ]; then echo "Down:$bad"; exit 1; fi
+          echo "All sites up."

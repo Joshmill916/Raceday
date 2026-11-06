@@ -1,0 +1,68 @@
+# Runs every Playwright suite on each pull request (and on demand), so a change that
+# breaks RaceDay or Driven shows a red X on the PR before it can reach the live site.
+#
+# The suites hard-code the cloud-env paths
+#   require('/opt/node22/lib/node_modules/playwright')
+#   executablePath: '/opt/pw-browsers/chromium'
+# so this job installs Playwright + Chromium and links them into exactly those paths.
+name: Tests
+
+on:
+  pull_request:
+  push:
+    branches-ignore: [main]
+  workflow_dispatch:
+
+concurrency:
+  group: tests-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  playwright:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+
+      - name: Install Playwright where the suites expect it
+        run: |
+          sudo mkdir -p /opt/node22/lib /opt/pw-browsers
+          sudo chown -R "$USER" /opt/node22 /opt/pw-browsers
+          npm install --prefix /opt/node22/lib --no-save playwright
+          cd /opt/node22/lib
+          npx playwright install --with-deps chromium
+          CHROME=$(node -e "console.log(require('/opt/node22/lib/node_modules/playwright').chromium.executablePath())")
+          echo "Chromium: $CHROME"
+          ln -sf "$CHROME" /opt/pw-browsers/chromium
+
+      - name: JavaScript syntax check (all three apps)
+        run: |
+          for f in raceday/index.html driven/index.html index.html; do
+            python3 - "$f" <<'PY'
+          import re, sys
+          html = open(sys.argv[1]).read()
+          blocks = re.findall(r'<script[^>]*>(.*?)</script>', html, re.DOTALL)
+          open('/tmp/check.js', 'w').write(max(blocks, key=len))
+          PY
+            node --check /tmp/check.js && echo "SYNTAX OK: $f"
+          done
+
+      - name: Run every suite
+        run: |
+          failed=""
+          for t in tests/test-*.js tests/v2/test-*.js; do
+            [ -f "$t" ] || continue
+            echo "::group::$t"
+            if timeout 300 node "$t"; then ok=1; else
+              echo "Retrying $t once on its own (suites can wedge when chained)"
+              if timeout 300 node "$t"; then ok=1; else ok=0; fi
+            fi
+            echo "::endgroup::"
+            if [ "$ok" = 1 ]; then echo "PASS  $t"; else echo "::error::FAILED $t"; failed="$failed $t"; fi
+          done
+          if [ -n "$failed" ]; then echo "Failed suites:$failed"; exit 1; fi
+          echo "All suites passed."

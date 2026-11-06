@@ -139,6 +139,9 @@ profile that follows them across every RaceDay track they race at.
 - Syntax check: `/syntax`
 - After ANY `raceday/index.html` change: run all Playwright suites — `for t in tests/test-*.js; do node "$t" | tail -1; done`
 - Touching roles, permissions, the setup wizard, sync, or the boot sequence? `tests/test-roles-security.js` is the guard for those invariants — add/update a check there for the new behavior, and confirm it would catch a regression (see that file's header + `tests/README.md`). Three live security bugs came from this area with no test coverage; this suite is how it stays fixed.
+- **CI** (`.github/workflows/tests.yml`): every PR runs the syntax check + all suites (`tests/` and
+  `tests/v2/`) on GitHub; installs Playwright into the `/opt/...` paths the suites hard-code. Red X = don't merge.
+  `.github/workflows/uptime.yml` loads the four live sites every 15 min; a failed run emails Josh.
 - Commit + push current branch: `/push <message>`
 - Weekly marketing: `/growth` (`.claude/skills/growth/`) — site audit (fixes go in a PR, never merged
   without asking), next week's posts, new outreach tracks; output is the Growth Playbook artifact
