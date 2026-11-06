@@ -6,7 +6,28 @@
     {
       "source": "functions",
       "codebase": "default",
-      "ignore": ["node_modules", ".git", "*.log", "lib/codegen.test.js"]
+      "ignore": [
+        "node_modules",
+        ".git",
+        "*.log",
+        "lib/codegen.test.js"
+      ]
     }
-  ]
+  ],
+  "hosting": {
+    "public": "hosting",
+    "ignore": [
+      "firebase.json",
+      "**/.*"
+    ],
+    "rewrites": [
+      {
+        "source": "/d/**",
+        "function": {
+          "functionId": "driverCard",
+          "region": "us-central1"
+        }
+      }
+    ]
+  }
 }

@@ -408,3 +408,29 @@ exports.pruneOldBackups = onSchedule('every monday 06:00', async () => {
   }
   logger.info('pruneOldBackups: checked ' + trackIds.length + ' tracks, removed ' + prunedEntries + ' backups older than ' + cutoff + ' across ' + prunedTracks + ' tracks');
 });
+
+// driverCard: per-driver link previews for Driven pages (see lib/driverCard.js). Served
+// through Firebase Hosting's /d/** rewrite (firebase.json), so a shared link looks like
+// <host>/d/CODE: Facebook/Messenger/text apps read that driver's og: tags and card image,
+// and a person is sent straight on to victoryraceday.com/d/?CODE. Reads public data only.
+// Responses are cached at the CDN for 10 minutes, so a busy link costs almost nothing.
+const driverCard = require('./lib/driverCard');
+exports.driverCard = onRequest({ memory: '512MiB', maxInstances: 5, concurrency: 20 }, async (req, res) => {
+  const { code, image } = driverCard.parseRequest(req.path, req.query);
+  try {
+    const d = await driverCard.loadDriver(code);
+    if (!d) {
+      if (image) { res.redirect(302, 'https://victoryraceday.com/img/share-driven.png'); return; }
+      res.set('Cache-Control', 'public, max-age=60, s-maxage=60').type('html').send(driverCard.fallbackHtml(code));
+      return;
+    }
+    res.set('Cache-Control', 'public, max-age=600, s-maxage=600');
+    if (image) { res.type('png').send(Buffer.from(await driverCard.renderPng(d))); return; }
+    const base = 'https://' + (req.get('x-forwarded-host') || req.get('host'));
+    res.type('html').send(driverCard.pageHtml(d, base));
+  } catch (e) {
+    logger.error('driverCard failed for ' + code, e);
+    if (image) { res.redirect(302, 'https://victoryraceday.com/img/share-driven.png'); return; }
+    res.type('html').send(driverCard.fallbackHtml(code));
+  }
+});
