@@ -839,7 +839,7 @@ const GARAGE_KEY = 'rd_garage_v2';
 const ACTIVE_TRACK_KEY = 'rd_active_track_v2';
 // Reported with every usage row and crash. The part after the dot MUST match this app's
 // sw.js CACHE number (tests/test-app-version.js) — bump both together on each release.
-const APP_VERSION = '2026-11-06.v17';
+const APP_VERSION = '2026-11-06.v18';
 const LEGAL_VERSION = '2026-06';   // bump when Terms / Privacy wording changes, so acceptances are versioned
 const TELEMETRY_URL = 'https://script.google.com/macros/s/AKfycbxa3i3y17TLp_NfXOOu2jM7-YzXH2fScxcXoQYmIh0-873rxWfxg0HdRP1DVsxZq6iR/exec';
 const FIREBASE_CONFIG = {
@@ -4058,15 +4058,17 @@ function myLineupMarkup(driverId) {
     + '<p class="tiny" style="margin:4px 0 10px">Scan to follow your heats, starting spots and results live tonight.</p>'
     + '<button class="btn btn-sm" onclick="copyText(myLineupLink(' + Number(driverId) + '),\'Lineup link\')">Copy link</button></div></div>';
 }
-function drawMyLineupQR(driverId) {
-  const cv = document.getElementById('myLineupQR');
+function drawMyLineupQR(driverId, root) {
+  /* The sign-up confirmation and the lineup-link sheet can both be in the page at once, so look
+     inside the one being drawn: document.getElementById would find the hidden first copy. */
+  const cv = (root || document).querySelector('#myLineupQR');
   if (cv && typeof drawQR === 'function') drawQR(cv, myLineupLink(driverId));
 }
 function showMyLineup(driverId) {
   const d = driverById(driverId); if (!d) return;
   openSheet('📱 ' + d.name + ' — lineup link', myLineupMarkup(driverId)
     + '<p class="tiny" style="margin-top:12px">Opens a read-only view on their phone that follows them all night. It\'s the same view fans get, pinned to this driver.</p>');
-  drawMyLineupQR(driverId);
+  drawMyLineupQR(driverId, document.getElementById('sheetBody'));
 }
 
 function resetReg() {
