@@ -167,13 +167,16 @@ function pageHtml(d, selfBase) {
     + '<meta name="description" content="' + esc(describe(d)) + '">'
     + '<meta property="og:type" content="profile">'
     + '<meta property="og:site_name" content="Driven">'
+    // og:url must be THIS link (never victoryraceday.com/d/), or Facebook re-reads the generic page.
+    + '<meta property="og:url" content="' + esc(selfBase + '/d/' + encodeURIComponent(d.code)) + '">'
     + '<meta property="og:title" content="' + esc(title) + '">'
     + '<meta property="og:description" content="' + esc(describe(d)) + '">'
     + '<meta property="og:image" content="' + esc(image) + '">'
     + '<meta property="og:image:width" content="1200"><meta property="og:image:height" content="630">'
     + '<meta property="og:image:alt" content="' + esc(title) + ' driver card">'
     + '<meta name="twitter:card" content="summary_large_image">'
-    + '<meta http-equiv="refresh" content="0; url=' + esc(target) + '">'
+    // No <meta http-equiv="refresh">: Facebook's crawler FOLLOWS it and reads the generic
+    // page instead. Crawlers don't run scripts, so a script redirect sends only people on.
     + '<script>location.replace(' + JSON.stringify(target) + ')</script>'
     + '</head><body style="background:#0b0c10;color:#f5f6f8;font-family:sans-serif">'
     + '<p><a style="color:#6892e4" href="' + esc(target) + '">Open ' + esc(d.name) + "'s Driven page</a></p></body></html>";
@@ -184,7 +187,7 @@ function fallbackHtml(code) {
   return '<!DOCTYPE html><html><head><meta charset="UTF-8"><title>Driven</title>'
     + '<meta property="og:title" content="Driven | racing results for every driver">'
     + '<meta property="og:image" content="' + SITE + '/img/share-driven.png">'
-    + '<meta http-equiv="refresh" content="0; url=' + esc(target) + '"></head><body></body></html>';
+    + '<script>location.replace(' + JSON.stringify(target) + ')</script></head><body></body></html>';
 }
 
 module.exports = { parseRequest, computeStats, loadDriver, cardTree, renderPng, pageHtml, fallbackHtml, describe, W, H };

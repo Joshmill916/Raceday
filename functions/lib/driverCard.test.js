@@ -49,7 +49,8 @@ const fakeFetch = async url => {
     assert.ok(!html.includes('<b>Miller'), 'name must be escaped');
     assert.ok(html.includes('og:image" content="https://raceday-d32dd.web.app/d/K7Q2M9XA.png'));
     assert.ok(html.includes('https://victoryraceday.com/d/?K7Q2M9XA'));
-    assert.ok(!/og:url/.test(html), 'og:url would make Facebook re-read the generic page');
+    assert.ok(html.includes('og:url" content="https://raceday-d32dd.web.app/d/K7Q2M9XA"'), 'og:url must be this link, not the generic page');
+    assert.ok(!/http-equiv="refresh"/i.test(html + dc.fallbackHtml('X')), 'Facebook follows meta refresh to the generic page');
     assert.ok(html.includes('3 starts · 1 win · 2 top 3'));
   });
   await ok('renders a 1200x630 PNG', async () => {
