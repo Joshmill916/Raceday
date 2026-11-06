@@ -767,6 +767,18 @@ body.is-demo::after {
   </div>
 </div>
 
+<div class="ovl" id="linkQRModal" onclick="if(event.target===this)hideModal('linkQRModal')">
+  <div class="sheet" role="dialog" aria-modal="true" aria-labelledby="linkQRTitle">
+    <div class="sheet-hd">
+      <h3 id="linkQRTitle">Link</h3>
+      <button class="x" onclick="hideModal('linkQRModal')" aria-label="Close">×</button>
+    </div>
+    <div class="sheet-bd" style="text-align:center">
+      <p class="sub" style="margin:0 0 12px">On the other device, open the camera and point it at this code. Then tap the link that pops up.</p>
+      <canvas id="linkQRCanvas" width="300" height="300" style="background:#fff;border-radius:8px;max-width:100%;height:auto"></canvas>
+    </div>
+  </div>
+</div>
 <div class="ovl" id="scanHost">
   <div class="sheet" role="dialog" aria-modal="true" aria-labelledby="scanTitle">
     <div class="sheet-hd">
@@ -827,7 +839,7 @@ const GARAGE_KEY = 'rd_garage_v2';
 const ACTIVE_TRACK_KEY = 'rd_active_track_v2';
 // Reported with every usage row and crash. The part after the dot MUST match this app's
 // sw.js CACHE number (tests/test-app-version.js) — bump both together on each release.
-const APP_VERSION = '2026-10-31.v16';
+const APP_VERSION = '2026-11-06.v17';
 const LEGAL_VERSION = '2026-06';   // bump when Terms / Privacy wording changes, so acceptances are versioned
 const TELEMETRY_URL = 'https://script.google.com/macros/s/AKfycbxa3i3y17TLp_NfXOOu2jM7-YzXH2fScxcXoQYmIh0-873rxWfxg0HdRP1DVsxZq6iR/exec';
 const FIREBASE_CONFIG = {
@@ -3150,7 +3162,21 @@ function linkRow(label, url) {
     + '<div style="display:flex;gap:6px">'
     + '<input readonly value="' + esc(url) + '" onclick="this.select()" onfocus="this.select()" style="flex:1;min-width:0;font-size:12px;padding:8px 10px;font-family:ui-monospace,Menlo,monospace">'
     + '<button class="btn btn-sm" style="flex:none" onclick="copyText(\'' + url + '\',\'' + label.replace(/'/g, "\\'") + '\')">Copy</button>'
+    + '<button class="btn btn-sm" style="flex:none" onclick="showLinkQR(\'' + label.replace(/'/g, "\\'") + '\',\'' + url + '\')">QR</button>'
+    + (navigator.share ? '<button class="btn btn-sm" style="flex:none" onclick="sendLink(\'' + label.replace(/'/g, "\\'") + '\',\'' + url + '\')">Send</button>' : '')
     + '</div></div>';
+}
+// Long staff links are a pain to move off a laptop: show the link as a big QR the other
+// device scans with its camera, or hand it to the system share menu (Messages, AirDrop, Mail).
+function showLinkQR(label, url) {
+  const cv = document.getElementById('linkQRCanvas');
+  if (!cv || typeof drawQR !== 'function' || !drawQR(cv, url)) { copyText(url, label); return; }
+  document.getElementById('linkQRTitle').textContent = label;
+  showModal('linkQRModal', 'flex');
+}
+function sendLink(label, url) {
+  const t = (S.track && S.track.name) || 'RaceDay';
+  try { navigator.share({ title: t + ' ' + label, url: url }).catch(() => {}); } catch (e) { copyText(url, label); }
 }
 function handleUrlParams() {
   try {
