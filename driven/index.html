@@ -2127,6 +2127,32 @@ function checkRaceDayResults() {
   });
 }
 
+// Drivers shouldn't have to tap "Check for new results": look on open and whenever the app
+// comes back to the screen (at most every 2 minutes), quietly. Only a published profile can
+// have results waiting, since a track links a driver by their published link code.
+var _autoPullAt = 0;
+function autoPullResults() {
+  if (!P || !P.profileId || !P.publishedAt) return;
+  if (Date.now() - _autoPullAt < 120000) return;
+  _autoPullAt = Date.now();
+  pullRaceDayResults().then(function (added) {
+    if (!added) return;
+    var cur = document.querySelector('.nav button.active');
+    nav(cur ? cur.dataset.page : 'home');
+    resultsToast(added === 1 ? 'New result added from the track' : added + ' new results added from the track');
+  }).catch(function () {});
+}
+function resultsToast(msg) {
+  var t = document.createElement('div');
+  t.textContent = msg;
+  t.setAttribute('role', 'status');
+  t.style.cssText = 'position:fixed;left:50%;bottom:84px;transform:translateX(-50%);z-index:9999;background:#1f6fd6;color:#fff;'
+    + 'padding:10px 16px;border-radius:10px;font-weight:600;font-size:14px;box-shadow:0 6px 20px rgba(0,0,0,.35);max-width:90vw;text-align:center';
+  document.body.appendChild(t);
+  setTimeout(function () { if (t.parentNode) t.parentNode.removeChild(t); }, 4000);
+}
+document.addEventListener('visibilitychange', function () { if (document.visibilityState === 'visible') autoPullResults(); });
+
 function deleteProfile() {
   if (!confirm('Delete your profile' + (multiRide() ? ' and all ' + rideList().length + ' rides' : '') + '? This cannot be undone.')) return;
   if (!confirm('Really delete everything — profile, results, and stats?')) return;
@@ -2151,7 +2177,7 @@ function deleteProfile() {
 // day, 'driven-profile' when someone makes a profile, 'driven-publish' the first time a card is
 // published, and crashes. No names, emails or numbers — only counts. The track column reads DRIVEN.
 // The part after the dot MUST match sw.js CACHE (tests/test-analytics.js) — bump both together.
-const APP_VERSION = '2026-10-31.v14';
+const APP_VERSION = '2026-11-06.v15';
 var TELEMETRY_URL = 'https://script.google.com/macros/s/AKfycbxa3i3y17TLp_NfXOOu2jM7-YzXH2fScxcXoQYmIh0-873rxWfxg0HdRP1DVsxZq6iR/exec';
 // Devices opted out at /me/ (the owner testing) still report, marked OWNER; copies on this
 // computer (localhost, *.test) report nothing unless rd_count_local='1' (the analytics test).
@@ -2250,6 +2276,7 @@ handleBootParams();
 handleRestoreParam();
 syncFromPublished();
 offerSecureMove();
+autoPullResults();
 </script>
 <!-- Cloudflare Web Analytics --><script>/* skipped on devices opted out at /me/ (the owner's own testing) and on local dev/test copies */try{if(localStorage.getItem('rd_dont_count')!=='1'&&!(/^(localhost|127\.0\.0\.1|\[::1\])$|\.(localhost|test)$/.test(location.hostname)&&localStorage.getItem('rd_count_local')!=='1')){var cfb=document.createElement('script');cfb.defer=true;cfb.src='https://static.cloudflareinsights.com/beacon.min.js';cfb.setAttribute('data-cf-beacon','{"token": "07e858325a984890a4f60c1cec1942bc"}');(document.body||document.head).appendChild(cfb);}}catch(e){}</script><!-- End Cloudflare Web Analytics -->
 </body>
