@@ -130,6 +130,10 @@ profile that follows them across every RaceDay track they race at.
   (`CODE:Name|…`, primary first) + `rideLabel` only when multi-ride; `adoptRidesFromCard()` restores
   siblings (reciprocal listing required); `/d/` shows tabs only for reciprocal rides.
   Guard: `tests/test-driven-rides.js`
+- **Drivers on this phone** (added 2026-11-07, free): a parent can keep several kids on one phone. Each is a
+  whole separate account; the ACTIVE one stays in `profiles_v1` (+ its rides key), the others in
+  `profiles_family_v1` = `{order, stash:{memberId:{p, acct}}}` (memberId = primary ride id). Add / switch /
+  add-by-link-code / delete-one. Guard: `tests/test-driven-family.js`
 - Same design language as `raceday/index.html` (CSS vars, `.card`/`.btn`/`.hr` patterns) and
   the same embedded QR generator, copied verbatim — kept intentionally separate rather than
   shared, to preserve the single-file-per-app model

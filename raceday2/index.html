@@ -839,7 +839,7 @@ const GARAGE_KEY = 'rd_garage_v2';
 const ACTIVE_TRACK_KEY = 'rd_active_track_v2';
 // Reported with every usage row and crash. The part after the dot MUST match this app's
 // sw.js CACHE number (tests/test-app-version.js) — bump both together on each release.
-const APP_VERSION = '2026-11-06.v18';
+const APP_VERSION = '2026-11-07.v19';
 const LEGAL_VERSION = '2026-06';   // bump when Terms / Privacy wording changes, so acceptances are versioned
 const TELEMETRY_URL = 'https://script.google.com/macros/s/AKfycbxa3i3y17TLp_NfXOOu2jM7-YzXH2fScxcXoQYmIh0-873rxWfxg0HdRP1DVsxZq6iR/exec';
 const FIREBASE_CONFIG = {
@@ -3439,9 +3439,11 @@ function classProgress(clsId) {
   if (fd && fd.mains && fd.mains.length) {
     mainsDone = fd.mains.every(m => m.drivers.every(d => res[bmKey(m.key, d.id)] != null));
   }
-  const feat = heatsDone ? featureFinish(clsId) : {};
   const featStarters = fd ? featureGridOrder(fd, clsId).length : 0;
-  const featDone = featStarters > 0 && Object.keys(feat).length >= featStarters;
+  /* Any stored finish counts, a DNF/DNS/DQ too (same rule archiveDay uses) — counting only
+     numbers left a night with one DNF in a feature stuck before Archive forever. */
+  const featEntered = fd ? featureGridOrder(fd, clsId).filter(r => res['ft_' + r.id] != null).length : 0;
+  const featDone = featStarters > 0 && featEntered >= featStarters;
   return { cls: cls, racers: racers, heatsDone: heatsDone, mainsDone: mainsDone,
            hasMains: !!(fd && fd.mains && fd.mains.length), featDone: featDone, featStarters: featStarters };
 }
@@ -5297,7 +5299,24 @@ function fanFollowStrip() {
     + '<button class="btn btn-sm" onclick="openDriverCard(' + d.id + ')">Card</button>'
     + '<button class="btn btn-sm btn-ghost" onclick="unfollowDriver()" title="Stop following">✕</button></div>'
     + night.classes.map(myNightClassMarkup).join('')
+    + keepLineupMarkup(d.id)
     + '</div>';
+}
+/* A driver who scanned their lineup QR loses the page when they close the browser tab
+   (and a private tab forgets everything). Let them keep it: text the link to themselves
+   or copy it. Only on a spectator phone; the link is the same read-only one from sign-up. */
+function keepLineupLink(driverId) {
+  const code = GUEST ? GUEST_CODE : syncKey();
+  return code ? location.origin + location.pathname + '?sync=' + encodeURIComponent(code) + '&role=viewer&me=' + encodeURIComponent(driverId) : '';
+}
+function keepLineupMarkup(driverId) {
+  if (deviceRole() !== 'viewer') return '';
+  const url = keepLineupLink(driverId);
+  if (!url) return '';
+  return '<div class="keep-lineup" style="display:flex;gap:8px;align-items:center;flex-wrap:wrap;margin-top:10px;padding-top:10px;border-top:1px solid var(--line)">'
+    + '<span class="tiny" style="flex:1;min-width:150px">Save this page so you can open it again tonight without rescanning.</span>'
+    + (navigator.share ? '<button class="btn btn-sm btn-primary" onclick="sendLink(\'lineup\',\'' + url + '\')">Text it to me</button>' : '')
+    + '<button class="btn btn-sm" onclick="copyText(\'' + url + '\',\'Lineup link\')">Copy link</button></div>';
 }
 
 /* "My night": one driver's own races tonight, from the same running order the announcer

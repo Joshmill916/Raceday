@@ -335,6 +335,7 @@
   <button data-page="link" onclick="nav('link')">Link</button>
   <button data-page="settings" onclick="nav('settings')">Settings</button>
 </div>
+<div id="familyBar" class="ride-bar" style="display:none" aria-label="Drivers on this phone"></div>
 <div id="rideBar" class="ride-bar" style="display:none"></div>
 
 <div class="container">
@@ -348,8 +349,8 @@
 <!-- Onboarding: first-open profile creation -->
 <div id="onboardModal" class="wiz-overlay" style="display:none">
   <div class="wiz-box">
-    <h2>Welcome to Driven</h2>
-    <p class="sub">One racing profile that follows you across every RaceDay track. Create it once — results, stats, and your story all live here.</p>
+    <h2 id="obTitle">Welcome to Driven</h2>
+    <p class="sub" id="obIntro">One racing profile that follows you across every RaceDay track. Create it once — results, stats, and your story all live here.</p>
     <label>Your name *</label>
     <input type="text" id="obName" maxlength="40" placeholder="Alex Smith">
     <label>Email (optional — for backup)</label>
@@ -358,9 +359,10 @@
     <input type="text" id="obHometown" maxlength="60" placeholder="Columbus, OH">
     <label>Age (optional)</label>
     <input type="number" id="obAge" min="1" max="120" placeholder="16">
-    <button class="btn btn-go btn-block" onclick="completeOnboarding()" style="margin-top:20px">Create my profile</button>
+    <button class="btn btn-go btn-block" id="obCreate" onclick="completeOnboarding()" style="margin-top:20px">Create my profile</button>
+    <button class="btn btn-block" id="obCancel" onclick="closeAddDriver()" style="margin-top:8px;display:none">Cancel</button>
     <p class="sub" style="margin-top:16px;text-align:center">
-      <a href="#" onclick="toggleRestore(event)" style="color:inherit;text-decoration:underline">Already have a profile? Restore it</a>
+      <a href="#" id="restoreLink" onclick="toggleRestore(event)" style="color:inherit;text-decoration:underline">Already have a profile? Restore it</a>
     </p>
     <div id="restoreBox" style="display:none;margin-top:6px">
       <label>Your link code, or paste a backup file</label>
@@ -548,6 +550,126 @@ function renderRideBar() {
     return '<button type="button" class="ride-pill' + (p === P ? ' on' : '') + '" onclick="switchRide(\'' + p.profileId + '\')">'
       + esc(rideName(p)) + (p.driver.number ? ' <span>#' + esc(p.driver.number) + '</span>' : '') + '</button>';
   }).join('');
+}
+
+// ---------- Drivers on this phone (family) ----------
+// A parent signing up two kids from one phone: each kid is a whole, separate account (its
+// own profileId, card, link code, results, rides, Pro) — this only lets one phone hold
+// several and switch between them. Free. The ACTIVE driver stays in profiles_v1 (+ its rides
+// in profiles_rides_v1), exactly as before; the others wait in
+// profiles_family_v1 = { order: [memberIds], stash: { memberId: { p: profile, acct: rides|null } } }.
+// A member is keyed by its primary ride's id, which never changes when switching rides.
+var FAMILY_KEY = 'profiles_family_v1';
+var FAMILY_LIMIT = 8;
+var FAM = null;
+function memberId() { return ACCT && ACCT.primaryId ? ACCT.primaryId : (P ? P.profileId : null); }
+function loadFamily() {
+  try {
+    var f = JSON.parse(localStorage.getItem(FAMILY_KEY) || 'null');
+    var me = memberId();
+    if (!f || !Array.isArray(f.order) || !f.stash || typeof f.stash !== 'object' || !me) return null;
+    if (f.order.indexOf(me) < 0) f.order.unshift(me);
+    delete f.stash[me];
+    Object.keys(f.stash).forEach(function (k) {
+      var m = f.stash[k];
+      if (!m || !m.p || !m.p.profileId || !m.p.driver) { delete f.stash[k]; return; }
+      migrate(m.p);
+    });
+    f.order = f.order.filter(function (id, i, a) { return a.indexOf(id) === i && (id === me || f.stash[id]); });
+    return f.order.length > 1 ? f : null;
+  } catch (e) { return null; }
+}
+function saveFamily() {
+  if (FAM && FAM.order.length > 1) localStorage.setItem(FAMILY_KEY, JSON.stringify(FAM));
+  else { FAM = null; localStorage.removeItem(FAMILY_KEY); }
+}
+function familyOn() { return !!(FAM && FAM.order.length > 1 && P); }
+function familyMembers() {
+  if (!familyOn()) return P ? [{ id: memberId(), p: P, on: true }] : [];
+  var me = memberId();
+  return FAM.order.map(function (id) {
+    return id === me ? { id: id, p: P, on: true } : (FAM.stash[id] ? { id: id, p: FAM.stash[id].p, on: false } : null);
+  }).filter(Boolean);
+}
+// Park the open driver so another can be created, restored or opened.
+function stashActiveDriver() {
+  if (!P) return;
+  var me = memberId();
+  if (!FAM) FAM = { order: [me], stash: {} };
+  if (FAM.order.indexOf(me) < 0) FAM.order.push(me);
+  FAM.stash[me] = { p: P, acct: ACCT };
+}
+// After a new driver became P: put it in the family list and save everything.
+function joinFamily() {
+  if (!FAM || !P) return;
+  var me = memberId();
+  delete FAM.stash[me];
+  if (FAM.order.indexOf(me) < 0) FAM.order.push(me);
+  saveFamily();
+}
+function familyHas(profileId) {
+  return familyMembers().some(function (m) {
+    var acct = m.on ? ACCT : (FAM && FAM.stash[m.id] && FAM.stash[m.id].acct);
+    return m.p.profileId === profileId || (acct && acct.order && acct.order.indexOf(profileId) >= 0);
+  });
+}
+function switchDriver(id) {
+  if (!familyOn() || id === memberId() || !FAM.stash[id]) return;
+  var next = FAM.stash[id];
+  stashActiveDriver();
+  delete FAM.stash[id];
+  P = migrate(next.p);
+  if (next.acct) localStorage.setItem(RIDES_KEY, JSON.stringify(next.acct)); else localStorage.removeItem(RIDES_KEY);
+  localStorage.setItem('profiles_v1', JSON.stringify(P));   // direct write: switching publishes nothing
+  ACCT = loadAcct();
+  saveFamily();
+  nav('home');
+  syncFromPublished();
+  _autoPullAt = 0; autoPullResults();
+}
+function renderFamilyBar() {
+  var bar = $id('familyBar');
+  if (!bar) return;
+  if (!familyOn()) { bar.style.display = 'none'; bar.innerHTML = ''; return; }
+  bar.style.display = '';
+  bar.innerHTML = familyMembers().map(function (m) {
+    return '<button type="button" class="ride-pill' + (m.on ? ' on' : '') + '" onclick="switchDriver(\'' + m.id + '\')">'
+      + esc(m.p.driver.name || 'Driver') + (m.p.driver.number ? ' <span>#' + esc(m.p.driver.number) + '</span>' : '') + '</button>';
+  }).join('') + '<button type="button" class="ride-pill" onclick="openAddDriver()" aria-label="Add another driver">+</button>';
+}
+function familySectionHtml() {
+  var list = familyMembers();
+  var h = '<div class="card"><div class="slbl">Drivers on this phone</div>';
+  if (!familyOn()) {
+    h += '<p class="sub" style="margin-bottom:10px">Signing up more than one racer from this phone, like your kids? Add each one here. Every driver gets their own card, link code and results, and you can switch between them at the top.</p>';
+  } else {
+    h += '<p class="sub" style="margin-bottom:6px">Each driver has their own card, link code and results. Give the track the link code of the driver who is racing.</p>';
+    h += list.map(function (m) {
+      return '<div class="track-row"><div class="tn"><b>' + esc(m.p.driver.name || 'Driver') + (m.on ? ' (open)' : '') + '</b>'
+        + '<span>' + (m.p.shortCode ? 'Link code ' + esc(m.p.shortCode) : 'Not published yet') + '</span></div>'
+        + (m.on ? '' : '<button class="btn btn-sm" onclick="switchDriver(\'' + m.id + '\')">Open</button>')
+        + '</div>';
+    }).join('');
+  }
+  if (list.length < FAMILY_LIMIT) h += '<button class="btn btn-block" onclick="openAddDriver()" style="margin-top:12px">+ Add another driver</button>';
+  return h + '</div>';
+}
+var ADDING_DRIVER = false;
+function openAddDriver() {
+  if (familyMembers().length >= FAMILY_LIMIT) { alert('This phone already holds ' + FAMILY_LIMIT + ' drivers.'); return; }
+  ADDING_DRIVER = true;
+  ['obName', 'obEmail', 'obHometown', 'obAge', 'restoreInput'].forEach(function (id) { if ($id(id)) $id(id).value = ''; });
+  $id('obTitle').textContent = 'Add another driver';
+  $id('obIntro').textContent = 'A separate profile for another racer on this phone. Their card, link code and results stay their own.';
+  $id('obCreate').textContent = 'Create their profile';
+  $id('obCancel').style.display = '';
+  $id('restoreLink').textContent = 'Already has a profile? Add it with their link code';
+  $id('restoreBox').style.display = 'none';
+  $id('onboardModal').style.display = 'flex';
+}
+function closeAddDriver() {
+  ADDING_DRIVER = false;
+  $id('onboardModal').style.display = 'none';
 }
 
 function ridesSectionHtml() {
@@ -1008,9 +1130,12 @@ function completeOnboarding() {
   var hometown = ($id('obHometown').value || '').trim();
   var ageVal = $id('obAge').value;
   var age = ageVal ? parseInt(ageVal, 10) : null;
+  if (ADDING_DRIVER && P) stashActiveDriver();
   P = newProfile(name, email, hometown, age);
   ACCT = null; localStorage.removeItem(RIDES_KEY);
   save();
+  joinFamily();
+  ADDING_DRIVER = false;
   $id('onboardModal').style.display = 'none';
   nav('home');
   sendUsage('driven-profile');
@@ -1044,20 +1169,24 @@ function restoreFromBackupJson(raw) {
     var rides = parsed.rides.filter(function (r) { return r && r.profileId && r.driver && r.driver.name; }).map(migrate);
     var active = rides.filter(function (r) { return r.profileId === parsed.activeId; })[0] || rides[0];
     if (!active) { alert("That doesn't look like a Driven backup file."); return; }
+    if (ADDING_DRIVER && P) { if (familyHas(active.profileId)) { alert(active.driver.name + ' is already on this phone.'); return; } stashActiveDriver(); }
     P = active;
     ACCT = { primaryId: rides.some(function (r) { return r.profileId === parsed.primaryId; }) ? parsed.primaryId : rides[0].profileId, order: rides.map(function (r) { return r.profileId; }), stash: {} };
     rides.forEach(function (r) { if (r !== active) ACCT.stash[r.profileId] = r; });
     saveAcct();
     save();
+    joinFamily(); ADDING_DRIVER = false;
     $id('onboardModal').style.display = 'none';
     nav('home');
     alert('✅ Profile restored with ' + rides.length + ' ride' + (rides.length === 1 ? '' : 's') + ' — welcome back, ' + P.driver.name + '.');
     return;
   }
   if (!parsed || !parsed.profileId || !parsed.driver || !parsed.driver.name) { alert("That doesn't look like a Driven backup file."); return; }
+  if (ADDING_DRIVER && P) { if (familyHas(parsed.profileId)) { alert(parsed.driver.name + ' is already on this phone.'); return; } stashActiveDriver(); }
   P = migrate(parsed);
   ACCT = null; localStorage.removeItem(RIDES_KEY);
   save();
+  joinFamily(); ADDING_DRIVER = false;
   $id('onboardModal').style.display = 'none';
   nav('home');
   alert('✅ Profile restored — welcome back, ' + P.driver.name + '.');
@@ -1121,6 +1250,10 @@ function restoreFromLinkCode(code, quiet) {
     // an empty num. Rejecting on a missing num would wrongly treat a genuinely
     // published card as if it didn't exist.
     if (!card || !card.name) { alert("That code doesn't have a published card to restore from yet."); return; }
+    if (ADDING_DRIVER && P) {
+      if (familyHas(result.profileId)) { alert(String(card.name).slice(0, 40) + ' is already on this phone.'); return; }
+      stashActiveDriver();
+    }
     var restored = newProfile(String(card.name).slice(0, 40), '', '', null);
     restored.profileId = result.profileId;
     restored.shortCode = short;
@@ -1129,6 +1262,7 @@ function restoreFromLinkCode(code, quiet) {
     P = migrate(restored);
     ACCT = null; localStorage.removeItem(RIDES_KEY);
     localStorage.setItem('profiles_v1', JSON.stringify(P));   // direct write: nothing new to publish
+    joinFamily(); ADDING_DRIVER = false;
     $id('onboardModal').style.display = 'none';
     nav('home');
     // The other rides on this account come back too (each card lists the rest).
@@ -1210,6 +1344,7 @@ function nav(page) {
   document.querySelectorAll('.page').forEach(function (p) { p.classList.remove('active'); });
   $id('page-' + page).classList.add('active');
   document.body.classList.toggle('dp-dark', page === 'home' || page === 'card');
+  renderFamilyBar();
   renderRideBar();
   if (page === 'home') renderHome();
   if (page === 'card') renderCard();
@@ -1848,6 +1983,7 @@ function renderSettings() {
     + '<button class="btn btn-primary btn-block" onclick="saveProfileFields()" style="margin-top:16px">Save changes</button>'
     + '</div>';
 
+  h += familySectionHtml();
   h += ridesSectionHtml();
 
   h += '<div class="card">'
@@ -1872,7 +2008,7 @@ function renderSettings() {
 
   h += '<div class="card">'
     + '<div class="slbl" style="color:var(--pit-red)">Danger zone</div>'
-    + '<button class="btn btn-danger btn-block" onclick="deleteProfile()">Delete my profile</button>'
+    + '<button class="btn btn-danger btn-block" onclick="deleteProfile()">' + (familyOn() ? 'Delete ' + esc(P.driver.name) + '\'s profile' : 'Delete my profile') + '</button>'
     + '</div>';
 
   h += '<p class="sub" style="text-align:center;margin-top:6px">'
@@ -2154,10 +2290,28 @@ function resultsToast(msg) {
 document.addEventListener('visibilitychange', function () { if (document.visibilityState === 'visible') autoPullResults(); });
 
 function deleteProfile() {
-  if (!confirm('Delete your profile' + (multiRide() ? ' and all ' + rideList().length + ' rides' : '') + '? This cannot be undone.')) return;
-  if (!confirm('Really delete everything — profile, results, and stats?')) return;
+  var who = familyOn() ? P.driver.name + '\'s profile' : 'your profile';
+  if (!confirm('Delete ' + who + (multiRide() ? ' and all ' + rideList().length + ' rides' : '') + '? This cannot be undone.' + (familyOn() ? ' The other drivers on this phone stay.' : ''))) return;
+  if (!confirm('Really delete everything for ' + P.driver.name + ' — profile, results, and stats?')) return;
   // Best-effort: remove every ride's published card + link-code mapping, then wipe locally either way.
-  var wipe = function () { localStorage.removeItem('profiles_v1'); localStorage.removeItem(RIDES_KEY); location.reload(); };
+  // With other drivers on this phone, only this one goes; the next one opens.
+  var wipe = function () {
+    localStorage.removeItem('profiles_v1'); localStorage.removeItem(RIDES_KEY);
+    if (familyOn()) {
+      var me = memberId();
+      FAM.order = FAM.order.filter(function (id) { return id !== me; });
+      delete FAM.stash[me];
+      var nextId = FAM.order.filter(function (id) { return FAM.stash[id]; })[0];
+      if (nextId) {
+        var nx = FAM.stash[nextId];
+        delete FAM.stash[nextId];
+        localStorage.setItem('profiles_v1', JSON.stringify(nx.p));
+        if (nx.acct) localStorage.setItem(RIDES_KEY, JSON.stringify(nx.acct));
+      }
+      if (FAM.order.length > 1) localStorage.setItem(FAMILY_KEY, JSON.stringify(FAM)); else localStorage.removeItem(FAMILY_KEY);
+    } else localStorage.removeItem(FAMILY_KEY);
+    location.reload();
+  };
   var published = rideList().filter(function (p) { return p.publishedAt; });
   if (published.length) {
     ensureFirebase().then(function () {
@@ -2177,7 +2331,7 @@ function deleteProfile() {
 // day, 'driven-profile' when someone makes a profile, 'driven-publish' the first time a card is
 // published, and crashes. No names, emails or numbers — only counts. The track column reads DRIVEN.
 // The part after the dot MUST match sw.js CACHE (tests/test-analytics.js) — bump both together.
-const APP_VERSION = '2026-11-06.v15';
+const APP_VERSION = '2026-11-07.v16';
 var TELEMETRY_URL = 'https://script.google.com/macros/s/AKfycbxa3i3y17TLp_NfXOOu2jM7-YzXH2fScxcXoQYmIh0-873rxWfxg0HdRP1DVsxZq6iR/exec';
 // Devices opted out at /me/ (the owner testing) still report, marked OWNER; copies on this
 // computer (localhost, *.test) report nothing unless rd_count_local='1' (the analytics test).
@@ -2270,6 +2424,7 @@ function handleBootParams() {
 /* ---------- Boot ---------- */
 P = load();
 ACCT = loadAcct();
+FAM = loadFamily();
 if (!P) { openOnboarding(); } else { nav('home'); }
 pingOpen();
 handleBootParams();
