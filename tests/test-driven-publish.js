@@ -171,6 +171,21 @@ const check = (name, ok, extra) => {
     !skipClaim.some(c => c.path && c.path.startsWith('profiles_short/')), JSON.stringify(skipClaim));
   check('only the card itself gets written', skipClaim.every(c => c.path === 'profiles/prof_shortcode00001/card'), JSON.stringify(skipClaim));
 
+  console.log('\n=== 5b. Share uses the card-picture link; View stays direct ===');
+  const links = await page.evaluate(() => {
+    let shared = null;
+    const realShare = navigator.share;
+    navigator.share = (d) => { shared = d.url; return Promise.resolve(); };
+    sharePublicPage();
+    navigator.share = realShare;
+    P.publishedAt = Date.now(); nav('card');
+    return { share: shareCardUrl(), view: publicPageUrl(), shared, shown: document.body.innerHTML.includes('raceday-d32dd.web.app/d/ALREADY1') };
+  });
+  check('shareCardUrl() is the Firebase card link', links.share === 'https://raceday-d32dd.web.app/d/ALREADY1', links.share);
+  check('the Share button sends the card link', links.shared === links.share, String(links.shared));
+  check('View still opens the direct /d/?CODE page', /\/d\/\?ALREADY1$/.test(links.view), links.view);
+  check('the Card screen shows the card link to copy', links.shown);
+
   // ============================================================================
   console.log('\n=== 6. publishCard() error paths ===');
   await seedProfile();
