@@ -130,6 +130,9 @@ profile that follows them across every RaceDay track they race at.
   (`CODE:Name|…`, primary first) + `rideLabel` only when multi-ride; `adoptRidesFromCard()` restores
   siblings (reciprocal listing required); `/d/` shows tabs only for reciprocal rides.
   Guard: `tests/test-driven-rides.js`
+- **Share link** (2026-11-08): Driven's Share button sends `shareCardUrl()` = `https://raceday-d32dd.web.app/d/<CODE>`
+  (Firebase Function `driverCard` draws that driver's card as the Facebook/text preview, then forwards to
+  `/d/?CODE`). "View" keeps the direct `publicPageUrl()`. Guard: `tests/test-driven-publish.js` section 5b
 - **Drivers on this phone** (added 2026-11-07, free): a parent can keep several kids on one phone. Each is a
   whole separate account; the ACTIVE one stays in `profiles_v1` (+ its rides key), the others in
   `profiles_family_v1` = `{order, stash:{memberId:{p, acct}}}` (memberId = primary ride id). Add / switch /
