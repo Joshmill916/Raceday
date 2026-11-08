@@ -45,6 +45,12 @@ location.replace('https://'+location.host+location.pathname+location.search+loca
       if (s && s.raceDay && s.classes) { location.replace('/raceday/'); return; }
     }
   } catch (e) {}
+  // A fan or driver phone that scanned a track's lineup QR (no track of its own): back to
+  // that track's live view, so typing victoryraceday.com finds the lineup again.
+  try {
+    var gr = JSON.parse(localStorage.getItem('rd_guest_room_v2') || 'null');
+    if (gr && gr.code) { location.replace('/raceday2/'); return; }
+  } catch (e) {}
 })();
 </script>
 <link rel="apple-touch-icon" href="raceday/icon-rd.png">
