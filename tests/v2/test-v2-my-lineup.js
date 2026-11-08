@@ -140,6 +140,12 @@ const check = (name, ok, extra) => {
   const firstRace = order.hi === 0;
   check('the first race of the night says "On track now" or a count of races away', firstRace ? /On track now/.test(c.text) : /Up next|races away/.test(c.text), c.text);
   check('nothing is writable', await phone.evaluate(() => canWrite() === false && adminOk() === false));
+  const keep = await phone.evaluate(() => {
+    const el = document.querySelector('#gridWrap .my-night .keep-lineup');
+    return { has: !!el, text: el ? el.textContent : '', link: keepLineupLink(1003) };
+  });
+  check('the card offers to save the lineup link', keep.has && /Copy link/.test(keep.text), keep.text);
+  check('the saved link reopens this driver at this track, read-only', /\?sync=MYROOM&role=viewer&me=1003$/.test(keep.link) && !/st=/.test(keep.link), keep.link);
 
   console.log('\n— Live as the night runs —');
   // Score races on the tower and push the room after each, like sync does.
@@ -171,6 +177,12 @@ const check = (name, ok, extra) => {
   c = await card();
   check('after the feature, tonight\'s points show', /\d+ pts tonight/.test(c.text), c.text);
   check('with everything in, no race says it is coming up', !/On track now|Up next|races away/.test(c.text), c.text);
+  const dnf = await admin.evaluate(() => {
+    const before = nightPhase().key;
+    const fo = featureGridOrder(featureData(1), 1); const res = getRes(1); res['ft_' + fo[fo.length - 1].id] = 'DNF';
+    return { before, after: nightPhase().key };
+  });
+  check('a DNF in a feature still counts as scored — Archive shows', dnf.before === 'archive' && dnf.after === 'archive', JSON.stringify(dnf));
 
   console.log('\n— Remembered on the phone —');
   await phone.goto(base + '?sync=MYROOM&role=viewer'); await phone.waitForTimeout(900);
@@ -184,6 +196,12 @@ const check = (name, ok, extra) => {
   await phone.goto(base + '?sync=MYROOM&role=viewer&me=99999'); await phone.waitForTimeout(900);
   c = await card();
   check('a link for a driver not on the roster is dropped once the roster is in', c.follow === null && !c.has, JSON.stringify(c.follow));
+
+  console.log('\n— Typing the home page address finds the track again —');
+  await phone.goto(base + '?sync=MYROOM&role=viewer'); await phone.waitForTimeout(500);
+  await phone.route(/\/raceday2\/$/, r => r.fulfill({ status: 200, contentType: 'text/html', body: 'ok' }));
+  await phone.goto(base + 'index.html').catch(() => {}); await phone.waitForTimeout(500);
+  check('a phone that scanned a track goes from the home page back to RaceDay 2', /\/raceday2\/$/.test(phone.url()), phone.url());
 
   console.log('\n— A me= link cannot change what a device does —');
   await phone.goto(base + '?sync=MYROOM&role=admin&me=1003'); await phone.waitForTimeout(700);

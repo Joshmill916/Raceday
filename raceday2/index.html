@@ -307,6 +307,10 @@ img { max-width:100%; }
 
 .badge { display:inline-flex; align-items:center; gap:5px; padding:3px 9px; border-radius:99px; font-size:11.5px; font-weight:700; letter-spacing:.04em; text-transform:uppercase; font-family:var(--display); }
 .badge-green { background:var(--flag-green-bg); color:var(--flag-green-ink); }
+.hard-charger { display:flex; align-items:center; gap:8px; flex-wrap:wrap; padding:10px 12px; margin:0 0 10px; border-radius:10px; background:var(--flag-green-bg); color:var(--flag-green-ink); }
+.hard-charger .hc-tag { font-family:var(--display); font-size:11px; font-weight:800; letter-spacing:.08em; text-transform:uppercase; }
+.hard-charger .tiny { color:inherit; opacity:.85; }
+tr.hc-row td { background:var(--flag-green-bg); }
 .badge-amber { background:var(--flag-amber-bg); color:var(--flag-amber-ink); }
 .badge-red   { background:var(--pit-red-bg);    color:var(--pit-red-ink); }
 .badge-plate { background:var(--plate); color:var(--plate-ink); }
@@ -714,6 +718,11 @@ body.is-demo::after {
         <div class="wrap" id="resultsWrap"></div>
       </section>
 
+      <!-- ===== RESULTS (finals: every class's feature + Hard Charger) ===== -->
+      <section class="view" id="view-finals">
+        <div class="wrap-mid" id="finalsWrap"></div>
+      </section>
+
       <!-- ===== POINTS ===== -->
       <section class="view" id="view-points">
         <div class="wrap-mid" id="pointsWrap"></div>
@@ -839,7 +848,7 @@ const GARAGE_KEY = 'rd_garage_v2';
 const ACTIVE_TRACK_KEY = 'rd_active_track_v2';
 // Reported with every usage row and crash. The part after the dot MUST match this app's
 // sw.js CACHE number (tests/test-app-version.js) — bump both together on each release.
-const APP_VERSION = '2026-11-06.v18';
+const APP_VERSION = '2026-11-07.v19';
 const LEGAL_VERSION = '2026-06';   // bump when Terms / Privacy wording changes, so acceptances are versioned
 const TELEMETRY_URL = 'https://script.google.com/macros/s/AKfycbxa3i3y17TLp_NfXOOu2jM7-YzXH2fScxcXoQYmIh0-873rxWfxg0HdRP1DVsxZq6iR/exec';
 const FIREBASE_CONFIG = {
@@ -853,14 +862,14 @@ const FIREBASE_CONFIG = {
 };
 const SYNC_FIELDS = ['raceDay/date', 'raceDay/entries', 'raceDay/heatResults', 'raceDay/pointsRace', 'raceDay/resultGov', 'raceDay/tech', 'classes', 'roster', 'settings', 'track'];
 const ROLE_PAGES = {
-  admin:    ['signup', 'grid', 'results', 'points', 'tech', 'announce', 'admin', 'help'],
+  admin:    ['signup', 'grid', 'results', 'finals', 'points', 'tech', 'announce', 'admin', 'help'],
   register: ['signup', 'help'],
   tech:     ['tech', 'help'],       // tech inspector's tablet: the inspection list only
-  scoring:  ['grid', 'results', 'points', 'announce', 'help'],
-  announcer: ['announce', 'grid', 'help'],   // announcer's booth: read-only talking points
+  scoring:  ['grid', 'results', 'finals', 'points', 'announce', 'help'],
+  announcer: ['announce', 'grid', 'finals', 'help'],   // announcer's booth: read-only talking points
   tv:       ['grid', 'help'],
-  viewer:   ['grid', 'help'],       // spectator: read-only Lineups only (QR link)
-  operator: ['signup', 'grid', 'results', 'points', 'tech', 'announce', 'admin', 'help']   // owner: sees everything, read-only until "Take control"
+  viewer:   ['grid', 'finals', 'help'],       // spectator: read-only Lineups only (QR link)
+  operator: ['signup', 'grid', 'results', 'finals', 'points', 'tech', 'announce', 'admin', 'help']   // owner: sees everything, read-only until "Take control"
 };
 const TECH_DEFAULT = ['Weight', 'Tires', 'Safety gear', 'Fuel', 'Engine seal / claim', 'Body & bumpers'];
 function syncOn() { return !!(S.sync && S.sync.enabled && FIREBASE_CONFIG.apiKey); }
@@ -2412,7 +2421,9 @@ function buildSnapshot() {
       heatScoring: isPassing(cls) ? 'passing' : 'finish',
       tech: classRacers(cls.id).map(r => { const t = techOf(r.id, cls.id); return t && t.status ? { driverId: r.id, name: r.name, num: r.num, status: t.status, weight: t.weight || '' } : null; }).filter(Boolean),
       standings: standings.map((s, i) => ({ pos: i + 1, name: s.name, num: s.num, pill: s.pill, f1: s.f1 != null ? s.f1 : '', f2: s.f2 != null ? s.f2 : '', pts: s.scored ? s.pts : '' })),
-      feature: featureGridOrder(fd, cls.id).map(s => ({ name: s.name, num: s.num })),
+      feature: featureGridOrder(fd, cls.id).map(s => ({ driverId: s.id, name: s.name, num: s.num })),
+      // every stored feature result, DNF/DNS/DQ included — the Results tab reads this for past nights
+      featureResults: featureGridOrder(fd, cls.id).filter(s => getRes(cls.id)['ft_' + s.id] != null).map(s => ({ driverId: s.id, name: s.name, num: s.num, fin: getRes(cls.id)['ft_' + s.id] })),
       featureFinish: featureFinish(cls.id).map(f => ({ driverId: f.id, name: f.name, num: f.num, fin: f.fin })),
       pointsRace: isPointsRace(cls.id),
       // dayPoints drops noPoints drivers from dp, so filtering on dp[r.id] != null keeps
@@ -3293,6 +3304,7 @@ const NAV = [
   { id:'signup',  label:'Sign up', short:'Sign up', ico:'✍',  grp:'Race night' },
   { id:'grid',    label:'Lineups', short:'Lineups', ico:'▦' },
   { id:'results', label:'Score',   short:'Score',   ico:'⏱' },
+  { id:'finals',  label:'Results', short:'Results', ico:'🏁' },
   { id:'points',  label:'Points',  short:'Points',  ico:'🏆' },
   { id:'tech',    label:'Tech',    short:'Tech',    ico:'🔧', tabFor:['tech'] },   // admins reach it from Admin → Tech inspection
   { id:'announce', label:'Announce', short:'Announce', ico:'🎙', tabFor:['announcer'] },   // staff reach it from Lineups
@@ -3325,6 +3337,7 @@ function render(p) {
   if (p === 'signup')  return renderSignup();
   if (p === 'grid')    return renderGrid();
   if (p === 'results') return renderResults();
+  if (p === 'finals')  return renderFinals();
   if (p === 'points')  return renderPoints();
   if (p === 'tech')    return renderTech();
   if (p === 'announce') return renderAnnounce();
@@ -3439,9 +3452,11 @@ function classProgress(clsId) {
   if (fd && fd.mains && fd.mains.length) {
     mainsDone = fd.mains.every(m => m.drivers.every(d => res[bmKey(m.key, d.id)] != null));
   }
-  const feat = heatsDone ? featureFinish(clsId) : {};
   const featStarters = fd ? featureGridOrder(fd, clsId).length : 0;
-  const featDone = featStarters > 0 && Object.keys(feat).length >= featStarters;
+  /* Any stored finish counts, a DNF/DNS/DQ too (same rule archiveDay uses) — counting only
+     numbers left a night with one DNF in a feature stuck before Archive forever. */
+  const featEntered = fd ? featureGridOrder(fd, clsId).filter(r => res['ft_' + r.id] != null).length : 0;
+  const featDone = featStarters > 0 && featEntered >= featStarters;
   return { cls: cls, racers: racers, heatsDone: heatsDone, mainsDone: mainsDone,
            hasMains: !!(fd && fd.mains && fd.mains.length), featDone: featDone, featStarters: featStarters };
 }
@@ -5297,7 +5312,24 @@ function fanFollowStrip() {
     + '<button class="btn btn-sm" onclick="openDriverCard(' + d.id + ')">Card</button>'
     + '<button class="btn btn-sm btn-ghost" onclick="unfollowDriver()" title="Stop following">✕</button></div>'
     + night.classes.map(myNightClassMarkup).join('')
+    + keepLineupMarkup(d.id)
     + '</div>';
+}
+/* A driver who scanned their lineup QR loses the page when they close the browser tab
+   (and a private tab forgets everything). Let them keep it: text the link to themselves
+   or copy it. Only on a spectator phone; the link is the same read-only one from sign-up. */
+function keepLineupLink(driverId) {
+  const code = GUEST ? GUEST_CODE : syncKey();
+  return code ? location.origin + location.pathname + '?sync=' + encodeURIComponent(code) + '&role=viewer&me=' + encodeURIComponent(driverId) : '';
+}
+function keepLineupMarkup(driverId) {
+  if (deviceRole() !== 'viewer') return '';
+  const url = keepLineupLink(driverId);
+  if (!url) return '';
+  return '<div class="keep-lineup" style="display:flex;gap:8px;align-items:center;flex-wrap:wrap;margin-top:10px;padding-top:10px;border-top:1px solid var(--line)">'
+    + '<span class="tiny" style="flex:1;min-width:150px">Save this page so you can open it again tonight without rescanning.</span>'
+    + (navigator.share ? '<button class="btn btn-sm btn-primary" onclick="sendLink(\'lineup\',\'' + url + '\')">Text it to me</button>' : '')
+    + '<button class="btn btn-sm" onclick="copyText(\'' + url + '\',\'Lineup link\')">Copy link</button></div>';
 }
 
 /* "My night": one driver's own races tonight, from the same running order the announcer
@@ -5438,6 +5470,8 @@ function renderFanView() {
     const ff = featureFinish(cls.id);
     if (!ff.length) h += emptyState('🏆', 'Results will appear here once the feature is scored.');
     else {
+      const fdH = featureData(cls.id), resH = getRes(cls.id);
+      h += hardChargerLine(hardCharger(featureGridOrder(fdH, cls.id).map((r, i) => ({ id: r.id, name: r.name, num: r.num, start: i + 1, fin: resH['ft_' + r.id] }))));
       h += '<div class="slbl">🏆 ' + esc(cls.name) + ' results</div><div class="list">'
         + ff.map((r, i) => '<div class="lrow"><div class="pos' + (i < 3 ? ' p' + (i + 1) : '') + '">' + (i + 1) + '</div>'
             + discNum(r.num) + '<div class="nm" style="cursor:pointer" onclick="openDriverCard(' + r.id + ')">' + esc(r.name) + '</div>'
@@ -5450,6 +5484,127 @@ function renderFanView() {
      change rd_role, so it never re-opens the removed viewer→admin escape hatch. */
   h += '<div style="text-align:center;margin-top:26px;padding-top:16px;border-top:1px solid var(--line)">'
     + '<a href="/?home=1" class="tiny" style="text-decoration:underline">← Leave spectator view</a></div>';
+  el.innerHTML = h;
+}
+
+/* ---------------------------------------------------------------- results tab
+   One page with every class's feature results — finishing order, where each car started,
+   spots gained, points tonight — plus the Hard Charger. Tonight live, or a past night from
+   history (history stays on the track's own devices, so a guest sees tonight only). */
+
+/* Hard Charger: the feature finisher who gained the most spots from where they started.
+   Ties go to whoever started farther back, then the better finish. Only cars that got a
+   finishing position count (no DNF/DNS/DQ), and a car must gain at least one spot. */
+function hardCharger(rows) {
+  let best = null;
+  rows.forEach(r => {
+    if (typeof r.fin !== 'number' || !(r.start > 0)) return;
+    const gain = r.start - r.fin;
+    if (gain < 1) return;
+    if (!best || gain > best.gain || (gain === best.gain && (r.start > best.start || (r.start === best.start && r.fin < best.fin)))) best = Object.assign({}, r, { gain });
+  });
+  return best;
+}
+const OUT_ORDER = { DNF: 1, DNS: 2, DQ: 3 };
+function sortFinals(rows) {
+  return rows.sort((a, b) => {
+    const an = typeof a.fin === 'number', bn = typeof b.fin === 'number';
+    if (an && bn) return a.fin - b.fin;
+    if (an !== bn) return an ? -1 : 1;
+    return ((OUT_ORDER[a.fin] || 9) - (OUT_ORDER[b.fin] || 9)) || (a.start - b.start);
+  });
+}
+/* Tonight, live from the board. */
+function finalsTonight() {
+  const out = [];
+  S.classes.forEach(cls => {
+    const racers = classRacers(cls.id);
+    if (!racers.length) return;
+    const c = { name: cls.name, clsId: cls.id, entered: racers.length, rows: [], hc: null, status: '' };
+    const heatsDone = classHeats(cls) === 0 ? true : classComplete(cls.id);
+    if (heatsDone) {
+      const res = getRes(cls.id), dp = dayPoints(cls.id) || {};
+      const grid = featureGridOrder(featureData(cls.id), cls.id);
+      c.rows = sortFinals(grid.map((r, i) => ({ id: r.id, name: r.name, num: r.num, start: i + 1, fin: res['ft_' + r.id], pts: dp[r.id] }))
+        .filter(r => r.fin != null));
+      c.starters = grid.length;
+    }
+    const g = resGov(cls.id);
+    c.status = g.locked ? 'Locked' : g.status === 'official' ? 'Official' : '';
+    c.hc = hardCharger(c.rows);
+    out.push(c);
+  });
+  return out;
+}
+/* A past night, from its archived snapshot. Older snapshots only kept numeric finishes and
+   the start order by name/number, so match on those. */
+function finalsFromSnap(snap) {
+  return (snap.classes || []).map(sc => {
+    const start = {}, key = r => (r.driverId != null ? 'i' + r.driverId : 'n' + r.name + '|' + r.num);
+    (sc.feature || []).forEach((r, i) => { start[key(r)] = i + 1; start['n' + r.name + '|' + r.num] = i + 1; });
+    const pts = {}; (sc.points || []).forEach(p => { pts['n' + p.name + '|' + p.num] = p.pts; });
+    const src = sc.featureResults || sc.featureFinish || [];
+    const rows = sortFinals(src.map(f => ({ id: f.driverId, name: f.name, num: f.num, fin: f.fin,
+      start: start[key(f)] || start['n' + f.name + '|' + f.num] || 0, pts: pts['n' + f.name + '|' + f.num] })));
+    return { name: sc.name, entered: (sc.standings || []).length, starters: (sc.feature || []).length, rows, hc: hardCharger(rows), status: '' };
+  });
+}
+function hardChargerLine(hc) {
+  if (!hc) return '';
+  return '<div class="hard-charger"><span class="hc-tag">Hard Charger</span> '
+    + discNum(hc.num) + '<b>' + esc(hc.name) + '</b>'
+    + '<span class="tiny"> started P' + hc.start + ', finished P' + hc.fin + ' — gained ' + hc.gain + ' spot' + (hc.gain === 1 ? '' : 's') + '</span></div>';
+}
+function finalsClassMarkup(c) {
+  let h = '<div class="card finals-cls" style="margin-bottom:14px">'
+    + '<div class="spread" style="margin-bottom:8px"><b style="font-size:16px">' + esc(c.name) + '</b>'
+    + '<span class="push"></span>' + (c.status ? '<span class="badge badge-green">' + esc(c.status) + '</span> ' : '')
+    + '<span class="badge badge-dim">' + plural(c.entered, 'entered', 'entered') + '</span></div>';
+  if (!c.rows.length) return h + '<p class="tiny" style="margin:0">Results post once the feature is scored.</p></div>';
+  h += hardChargerLine(c.hc);
+  const showPts = c.rows.some(r => r.pts != null);
+  h += '<div class="scroll-x"><table class="tbl"><thead><tr><th>Fin</th><th>#</th><th>Driver</th><th class="r">Start</th><th class="r">+/−</th>' + (showPts ? '<th class="r">Pts</th>' : '') + '</tr></thead><tbody>'
+    + c.rows.map(r => {
+      const num = typeof r.fin === 'number';
+      const gain = num && r.start ? r.start - r.fin : null;
+      const isHc = c.hc && r.name === c.hc.name && r.num === c.hc.num;
+      return '<tr' + (isHc ? ' class="hc-row"' : '') + '><td class="pos' + (num && r.fin <= 3 ? ' p' + r.fin : '') + '">' + (num ? r.fin : esc(String(r.fin))) + '</td>'
+        + '<td class="muted">' + esc(r.num) + '</td>'
+        + '<td style="font-weight:600">' + (r.id != null && driverById(r.id) ? '<span style="cursor:pointer" onclick="openDriverCard(' + r.id + ')">' + esc(r.name) + '</span>' : esc(r.name)) + '</td>'
+        + '<td class="r muted">' + (r.start ? 'P' + r.start : '') + '</td>'
+        + '<td class="r">' + (gain == null ? '' : gain > 0 ? '<span style="color:var(--flag-green-ink)">+' + gain + '</span>' : gain < 0 ? '<span class="muted">' + gain + '</span>' : '<span class="muted">0</span>') + '</td>'
+        + (showPts ? '<td class="r">' + (r.pts != null ? '<span class="pts">' + r.pts + '</span>' : '') + '</td>' : '')
+        + '</tr>';
+    }).join('')
+    + '</tbody></table></div>';
+  return h + '</div>';
+}
+function setFinalsNight(v) { UI.finalsNight = v; renderFinals(); }
+function renderFinals() {
+  const el = document.getElementById('finalsWrap');
+  if (!el) return;
+  const hist = (!GUEST && Array.isArray(S.history)) ? S.history : [];
+  if (UI.finalsNight == null || UI.finalsNight === '' || !hist[UI.finalsNight]) UI.finalsNight = '';
+  const snap = UI.finalsNight === '' ? null : hist[UI.finalsNight];
+  const classes = snap ? finalsFromSnap(snap) : finalsTonight();
+  let h = '<h2>Results</h2>'
+    + '<p class="sub">Every class\'s feature, with where each car started and the Hard Charger — the driver who gained the most spots.</p>';
+  if (hist.length) {
+    h += '<select onchange="setFinalsNight(this.value)" style="margin-bottom:14px;max-width:320px">'
+      + '<option value=""' + (snap ? '' : ' selected') + '>Tonight' + (S.raceDay && S.raceDay.date ? ' (' + esc(S.raceDay.date) + ')' : '') + '</option>'
+      + hist.map((s, i) => '<option value="' + i + '"' + (String(UI.finalsNight) === String(i) ? ' selected' : '') + '>' + esc(s.date || 'Race day') + '</option>').join('')
+      + '</select>';
+  }
+  if (!classes.length) h += emptyState('🏁', snap ? 'No results were saved for that night.' : 'No drivers are entered tonight yet.');
+  else {
+    const chargers = classes.filter(c => c.hc);
+    if (chargers.length > 1) {
+      h += '<div class="card" style="margin-bottom:14px"><div class="slbl" style="margin-top:0">Hard Chargers</div>'
+        + chargers.map(c => '<div class="tiny" style="margin:4px 0"><b>' + esc(c.name) + ':</b> ' + esc(c.hc.name) + ' #' + esc(c.hc.num) + ' — P' + c.hc.start + ' to P' + c.hc.fin + ' (+' + c.hc.gain + ')</div>').join('')
+        + '</div>';
+    }
+    h += classes.map(finalsClassMarkup).join('');
+  }
   el.innerHTML = h;
 }
 

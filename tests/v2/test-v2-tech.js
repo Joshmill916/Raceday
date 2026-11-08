@@ -118,7 +118,7 @@ const check = (name, ok, extra) => {
   check('the tech role cannot open Admin', techRole.adminBlocked);
   check('a tech tablet does not show the Race Control bar (no Archive button)', techRole.bar === 'none', techRole.bar);
   const adminTabs = await page.evaluate(() => { setDeviceRole('admin'); applyRole(); return [...document.querySelectorAll('#tabbar button')].map(b => b.textContent.trim()); });
-  check('the admin tab bar stays the same (Tech lives under Admin)', !adminTabs.some(t => /Tech/.test(t)) && adminTabs.length === 6, adminTabs.join('|'));
+  check('the admin tab bar stays the same (Tech lives under Admin)', !adminTabs.some(t => /Tech/.test(t)) && adminTabs.length === 7, adminTabs.join('|'));
   const ro = await page.evaluate(() => {
     const out = {};
     for (const r of ['viewer', 'tv', 'scoring', 'register']) {

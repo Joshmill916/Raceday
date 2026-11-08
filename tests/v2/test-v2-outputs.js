@@ -108,8 +108,8 @@ const TYPES = { '.html':'text/html', '.js':'application/javascript', '.json':'ap
     const p = await newPage(430, 900);
     await boot(p, 'viewer');
     await p.waitForTimeout(300);
-    check('viewer role still only gets Lineups + Guide (role boundary unchanged)',
-      await p.evaluate(() => { const t = document.querySelectorAll('#tabbar button'); return t.length === 2; }));
+    check('viewer role gets Lineups + Results + Guide only (read-only pages)',
+      await p.evaluate(() => { const t = document.querySelectorAll('#tabbar button'); return t.length === 3; }));
     const heroText = await p.textContent('#gridWrap');
     check('the hero shows the track name and a phase', heroText.includes('Sample Speedway'));
     check('stage tabs include the new Points stage', heroText.includes('Points'));

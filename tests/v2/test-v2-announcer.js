@@ -125,13 +125,13 @@ const check = (name, ok, extra) => {
       return out;
     });
     check('an announcer device opens on the Announce page', r.page === 'announce', r.page);
-    check('the announcer has Lineups, Announce and Guide tabs', r.tabs.length === 3 && r.tabs.some(t => /Announce/.test(t)), r.tabs.join('|'));
+    check('the announcer has Lineups, Results, Announce and Guide tabs', r.tabs.length === 4 && r.tabs.some(t => /Announce/.test(t)), r.tabs.join('|'));
     check('the announcer cannot write or unlock admin', r.canWrite === false && r.adminOk === false);
     check('the announcer never pushes to the shared sync room', r.pushGuard);
     check('the announcer cannot open Score or Admin', r.resultsBlocked && r.adminBlocked);
     check('no Race Control bar on the announcer device', r.bar === 'none', r.bar);
     check('the sync card offers an Announcer link', r.link);
-    check('the admin tab bar is unchanged (6 tabs)', r.adminTabs.length === 6 && !r.adminTabs.some(t => /Announce/.test(t)), r.adminTabs.join('|'));
+    check('the admin tab bar has 7 tabs (Results added)', r.adminTabs.length === 7 && !r.adminTabs.some(t => /Announce/.test(t)), r.adminTabs.join('|'));
   }
 
   check('no page errors', errs.length === 0, errs.join(' | '));
