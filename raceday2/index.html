@@ -848,7 +848,7 @@ const GARAGE_KEY = 'rd_garage_v2';
 const ACTIVE_TRACK_KEY = 'rd_active_track_v2';
 // Reported with every usage row and crash. The part after the dot MUST match this app's
 // sw.js CACHE number (tests/test-app-version.js) — bump both together on each release.
-const APP_VERSION = '2026-11-07.v19';
+const APP_VERSION = '2026-11-08.v20';
 const LEGAL_VERSION = '2026-06';   // bump when Terms / Privacy wording changes, so acceptances are versioned
 const TELEMETRY_URL = 'https://script.google.com/macros/s/AKfycbxa3i3y17TLp_NfXOOu2jM7-YzXH2fScxcXoQYmIh0-873rxWfxg0HdRP1DVsxZq6iR/exec';
 const FIREBASE_CONFIG = {
@@ -2517,6 +2517,37 @@ function shareableCount(snap) {
   (snap.classes || []).forEach(cls => (cls.featureFinish || []).forEach(f => { const d = driverById(f.driverId); if (d && d.profileId) n++; }));
   return n;
 }
+/* Every driver who raced a class that night, in overall finishing order, so EVERY linked
+   driver gets the night on their Driven card — not only the feature finishers. Feature
+   finishers keep their feature spot; feature DNF/DNS/DQ come next; drivers who didn't make
+   the feature (heats / B-main only) follow in heat-standings order. Driven and the
+   database rules take a numeric position, so each gets the next overall spot. */
+function nightFinishOrder(snap, cls) {
+  const out = [], seen = new Set();
+  const add = (driverId, name, num, fin) => {
+    if (driverId == null || seen.has(String(driverId))) return;
+    seen.add(String(driverId)); out.push({ driverId, name, num, fin });
+  };
+  const fins = (cls.featureFinish || []).slice().sort((a, b) => a.fin - b.fin);
+  fins.forEach(f => add(f.driverId, f.name, f.num, f.fin));
+  let next = fins.reduce((m, f) => Math.max(m, f.fin), 0);
+  (cls.featureResults || []).filter(f => typeof f.fin !== 'number')
+    .sort((a, b) => (OUT_ORDER[a.fin] || 9) - (OUT_ORDER[b.fin] || 9))
+    .forEach(f => { if (!seen.has(String(f.driverId))) add(f.driverId, f.name, f.num, ++next); });
+  // Everyone else entered in this class: from the night's entries, else its points rows.
+  const ids = [];
+  (snap.pairs || []).forEach(p => { if (p.className === cls.name && !ids.includes(p.driverId)) ids.push(p.driverId); });
+  (cls.points || []).forEach(p => { if (!ids.includes(p.driverId)) ids.push(p.driverId); });
+  const rank = {};
+  (cls.standings || []).forEach((st, i) => { rank[st.name + '|' + st.num] = i; });
+  ids.filter(id => !seen.has(String(id))).map(id => {
+    const pr = (cls.points || []).find(p => p.driverId === id), d = driverById(id);
+    const name = pr ? pr.name : d ? d.name : '', num = pr ? pr.num : d ? d.num : '';
+    const r = rank[name + '|' + num];
+    return { id, name, num, r: r == null ? 1e6 : r };
+  }).sort((a, b) => a.r - b.r).forEach(x => add(x.id, x.name, x.num, ++next));
+  return out;
+}
 function shareResultsWithDriven(idx) {
   const snap = S.history[idx];
   if (!snap) return;
@@ -2524,11 +2555,11 @@ function shareResultsWithDriven(idx) {
   const rows = [];
   snap.classes.forEach(cls => {
     const clsKey = fbKey(cls.name);
-    (cls.featureFinish || []).forEach(f => {
+    nightFinishOrder(snap, cls).forEach(f => {
       const d = driverById(f.driverId);
       if (!d || !d.profileId) return;
       const pointsRow = (cls.points || []).find(p => p.driverId === f.driverId);
-      const payload = { profileId: d.profileId, name: f.name, num: f.num || '', position: f.fin, trackName: trackName };
+      const payload = { profileId: d.profileId, name: String(f.name || '').slice(0, 40), num: String(f.num || '').slice(0, 8), position: f.fin, trackName: trackName };
       if (pointsRow) payload.points = pointsRow.pts;
       rows.push({ profileId: d.profileId, path: 'results/' + trackId + '/' + snap.date + '/' + clsKey + '/' + f.driverId, payload });
     });
@@ -8170,9 +8201,10 @@ function renderHistory() {
     let h = '<div class="lrow" style="align-items:flex-start;flex-wrap:wrap;padding:12px 0">'
       + '<div style="flex:1;min-width:180px"><b style="font-family:var(--display);font-size:16px">' + esc(hd.date) + '</b>'
       + '<div class="tiny">' + plural(hd.classes.length, 'class', 'classes') + ' · ' + drivers + ' entries</div></div>'
-      + '<div class="rowflex" style="flex-wrap:nowrap">'
+      + '<div class="rowflex" style="flex-wrap:wrap">'
       + '<button class="btn btn-sm" onclick="toggleHist(' + i + ')">' + (UI.histOpen === i ? 'Hide' : 'View') + '</button>'
       + '<button class="btn btn-sm" onclick="histCSV(' + i + ')">CSV</button>'
+      + (!hd.imported && deviceRole() === 'admin' ? '<button class="btn btn-sm" onclick="shareResultsWithDriven(' + i + ')" title="Send this night to every linked driver\'s Driven card">' + (hd.published ? 'Share again' : 'Share with Driven') + '</button>' : '')
       + (hd.imported && hd.classes.length === 1 ? '<button class="btn btn-sm" onclick="editImportedRace(' + i + ')">Edit</button>' : '')
       + '<button class="btn btn-sm btn-danger" onclick="delHist(' + i + ')">Delete</button></div></div>';
     if (UI.histOpen === i) {
