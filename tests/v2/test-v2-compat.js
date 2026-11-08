@@ -153,7 +153,7 @@ const TYPES = { '.html':'text/html', '.js':'application/javascript', '.json':'ap
     await p.evaluate(() => localStorage.setItem('rd_role_v2', 'viewer'));
     await p.reload(); await p.waitForTimeout(400);
     const tabs = await p.$$eval('#tabbar button', bs => bs.map(b => b.textContent.trim()));
-    check('spectator sees only Lineups + Guide', tabs.length === 2, JSON.stringify(tabs));
+    check('spectator sees only Lineups + Results + Guide', tabs.length === 3, JSON.stringify(tabs));
     check('spectator gets no Admin tab', !tabs.some(t => /admin/i.test(t)));
     check('spectator gets no Sign up tab', !tabs.some(t => /sign/i.test(t)));
     check('spectator cannot reach admin by asking for it',
@@ -165,7 +165,7 @@ const TYPES = { '.html':'text/html', '.js':'application/javascript', '.json':'ap
     await p.evaluate(() => { localStorage.setItem('rd_role_v2', 'scoring'); });
     await p.reload(); await p.waitForTimeout(400);
     const stabs = await p.$$eval('#tabbar button', bs => bs.map(b => b.textContent.trim()));
-    check('scoring station sees Lineups/Score/Points/Guide', stabs.length === 4, JSON.stringify(stabs));
+    check('scoring station sees Lineups/Score/Results/Points/Guide', stabs.length === 5, JSON.stringify(stabs));
     check('scoring station gets no Sign up tab', !stabs.some(t => /sign/i.test(t)));
     await p.close();
   }

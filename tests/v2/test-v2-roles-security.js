@@ -87,7 +87,7 @@ const check = (name, ok, extra) => {
   const navVisible = () => page.evaluate(() => {
     // Tab labels are an icon span glued directly to a text node with no space between
     // (".rail-ico" + label), so strip everything but letters/spaces before matching.
-    const LABEL_TO_ID = { 'sign up':'signup', 'lineups':'grid', 'score':'results', 'points':'points', 'admin':'admin', 'guide':'help' };
+    const LABEL_TO_ID = { 'sign up':'signup', 'lineups':'grid', 'score':'results', 'results':'finals', 'points':'points', 'admin':'admin', 'guide':'help' };
     return [...document.querySelectorAll('#tabbar button')].map(b => {
       const t = b.textContent.replace(/[^A-Za-z ]/g, '').trim().toLowerCase();
       return LABEL_TO_ID[t] || t;
@@ -115,7 +115,7 @@ const check = (name, ok, extra) => {
   await page.waitForTimeout(500);
   check('spectator QR (fresh + role=viewer) does NOT open the wizard', !(await wizardOpen()));
   check('spectator QR device is the viewer role', (await role()) === 'viewer');
-  check('spectator QR device shows only [grid, help]', JSON.stringify(await navVisible()) === JSON.stringify(['grid', 'help']));
+  check('spectator QR device shows only [grid, finals, help]', JSON.stringify(await navVisible()) === JSON.stringify(['grid', 'finals', 'help']));
 
   // A driver's "My lineup" QR (sign-up screen) is the spectator link + &me=<id>. It must only
   // pick who to follow — never more access, never a write to this device's own track.
@@ -126,7 +126,7 @@ const check = (name, ok, extra) => {
   await page.waitForTimeout(500);
   check('a driver\'s lineup link (role=viewer&me=) is a read-only guest viewer',
     await page.evaluate(() => GUEST === true && deviceRole() === 'viewer' && canWrite() === false && adminOk() === false && UI.followId === 12345));
-  check('…shows only [grid, help]', JSON.stringify(await navVisible()) === JSON.stringify(['grid', 'help']));
+  check('…shows only [grid, finals, help]', JSON.stringify(await navVisible()) === JSON.stringify(['grid', 'finals', 'help']));
   check('…and saves nothing but which driver it follows (no track, no role)',
     await page.evaluate(() => localStorage.getItem('raceday_v2') === null && localStorage.getItem('rd_role_v2') === null && localStorage.getItem('rd_follow_LIVEROOM') === '12345'));
 
@@ -156,7 +156,7 @@ const check = (name, ok, extra) => {
   await go(base);
   await page.waitForTimeout(400);
 
-  check('viewer nav = [grid, help] only', JSON.stringify(await navVisible()) === JSON.stringify(['grid', 'help']));
+  check('viewer nav = [grid, finals, help] only', JSON.stringify(await navVisible()) === JSON.stringify(['grid', 'finals', 'help']));
   check('viewer changeDeviceRole() is a no-op', await page.evaluate(() => { const b = deviceRole(); try { changeDeviceRole(); } catch (e) {} return deviceRole() === b && b === 'viewer'; }));
   check('viewer forced nav("admin") does not land on admin', await page.evaluate(() => { try { nav('admin'); } catch (e) {} return curPage !== 'admin'; }));
   check('viewer forced nav("signup") does not land on signup', await page.evaluate(() => { try { nav('signup'); } catch (e) {} return curPage !== 'signup'; }));
@@ -246,14 +246,14 @@ const check = (name, ok, extra) => {
   // MATRIX = pages a role may open. Some pages are a tab only on their dedicated device
   // (TAB_ONLY) so the phone tab bar stays short; admins reach them from Admin instead.
   const MATRIX = {
-    admin:    ['signup', 'grid', 'results', 'points', 'tech', 'announce', 'admin', 'help'],
+    admin:    ['signup', 'grid', 'results', 'finals', 'points', 'tech', 'announce', 'admin', 'help'],
     register: ['signup', 'help'],
-    scoring:  ['grid', 'results', 'points', 'announce', 'help'],
+    scoring:  ['grid', 'results', 'finals', 'points', 'announce', 'help'],
     tv:       ['grid', 'help'],
-    viewer:   ['grid', 'help'],
-    operator: ['signup', 'grid', 'results', 'points', 'tech', 'announce', 'admin', 'help'],
+    viewer:   ['grid', 'finals', 'help'],
+    operator: ['signup', 'grid', 'results', 'finals', 'points', 'tech', 'announce', 'admin', 'help'],
     tech:     ['tech', 'help'],
-    announcer: ['grid', 'announce', 'help'],
+    announcer: ['grid', 'finals', 'announce', 'help'],
   };
   const TAB_ONLY = { tech: ['tech'], announce: ['announcer'] };
   const visibleFor = r => MATRIX[r].filter(p => !TAB_ONLY[p] || TAB_ONLY[p].includes(r));
@@ -265,7 +265,7 @@ const check = (name, ok, extra) => {
     const vis = await navVisible();
     check(`role=${r}: nav = [${visibleFor(r).join(',')}]`, JSON.stringify(vis) === JSON.stringify(visibleFor(r)), 'got [' + vis.join(',') + ']');
     const leaked = await page.evaluate((allowed) => {
-      const all = ['signup', 'grid', 'results', 'points', 'tech', 'announce', 'admin', 'help'];
+      const all = ['signup', 'grid', 'results', 'finals', 'points', 'tech', 'announce', 'admin', 'help'];
       const bad = [];
       all.filter(p => !allowed.includes(p)).forEach(p => { try { nav(p); } catch (e) {} if (curPage === p) bad.push(p); });
       return bad;
