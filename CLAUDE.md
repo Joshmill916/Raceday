@@ -157,6 +157,10 @@ profile that follows them across every RaceDay track they race at.
 - After merging to main: VERIFY the GitHub Pages build succeeds (a deploy can fail transiently) before telling the user it's live; bump `raceday/sw.js` CACHE on cache-breaking changes
 - **Bumping an app's sw.js CACHE? Bump its `APP_VERSION` too** (`YYYY-MM-DD.vN`, N = the CACHE
   number) — `tests/test-analytics.js` fails if they drift. It's what usage/crash rows report.
+- **Pre-registrations** (2026-11-08, `raceday2/`): Admin → Pre-registrations imports a Google Form responses CSV
+  (columns matched by wording, email/address never kept, unclear kart numbers flagged). Stored at
+  `S.settings.preReg` (v2 adds no top-level fields — test-v2-compat), so it syncs with settings. Sign-up shows a
+  Pre-registered list; Check in fills the form. Guard: `tests/v2/test-v2-prereg-import.js`
 - **Staff-only sync rooms** (2026-10-16): the spectator QR carries only the room code (tracks/<code>,
   public read). Writing needs the room's staff key (`S.sync.staffKey`, never synced) carried by staff
   links as `&st=` (`staffLinkParams()`); each staff device signs in to Firebase **anonymously**
