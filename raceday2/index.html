@@ -848,7 +848,7 @@ const GARAGE_KEY = 'rd_garage_v2';
 const ACTIVE_TRACK_KEY = 'rd_active_track_v2';
 // Reported with every usage row and crash. The part after the dot MUST match this app's
 // sw.js CACHE number (tests/test-app-version.js) — bump both together on each release.
-const APP_VERSION = '2026-11-08.v21';
+const APP_VERSION = '2026-11-08.v22';
 const LEGAL_VERSION = '2026-06';   // bump when Terms / Privacy wording changes, so acceptances are versioned
 const TELEMETRY_URL = 'https://script.google.com/macros/s/AKfycbxa3i3y17TLp_NfXOOu2jM7-YzXH2fScxcXoQYmIh0-873rxWfxg0HdRP1DVsxZq6iR/exec';
 const FIREBASE_CONFIG = {
@@ -1220,7 +1220,7 @@ function restoreResVersion(clsId, idx) {
 const UI = {
   viewClsId: null,        /* class selected on Lineups */
   viewStage: 'qual',      /* which stage the Lineups view is showing */
-  preImp: null, preQ: "",  /* pre-registration import preview + the sign-up check-in search */
+  preImp: null, preQ: "", prePulled: 0, preOnlineIds: null, preQROn: false,  /* pre-registration import preview + the sign-up check-in search */
   ptsTab: null, ptsNames: [],
   histOpen: null,
   admSec: null,           /* v2: which admin section is open (v1: admOpen) */
@@ -3804,6 +3804,7 @@ const PRE_FIELDS = [
   { id: 'first',   label: 'First name' },
   { id: 'last',    label: 'Last name' },
   { id: 'num',     label: 'Kart number' },
+  { id: 'tx',      label: 'Transponder' },
   { id: 'classes', label: 'Classes' },
   { id: 'waiver',  label: 'Waiver accepted' },
   { id: 'request', label: 'Classes they asked for' }
@@ -3820,6 +3821,7 @@ function preGuessCols(headers) {
   m.last    = find(/last name|surname/);
   m.name    = find(/driver'?s? name|racer'?s? name|^name$|full name|^driver$/);
   if (m.name < 0 && m.first < 0) m.name = find(/name/);
+  m.tx      = find(/transponder|chip|^trans|mylaps|westhold/);
   m.num     = find(/kart|car number|vehicle|number|^#|^no\.?$/);
   m.classes = find(/class|division/);
   m.waiver  = find(/agree|accept|waiver|release|have read/);
@@ -3856,7 +3858,7 @@ function preRows(table, map) {
       else if (!missing.includes(cn)) missing.push(cn.slice(0, 40));
     });
     const w = preCell(row, map.waiver);
-    out.push({ name, num, numRaw: numRaw.slice(0, 60), classIds, missing,
+    out.push({ name, num, numRaw: numRaw.slice(0, 60), classIds, missing, tx: preCell(row, map.tx).replace(/\s+/g, '').slice(0, 20),
       waiver: !!w && !/^(no|false|0)$/i.test(w), request: preCell(row, map.request).slice(0, 80) });
   });
   return out;
@@ -3870,7 +3872,7 @@ function renderPrereg() {
   const el = document.getElementById('preregWrap'); if (!el) return;
   const list = preList();
   const imp = UI.preImp;
-  let h = '<div class="card">'
+  let h = preOnlineMarkup() + '<div class="card">'
     + '<p class="sub" style="margin-top:0">Took entries on a Google Form? Bring them in so drivers don\'t sign up twice. In Google Sheets (the form\'s responses): <b>File → Download → Comma-separated values (.csv)</b>, then pick that file here.</p>'
     + '<input type="file" id="preFile" accept=".csv,.tsv,.txt,text/csv" onchange="preLoadFile(this)">'
     + '<p class="tiny" style="margin-top:8px">Email and mailing address columns are skipped. Late entries? Download again and re-import — drivers already here are matched, not doubled.</p>'
@@ -3880,19 +3882,23 @@ function renderPrereg() {
     const inN = list.filter(preCheckedIn).length;
     h += '<div class="card"><div class="spread" style="margin-bottom:8px"><b>' + plural(list.length, 'pre-registered driver') + '</b><span class="push"></span>'
       + '<span class="badge badge-dim">' + inN + ' checked in today</span></div>'
+      + preCountsMarkup(list)
       + '<div class="stack">' + list.map((p, i) => {
         const cls = p.classIds.map(id => (classById(id) || {}).name).filter(Boolean);
         return '<div class="lrow" style="flex-wrap:wrap">' + (p.num ? discNum(p.num) : '<span class="badge badge-amber">No #</span>')
           + '<span style="flex:1;min-width:160px"><b>' + esc(p.name) + '</b><span class="tiny" style="display:block">'
           + esc(cls.join(' · ') || 'No classes') + (p.missing && p.missing.length ? ' · <span style="color:var(--flag-amber-ink)">not set up: ' + esc(p.missing.join(', ')) + '</span>' : '')
-          + (p.waiver ? ' · waiver signed' : '') + '</span></span>'
+          + (p.waiver ? ' · waiver signed' : '') + (p.tx ? ' · transponder ' + esc(p.tx) : '') + (p.online ? ' · entered online' : '') + '</span></span>'
           + (preCheckedIn(p) ? '<span class="badge badge-green">Checked in</span>' : '')
           + (!p.num ? '<button class="btn btn-sm" onclick="preSetNum(' + i + ')">Set number</button>' : '')
           + '<button class="btn btn-sm btn-danger" onclick="preRemove(' + i + ')">Remove</button></div>';
       }).join('') + '</div>'
-      + '<button class="btn btn-sm" style="margin-top:12px" onclick="preClear()">Clear the list</button></div>';
+      + '<div class="rowflex" style="margin-top:12px"><button class="btn btn-sm" onclick="preCsv()">Download entry list (CSV)</button>'
+      + '<button class="btn btn-sm" onclick="preClear()">Clear the list</button></div></div>';
   }
   el.innerHTML = h;
+  if (UI.preQROn) { const cv = document.getElementById('preQR'); if (cv) drawQR(cv, preEnterUrl()); }
+  preOnlinePull(true);
 }
 function preImportMarkup(imp) {
   const rows = preRows(imp.table, imp.map);
@@ -3943,7 +3949,8 @@ function preImport() {
     if (!d) d = findRosterMatch(r.name, r.num);
     if (!d) { d = { id: genDriverId(), name: r.name, num: r.num || '', noPoints: false }; S.roster.push(d); }
     else if (!d.num && r.num) d.num = r.num;
-    const rec = { driverId: d.id, name: r.name, num: r.num || (p && p.num) || d.num || '', numRaw: r.numRaw,
+    if (r.tx) d.trans = r.tx;   // the timing import matches drivers by d.trans first
+    const rec = { driverId: d.id, name: r.name, num: r.num || (p && p.num) || d.num || '', numRaw: r.numRaw, tx: r.tx || (p && p.tx) || '',
       classIds: r.classIds, missing: r.missing, waiver: r.waiver || !!(p && p.waiver), request: r.request, at: Date.now() };
     if (p) { Object.assign(p, rec); updated++; } else { preList().push(rec); added++; }
   });
@@ -3966,16 +3973,187 @@ function preSetNum(i) {
 function preRemove(i) {
   if (!adminOk()) return;
   const p = preList()[i]; if (!p || !confirm('Remove ' + p.name + ' from the pre-registered list? (They stay in the driver book.)')) return;
-  preList().splice(i, 1); save(); renderPrereg();
+  preList().splice(i, 1); preOnlineForget(p); save(); renderPrereg();
 }
 function preClear() {
-  if (!adminOk() || !confirm('Clear the whole pre-registered list? Drivers stay in the driver book and anyone already checked in stays entered.')) return;
+  if (!adminOk() || !confirm('Clear the whole pre-registered list? Drivers stay in the driver book and anyone already checked in stays entered.' + (S.settings.preOnline && S.settings.preOnline.used ? '\n\nOnline entries are cleared too, ready for your next race.' : ''))) return;
+  preList().forEach(preOnlineForget);
   S.settings.preReg = []; save(); renderPrereg();
+}
+
+/* ---- Online pre-registration: victoryraceday.com/enter/?ROOMCODE ----
+   Drivers enter from home on the public /enter/ page. The admin opens/closes it here; the
+   settings are published to preRegOpen/<code> (public read, staff write) and kept locally at
+   S.settings.preOnline. Entries land at preRegIn/<code>/<id> — only this track's staff
+   devices can read them, and database.rules.json refuses new ones once it's closed or past
+   the closing time. Staff devices pull them into S.settings.preReg (same list the Google
+   Form import fills) whenever the Pre-registrations section or the Sign-up page is open.
+   A changed entry carries `replaces` (the id it updates); the newest per driver wins. */
+function preOnline() {
+  const o = S.settings.preOnline;
+  if (!o || typeof o !== 'object') S.settings.preOnline = { open: false, title: '', date: '', closes: 0, tx: true, waiver: '', note: '', used: false, skip: [] };
+  if (!Array.isArray(S.settings.preOnline.skip)) S.settings.preOnline.skip = [];
+  return S.settings.preOnline;
+}
+function preEnterUrl() { return 'https://victoryraceday.com/enter/?' + encodeURIComponent(syncKey()); }
+function preIsOpen(o) { return !!(o.open && (!o.closes || o.closes > Date.now())); }
+function preLocalDT(ms) {
+  if (!ms) return '';
+  const d = new Date(ms), z = n => String(n).padStart(2, '0');
+  return d.getFullYear() + '-' + z(d.getMonth() + 1) + '-' + z(d.getDate()) + 'T' + z(d.getHours()) + ':' + z(d.getMinutes());
+}
+function preOnlineMarkup() {
+  const o = preOnline();
+  let h = '<div class="card"><div class="spread" style="margin-bottom:6px"><b style="font-size:16px">Pre-registration from home</b><span class="push"></span>'
+    + (preIsOpen(o) ? '<span class="badge badge-green">OPEN</span>' : '<span class="badge badge-dim">CLOSED</span>') + '</div>';
+  if (!syncOn() || !syncKey()) {
+    return h + '<p class="sub" style="margin:0">Drivers enter from their phone before race day, and every entry lands here. It uses your track\'s live sync: turn on <b>Multi-device sync</b> first (Admin → Sync), then come back.</p></div>';
+  }
+  const inp = (id, label, val, ph, max) => '<div class="field"><label for="' + id + '">' + label + '</label><input id="' + id + '" type="text" maxlength="' + max + '" placeholder="' + esc(ph) + '" value="' + esc(val || '') + '" onchange="preOnlineSet(\'' + id.slice(2).toLowerCase() + '\',this.value)"></div>';
+  h += '<p class="sub" style="margin-top:0">Drivers enter from their phone before race day: name, kart number, classes, transponder, and they accept your entry agreement. Every entry lands in the list below for check-in. No email or address is asked for.</p>'
+    + inp('poTitle', 'Race name', o.title, 'e.g. Winter Indoor Series · Race #1', 80)
+    + inp('poDate', 'Race day', o.date, 'e.g. Sunday, Nov 22 · gates 8 AM', 40)
+    + '<div class="field"><label for="poCloses">Stop taking entries (optional)</label><input id="poCloses" type="datetime-local" value="' + preLocalDT(o.closes) + '" onchange="preOnlineSet(\'closes\',this.value)"></div>'
+    + inp('poNote', 'Note for drivers (optional)', o.note, 'e.g. $25 per class, paid at the gate', 200)
+    + '<label class="check" style="margin-bottom:12px"><input type="checkbox"' + (o.tx ? ' checked' : '') + ' onchange="preOnlineSet(\'tx\',this.checked)"><span>Ask for their transponder number</span></label>'
+    + '<div class="field"><label for="poWaiver">Entry agreement / waiver text (optional)</label><textarea id="poWaiver" rows="4" maxlength="4000" placeholder="Paste your release or series rules. Drivers must tick that they accept it." onchange="preOnlineSet(\'waiver\',this.value)">' + esc(o.waiver || '') + '</textarea></div>'
+    + '<div class="rowflex" style="flex-wrap:wrap">'
+    + (preIsOpen(o) ? '<button class="btn btn-danger" onclick="preOnlineOpen(false)">Close pre-registration</button>' : '<button class="btn btn-go" onclick="preOnlineOpen(true)">Open pre-registration</button>')
+    + '<button class="btn" onclick="copyText(preEnterUrl(),\'Entry link copied\')">Copy link</button>'
+    + '<button class="btn" onclick="UI.preQROn=!UI.preQROn;renderPrereg()">' + (UI.preQROn ? 'Hide QR' : 'Show QR') + '</button>'
+    + '<button class="btn" onclick="UI.prePulled=0;preOnlinePull(false)">Check for new entries</button></div>'
+    + '<p class="tiny" style="margin-top:10px;word-break:break-all">Entry link: <b>' + esc(preEnterUrl()) + '</b> · post it on Facebook like a Google Form link.</p>'
+    + (UI.preQROn ? '<div style="text-align:center;margin-top:10px"><canvas id="preQR" width="240" height="240" style="background:#fff;border-radius:10px;padding:8px"></canvas></div>' : '')
+    + '</div>';
+  return h;
+}
+function preOnlineSet(field, v) {
+  if (!adminOk()) return;
+  const o = preOnline();
+  if (field === 'closes') o.closes = v ? new Date(v).getTime() || 0 : 0;
+  else if (field === 'tx') o.tx = !!v;
+  else if (['title', 'date', 'note', 'waiver'].includes(field)) o[field] = String(v || '').slice(0, field === 'waiver' ? 4000 : field === 'note' ? 200 : field === 'date' ? 40 : 80);
+  save();
+  if (o.used) preOnlinePublish().catch(() => toast('Saved here — couldn\'t update the entry page. Check your connection.', 'err'));
+  renderPrereg();
+}
+function preStaffReady() {
+  if (!syncOn() || !syncKey() || GUEST || !canWrite()) return Promise.resolve(false);
+  return loadFirebase().then(() => {
+    if (!firebase.apps.length) firebase.initializeApp(FIREBASE_CONFIG);
+    return Staff.ok ? true : staffJoin();
+  });
+}
+function preOnlinePublish() {
+  const o = preOnline();
+  const doc = { open: !!o.open, title: String(o.title || '').slice(0, 80), date: String(o.date || '').slice(0, 40), tx: !!o.tx,
+    waiver: String(o.waiver || '').slice(0, 4000), note: String(o.note || '').slice(0, 200),
+    track: String((S.track && S.track.name) || '').slice(0, 60), updatedAt: Date.now() };
+  if (o.closes) doc.closes = o.closes;
+  return preStaffReady().then(ok => {
+    if (!ok) throw new Error('not staff');
+    return firebase.database().ref('preRegOpen/' + syncKey()).set(doc);
+  });
+}
+function preOnlineOpen(on) {
+  if (!adminOk()) return;
+  const o = preOnline();
+  if (on && !S.classes.length) { alert('Add your race classes first (Admin → Race classes) — drivers pick from them.'); return; }
+  if (on && o.closes && o.closes <= Date.now()) { if (!confirm('The closing time has already passed. Clear it and open?')) return; o.closes = 0; }
+  const was = o.open;
+  o.open = !!on; o.used = true;
+  preOnlinePublish().then(() => {
+    save(); renderPrereg();
+    toast(on ? 'Pre-registration is open — copy the link and post it.' : 'Pre-registration closed. New entries are refused.', 'ok');
+  }).catch(() => {
+    o.open = was; renderPrereg();
+    alert('Couldn\'t reach the cloud to ' + (on ? 'open' : 'close') + ' pre-registration. Check your connection — this needs the track\'s admin device (staff link).');
+  });
+}
+/* Pull new online entries into the pre-registered list. quiet = at most every 20 s, no toast when nothing new. */
+function preOnlinePull(quiet) {
+  const o = S.settings.preOnline;
+  if (!o || !o.used || !syncOn() || !canWrite()) return Promise.resolve(0);
+  if (quiet && Date.now() - (UI.prePulled || 0) < 20000) return Promise.resolve(0);
+  UI.prePulled = Date.now();
+  return preStaffReady().then(ok => {
+    if (!ok) { if (!quiet) toast('This device can\'t read entries — open RaceDay from the track\'s staff link.', 'err'); return 0; }
+    return firebase.database().ref('preRegIn/' + syncKey()).once('value').then(snap => {
+      const n = preMergeOnline(snap.val() || {});
+      if (n) { toast(plural(n, 'online entry', 'online entries') + ' added — they\'re on the Sign-up page to check in.', 'ok'); if (curPage === 'signup' && !signupDone && !document.getElementById('dName').value) renderSignup(); else renderPreList(); renderPrereg(); }
+      else if (!quiet) toast('No new entries.', 'ok');
+      return n;
+    });
+  }).catch(e => { if (!quiet) toast('Couldn\'t check for entries — check your connection.', 'err'); return 0; });
+}
+function preMergeOnline(all) {
+  UI.preOnlineIds = all;
+  const o = preOnline();
+  const entries = Object.keys(all).map(id => Object.assign({}, all[id], { id }))
+    .filter(e => e && typeof e.name === 'string' && e.name.trim() && !o.skip.includes(e.id))
+    .sort((a, b) => (a.at || 0) - (b.at || 0));
+  let n = 0;
+  entries.forEach(e => {
+    let p = (e.replaces && preList().find(x => x.rid === e.replaces)) || preFind(e.name);
+    if (p && (p.rid === e.id || (p.oat || 0) >= (e.at || 0))) return;
+    if (p && p.rid && o.skip.includes(p.rid)) return;
+    const name = String(e.name).replace(/\s+/g, ' ').trim().slice(0, 60);
+    const num = /^[A-Za-z0-9]{1,5}$/.test(e.num || '') ? String(e.num).toUpperCase() : '';
+    const tx = String(e.tx || '').slice(0, 20);
+    const classIds = String(e.classes || '').split(',').map(Number).filter(id => classById(id));
+    let d = p ? driverById(p.driverId) : null;
+    if (!d) d = findRosterMatch(name, num);
+    if (!d) { d = { id: genDriverId(), name, num, noPoints: false }; S.roster.push(d); }
+    else if (!d.num && num) d.num = num;
+    if (tx) d.trans = tx;
+    const rec = { driverId: d.id, name, num: num || (p && p.num) || d.num || '', numRaw: num, tx: tx || (p && p.tx) || '',
+      classIds, missing: [], waiver: true, request: String(e.want || '').slice(0, 80), at: Date.now(),
+      rid: e.id, oat: e.at || 0, online: true, driven: String(e.driven || '').slice(0, 12) };
+    if (p) Object.assign(p, rec); else preList().push(rec);
+    n++;
+  });
+  if (n) save();
+  return n;
+}
+/* Removing someone (or clearing the list) also drops their online entries so a pull doesn't bring them back. */
+function preOnlineForget(p) {
+  const o = S.settings.preOnline;
+  if (!o || !o.used || !p) return;
+  const all = UI.preOnlineIds || {};
+  const ids = Object.keys(all).filter(id => id === p.rid || preNorm(all[id] && all[id].name) === preNorm(p.name));
+  if (p.rid && !ids.includes(p.rid)) ids.push(p.rid);
+  ids.forEach(id => { if (!o.skip.includes(id)) o.skip.push(id); });
+  if (o.skip.length > 400) o.skip = o.skip.slice(-400);
+  if (!ids.length) return;
+  preStaffReady().then(ok => {
+    if (!ok) return;
+    const upd = {}; ids.forEach(id => { upd[id] = null; });
+    return firebase.database().ref('preRegIn/' + syncKey()).update(upd);
+  }).catch(() => {});
+}
+/* Class counts + the classes drivers asked for (answers "Open needs 10" before race morning). */
+function preCountsMarkup(list) {
+  const counts = S.classes.map(c => ({ c, n: list.filter(p => p.classIds.includes(c.id)).length })).filter(x => x.n);
+  const req = {};
+  list.forEach(p => { const r = String(p.request || '').trim(); if (r && !/^(no|none|n\/a|na|-)$/i.test(r)) { const k = r.toLowerCase(); req[k] = req[k] || { r, n: 0 }; req[k].n++; } });
+  const reqs = Object.values(req).sort((a, b) => b.n - a.n);
+  if (!counts.length && !reqs.length) return '';
+  return '<div class="tiny" style="margin-bottom:10px;line-height:1.7">'
+    + counts.map(x => '<span class="badge badge-dim" style="margin:0 4px 4px 0">' + esc(x.c.name) + ' · ' + x.n + '</span>').join('')
+    + (reqs.length ? '<div>Classes drivers asked for: ' + reqs.map(x => '<b>' + esc(x.r) + '</b> (' + x.n + ')').join(', ') + '</div>' : '')
+    + '</div>';
+}
+function preCsv() {
+  const rows = [['Driver', 'Kart #', 'Classes', 'Transponder', 'Waiver', 'Checked in', 'Entered', 'Class request', 'Driven code']];
+  preList().forEach(p => rows.push([p.name, p.num, p.classIds.map(id => (classById(id) || {}).name).filter(Boolean).join(' / '), p.tx || '',
+    p.waiver ? 'yes' : '', preCheckedIn(p) ? 'yes' : '', p.online ? 'online' : 'import', p.request || '', p.driven || '']));
+  downloadFile('pre-registrations-' + (S.raceDay.date || today()) + '.csv', csvRows(rows), 'text/csv');
 }
 
 /* ---- Sign-up page: the check-in list ---- */
 function preregCheckinMarkup() {
   const list = Array.isArray(S.settings.preReg) ? S.settings.preReg : [];
+  if (canWrite()) setTimeout(() => preOnlinePull(true), 0);
   if (!canWrite() || !list.length) return '';
   const left = list.filter(p => !preCheckedIn(p)).length;
   return '<details class="card" id="preCard"' + (left ? ' open' : '') + ' style="margin-bottom:14px"><summary style="cursor:pointer"><b>Pre-registered</b> <span class="tiny">· '
@@ -3992,7 +4170,7 @@ function renderPreList() {
   el.innerHTML = rows.length ? rows.map(({ p, i }) => {
     const cls = p.classIds.map(id => (classById(id) || {}).name).filter(Boolean).join(' · ');
     return '<div class="lrow">' + (p.num ? discNum(p.num) : '<span class="badge badge-amber">No #</span>')
-      + '<span style="flex:1;min-width:0"><b>' + esc(p.name) + '</b><span class="tiny" style="display:block">' + esc(cls || 'No classes') + '</span></span>'
+      + '<span style="flex:1;min-width:0"><b>' + esc(p.name) + '</b><span class="tiny" style="display:block">' + esc(cls || 'No classes') + (p.tx ? ' · transponder ' + esc(p.tx) : '') + '</span></span>'
       + (preCheckedIn(p) ? '<span class="badge badge-green">Checked in</span>' : '<button class="btn btn-sm btn-primary" onclick="preCheckIn(' + i + ')">Check in</button>')
       + '</div>';
   }).join('') : '<p class="tiny" style="margin:4px 0">No one matches.</p>';
@@ -4010,6 +4188,8 @@ function preCheckIn(i) {
   renderRosterPick();
   renderChips();
   S.classes.forEach(c => { const ch = document.getElementById('ch' + c.id); if (ch && ch.tagName === 'BUTTON') ch.classList.toggle('on', p.classIds.includes(c.id)); });
+  const pc = document.getElementById('dProfCode');
+  if (pc && p.driven && d && !d.profileId) pc.value = p.driven;   // links their Driven card when they're drawn
   const note = document.getElementById('scanNote');
   if (note) {
     note.className = 'note note-ok'; note.style.display = '';

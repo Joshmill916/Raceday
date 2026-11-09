@@ -6,6 +6,43 @@
         ".write": "auth != null && root.child('trackStaff').child($key).child(auth.uid).exists()"
       }
     },
+    "preRegOpen": {
+      "$key": {
+        ".read": true,
+        ".write": "auth != null && root.child('trackStaff').child($key).child(auth.uid).exists()",
+        ".validate": "newData.hasChildren(['open','updatedAt'])",
+        "open": { ".validate": "newData.isBoolean()" },
+        "title": { ".validate": "newData.isString() && newData.val().length <= 80" },
+        "date": { ".validate": "newData.isString() && newData.val().length <= 40" },
+        "closes": { ".validate": "newData.isNumber()" },
+        "tx": { ".validate": "newData.isBoolean()" },
+        "waiver": { ".validate": "newData.isString() && newData.val().length <= 4000" },
+        "track": { ".validate": "newData.isString() && newData.val().length <= 60" },
+        "note": { ".validate": "newData.isString() && newData.val().length <= 200" },
+        "updatedAt": { ".validate": "newData.isNumber()" },
+        "$other": { ".validate": false }
+      }
+    },
+    "preRegIn": {
+      "$key": {
+        ".read": "auth != null && root.child('trackStaff').child($key).child(auth.uid).exists()",
+        ".write": "auth != null && root.child('trackStaff').child($key).child(auth.uid).exists()",
+        "$id": {
+          ".write": "(!data.exists() && newData.exists() && root.child('preRegOpen').child($key).child('open').val() === true && (!root.child('preRegOpen').child($key).child('closes').exists() || root.child('preRegOpen').child($key).child('closes').val() > now)) || (auth != null && root.child('trackStaff').child($key).child(auth.uid).exists())",
+          ".validate": "newData.hasChildren(['name','classes','waiver','at'])",
+          "name": { ".validate": "newData.isString() && newData.val().length >= 2 && newData.val().length <= 60" },
+          "num": { ".validate": "newData.isString() && newData.val().matches(/^[A-Za-z0-9]{0,5}$/)" },
+          "tx": { ".validate": "newData.isString() && newData.val().length <= 20" },
+          "classes": { ".validate": "newData.isString() && newData.val().matches(/^[0-9,]{1,600}$/)" },
+          "want": { ".validate": "newData.isString() && newData.val().length <= 80" },
+          "driven": { ".validate": "newData.isString() && newData.val().matches(/^[A-Za-z0-9]{0,12}$/)" },
+          "waiver": { ".validate": "newData.isBoolean() && newData.val() === true" },
+          "replaces": { ".validate": "newData.isString() && newData.val().length <= 40" },
+          "at": { ".validate": "newData.isNumber() && newData.val() <= now + 60000" },
+          "$other": { ".validate": false }
+        }
+      }
+    },
     "trackOwner": {
       "$key": {
         ".read": true,

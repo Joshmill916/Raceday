@@ -1,0 +1,191 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Pre-register — RaceDay</title>
+<meta name="description" content="Pre-register for a race run on RaceDay. Your entry goes straight to the track.">
+<meta name="robots" content="noindex">
+<link href="https://fonts.googleapis.com/css2?family=Saira+Condensed:wght@600;700;800&display=swap" rel="stylesheet">
+<link rel="icon" type="image/png" href="../raceday2/icon-rd.png">
+<meta name="theme-color" content="#0b0c0f">
+<style>
+  /* Public pre-registration page: victoryraceday.com/enter/?ROOMCODE
+     Reads the track's open/closed settings (preRegOpen/<code>) and its classes
+     (tracks/<code>/classes, public) over the Firebase REST API — no SDK, no account —
+     and adds one entry at preRegIn/<code>/<id>. Entries are readable only by the
+     track's staff devices; database.rules.json refuses entries once it's closed.
+     No email, phone or address is ever asked for. */
+  :root { --bg:#0b0c0f; --card:#131519; --line:#2e333c; --ink:#f2f2ee; --dim:#8b909b; --plate:#ffd449; --ok:#7ee2a8; --okbg:#0f2a1b; --bad:#ff8a80; --badbg:#3a1512; --blue:#8ec1f0; --bluebg:#101c2b;
+          --display:'Saira Condensed','Arial Narrow',sans-serif; }
+  * { box-sizing:border-box; }
+  body { margin:0; background:var(--bg); color:var(--ink); font:16px/1.45 -apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif; }
+  .wrap { max-width:520px; margin:0 auto; padding:20px 16px 48px; }
+  .cap { font-size:12px; color:var(--dim); font-weight:700; letter-spacing:1px; text-transform:uppercase; }
+  h1 { font:800 30px/1.05 var(--display); margin:4px 0 2px; }
+  .sub { color:var(--dim); font-size:14px; }
+  .card { background:var(--card); border:1px solid var(--line); border-radius:13px; padding:14px; margin-top:14px; }
+  .note { border-radius:11px; padding:11px 13px; font-size:14px; margin-top:14px; }
+  .note.info { background:var(--bluebg); color:var(--blue); }
+  .note.bad { background:var(--badbg); color:var(--bad); }
+  .note.ok { background:var(--okbg); color:var(--ok); }
+  label.f { display:block; font-size:13px; color:var(--dim); font-weight:600; margin:14px 0 5px; }
+  input[type=text] { width:100%; height:50px; border-radius:11px; border:1px solid var(--line); background:#1b1e24; color:var(--ink); font-size:17px; padding:0 14px; }
+  input[type=text]:focus { outline:2px solid var(--plate); outline-offset:1px; }
+  .two { display:grid; grid-template-columns:1fr 1fr; gap:10px; }
+  .chips { display:flex; flex-wrap:wrap; gap:8px; }
+  .chip { min-height:44px; padding:8px 14px; border-radius:999px; border:1px solid var(--line); background:#1b1e24; color:var(--ink); font-size:15px; font-weight:600; cursor:pointer; }
+  .chip.on { background:var(--plate); border-color:var(--plate); color:#161408; }
+  .check { display:flex; gap:10px; align-items:flex-start; font-size:14px; margin-top:16px; }
+  .check input { width:22px; height:22px; flex:none; margin-top:1px; accent-color:var(--plate); }
+  .btn { display:block; width:100%; height:54px; border-radius:13px; border:0; background:var(--plate); color:#161408; font-size:17px; font-weight:800; cursor:pointer; margin-top:18px; text-align:center; line-height:54px; text-decoration:none; }
+  .btn.ghost { background:#1b1e24; color:var(--ink); border:1px solid var(--line); font-weight:600; }
+  .btn:disabled { opacity:.5; }
+  .row { display:flex; gap:10px; align-items:center; }
+  .row .btn { margin-top:0; }
+  .sm { height:44px; line-height:44px; font-size:15px; width:auto; padding:0 16px; white-space:nowrap; flex:none; }
+  details summary { cursor:pointer; color:var(--plate); font-size:14px; }
+  .waiver { white-space:pre-wrap; font-size:13px; color:#c3c7cf; max-height:260px; overflow-y:auto; margin-top:8px; }
+  .plate { display:inline-block; background:var(--plate); color:#161408; font:800 30px var(--display); border-radius:8px; padding:0 12px; margin-right:8px; }
+  .kv { display:flex; justify-content:space-between; padding:9px 0; border-bottom:1px solid #21252c; font-size:15px; }
+  .kv:last-child { border-bottom:0; } .kv span:first-child { color:var(--dim); }
+  .err { color:var(--bad); font-size:14px; margin-top:8px; min-height:1px; }
+  a { color:var(--plate); }
+  .foot { text-align:center; color:var(--dim); font-size:12px; margin-top:28px; }
+</style>
+</head>
+<body>
+<div class="wrap" id="app"><p class="sub">Loading…</p></div>
+<script>
+const DB = 'https://raceday-d32dd-default-rtdb.firebaseio.com';
+const CODE = (location.search.replace(/^\?/, '').split('&')[0] || '').replace(/^r=/, '').toUpperCase().replace(/[^A-Z0-9_-]/g, '').slice(0, 40);
+const KEY = 'rd_prereg_' + CODE;
+const app = document.getElementById('app');
+const esc = s => String(s == null ? '' : s).replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+let cfg = null, classes = [], trackName = '', picked = new Set(), mine = null, editing = false;
+
+function get(path) { return fetch(DB + '/' + path + '.json').then(r => r.ok ? r.json() : null); }
+function saved() { try { return JSON.parse(localStorage.getItem(KEY) || 'null'); } catch (e) { return null; } }
+function keep(v) { try { localStorage.setItem(KEY, JSON.stringify(v)); } catch (e) {} }
+function closesText() {
+  if (!cfg || !cfg.closes) return '';
+  return new Date(cfg.closes).toLocaleString([], { weekday: 'short', month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit' });
+}
+function isOpen() { return !!(cfg && cfg.open && (!cfg.closes || cfg.closes > Date.now())); }
+function head() {
+  return '<span class="cap">Pre-registration' + (trackName ? ' · ' + esc(trackName) : '') + '</span>'
+    + '<h1>' + esc(cfg && cfg.title || trackName || 'Race entry') + '</h1>'
+    + (cfg && cfg.date ? '<div class="sub">' + esc(cfg.date) + '</div>' : '');
+}
+
+async function boot() {
+  if (!CODE) { app.innerHTML = '<h1>Pre-register</h1><div class="note bad">This link is missing the track\'s code. Ask the track for their pre-registration link.</div>'; return; }
+  try {
+    const [c, cl, tr] = await Promise.all([get('preRegOpen/' + encodeURIComponent(CODE)), get('tracks/' + encodeURIComponent(CODE) + '/classes'), get('tracks/' + encodeURIComponent(CODE) + '/track')]);
+    cfg = c;
+    try { classes = (JSON.parse(cl || '[]') || []).filter(k => k && k.id != null && k.name); } catch (e) { classes = []; }
+    try { trackName = ((JSON.parse(tr || 'null') || {}).name || '') || (cfg && cfg.track) || ''; } catch (e) { trackName = (cfg && cfg.track) || ''; }
+  } catch (e) {
+    app.innerHTML = '<h1>Pre-register</h1><div class="note bad">Couldn\'t reach the track. Check your signal and reload.</div>'; return;
+  }
+  mine = saved();
+  render();
+}
+
+function render() {
+  if (!cfg) { app.innerHTML = head() + '<div class="note bad">This track hasn\'t opened pre-registration. Check the link, or sign up at the gate on race day.</div>' + foot(); return; }
+  if (mine && !editing) { app.innerHTML = confirmMarkup(); return; }
+  if (!isOpen()) { app.innerHTML = head() + '<div class="note bad">Pre-registration is closed' + (cfg.closes && cfg.closes <= Date.now() ? ' (it closed ' + esc(closesText()) + ')' : '') + '. You can still sign up at the gate on race day.</div>' + foot(); return; }
+  const m = editing && mine ? mine : {};
+  if (editing && mine) picked = new Set(String(mine.classes || '').split(',').filter(Boolean).map(Number));
+  app.innerHTML = head()
+    + (cfg.closes ? '<div class="note info">Pre-entry closes ' + esc(closesText()) + (cfg.note ? ' · ' + esc(cfg.note) : '') + '</div>' : (cfg.note ? '<div class="note info">' + esc(cfg.note) + '</div>' : ''))
+    + '<div class="card"><b>On Driven?</b> <span class="sub">Type your link code and we fill this in.</span>'
+    + '<div class="row" style="margin-top:10px"><input type="text" id="dv" placeholder="Link code, e.g. K7Q2M4XN" maxlength="12" autocapitalize="characters" autocomplete="off" value="' + esc(m.driven || '') + '">'
+    + '<button class="btn ghost sm" type="button" onclick="useDriven()">Fill in</button></div><div class="err" id="dvErr"></div></div>'
+    + '<label class="f" for="nm">Driver name</label><input type="text" id="nm" maxlength="60" autocomplete="name" placeholder="First and last name" value="' + esc(m.name || '') + '">'
+    + '<div class="' + (cfg.tx ? 'two' : '') + '"><div><label class="f" for="nu">Kart number</label><input type="text" id="nu" maxlength="5" autocapitalize="characters" autocomplete="off" placeholder="e.g. 47 or 12A" value="' + esc(m.num || '') + '"></div>'
+    + (cfg.tx ? '<div><label class="f" for="tx">Transponder # (optional)</label><input type="text" id="tx" maxlength="20" inputmode="numeric" autocomplete="off" value="' + esc(m.tx || '') + '"></div>' : '') + '</div>'
+    + '<label class="f">Classes</label>'
+    + (classes.length ? '<div class="chips" id="chips">' + classes.map(k => '<button type="button" class="chip' + (picked.has(k.id) ? ' on' : '') + '" onclick="tog(' + Number(k.id) + ',this)">' + esc(k.name) + '</button>').join('') + '</div>'
+      : '<div class="note bad" style="margin-top:0">The track hasn\'t set up its classes yet. Check back soon.</div>')
+    + '<label class="f" for="want">Class you\'d like added (optional)</label><input type="text" id="want" maxlength="80" autocomplete="off" value="' + esc(m.want || '') + '">'
+    + (cfg.waiver ? '<details style="margin-top:16px"><summary>Read the entry agreement</summary><div class="waiver">' + esc(cfg.waiver) + '</div></details>' : '')
+    + '<label class="check"><input type="checkbox" id="ok"><span>I have read and accept the ' + (cfg.waiver ? 'entry agreement above' : 'track\'s rules and entry agreement') + '. Under 18: a parent or guardian is filling this in.</span></label>'
+    + '<div class="err" id="err"></div>'
+    + '<button class="btn" id="go" type="button" onclick="submitEntry()">' + (editing ? 'Save my entry' : 'Pre-register') + '</button>'
+    + (editing ? '<button class="btn ghost" type="button" onclick="editing=false;render()">Cancel</button>' : '')
+    + '<p class="sub" style="margin-top:12px">No payment now. Only your name, number and classes are sent to the track.</p>' + foot();
+}
+function foot() { return '<div class="foot">Runs on <a href="https://victoryraceday.com/" target="_blank" rel="noopener">RaceDay</a></div>'; }
+function tog(id, el) { picked.has(id) ? picked.delete(id) : picked.add(id); el.classList.toggle('on', picked.has(id)); }
+
+async function useDriven() {
+  const code = document.getElementById('dv').value.trim().toUpperCase().replace(/[^A-Z0-9]/g, '');
+  const e = document.getElementById('dvErr'); e.textContent = '';
+  if (code.length < 6) { e.textContent = 'Link codes are 8 letters and numbers, from Settings in the Driven app.'; return; }
+  e.textContent = 'Looking…'; e.style.color = 'var(--dim)';
+  try {
+    const id = await get('profiles_short/' + code);
+    const card = id ? await get('profiles/' + encodeURIComponent(id) + '/card') : null;
+    if (!card) { e.style.color = ''; e.textContent = 'No Driven card has that code. 0 is zero, O is the letter.'; return; }
+    document.getElementById('nm').value = card.name || '';
+    if (card.num) document.getElementById('nu').value = String(card.num).replace(/^#/, '').slice(0, 5);
+    e.style.color = 'var(--ok)'; e.textContent = 'Filled in from ' + (card.name || 'your card') + '\'s Driven card. Your results from this race go to it.';
+  } catch (x) { e.style.color = ''; e.textContent = 'Couldn\'t reach Driven. Type your name and number instead.'; }
+}
+
+async function submitEntry() {
+  const err = document.getElementById('err'); err.textContent = '';
+  const name = document.getElementById('nm').value.replace(/\s+/g, ' ').trim();
+  const num = document.getElementById('nu').value.trim().replace(/^#\s*/, '').toUpperCase();
+  const txEl = document.getElementById('tx');
+  const tx = txEl ? txEl.value.replace(/\s+/g, '').slice(0, 20) : '';
+  const driven = document.getElementById('dv').value.trim().toUpperCase().replace(/[^A-Z0-9]/g, '').slice(0, 12);
+  const want = document.getElementById('want').value.trim().slice(0, 80);
+  const valid = new Set(classes.map(k => Number(k.id)));
+  const cls = [...picked].filter(id => valid.has(id));
+  if (name.length < 2) { err.textContent = 'Enter the driver\'s name.'; return; }
+  if (num && !/^[A-Z0-9]{1,5}$/.test(num)) { err.textContent = 'Kart number: 1 to 5 letters or numbers, like 47 or 12A.'; return; }
+  if (!cls.length) { err.textContent = 'Pick at least one class.'; return; }
+  if (!document.getElementById('ok').checked) { err.textContent = 'Tick the box to accept the entry agreement.'; return; }
+  const entry = { name, num, tx, classes: cls.join(","), want, driven, waiver: true, at: { ".sv": "timestamp" } };
+  if (editing && mine && mine.id) entry.replaces = String(mine.id).slice(0, 40);
+  const b = document.getElementById('go'); b.disabled = true; b.textContent = 'Sending…';
+  try {
+    const r = await fetch(DB + '/preRegIn/' + encodeURIComponent(CODE) + '.json', { method: 'POST', body: JSON.stringify(entry) });
+    if (!r.ok) throw new Error(r.status === 401 || r.status === 403 ? 'closed' : 'net');
+    const res = await r.json();
+    mine = Object.assign({}, entry, { at: Date.now(), id: res && res.name });
+    keep(mine); editing = false; render(); window.scrollTo(0, 0);
+  } catch (x) {
+    b.disabled = false; b.textContent = editing ? 'Save my entry' : 'Pre-register';
+    err.textContent = x.message === 'closed' ? 'The track isn\'t taking pre-entries right now (it may have just closed). Sign up at the gate.' : 'Couldn\'t send. Check your signal and try again.';
+  }
+}
+
+function confirmMarkup() {
+  const names = String(mine.classes || '').split(',').map(id => (classes.find(k => String(k.id) === id) || {}).name).filter(Boolean);
+  const live = 'https://victoryraceday.com/raceday2/?sync=' + encodeURIComponent(CODE) + '&role=viewer';
+  return '<span class="cap" style="color:var(--ok)">You\'re pre-entered' + (trackName ? ' · ' + esc(trackName) : '') + '</span>'
+    + '<h1>' + (mine.num ? '<span class="plate">' + esc(mine.num) + '</span>' : '') + esc(mine.name) + '</h1>'
+    + '<div class="sub">' + esc(names.join(' · ')) + '</div>'
+    + '<div class="note ok">Sent to the track. At the gate, just tell them your name. They tap Check in and you\'re drawn.</div>'
+    + '<div class="card">'
+    + (cfg && (cfg.title || cfg.date) ? '<div class="kv"><span>Race</span><span>' + esc([cfg.title, cfg.date].filter(Boolean).join(' · ')) + '</span></div>' : '')
+    + (mine.tx ? '<div class="kv"><span>Transponder</span><span>' + esc(mine.tx) + '</span></div>' : '')
+    + (mine.want ? '<div class="kv"><span>Class you asked for</span><span>' + esc(mine.want) + '</span></div>' : '')
+    + '<div class="kv"><span>Sent</span><span>' + esc(new Date(mine.at).toLocaleString([], { month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit' })) + '</span></div>'
+    + '</div>'
+    + (isOpen() ? '<button class="btn ghost" type="button" onclick="editing=true;render()">Change my entry</button>' : '')
+    + '<a class="btn ghost" href="' + esc(live) + '">Race day: live lineups and results</a>'
+    + (!mine.driven ? '<div class="card"><b>Not on Driven yet?</b><div class="sub" style="margin-top:4px">Make a free driver card and your results from this track land on it.</div><a class="btn ghost" style="margin-top:10px" href="https://victoryraceday.com/driven/" target="_blank" rel="noopener">Make my Driven card</a></div>' : '')
+    + '<p class="sub" style="margin-top:16px">Entering another driver? <a href="#" onclick="mine=null;editing=false;picked=new Set();keep(null);render();return false">Start a new entry</a> (this one stays sent).</p>'
+    + foot();
+}
+
+boot();
+</script>
+<!-- Cloudflare Web Analytics --><script>/* skipped on devices opted out at /me/ (the owner's own testing) and on local dev/test copies */try{if(localStorage.getItem('rd_dont_count')!=='1'&&!(/^(localhost|127\.0\.0\.1|\[::1\])$|\.(localhost|test)$/.test(location.hostname)&&localStorage.getItem('rd_count_local')!=='1')){var cfb=document.createElement('script');cfb.defer=true;cfb.src='https://static.cloudflareinsights.com/beacon.min.js';cfb.setAttribute('data-cf-beacon','{"token": "07e858325a984890a4f60c1cec1942bc"}');(document.body||document.head).appendChild(cfb);}}catch(e){}</script><!-- End Cloudflare Web Analytics -->
+</body>
+</html>
