@@ -848,7 +848,7 @@ const GARAGE_KEY = 'rd_garage_v2';
 const ACTIVE_TRACK_KEY = 'rd_active_track_v2';
 // Reported with every usage row and crash. The part after the dot MUST match this app's
 // sw.js CACHE number (tests/test-app-version.js) — bump both together on each release.
-const APP_VERSION = '2026-11-08.v20';
+const APP_VERSION = '2026-11-08.v21';
 const LEGAL_VERSION = '2026-06';   // bump when Terms / Privacy wording changes, so acceptances are versioned
 const TELEMETRY_URL = 'https://script.google.com/macros/s/AKfycbxa3i3y17TLp_NfXOOu2jM7-YzXH2fScxcXoQYmIh0-873rxWfxg0HdRP1DVsxZq6iR/exec';
 const FIREBASE_CONFIG = {
@@ -1220,6 +1220,7 @@ function restoreResVersion(clsId, idx) {
 const UI = {
   viewClsId: null,        /* class selected on Lineups */
   viewStage: 'qual',      /* which stage the Lineups view is showing */
+  preImp: null, preQ: "",  /* pre-registration import preview + the sign-up check-in search */
   ptsTab: null, ptsNames: [],
   histOpen: null,
   admSec: null,           /* v2: which admin section is open (v1: admOpen) */
@@ -3787,6 +3788,239 @@ function findRosterMatch(name, num) {
 
 let signupDone = null;      /* {driver, drawn} while the pill reveal is showing */
 
+/* ============================================================================
+   PRE-REGISTRATIONS — a series that already took entries on a Google Form (or any
+   form that exports CSV) brings them in here instead of asking drivers again.
+   The CSV's columns are matched by their wording (the admin can change any match),
+   each driver lands in the driver book plus the pre-registered list, and on race morning the
+   Sign-up page lists them: "Check in" fills the sign-up form (name, number, their
+   classes) so the gate just taps Draw. Email and mailing address are never read.
+   Kept at S.settings.preReg (v2 adds no new top-level fields — same as S.settings.schedule),
+   so it syncs with settings: names, numbers, classes only — no contact info.
+   ========================================================================= */
+function preNorm(s) { return String(s || '').toLowerCase().replace(/\([^)]*\)/g, '').replace(/[^a-z0-9]/g, ''); }
+const PRE_FIELDS = [
+  { id: 'name',    label: 'Driver name' },
+  { id: 'first',   label: 'First name' },
+  { id: 'last',    label: 'Last name' },
+  { id: 'num',     label: 'Kart number' },
+  { id: 'classes', label: 'Classes' },
+  { id: 'waiver',  label: 'Waiver accepted' },
+  { id: 'request', label: 'Classes they asked for' }
+];
+/* Best guess at which column holds what. Never maps email/address/phone/timestamp. */
+function preGuessCols(headers) {
+  const h = headers.map(x => String(x || '').toLowerCase());
+  const skip = i => /e-?mail|address|street|city|zip|phone|timestamp|date|signature/.test(h[i]) && !/name/.test(h[i]);
+  const used = new Set();
+  const find = re => { const i = h.findIndex((x, j) => !used.has(j) && !skip(j) && re.test(x)); if (i >= 0) used.add(i); return i; };
+  const m = {};
+  m.request = find(/like to see|be added|added|suggest|request/);
+  m.first   = find(/first name/);
+  m.last    = find(/last name|surname/);
+  m.name    = find(/driver'?s? name|racer'?s? name|^name$|full name|^driver$/);
+  if (m.name < 0 && m.first < 0) m.name = find(/name/);
+  m.num     = find(/kart|car number|vehicle|number|^#|^no\.?$/);
+  m.classes = find(/class|division/);
+  m.waiver  = find(/agree|accept|waiver|release|have read/);
+  return m;
+}
+/* Split a "PREDATOR, STOCK APPEARING" cell — commas inside (…) don't split. */
+function preSplitClasses(cell) {
+  const out = []; let cur = '', depth = 0;
+  for (const ch of String(cell || '')) {
+    if (ch === '(') depth++;
+    if (ch === ')') depth = Math.max(0, depth - 1);
+    if ((ch === ',' || ch === ';' || ch === '\n') && !depth) { if (cur.trim()) out.push(cur.trim()); cur = ''; }
+    else cur += ch;
+  }
+  if (cur.trim()) out.push(cur.trim());
+  return out;
+}
+function preCell(row, i) { return i >= 0 && i < row.length ? String(row[i] || '').trim() : ''; }
+/* Turn parsed CSV rows + a column map into pre-registration rows (nothing saved yet). */
+function preRows(table, map) {
+  const out = [];
+  table.slice(1).forEach(row => {
+    let name = preCell(row, map.name);
+    if (!name) name = (preCell(row, map.first) + ' ' + preCell(row, map.last)).trim();
+    name = name.replace(/\s+/g, ' ').slice(0, 60);
+    if (!name) return;
+    const numRaw = preCell(row, map.num);
+    const numClean = numRaw.replace(/^#\s*/, '').trim();
+    const num = /^[A-Za-z0-9]{1,5}$/.test(numClean) ? numClean : '';
+    const classIds = [], missing = [];
+    preSplitClasses(preCell(row, map.classes)).forEach(cn => {
+      const c = S.classes.find(k => preNorm(k.name) === preNorm(cn));
+      if (c) { if (!classIds.includes(c.id)) classIds.push(c.id); }
+      else if (!missing.includes(cn)) missing.push(cn.slice(0, 40));
+    });
+    const w = preCell(row, map.waiver);
+    out.push({ name, num, numRaw: numRaw.slice(0, 60), classIds, missing,
+      waiver: !!w && !/^(no|false|0)$/i.test(w), request: preCell(row, map.request).slice(0, 80) });
+  });
+  return out;
+}
+function preList() { if (!Array.isArray(S.settings.preReg)) S.settings.preReg = []; return S.settings.preReg; }
+function preFind(name) { return preList().find(p => preNorm(p.name) === preNorm(name)); }
+function preCheckedIn(p) { return S.raceDay.entries.some(e => e.driverId === p.driverId); }
+
+/* ---- Admin section ---- */
+function renderPrereg() {
+  const el = document.getElementById('preregWrap'); if (!el) return;
+  const list = preList();
+  const imp = UI.preImp;
+  let h = '<div class="card">'
+    + '<p class="sub" style="margin-top:0">Took entries on a Google Form? Bring them in so drivers don\'t sign up twice. In Google Sheets (the form\'s responses): <b>File → Download → Comma-separated values (.csv)</b>, then pick that file here.</p>'
+    + '<input type="file" id="preFile" accept=".csv,.tsv,.txt,text/csv" onchange="preLoadFile(this)">'
+    + '<p class="tiny" style="margin-top:8px">Email and mailing address columns are skipped. Late entries? Download again and re-import — drivers already here are matched, not doubled.</p>'
+    + '</div>';
+  if (imp) h += preImportMarkup(imp);
+  if (list.length) {
+    const inN = list.filter(preCheckedIn).length;
+    h += '<div class="card"><div class="spread" style="margin-bottom:8px"><b>' + plural(list.length, 'pre-registered driver') + '</b><span class="push"></span>'
+      + '<span class="badge badge-dim">' + inN + ' checked in today</span></div>'
+      + '<div class="stack">' + list.map((p, i) => {
+        const cls = p.classIds.map(id => (classById(id) || {}).name).filter(Boolean);
+        return '<div class="lrow" style="flex-wrap:wrap">' + (p.num ? discNum(p.num) : '<span class="badge badge-amber">No #</span>')
+          + '<span style="flex:1;min-width:160px"><b>' + esc(p.name) + '</b><span class="tiny" style="display:block">'
+          + esc(cls.join(' · ') || 'No classes') + (p.missing && p.missing.length ? ' · <span style="color:var(--flag-amber-ink)">not set up: ' + esc(p.missing.join(', ')) + '</span>' : '')
+          + (p.waiver ? ' · waiver signed' : '') + '</span></span>'
+          + (preCheckedIn(p) ? '<span class="badge badge-green">Checked in</span>' : '')
+          + (!p.num ? '<button class="btn btn-sm" onclick="preSetNum(' + i + ')">Set number</button>' : '')
+          + '<button class="btn btn-sm btn-danger" onclick="preRemove(' + i + ')">Remove</button></div>';
+      }).join('') + '</div>'
+      + '<button class="btn btn-sm" style="margin-top:12px" onclick="preClear()">Clear the list</button></div>';
+  }
+  el.innerHTML = h;
+}
+function preImportMarkup(imp) {
+  const rows = preRows(imp.table, imp.map);
+  const head = imp.table[0] || [];
+  const opt = (sel) => '<option value="-1">— none —</option>' + head.map((x, i) => '<option value="' + i + '"' + (i === sel ? ' selected' : '') + '>' + esc(String(x).slice(0, 60)) + '</option>').join('');
+  const ready = rows.filter(r => r.num && !r.missing.length).length;
+  const missingAll = [...new Set(rows.flatMap(r => r.missing))];
+  let h = '<div class="card"><b style="font-size:16px">' + esc(imp.file) + ' · ' + plural(rows.length, 'driver') + ' found</b>'
+    + '<div class="tiny" style="margin:4px 0 12px">' + ready + ' ready · ' + rows.filter(r => !r.num).length + ' need a kart number · '
+    + rows.filter(r => findRosterMatch(r.name, r.num) || preFind(r.name)).length + ' already here</div>'
+    + '<div class="slbl">Their columns</div><div class="stack" style="gap:6px;margin-bottom:12px">'
+    + PRE_FIELDS.map(f => '<label class="spread" style="gap:10px"><span style="min-width:150px">' + f.label + '</span>'
+      + '<select onchange="preMap(\'' + f.id + '\',this.value)">' + opt(imp.map[f.id]) + '</select></label>').join('') + '</div>';
+  if (missingAll.length) h += '<div class="note note-warn" style="margin-bottom:12px">Not set up as classes here yet: <b>' + esc(missingAll.join(', ')) + '</b>. Add them in Admin → Race classes (same name), then pick the file again — or import now and those classes are left off.</div>';
+  h += '<div class="stack" style="max-height:340px;overflow-y:auto">' + rows.map(r => {
+    const cls = r.classIds.map(id => (classById(id) || {}).name).filter(Boolean).join(' · ');
+    const here = findRosterMatch(r.name, r.num) || preFind(r.name);
+    return '<div class="lrow">' + (r.num ? discNum(r.num) : '<span class="badge badge-amber">?</span>')
+      + '<span style="flex:1"><b>' + esc(r.name) + '</b><span class="tiny" style="display:block">' + esc(cls || 'No classes matched')
+      + (!r.num ? ' · <span style="color:var(--flag-amber-ink)">they typed: "' + esc(r.numRaw || 'nothing') + '" — set it after import</span>' : '')
+      + (here ? ' · already here' : '') + '</span></span></div>';
+  }).join('') + '</div>'
+    + '<div class="rowflex" style="margin-top:12px"><button class="btn btn-go" onclick="preImport()">Import ' + plural(rows.length, 'driver') + '</button>'
+    + '<button class="btn" onclick="UI.preImp=null;renderPrereg()">Cancel</button></div></div>';
+  return h;
+}
+function preLoadFile(inp) {
+  const f = inp.files && inp.files[0]; if (!f) return;
+  if (f.size > 2 * 1024 * 1024) { alert('That file is too big for a pre-registration list (over 2 MB).'); return; }
+  const rd = new FileReader();
+  rd.onload = () => preLoadText(String(rd.result || ''), f.name);
+  rd.readAsText(f);
+}
+function preLoadText(text, file) {
+  const table = impParseCSV(text);
+  if (!table || table.length < 2) { alert('No entries found in that file. Download the form responses as .csv and try again.'); return; }
+  UI.preImp = { file: file || 'Pasted list', table, map: preGuessCols(table[0]) };
+  renderPrereg();
+}
+function preMap(field, v) { if (!UI.preImp) return; UI.preImp.map[field] = parseInt(v, 10); renderPrereg(); }
+function preImport() {
+  if (!adminOk() || !UI.preImp) return;
+  const rows = preRows(UI.preImp.table, UI.preImp.map);
+  let added = 0, updated = 0;
+  rows.forEach(r => {
+    let p = preFind(r.name);
+    let d = p ? driverById(p.driverId) : null;
+    if (!d) d = findRosterMatch(r.name, r.num);
+    if (!d) { d = { id: genDriverId(), name: r.name, num: r.num || '', noPoints: false }; S.roster.push(d); }
+    else if (!d.num && r.num) d.num = r.num;
+    const rec = { driverId: d.id, name: r.name, num: r.num || (p && p.num) || d.num || '', numRaw: r.numRaw,
+      classIds: r.classIds, missing: r.missing, waiver: r.waiver || !!(p && p.waiver), request: r.request, at: Date.now() };
+    if (p) { Object.assign(p, rec); updated++; } else { preList().push(rec); added++; }
+  });
+  UI.preImp = null;
+  save();
+  renderPrereg();
+  toast((added ? plural(added, 'driver') + ' added' : '') + (added && updated ? ', ' : '') + (updated ? updated + ' updated' : '') + (added || updated ? '' : 'Nothing new') + ' — they\'re on the Sign-up page to check in.', 'ok');
+}
+function preSetNum(i) {
+  if (!adminOk()) return;
+  const p = preList()[i]; if (!p) return;
+  const v = prompt('Kart number for ' + p.name + (p.numRaw ? '\n(they typed: "' + p.numRaw + '")' : ''), p.num || '');
+  if (v == null) return;
+  const n = v.trim().replace(/^#\s*/, '');
+  if (!/^[A-Za-z0-9]{1,5}$/.test(n)) { alert('Use 1–5 letters or numbers, like 47 or 12A.'); return; }
+  p.num = n;
+  const d = driverById(p.driverId); if (d && !d.num) d.num = n;
+  save(); renderPrereg();
+}
+function preRemove(i) {
+  if (!adminOk()) return;
+  const p = preList()[i]; if (!p || !confirm('Remove ' + p.name + ' from the pre-registered list? (They stay in the driver book.)')) return;
+  preList().splice(i, 1); save(); renderPrereg();
+}
+function preClear() {
+  if (!adminOk() || !confirm('Clear the whole pre-registered list? Drivers stay in the driver book and anyone already checked in stays entered.')) return;
+  S.settings.preReg = []; save(); renderPrereg();
+}
+
+/* ---- Sign-up page: the check-in list ---- */
+function preregCheckinMarkup() {
+  const list = Array.isArray(S.settings.preReg) ? S.settings.preReg : [];
+  if (!canWrite() || !list.length) return '';
+  const left = list.filter(p => !preCheckedIn(p)).length;
+  return '<details class="card" id="preCard"' + (left ? ' open' : '') + ' style="margin-bottom:14px"><summary style="cursor:pointer"><b>Pre-registered</b> <span class="tiny">· '
+    + (list.length - left) + ' of ' + list.length + ' checked in</span></summary>'
+    + '<input type="text" id="preQ" placeholder="Find a driver — name or number" autocomplete="off" style="margin-top:10px" value="' + esc(UI.preQ || '') + '" oninput="UI.preQ=this.value;renderPreList()">'
+    + '<div id="preList" class="stack" style="margin-top:10px;max-height:320px;overflow-y:auto"></div></details>';
+}
+function renderPreList() {
+  const el = document.getElementById('preList'); if (!el) return;
+  const q = String(UI.preQ || '').trim().toLowerCase();
+  const rows = preList().map((p, i) => ({ p, i }))
+    .filter(x => !q || x.p.name.toLowerCase().includes(q) || String(x.p.num).toLowerCase() === q)
+    .sort((a, b) => (preCheckedIn(a.p) - preCheckedIn(b.p)) || a.p.name.localeCompare(b.p.name));
+  el.innerHTML = rows.length ? rows.map(({ p, i }) => {
+    const cls = p.classIds.map(id => (classById(id) || {}).name).filter(Boolean).join(' · ');
+    return '<div class="lrow">' + (p.num ? discNum(p.num) : '<span class="badge badge-amber">No #</span>')
+      + '<span style="flex:1;min-width:0"><b>' + esc(p.name) + '</b><span class="tiny" style="display:block">' + esc(cls || 'No classes') + '</span></span>'
+      + (preCheckedIn(p) ? '<span class="badge badge-green">Checked in</span>' : '<button class="btn btn-sm btn-primary" onclick="preCheckIn(' + i + ')">Check in</button>')
+      + '</div>';
+  }).join('') : '<p class="tiny" style="margin:4px 0">No one matches.</p>';
+}
+/* Fill the sign-up form for this driver — the gate checks it and taps Draw. */
+function preCheckIn(i) {
+  const p = preList()[i]; if (!p) return;
+  const d = driverById(p.driverId);
+  const nm = document.getElementById('dName'), nu = document.getElementById('dNum');
+  if (!nm || !nu) return;
+  nm.value = d ? d.name : p.name;
+  nu.value = p.num || (d && d.num) || '';
+  document.getElementById('suggBox').innerHTML = '';
+  pickedRosterId = d ? d.id : null;
+  renderRosterPick();
+  renderChips();
+  S.classes.forEach(c => { const ch = document.getElementById('ch' + c.id); if (ch && ch.tagName === 'BUTTON') ch.classList.toggle('on', p.classIds.includes(c.id)); });
+  const note = document.getElementById('scanNote');
+  if (note) {
+    note.className = 'note note-ok'; note.style.display = '';
+    note.innerHTML = '📝 <b>' + esc(nm.value) + '</b> pre-registered' + (p.waiver ? ' (waiver signed online)' : '') + '. Check the number and classes, then tap Draw.'
+      + (!nu.value ? ' <b>Add their kart number.</b>' : '');
+  }
+  const card = document.getElementById('preCard'); if (card) card.open = false;
+  (nu.value ? document.getElementById('drawBtn') : nu).scrollIntoView({ block: 'center', behavior: 'smooth' });
+  if (!nu.value) nu.focus();
+}
+
 function renderSignup() {
   const el = document.getElementById('signupWrap');
   if (signupDone) { el.innerHTML = doneMarkup(signupDone.driver, signupDone.drawn); drawMyLineupQR(signupDone.driver.id); return; }
@@ -3803,6 +4037,7 @@ function renderSignup() {
   el.innerHTML = '<h2>Driver sign-up</h2>'
     + '<p class="sub">Type your name. If you\'ve raced here before, tap it when it appears — your number and classes come with it.</p>'
     + (blocked ? '<div class="note note-err" style="margin-bottom:14px">' + esc(entryBlockedMsg()) + '</div>' : '')
+    + preregCheckinMarkup()
     + '<div class="card">'
     +   '<div id="scanNote" style="display:none;margin-bottom:12px"></div>'
     +   '<div class="field"><label for="dName">Driver name</label>'
@@ -3829,6 +4064,7 @@ function renderSignup() {
 
   renderChips();
   renderRosterPick();
+  renderPreList();
 }
 
 /* The "raced here before?" list, shown until the name field has something in it. */
@@ -7264,6 +7500,7 @@ let _impEditIdx = null;   /* set while editing an existing history entry */
 
 const ADMIN_SECTIONS = [
   { id:'today',    door:'night',  ico:'📋', label:"Today's entries",    hint:'Add, move, or fix who\'s racing tonight', kw:'entries pill grid spot number quick add refill' },
+  { id:'prereg',   door:'night',  ico:'📝', label:'Pre-registrations',  hint:'Import your Google Form entries, check drivers in at the gate', kw:'pre-registration preregistration pre-entry google form import csv responses check in gate' },
   { id:'history',  door:'night',  ico:'📅', label:'Race day history',   hint:'Past nights, CSV export, edit an import', kw:'archive export csv delete edit imported' },
   { id:'tech',     door:'night',  ico:'🔧', label:'Tech inspection',    hint:'Checklist, pass/fail per car, tech tablet link', kw:'tech inspection weight tires safety fuel seal claim pass fail recheck' },
   { id:'schedule', door:'night',  ico:'📣', label:'Schedule & notes',   hint:'Tonight\'s times and a note for the TV and fans', kw:'schedule time practice laps note announcement red flag restart message board' },
@@ -7356,6 +7593,7 @@ function secMarkup(id) {
   switch (id) {
     case 'today':   return secToday();
     case 'history':  return '<div class="card" id="historyList"></div>';
+    case 'prereg':   return '<div id="preregWrap"></div>';
     case 'schedule': return secSchedule();
     case 'payouts':  return '<div id="payoutsWrap"></div>';
     case 'tech':     return '<div id="techAdminWrap"></div>';
@@ -7380,6 +7618,7 @@ function secMarkup(id) {
 function secMount(id) {
   if (id === 'today')   { renderQuickAdd(); renderEntryList(); }
   if (id === 'history')  renderHistory();
+  if (id === 'prereg')   renderPrereg();
   if (id === 'payouts')  renderPayouts();
   if (id === 'tech')     renderTech('techAdminWrap');
   if (id === 'track')   { mountTrack(); }
