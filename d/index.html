@@ -430,7 +430,8 @@ function shareLink() {
         // Pro = a valid owner code on the card (recomputed here, never trusted as a flag)
         // OR an active server-written subscription entitlement.
         var isPro = premCheck(profileId, card.premiumCode)
-          || !!(ent && ent.tier === 'pro' && (ent.status === 'active' || ent.status === 'trialing'));
+          || !!(ent && ent.tier === 'pro' && (ent.status === 'active' || ent.status === 'trialing')
+                && !(ent.gift === true && ent.currentPeriodEnd && Date.now() > ent.currentPeriodEnd));   // a gifted Pro ends on its date
         render(profileId, card, isPro, data, rides);
       });
   }).catch(function () { show('<div class="msg"><h1>Couldn\'t load</h1>Check your connection and try again.</div>'); });

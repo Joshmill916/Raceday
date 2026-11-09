@@ -203,6 +203,26 @@ function refTier(offlineTier, entitlement, nowMs) {
     dlgSeen.some(m => /Still confirming your payment/i.test(m)), JSON.stringify(dlgSeen));
   check('declining the retry does not throw or hang', true);   // reaching this line at all is the assertion
 
+  console.log('\n=== 7. Gifted Pro (owner-written, no subscription) ends on its date ===');
+  const gift = await page.evaluate(() => {
+    P.tier = 'free';
+    const now = Date.now();
+    P.entitlement = { tier: 'pro', status: 'active', gift: true, currentPeriodEnd: now + 864e5, checkedAt: now };
+    const before = entitlementTierKey(P);
+    nav('card');
+    const txt = document.getElementById('page-card').innerText;
+    P.entitlement.currentPeriodEnd = now - 1000;
+    const after = entitlementTierKey(P);
+    P.entitlement = { tier: 'pro', status: 'active', currentPeriodEnd: now - 1000, checkedAt: now };
+    const paidPastDate = entitlementTierKey(P);
+    P.entitlement = null; save();
+    return { before, after, paidPastDate, gifted: /gift from RaceDay, through/i.test(txt), manage: /Manage subscription/.test(txt) };
+  });
+  check('a gift is Pro until its end date', gift.before === 'pro', gift.before);
+  check('…and free after it', gift.after === 'free', gift.after);
+  check('a paid subscription is NOT cut off by its date (Stripe renews it)', gift.paidPastDate === 'pro', gift.paidPastDate);
+  check('the Card page says it\'s a gift and when it ends, with no Manage subscription button', gift.gifted && !gift.manage, JSON.stringify(gift));
+
   console.log('\n' + (fail === 0 ? '✅' : '❌') + ` driven-entitlement: ${pass} passed, ${fail} failed`);
   await browser.close();
   server.close();

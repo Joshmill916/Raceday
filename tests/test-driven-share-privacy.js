@@ -2,6 +2,7 @@
 // 1. The public page's share button says "Share this driver" to visitors and "Share my page"
 //    to the driver (a code this phone's Driven holds); both share the picture link
 //    (raceday-d32dd.web.app/d/CODE), never anything that edits the card.
+// 3. A gifted Pro (owner-written entitlement, gift:true) ends on its date on the public page.
 // 2. "Show my hometown" / "Show my age" in Settings take those off the PUBLISHED card
 //    (cardPayload + cardStrings) — on by default so existing cards don't change.
 const { chromium } = require('/opt/node22/lib/node_modules/playwright');
@@ -28,8 +29,10 @@ const check = (name, ok, extra) => {
   const ctx = await browser.newContext({ viewport: { width: 390, height: 844 } });
   const pub = await ctx.newPage();
   pub.on('pageerror', e => { errors.push(e.message); console.log('  ⚠️ page error:', e.message); });
+  let ENT = null;
   await pub.route(/firebaseio\.com/, r => {
     const p = new URL(r.request().url()).pathname;
+    if (p === '/profiles/prof_casey047abc/entitlement.json') return r.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify(ENT) });
     const json = v => r.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify(v) });
     if (p === '/profiles_short/CASEY047.json') return json('prof_casey047abc');
     if (p === '/profiles/prof_casey047abc/card.json') return json({ name: 'Casey Rivera', num: '47', hometown: 'Delta, OH', updatedAt: 1 });
@@ -51,6 +54,12 @@ const check = (name, ok, extra) => {
   await pub.evaluate(() => { localStorage.setItem('profiles_v1', JSON.stringify({ shortCode: 'SOMEONE1' })); localStorage.setItem('profiles_family_v1', JSON.stringify({ order: [], stash: { a: { p: { shortCode: 'CASEY047' } } } })); });
   await pub.reload({ waitUntil: 'domcontentloaded' }); await pub.waitForSelector('.actions button');
   check('a parent with that driver on their phone also sees "Share my page"', /^Share my page$/i.test((await pub.innerText('.actions button')).trim()));
+  ENT = { tier: 'pro', status: 'active', gift: true, currentPeriodEnd: Date.now() + 864e5 };
+  await pub.reload({ waitUntil: 'domcontentloaded' }); await pub.waitForSelector('.actions button');
+  check('a gifted Pro shows the Pro look before its end date', await pub.evaluate(() => !!document.querySelector('.name .badge')));
+  ENT.currentPeriodEnd = Date.now() - 1000;
+  await pub.reload({ waitUntil: 'domcontentloaded' }); await pub.waitForSelector('.actions button');
+  check('…and not after it', await pub.evaluate(() => !document.querySelector('.name .badge')));
   await ctx.close();
 
   console.log('\n=== 2. Hide hometown / age ===');
