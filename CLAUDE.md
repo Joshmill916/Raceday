@@ -137,6 +137,11 @@ profile that follows them across every RaceDay track they race at.
   whole separate account; the ACTIVE one stays in `profiles_v1` (+ its rides key), the others in
   `profiles_family_v1` = `{order, stash:{memberId:{p, acct}}}` (memberId = primary ride id). Add / switch /
   add-by-link-code / delete-one. Guard: `tests/test-driven-family.js`
+- **Gifted Pro** (2026-11-09): the owner writes `profiles/<id>/entitlement` = `{tier:'pro',status:'active',gift:true,
+  currentPeriodEnd:<ms>,note}` with the Firebase CLI (`firebase database:set`, rules block client writes). `gift:true` makes
+  Driven (`entitlementTierKey`) and `/d/` drop it after `currentPeriodEnd`; paid subs ignore the date. Card page says
+  "A gift from RaceDay, through <date>", no Manage subscription. Smo Tater (0S8SWGQL) has one through 2027-12-31.
+  Guard: `tests/test-driven-entitlement.js` section 7 + `tests/test-driven-share-privacy.js`
 - **Public page share + privacy** (2026-11-09): `/d/` button says "Share this driver" (visitors) or "Share my page"
   (`viewerOwns()` — code found in profiles_v1/rides/family keys) and shares the picture link `raceday-d32dd.web.app/d/CODE`.
   Settings "Show my hometown"/"Show my age" (`d.showHome`/`d.showAge`, default on) blank those in BOTH `cardPayload()` and

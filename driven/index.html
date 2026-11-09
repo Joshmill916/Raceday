@@ -846,6 +846,8 @@ function entitlementTierKey(p) {
   var e = (p || P) && (p || P).entitlement;
   if (!e) return TIER_FALLBACK;
   if ((Date.now() - (e.checkedAt || 0)) > ENTITLEMENT_GRACE_MS) return TIER_FALLBACK;
+  // A gifted Pro (written by the owner, no Stripe subscription) ends on its own date.
+  if (e.gift && e.currentPeriodEnd && Date.now() > e.currentPeriodEnd) return TIER_FALLBACK;
   return TIERS[e.tier] ? e.tier : TIER_FALLBACK;
 }
 // The client honors whichever of (offline code, entitlement) grants the higher tier —
@@ -1000,7 +1002,7 @@ function refreshEntitlement() {
   }).then(function (snap) {
     var v = snap.val();
     main.entitlement = (v && typeof v === 'object' && TIERS[v.tier])
-      ? { tier: v.tier, status: String(v.status || ''), currentPeriodEnd: Number(v.currentPeriodEnd) || 0, checkedAt: Date.now() }
+      ? { tier: v.tier, status: String(v.status || ''), currentPeriodEnd: Number(v.currentPeriodEnd) || 0, gift: v.gift === true, checkedAt: Date.now() }
       : { tier: 'free', status: 'none', currentPeriodEnd: 0, checkedAt: Date.now() };
     // Direct write, NOT save(): this runs on every app open, and save() republishes the
     // card from THIS device's copy — so opening Driven on a second device (or a Safari
@@ -1603,11 +1605,12 @@ function renderCard() {
       + '</div>';
   } else {
     var mainRide = primaryProfile(), viaSub = entitlementTierKey(mainRide) === 'pro';
+    var isGift = viaSub && mainRide.entitlement && mainRide.entitlement.gift;
     var renewLine = (viaSub && mainRide.entitlement && mainRide.entitlement.currentPeriodEnd)
-      ? ' Renews ' + new Date(mainRide.entitlement.currentPeriodEnd).toLocaleDateString() + '.' : '';
+      ? (isGift ? ' A gift from RaceDay, through ' : ' Renews ') + new Date(mainRide.entitlement.currentPeriodEnd).toLocaleDateString([], { month: 'long', day: 'numeric', year: 'numeric' }) + '.' : '';
     h += '<div class="card"><div class="slbl">Your plan</div>'
       + '<p class="sub" style="margin:0 0 8px">' + esc(currentTier().label) + ' is active \u2014 your card shows the full broadcast look at every track.' + renewLine + '</p>'
-      + (viaSub && billingPortalUrl() ? '<a class="btn btn-block" href="' + esc(billingPortalUrl()) + '" target="_blank" rel="noopener">Manage subscription</a>' : '')
+      + (viaSub && !isGift && billingPortalUrl() ? '<a class="btn btn-block" href="' + esc(billingPortalUrl()) + '" target="_blank" rel="noopener">Manage subscription</a>' : '')
       + '</div>';
   }
   $id('page-card').innerHTML = h;
@@ -2390,7 +2393,7 @@ function deleteProfile() {
 // day, 'driven-profile' when someone makes a profile, 'driven-publish' the first time a card is
 // published, and crashes. No names, emails or numbers — only counts. The track column reads DRIVEN.
 // The part after the dot MUST match sw.js CACHE (tests/test-analytics.js) — bump both together.
-const APP_VERSION = '2026-11-09.v19';
+const APP_VERSION = '2026-11-09.v20';
 var TELEMETRY_URL = 'https://script.google.com/macros/s/AKfycbxa3i3y17TLp_NfXOOu2jM7-YzXH2fScxcXoQYmIh0-873rxWfxg0HdRP1DVsxZq6iR/exec';
 // Devices opted out at /me/ (the owner testing) still report, marked OWNER; copies on this
 // computer (localhost, *.test) report nothing unless rd_count_local='1' (the analytics test).
