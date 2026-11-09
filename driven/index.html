@@ -1018,8 +1018,8 @@ function cardPayload() {
   return Object.assign({
     name: d.name || '',
     num: d.number || '',
-    age: d.age != null ? String(d.age) : '',
-    hometown: d.hometown || '',
+    age: d.age != null && d.showAge !== false ? String(d.age) : '',
+    hometown: d.showHome !== false ? (d.hometown || '') : '',
     sponsors: P.sponsors.map(function (s) { return s.name; }).join(' · '),
     teamColor: /^#[0-9a-fA-F]{6}$/.test(d.teamColor || '') ? d.teamColor : '',
     // Pro accent colors (primary stays teamColor). Free cards send '' so a lapsed Pro
@@ -1057,8 +1057,8 @@ function cardStrings() {
   if (!P || !P.driver) return {};
   var d = P.driver;
   return {
-    name: d.name || '', num: d.number || '', age: d.age != null ? String(d.age) : '',
-    hometown: d.hometown || '', sponsors: P.sponsors.map(function (s) { return s.name; }).join(' · '),
+    name: d.name || '', num: d.number || '', age: d.age != null && d.showAge !== false ? String(d.age) : '',
+    hometown: d.showHome !== false ? (d.hometown || '') : '', sponsors: P.sponsors.map(function (s) { return s.name; }).join(' · '),
     photo: d.photo || '', premiumCode: tierAtLeast('pro') ? (P.premiumCode || localPremiumCode(P.profileId)) : '',
     aliases: d.aliases || '', bio: d.bio || '', highlights: d.highlights || '',
     crew: P.crew.map(function (c) { return c.name; }).join(', '), header: tierAtLeast('pro') ? (d.header || '') : '',
@@ -2028,6 +2028,10 @@ function renderSettings() {
         : '')
     + '<label>Hometown</label><input type="text" id="stHometown" value="' + esc(d.hometown) + '" maxlength="60">'
     + '<label>Age</label><input type="number" id="stAge" value="' + (d.age || '') + '" min="1" max="120">'
+    + '<div class="sub" style="margin:12px 0 4px"><b>On your public card</b></div>'
+    + '<label style="display:flex;gap:10px;align-items:center;margin:6px 0;text-transform:none;letter-spacing:0"><input type="checkbox" id="stShowHome"' + (d.showHome !== false ? ' checked' : '') + ' style="width:22px;height:22px;flex:none">Show my hometown</label>'
+    + '<label style="display:flex;gap:10px;align-items:center;margin:6px 0;text-transform:none;letter-spacing:0"><input type="checkbox" id="stShowAge"' + (d.showAge !== false ? ' checked' : '') + ' style="width:22px;height:22px;flex:none">Show my age</label>'
+    + '<p class="sub" style="margin:4px 0 0">Turning one off takes it off your public page and off the card tracks see. Under 18? You may want both off.</p>'
     + '<label>Bio (max 280 characters)</label><textarea id="stBio" maxlength="280">' + esc(d.bio) + '</textarea>'
     + '<label>Career highlights (max 280 characters)</label><textarea id="stHighlights" maxlength="280" placeholder="2025 track champion, 3x feature winner...">' + esc(d.highlights || '') + '</textarea>'
     + '<label>Sponsors (comma-separated)</label><input type="text" id="stSponsors" maxlength="150" value="' + esc(P.sponsors.map(function (s) { return s.name; }).join(', ')) + '" placeholder="Smith Auto, Apex Racing">'
@@ -2087,6 +2091,8 @@ function saveProfileFields() {
   P.driver.hometown = ($id('stHometown').value || '').trim();
   var ageVal = $id('stAge').value;
   P.driver.age = ageVal ? parseInt(ageVal, 10) : null;
+  P.driver.showHome = !!$id('stShowHome').checked;
+  P.driver.showAge = !!$id('stShowAge').checked;
   P.driver.bio = ($id('stBio').value || '').trim();
   P.driver.highlights = ($id('stHighlights').value || '').trim();
   var sponsorsRaw = ($id('stSponsors').value || '').trim();
@@ -2098,7 +2104,7 @@ function saveProfileFields() {
   if (multiRide()) {
     rideList().forEach(function (p) {
       if (p === P) return;
-      p.driver.name = P.driver.name; p.driver.email = P.driver.email; p.driver.hometown = P.driver.hometown; p.driver.age = P.driver.age;
+      p.driver.name = P.driver.name; p.driver.email = P.driver.email; p.driver.hometown = P.driver.hometown; p.driver.age = P.driver.age; p.driver.showHome = P.driver.showHome; p.driver.showAge = P.driver.showAge;
     });
     saveAcct();
     republishSiblings().catch(function () {});
@@ -2384,7 +2390,7 @@ function deleteProfile() {
 // day, 'driven-profile' when someone makes a profile, 'driven-publish' the first time a card is
 // published, and crashes. No names, emails or numbers — only counts. The track column reads DRIVEN.
 // The part after the dot MUST match sw.js CACHE (tests/test-analytics.js) — bump both together.
-const APP_VERSION = '2026-11-09.v18';
+const APP_VERSION = '2026-11-09.v19';
 var TELEMETRY_URL = 'https://script.google.com/macros/s/AKfycbxa3i3y17TLp_NfXOOu2jM7-YzXH2fScxcXoQYmIh0-873rxWfxg0HdRP1DVsxZq6iR/exec';
 // Devices opted out at /me/ (the owner testing) still report, marked OWNER; copies on this
 // computer (localhost, *.test) report nothing unless rd_count_local='1' (the analytics test).
