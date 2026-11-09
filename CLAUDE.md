@@ -137,6 +137,9 @@ profile that follows them across every RaceDay track they race at.
   whole separate account; the ACTIVE one stays in `profiles_v1` (+ its rides key), the others in
   `profiles_family_v1` = `{order, stash:{memberId:{p, acct}}}` (memberId = primary ride id). Add / switch /
   add-by-link-code / delete-one. Guard: `tests/test-driven-family.js`
+- **Add to home screen** (2026-11-09): Home + Settings card (`installCardHtml`). Android/Chrome fires the saved
+  `beforeinstallprompt`; iPhone shows Share → Add to Home Screen steps. Hidden when standalone; "Not now" hides it on
+  Home only (`dv_install_hide`). Guard: `tests/test-driven-install.js`
 - Same design language as `raceday/index.html` (CSS vars, `.card`/`.btn`/`.hr` patterns) and
   the same embedded QR generator, copied verbatim — kept intentionally separate rather than
   shared, to preserve the single-file-per-app model
