@@ -161,6 +161,15 @@ profile that follows them across every RaceDay track they race at.
   (columns matched by wording, email/address never kept, unclear kart numbers flagged). Stored at
   `S.settings.preReg` (v2 adds no top-level fields — test-v2-compat), so it syncs with settings. Sign-up shows a
   Pre-registered list; Check in fills the form. Guard: `tests/v2/test-v2-prereg-import.js`
+- **Pre-registration from home** (2026-11-08, `raceday2/` + `enter/`): public page `/enter/?<ROOMCODE>` (REST, no
+  SDK, never asks email/phone/address). Admin → Pre-registrations opens/closes it (`S.settings.preOnline` →
+  `preRegOpen/<code>`, staff write). Entries go to `preRegIn/<code>/<id>` (create-only while open and before
+  `closes`; staff-read only — database.rules.json, **needs `firebase deploy --only database`**). Staff devices pull
+  them into `S.settings.preReg` (`preOnlinePull`/`preMergeOnline`; `replaces` = newest wins; transponder →
+  `d.trans`; removed drivers go in `preOnline.skip` + are deleted online). Guard: `tests/v2/test-v2-prereg-online.js`
+- **Owner backups + dashboard** (local only, NOT in the repo): `~/RaceDay Backups/` (`tools/backup.py`) saves the
+  whole RTDB to `database/*.json.gz` (60 + first-of-month), mirrors the repo to `code/Raceday.git`, and rebuilds
+  `RaceDay Dashboard.html` (offline Driven lookup, live pull by link code). Restore steps: `RESTORE.txt` there.
 - **Staff-only sync rooms** (2026-10-16): the spectator QR carries only the room code (tracks/<code>,
   public read). Writing needs the room's staff key (`S.sync.staffKey`, never synced) carried by staff
   links as `&st=` (`staffLinkParams()`); each staff device signs in to Firebase **anonymously**
