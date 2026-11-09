@@ -848,7 +848,7 @@ const GARAGE_KEY = 'rd_garage_v2';
 const ACTIVE_TRACK_KEY = 'rd_active_track_v2';
 // Reported with every usage row and crash. The part after the dot MUST match this app's
 // sw.js CACHE number (tests/test-app-version.js) — bump both together on each release.
-const APP_VERSION = '2026-11-08.v22';
+const APP_VERSION = '2026-11-09.v23';
 const LEGAL_VERSION = '2026-06';   // bump when Terms / Privacy wording changes, so acceptances are versioned
 const TELEMETRY_URL = 'https://script.google.com/macros/s/AKfycbxa3i3y17TLp_NfXOOu2jM7-YzXH2fScxcXoQYmIh0-873rxWfxg0HdRP1DVsxZq6iR/exec';
 const FIREBASE_CONFIG = {
@@ -4157,9 +4157,23 @@ function preregCheckinMarkup() {
   if (!canWrite() || !list.length) return '';
   const left = list.filter(p => !preCheckedIn(p)).length;
   return '<details class="card" id="preCard"' + (left ? ' open' : '') + ' style="margin-bottom:14px"><summary style="cursor:pointer"><b>Pre-registered</b> <span class="tiny">· '
-    + (list.length - left) + ' of ' + list.length + ' checked in</span></summary>'
+    + (list.length - left) + ' of ' + list.length + ' checked in'
+    + (() => { const n = list.filter(p => !preDriven(p)).length; return n ? ' · ' + n + ' without Driven' : ''; })() + '</span></summary>'
     + '<input type="text" id="preQ" placeholder="Find a driver — name or number" autocomplete="off" style="margin-top:10px" value="' + esc(UI.preQ || '') + '" oninput="UI.preQ=this.value;renderPreList()">'
     + '<div id="preList" class="stack" style="margin-top:10px;max-height:320px;overflow-y:auto"></div></details>';
+}
+/* Driven status of a pre-registered driver: 'linked' (card on their driver record), 'code' (gave a link
+   code — it links when they're drawn), or '' (no Driven yet — the gate's cue to offer one). */
+function preDriven(p) {
+  const d = driverById(p.driverId);
+  if (d && (d.profileId || d.profileCode)) return 'linked';
+  return p.driven ? 'code' : '';
+}
+function preDrivenTag(p) {
+  const s = preDriven(p);
+  if (s === 'linked') return '<span class="badge badge-green" style="margin-left:6px">Driven</span>';
+  if (s === 'code') return '<span class="badge badge-dim" style="margin-left:6px">Driven code</span>';
+  return '<span class="badge badge-amber" style="margin-left:6px">No Driven</span>';
 }
 function renderPreList() {
   const el = document.getElementById('preList'); if (!el) return;
@@ -4170,7 +4184,7 @@ function renderPreList() {
   el.innerHTML = rows.length ? rows.map(({ p, i }) => {
     const cls = p.classIds.map(id => (classById(id) || {}).name).filter(Boolean).join(' · ');
     return '<div class="lrow">' + (p.num ? discNum(p.num) : '<span class="badge badge-amber">No #</span>')
-      + '<span style="flex:1;min-width:0"><b>' + esc(p.name) + '</b><span class="tiny" style="display:block">' + esc(cls || 'No classes') + (p.tx ? ' · transponder ' + esc(p.tx) : '') + '</span></span>'
+      + '<span style="flex:1;min-width:0"><b>' + esc(p.name) + '</b>' + preDrivenTag(p) + '<span class="tiny" style="display:block">' + esc(cls || 'No classes') + (p.tx ? ' · transponder ' + esc(p.tx) : '') + '</span></span>'
       + (preCheckedIn(p) ? '<span class="badge badge-green">Checked in</span>' : '<button class="btn btn-sm btn-primary" onclick="preCheckIn(' + i + ')">Check in</button>')
       + '</div>';
   }).join('') : '<p class="tiny" style="margin:4px 0">No one matches.</p>';
@@ -4194,7 +4208,8 @@ function preCheckIn(i) {
   if (note) {
     note.className = 'note note-ok'; note.style.display = '';
     note.innerHTML = '📝 <b>' + esc(nm.value) + '</b> pre-registered' + (p.waiver ? ' (waiver signed online)' : '') + '. Check the number and classes, then tap Draw.'
-      + (!nu.value ? ' <b>Add their kart number.</b>' : '');
+      + (!nu.value ? ' <b>Add their kart number.</b>' : '')
+      + (!preDriven(p) ? '<br>No Driven card yet — ask if they want one: their results follow them to every track. They make it at <b>victoryraceday.com/driven</b> and give you the link code.' : '');
   }
   const card = document.getElementById('preCard'); if (card) card.open = false;
   (nu.value ? document.getElementById('drawBtn') : nu).scrollIntoView({ block: 'center', behavior: 'smooth' });
