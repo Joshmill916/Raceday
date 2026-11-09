@@ -137,6 +137,10 @@ profile that follows them across every RaceDay track they race at.
   whole separate account; the ACTIVE one stays in `profiles_v1` (+ its rides key), the others in
   `profiles_family_v1` = `{order, stash:{memberId:{p, acct}}}` (memberId = primary ride id). Add / switch /
   add-by-link-code / delete-one. Guard: `tests/test-driven-family.js`
+- **Public page share + privacy** (2026-11-09): `/d/` button says "Share this driver" (visitors) or "Share my page"
+  (`viewerOwns()` — code found in profiles_v1/rides/family keys) and shares the picture link `raceday-d32dd.web.app/d/CODE`.
+  Settings "Show my hometown"/"Show my age" (`d.showHome`/`d.showAge`, default on) blank those in BOTH `cardPayload()` and
+  `cardStrings()`. Guard: `tests/test-driven-share-privacy.js`
 - **Add to home screen** (2026-11-09): Home + Settings card (`installCardHtml`). Android/Chrome fires the saved
   `beforeinstallprompt`; iPhone shows Share → Add to Home Screen steps. Hidden when standalone; "Not now" hides it on
   Home only (`dv_install_hide`). Guard: `tests/test-driven-install.js`

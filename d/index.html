@@ -315,7 +315,7 @@ function render(profileId, card, isPro, data, rides) {
     + (rides.length ? '<div class="rides">' + rides.map(function (r) {
         return '<a href="?' + encodeURIComponent(r.code) + '"' + (r.on ? ' class="on" aria-current="page"' : '') + '>' + esc(r.label || ('#' + r.num)) + (r.label && r.num ? ' #' + esc(r.num) : '') + '</a>';
       }).join('') + '</div>' : '')
-    + '<div class="actions"><button class="btn primary" onclick="shareLink()">Share profile</button></div>';
+    + '<div class="actions"><button class="btn primary" onclick="shareLink()">' + (viewerOwns(codeFromUrl()) ? 'Share my page' : 'Share this driver') + '</button></div>';
 
   if (results.length) {
     var r0 = results[0];
@@ -382,8 +382,24 @@ function render(profileId, card, isPro, data, rides) {
   show(h);
 }
 
+/* Is this the viewer's own card? True when this phone's Driven holds the code: the open ride,
+   another ride, or another driver on the phone. Only changes the button's wording; the page is
+   read-only for everyone. */
+function viewerOwns(code) {
+  if (!code) return false;
+  var needle = '"shortCode":"' + code + '"';
+  try {
+    return ['profiles_v1', 'profiles_rides_v1', 'profiles_family_v1'].some(function (k) {
+      var v = localStorage.getItem(k); return !!v && v.indexOf(needle) >= 0;
+    });
+  } catch (_) { return false; }
+}
+// Shares the card link (Firebase Function draws this driver's card as the Facebook/text
+// preview, then forwards here) — the same link the driver's own Share button sends.
+var CARD_LINK_BASE = 'https://raceday-d32dd.web.app/d/';
 function shareLink() {
-  var url = location.href.split('#')[0];
+  var code = codeFromUrl();
+  var url = code ? CARD_LINK_BASE + encodeURIComponent(code) : location.href.split('#')[0];
   if (navigator.share) { navigator.share({ title: document.title, url: url }).catch(function () {}); return; }
   if (navigator.clipboard) navigator.clipboard.writeText(url).then(function () { alert('Link copied.'); }).catch(function () { prompt('Copy this link:', url); });
   else prompt('Copy this link:', url);
