@@ -317,6 +317,7 @@
   .dp-sponsors { display: grid; grid-template-columns: repeat(auto-fill, minmax(140px, 1fr)); gap: 8px; }
   .dp-sponsor { background: var(--td); color: var(--ink-1); border-radius: 10px; padding: 16px 10px; text-align: center; font: 800 15px var(--display); letter-spacing: .06em; text-transform: uppercase; }
   .dp-empty { color: var(--td-mute); font-size: 14px; padding: 16px 14px; line-height: 1.5; }
+.dv-steps{margin:12px 0 0;padding-left:20px;line-height:1.5}.dv-steps li{margin:4px 0}
 </style>
 </head>
 <body>
@@ -1464,6 +1465,50 @@ function dpResultsList(results, limit) {
   }).join('') + '</div>';
 }
 
+/* ---------- Add to home screen ----------
+   Android/Chrome hands us an install prompt (beforeinstallprompt) — the button fires it.
+   iPhone Safari has no prompt, so the button shows the two taps (Share → Add to Home Screen).
+   Hidden once Driven is opened from the home screen, or after "Not now" on Home (Settings keeps it). */
+var dvInstallEvt = null, dvInstallHelp = false;
+addEventListener('beforeinstallprompt', function (e) { e.preventDefault(); dvInstallEvt = e; if (curPageIs('home')) renderHome(); });
+addEventListener('appinstalled', function () { dvInstallEvt = null; try { localStorage.setItem('dv_installed', '1'); } catch (e) {} rerenderInstall(); });
+function curPageIs(pg) { var el = $id('page-' + pg); return !!(el && el.classList.contains('active')); }
+function rerenderInstall() { if (curPageIs('home')) renderHome(); if (curPageIs('settings')) renderSettings(); }
+function dvStandalone() {
+  try { if (window.matchMedia && matchMedia('(display-mode: standalone)').matches) return true; } catch (e) {}
+  return navigator.standalone === true;
+}
+function dvIsIOS() { return /iPad|iPhone|iPod/.test(navigator.userAgent) || (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1); }
+function dvInstallHidden() { try { return localStorage.getItem('dv_install_hide') === '1'; } catch (e) { return false; } }
+function installDriven() {
+  if (dvInstallEvt) {
+    var ev = dvInstallEvt; dvInstallEvt = null;
+    ev.prompt();
+    if (ev.userChoice) ev.userChoice.then(function (c) { if (c && c.outcome === 'accepted') { try { localStorage.setItem('dv_installed', '1'); } catch (e) {} } rerenderInstall(); });
+    return;
+  }
+  dvInstallHelp = !dvInstallHelp; rerenderInstall();
+}
+function hideInstallCard() { try { localStorage.setItem('dv_install_hide', '1'); } catch (e) {} renderHome(); }
+function installSteps() {
+  if (dvIsIOS()) return '<ol class="dv-steps"><li>Tap the <b>Share</b> button (the square with an arrow pointing up) at the bottom of the screen' + (/CriOS|FxiOS|EdgiOS/.test(navigator.userAgent) ? ', or at the top right' : '') + '.</li>'
+    + '<li>Scroll down and tap <b>Add to Home Screen</b>, then <b>Add</b>.</li></ol>';
+  return '<ol class="dv-steps"><li>Open your browser\'s menu (the <b>⋮</b> at the top right).</li>'
+    + '<li>Tap <b>Add to Home screen</b> or <b>Install app</b>.</li></ol>';
+}
+function installCardHtml(onHome) {
+  if (dvStandalone()) return '';
+  if (onHome && dvInstallHidden()) return '';
+  return '<div class="card dv-install"' + (onHome ? ' style="margin-top:16px"' : '') + '>'
+    + '<div style="display:flex;gap:12px;align-items:center"><img src="icon-driven.png" alt="" width="44" height="44" style="border-radius:10px;flex:none">'
+    + '<div><h3 style="margin:0">Put Driven on your home screen</h3><p class="sub" style="margin:2px 0 0">Opens like an app, one tap from your phone\'s home screen.</p></div></div>'
+    + (dvInstallHelp && !dvInstallEvt ? installSteps() : '')
+    + '<div style="display:flex;gap:8px;margin-top:12px">'
+    + '<button class="btn btn-primary" style="flex:1" onclick="installDriven()">' + (dvInstallHelp && !dvInstallEvt ? 'Hide steps' : 'Add to home screen') + '</button>'
+    + (onHome ? '<button class="btn" onclick="hideInstallCard()">Not now</button>' : '')
+    + '</div></div>';
+}
+
 function renderHome() {
   document.body.classList.add('dp-dark');
   var isPro = tierAtLeast('pro'), results = dpResults();
@@ -1479,6 +1524,7 @@ function renderHome() {
     h += '<div class="card" style="margin-top:16px"><h3>Link your first track</h3><p class="empty">Give your link code at RaceDay sign-up (or import results) to start building your record.</p>'
       + '<button class="btn btn-go btn-block" onclick="nav(\'link\')">' + icon('link') + ' Go to Link page</button></div>';
   }
+  h += installCardHtml(true);
   h += dpSummary(results, isPro)
     + '<div class="dp-sec"><span class="dp-cap">Recent races</span>' + dpResultsList(results, 15) + '</div>'
     + dpOtherSection();
@@ -1989,6 +2035,7 @@ function renderSettings() {
     + '<button class="btn btn-primary btn-block" onclick="saveProfileFields()" style="margin-top:16px">Save changes</button>'
     + '</div>';
 
+  h += installCardHtml(false);
   h += familySectionHtml();
   h += ridesSectionHtml();
 
@@ -2337,7 +2384,7 @@ function deleteProfile() {
 // day, 'driven-profile' when someone makes a profile, 'driven-publish' the first time a card is
 // published, and crashes. No names, emails or numbers — only counts. The track column reads DRIVEN.
 // The part after the dot MUST match sw.js CACHE (tests/test-analytics.js) — bump both together.
-const APP_VERSION = '2026-11-08.v17';
+const APP_VERSION = '2026-11-09.v18';
 var TELEMETRY_URL = 'https://script.google.com/macros/s/AKfycbxa3i3y17TLp_NfXOOu2jM7-YzXH2fScxcXoQYmIh0-873rxWfxg0HdRP1DVsxZq6iR/exec';
 // Devices opted out at /me/ (the owner testing) still report, marked OWNER; copies on this
 // computer (localhost, *.test) report nothing unless rd_count_local='1' (the analytics test).
