@@ -1,0 +1,94 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<script>/* http://victoryraceday.com and https:// are separate origins with separate storage. Send
+   http visitors to https — unless this browser keeps RaceDay/Driven data on the http origin,
+   in which case the apps offer a one-tap move first (see raceday/ offerSecureMove()). */
+(function(){if(location.protocol!=='http:'||!/(^|\.)victoryraceday\.com$/.test(location.hostname))return;
+try{if(localStorage.getItem('raceday_v1')||localStorage.getItem('raceday_v2')||localStorage.getItem('profiles_v1'))return;}catch(e){}
+location.replace('https://'+location.host+location.pathname+location.search+location.hash);})();</script>
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Pre-registration from home — RaceDay Guides</title>
+<meta name="description" content="Let drivers enter from their phone before race day, then check them in at the gate. Step-by-step with real screenshots.">
+<link rel="canonical" href="https://victoryraceday.com/guides/pre-registration.html">
+<meta property="og:type" content="website">
+<meta property="og:url" content="https://victoryraceday.com/guides/pre-registration.html">
+<meta property="og:title" content="Pre-registration from home — RaceDay Guides">
+<meta property="og:description" content="Let drivers enter from their phone before race day, then check them in at the gate. Step-by-step with real screenshots.">
+<meta property="og:image" content="https://victoryraceday.com/img/share-raceday.png">
+  <meta property="og:image:width" content="1200">
+  <meta property="og:image:height" content="630">
+<meta name="twitter:card" content="summary_large_image">
+<link rel="apple-touch-icon" href="../raceday/icon-rd.png">
+<link rel="icon" type="image/png" sizes="512x512" href="../raceday/icon-rd.png">
+<link rel="stylesheet" href="../fonts.css">
+<link rel="stylesheet" href="guides.css">
+</head>
+<body>
+<div class="sitebar"><div class="wrap sitebar-row"><a href="/drivers/">Driven — for drivers</a><a class="sb-right" href="/driven/">Open Driven →</a></div></div>
+<div class="topbar"><div class="wrap topbar-row">
+  <a class="topbar-brand" href="/?home=1"><img src="/img/logo-raceday.svg" alt="RaceDay" width="160" height="24"></a>
+  <span class="topbar-links">
+    <a class="topbar-link on" href="/guides/">Guides</a>
+    <a class="topbar-link" href="/faq.html">FAQ</a>
+    <a class="topbar-link" href="/pricing.html">Pricing</a>
+    <a class="topbar-link" href="/raceday2/">Open RaceDay <span class="btn-arrow">→</span></a>
+  </span>
+</div></div>
+
+<header class="hero"><div class="wrap">
+  <div class="crumbs"><a href="/guides/">Guides</a> &nbsp;›&nbsp; Start to finish</div>
+  <div class="eyebrow"><span class="flag"></span>Start to finish</div>
+  <h1>Pre-registration from home</h1>
+  <p class="lede">Drivers enter from their phone before race day. Every entry lands on your Sign-up page, so at the gate you tap Check in and Draw.</p>
+  <div class="meta"><span><b>Who</b>Race director</span><span><b>Time</b>2 minutes per race</span><span><b>Where</b>RaceDay 2 · Admin → Pre-registrations</span></div>
+</div></header>
+<div class="checker"></div>
+<main><div class="wrap">
+  <ol class="steps">
+    <li class="step">
+      <div class="body"><h2>Turn on Multi-device sync</h2><p>Entries reach you through your track's live sync. If it isn't on yet, turn it on in <span class="ui">Admin → Sync</span> first (see <a href="multi-device.html">Multiple devices</a>). You do this once.</p></div>
+    </li>
+    <li class="step has-img">
+      <div class="body"><h2>Fill in the race</h2><p>Go to <span class="ui">Admin → Pre-registrations</span>. Under <b>Pre-registration from home</b>, type the <span class="ui">Race name</span> and <span class="ui">Race day</span>. Set <span class="ui">Stop taking entries</span> if you want entries to close on their own, add a <span class="ui">Note for drivers</span> (like your entry fee), and paste your waiver or series rules. Tick <span class="ui">Ask for their transponder number</span> if you use timing.</p></div>
+      <figure class="shot phone"><img src="img/prereg-setup.jpg" alt="Pre-registration settings" loading="lazy"><figcaption>Race details</figcaption></figure>
+    </li>
+    <li class="step has-img">
+      <div class="body"><h2>Open it and share the link</h2><p>Tap <span class="ui">Open pre-registration</span>. Then tap <span class="ui">Copy link</span> and post it on Facebook or in your drivers' group chat, the same way you'd post a Google Form. <span class="ui">Show QR</span> gives you a code to print or put on a sign.</p></div>
+      <figure class="shot phone"><img src="img/prereg-open.jpg" alt="Open, with the link and QR code" loading="lazy"><figcaption>Link and QR code</figcaption></figure>
+    </li>
+    <li class="step has-img">
+      <div class="body"><h2>Watch the entries come in</h2><p>New entries show up on their own. The list shows how many drivers are in each class and any classes drivers asked you to add. Tap <span class="ui">Check for new entries</span> to look right now, <span class="ui">Remove</span> to take someone off, or <span class="ui">Download entry list (CSV)</span> for a spreadsheet.</p></div>
+      <figure class="shot phone"><img src="img/prereg-entries.jpg" alt="Entries with class counts" loading="lazy"><figcaption>Entries and class counts</figcaption></figure>
+    </li>
+    <li class="step">
+      <div class="body"><h2>Close entries</h2><p>Entries close by themselves at your <span class="ui">Stop taking entries</span> time. To close early, tap <span class="ui">Close pre-registration</span>. Anyone who opens the link after that is told to sign up at the gate.</p></div>
+    </li>
+    <li class="step has-img">
+      <div class="body"><h2>Race day: find the driver</h2><p>On <span class="ui">Sign up</span>, the <b>Pre-registered</b> list shows everyone who entered and how many are checked in. Type a name or number to find someone fast. Each driver is tagged <b>Driven</b>, <b>Driven code</b> or <b>No Driven</b>, so you know who to offer a Driven card.</p></div>
+      <figure class="shot phone"><img src="img/prereg-checkin-list.jpg" alt="Pre-registered list on Sign up" loading="lazy"><figcaption>Pre-registered list</figcaption></figure>
+    </li>
+    <li class="step has-img">
+      <div class="body"><h2>Check in and draw</h2><p>Tap <span class="ui">Check in</span>. Their name, number and classes fill in, and their Driven code if they gave one. Check it with the driver, then tap <span class="ui">Draw my pills</span>. They move to the bottom of the list as checked in.</p></div>
+      <figure class="shot phone"><img src="img/prereg-checkin.jpg" alt="Check in fills the form" loading="lazy"><figcaption>Check in fills the form</figcaption></figure>
+    </li>
+    <li class="step">
+      <div class="body"><h2>When something goes wrong</h2><ul><li><b>A driver entered twice?</b> Only their newest entry counts. No duplicates.</li><li><b>Wrong class or number?</b> Fix it on the sign-up form before you tap Draw.</li><li><b>Link says pre-registration hasn't opened?</b> Tap <span class="ui">Open pre-registration</span> and make sure sync is on.</li><li><b>Walk-ups</b> sign up the normal way. Nothing changes for them.</li></ul></div>
+    </li>
+  </ol>
+  <div class="note"><h3>Good to know</h3><ul><li>The entry page never asks for email, phone or address.</li><li>Only your staff devices can see the entry list. The public link can only send entries.</li><li>Already took entries on a Google Form? Import the responses on the same page and they join the same list.</li></ul></div>
+  <div class="next"><h3>Next guides</h3><div class="cards"><a class="gcard" href="sign-up-table.html"><div class="k">Staff roles</div><div class="t">Sign-up table</div><div class="d">Registering drivers, returning drivers, pill draws, and self-serve kiosk.</div></a><a class="gcard" href="race-night.html"><div class="k">Start to finish</div><div class="t">Race night, start to finish</div><div class="d">Sign-up, lineups, heats, B-mains, features and points — in order.</div></a><a class="gcard" href="/drivers/guides/pre-register.html"><div class="k">For your drivers</div><div class="t">Pre-register from home</div><div class="d">The driver's side, step by step. Share it with your link.</div></a></div></div>
+
+  <div class="help">
+    <p><b>Still stuck?</b> The <a href="/field-manual.html">Field Manual</a> walks through every screen, and the <a href="/faq.html">FAQ</a> covers common questions. Or just text me — it's the fastest way to get an answer.</p>
+    <span class="help-links"><a href="sms:+12602074983">💬 Text Josh · (260) 207-4983 →</a><a class="help-email" href="mailto:josh@victoryraceday.com?subject=RaceDay%20question">or email</a></span>
+  </div>
+</div></main>
+<footer><div class="wrap">
+  <span>RaceDay &amp; Driven — race night, one screen.</span>
+  <span><a href="/?home=1">Overview</a> &nbsp;·&nbsp; <a href="/guides/">Guides</a> &nbsp;·&nbsp; <a href="/faq.html">FAQ</a> &nbsp;·&nbsp; <a href="/pricing.html">Pricing</a> &nbsp;·&nbsp; <a href="/raceday2/">Open the app</a> &nbsp;·&nbsp; <a href="https://www.facebook.com/victoryraceday" target="_blank" rel="noopener">Facebook</a> &nbsp;·&nbsp; <a href="https://www.linkedin.com/company/victoryraceday/" target="_blank" rel="noopener">LinkedIn</a> &nbsp;·&nbsp; <a href="https://www.youtube.com/@victoryraceday" target="_blank" rel="noopener">YouTube</a> &nbsp;·&nbsp; <a href="https://www.instagram.com/victoryraceday/" target="_blank" rel="noopener">Instagram</a></span>
+</div></footer>
+<!-- Cloudflare Web Analytics --><script>/* skipped on devices opted out at /me/ (the owner's own testing) and on local dev/test copies */try{if(localStorage.getItem('rd_dont_count')!=='1'&&!(/^(localhost|127\.0\.0\.1|\[::1\])$|\.(localhost|test)$/.test(location.hostname)&&localStorage.getItem('rd_count_local')!=='1')){var cfb=document.createElement('script');cfb.defer=true;cfb.src='https://static.cloudflareinsights.com/beacon.min.js';cfb.setAttribute('data-cf-beacon','{"token": "07e858325a984890a4f60c1cec1942bc"}');(document.body||document.head).appendChild(cfb);}}catch(e){}</script><!-- End Cloudflare Web Analytics -->
+</body>
+</html>
