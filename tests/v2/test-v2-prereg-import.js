@@ -83,9 +83,21 @@ const CSV = fs.readFileSync(path.join(ROOT, 'test-data', 'prereg-google-form.csv
   await page.evaluate(() => nav('signup'));
   const card = await page.evaluate(() => { const c = document.getElementById('preCard'); return c ? c.innerText : ''; });
   check('Sign-up lists the pre-registered drivers', /Pre-registered/.test(card) && /0 of 4 checked in/.test(card), card.slice(0, 120));
+  console.log('\n— Driven at the gate —');
+  await page.evaluate(() => {
+    driverById(S.settings.preReg.find(p => p.name === 'Drew Mason').driverId).profileId = 'prof_abc12345xyz';
+    S.settings.preReg.find(p => p.name === 'Riley Banks').driven = 'K7Q2M4XN';
+    save(); nav('signup');
+  });
+  const tags = await page.evaluate(() => { const o = {}; document.querySelectorAll('#preList .lrow').forEach(r => { const n = r.querySelector('b').textContent; const b = [...r.querySelectorAll('.badge')].map(x => x.textContent).join('|'); o[n] = b; }); return { o, sum: document.querySelector('#preCard summary').innerText }; });
+  check('a driver with a linked card shows Driven', /^Driven$/i.test((tags.o['Drew Mason'] || '').split('|').find(x => /driven/i.test(x)) || ''), JSON.stringify(tags.o));
+  check('a driver who gave a link code shows Driven code', /Driven code/i.test(tags.o['Riley Banks'] || ''), JSON.stringify(tags.o));
+  check('a driver with no card shows No Driven', /No Driven/i.test(tags.o['Casey Rivera'] || ''), JSON.stringify(tags.o));
+  check('the list counts who has no Driven yet', /2 without Driven/i.test(tags.sum), tags.sum);
   await page.evaluate(() => preCheckIn(S.settings.preReg.findIndex(p => p.name === 'Casey Rivera')));
   const form = await page.evaluate(() => ({ name: dName.value, num: dNum.value, on: S.classes.filter(c => document.getElementById('ch' + c.id).classList.contains('on')).map(c => c.name) }));
   check('Check in fills the name and number', form.name === 'Casey Rivera' && form.num === '47', JSON.stringify(form));
+  check('checking in a driver with no Driven reminds the gate to offer one', await page.evaluate(() => /No Driven card yet/.test(document.getElementById('scanNote').innerText)));
   check('Check in ticks their classes', JSON.stringify(form.on) === '["Predator","Stock Appearing"]', JSON.stringify(form.on));
   await page.evaluate(() => { const c = document.getElementById('consentChk'); if (c) c.checked = true; register(); });
   const entered = await page.evaluate(() => S.raceDay.entries.filter(e => e.driverId === S.settings.preReg.find(p => p.name === 'Casey Rivera').driverId).length);

@@ -163,7 +163,7 @@ profile that follows them across every RaceDay track they race at.
 - **Pre-registrations** (2026-11-08, `raceday2/`): Admin → Pre-registrations imports a Google Form responses CSV
   (columns matched by wording, email/address never kept, unclear kart numbers flagged). Stored at
   `S.settings.preReg` (v2 adds no top-level fields — test-v2-compat), so it syncs with settings. Sign-up shows a
-  Pre-registered list; Check in fills the form. Guard: `tests/v2/test-v2-prereg-import.js`
+  Pre-registered list (Driven / Driven code / No Driven tags, `preDriven`); Check in fills the form. Guard: `tests/v2/test-v2-prereg-import.js`
 - **Pre-registration from home** (2026-11-08, `raceday2/` + `enter/`): public page `/enter/?<ROOMCODE>` (REST, no
   SDK, never asks email/phone/address). Admin → Pre-registrations opens/closes it (`S.settings.preOnline` →
   `preRegOpen/<code>`, staff write). Entries go to `preRegIn/<code>/<id>` (create-only while open and before
