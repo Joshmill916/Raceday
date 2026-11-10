@@ -1198,7 +1198,7 @@ const ACTIVE_TRACK_KEY = 'rd_active_track';
 // paste the Google Apps Script web-app URL between the quotes.
 // Reported with every usage row and crash. The part after the dot MUST match this app's
 // sw.js CACHE number (tests/test-app-version.js) — bump both together on each release.
-const APP_VERSION = '2026-11-06.v24';
+const APP_VERSION = '2026-11-10.v25';
 const LEGAL_VERSION = '2026-06';   // bump when Terms / Privacy wording changes, so acceptances are versioned
 const TELEMETRY_URL = 'https://script.google.com/macros/s/AKfycbxa3i3y17TLp_NfXOOu2jM7-YzXH2fScxcXoQYmIh0-873rxWfxg0HdRP1DVsxZq6iR/exec';
 
@@ -2010,6 +2010,7 @@ function resetForNewTrack() {
 function clearDemoResidue() {
   S.demo = false;
   try { localStorage.removeItem('rd_demo_for'); } catch (e) {}
+  if (S.track && S.track.name === 'Sample Speedway') S.track.name = '';   // the demo's track name, not theirs
   const demoIds = new Set(S.roster.filter(d => d.demoSeed).map(d => d.id));
   if (demoIds.size) {
     S.roster = S.roster.filter(d => !demoIds.has(d.id));
@@ -5219,7 +5220,7 @@ function currentCounts() {
   return { total: (S.raceDay.entries || []).length, classes };
 }
 // Random per-device id (not derived from the device or person) so tracks without a
-// license, which all report as 'unknown', can still be told apart in the usage sheet.
+// license and no track name yet, which report as 'unknown', can still be told apart in the usage sheet.
 function deviceId() {
   try {
     let id = localStorage.getItem('rd_device');
@@ -5244,13 +5245,19 @@ function featuresUsed() {
 }
 // One 'open' beacon per device per day: shows a track is active even on a night that
 // never gets archived.
+// Where this device first came from: "<source> <first page>" (facebook, qr, google, direct...). Every
+// page's analytics loader records it once; this covers a device whose first page was this app.
+function visitFrom() {
+  try{if(!localStorage.getItem('rd_from')){var rdS=location.search,rdM=/[?&](?:from|utm_source)=([^&#]+)/.exec(rdS),rdH='',rdR;try{rdH=document.referrer?new URL(document.referrer).hostname.replace(/^(www|m|l|lm|mobile)\./,''):''}catch(e){}if(rdM)rdR=decodeURIComponent(rdM[1]);else if(/[?&]fbclid=/.test(rdS))rdR='facebook';else if(/[?&]gclid=/.test(rdS))rdR='google-ads';else if(!rdH)rdR='direct';else if(rdH===location.hostname)rdR='site';else rdR=/(^|\.)(facebook\.com|fb\.com|fb\.me)$/.test(rdH)?'facebook':/instagram\.com$/.test(rdH)?'instagram':/(^|\.)google\./.test(rdH)?'google':/(youtube\.com|youtu\.be)$/.test(rdH)?'youtube':/(linkedin\.com|lnkd\.in)$/.test(rdH)?'linkedin':/bing\.com$/.test(rdH)?'bing':/web\.app$/.test(rdH)?'shared-card':rdH;localStorage.setItem('rd_from',String(rdR).toLowerCase().replace(/[^a-z0-9.\-]/g,'').slice(0,30)+' '+location.pathname.slice(0,40))}}catch(e){}
+  try { return localStorage.getItem('rd_from') || ''; } catch (e) { return ''; }
+}
 function pingOpen() {
   if (!TELEMETRY_URL) return;
   try {
     if (localStorage.getItem('rd_open_ping') === today()) return;
     localStorage.setItem('rd_open_ping', today());
   } catch (e) { return; }
-  sendUsage('open', currentCounts());
+  sendUsage('open', Object.assign(currentCounts(), { features: 'from:' + (visitFrom() || 'unknown') }));
 }
 // Devices opted out at victoryraceday.com/me/ (the owner testing) still send rows, but with
 // the track column marked OWNER, so the sheet can sort them away from possible customers.
@@ -5291,7 +5298,7 @@ function sendUsage(event, extra) {
       event: event,
       version: APP_VERSION,
       date: (S.raceDay && S.raceDay.date) || today(),
-      track: (dontCount() ? 'OWNER · ' : '') + (S.demo ? demoLabel() : ((S.license && S.license.name) || 'unknown')),
+      track: (dontCount() ? 'OWNER · ' : '') + (S.demo ? demoLabel() : ((S.license && S.license.name) || String((S.track && S.track.name) || '').trim().slice(0, 40) || 'unknown')),
       device: deviceId(),
       demo: !!S.demo
     }, extra || {}));
@@ -7234,7 +7241,7 @@ if (navigator.onLine && (S.roster || []).some(d => d.profile && d.profile.pendin
 if (!LOAD_FAILURE && !S.track.name && deviceRole() === 'admin' && !(S.sync && S.sync.enabled)) openSetupWizard();
 checkLoadFailure();
 </script>
-<!-- Cloudflare Web Analytics --><script>/* skipped on devices opted out at /me/ (the owner's own testing) and on local dev/test copies */try{if(localStorage.getItem('rd_dont_count')!=='1'&&!(/^(localhost|127\.0\.0\.1|\[::1\])$|\.(localhost|test)$/.test(location.hostname)&&localStorage.getItem('rd_count_local')!=='1')){var cfb=document.createElement('script');cfb.defer=true;cfb.src='https://static.cloudflareinsights.com/beacon.min.js';cfb.setAttribute('data-cf-beacon','{"token": "07e858325a984890a4f60c1cec1942bc"}');(document.body||document.head).appendChild(cfb);}}catch(e){}</script><!-- End Cloudflare Web Analytics -->
+<!-- Cloudflare Web Analytics --><script>/* skipped on devices opted out at /me/ (the owner's own testing) and on local dev/test copies */try{if(localStorage.getItem('rd_dont_count')!=='1'&&!(/^(localhost|127\.0\.0\.1|\[::1\])$|\.(localhost|test)$/.test(location.hostname)&&localStorage.getItem('rd_count_local')!=='1')){var cfb=document.createElement('script');cfb.defer=true;cfb.src='https://static.cloudflareinsights.com/beacon.min.js';cfb.setAttribute('data-cf-beacon','{"token": "07e858325a984890a4f60c1cec1942bc"}');(document.body||document.head).appendChild(cfb);}}catch(e){}/* first visit: remember where this device first came from (rd_from = "<source> <landing path>"); the apps send it with their daily open row */try{if(!localStorage.getItem('rd_from')){var rdS=location.search,rdM=/[?&](?:from|utm_source)=([^&#]+)/.exec(rdS),rdH='',rdR;try{rdH=document.referrer?new URL(document.referrer).hostname.replace(/^(www|m|l|lm|mobile)\./,''):''}catch(e){}if(rdM)rdR=decodeURIComponent(rdM[1]);else if(/[?&]fbclid=/.test(rdS))rdR='facebook';else if(/[?&]gclid=/.test(rdS))rdR='google-ads';else if(!rdH)rdR='direct';else if(rdH===location.hostname)rdR='site';else rdR=/(^|\.)(facebook\.com|fb\.com|fb\.me)$/.test(rdH)?'facebook':/instagram\.com$/.test(rdH)?'instagram':/(^|\.)google\./.test(rdH)?'google':/(youtube\.com|youtu\.be)$/.test(rdH)?'youtube':/(linkedin\.com|lnkd\.in)$/.test(rdH)?'linkedin':/bing\.com$/.test(rdH)?'bing':/web\.app$/.test(rdH)?'shared-card':rdH;localStorage.setItem('rd_from',String(rdR).toLowerCase().replace(/[^a-z0-9.\-]/g,'').slice(0,30)+' '+location.pathname.slice(0,40))}}catch(e){}</script><!-- End Cloudflare Web Analytics -->
 <script>
 // ---- http → https for the app (see the content pages' head snippet) ----
 // The secure address is the one to use. A device that has this app's data on the old http://

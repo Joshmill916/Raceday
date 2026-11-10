@@ -26,7 +26,7 @@
    used to show as "direct". Visiting this path first records it in Cloudflare Web Analytics
    (Paths), then forwards — so the source shows up. Opted-out devices (/me/) just forward. */
 (function () {
-  var done = false, go = function () { if (done) return; done = true; location.replace('/drivers/' + location.search + location.hash); };
+  var done = false, go = function () { if (done) return; done = true; location.replace('/drivers/' + (location.search ? location.search + '&' : '?') + 'from=li' + location.hash); };
   var off = false;
   try { off = localStorage.getItem('rd_dont_count') === '1' || (/^(localhost|127\.0\.0\.1|\[::1\])$|\.(localhost|test)$/.test(location.hostname)&&localStorage.getItem('rd_count_local')!=='1'); } catch (e) {}
   if (off) { go(); return; }

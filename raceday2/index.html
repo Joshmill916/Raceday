@@ -848,7 +848,7 @@ const GARAGE_KEY = 'rd_garage_v2';
 const ACTIVE_TRACK_KEY = 'rd_active_track_v2';
 // Reported with every usage row and crash. The part after the dot MUST match this app's
 // sw.js CACHE number (tests/test-app-version.js) — bump both together on each release.
-const APP_VERSION = '2026-11-10.v25';
+const APP_VERSION = '2026-11-10.v26';
 const LEGAL_VERSION = '2026-06';   // bump when Terms / Privacy wording changes, so acceptances are versioned
 const TELEMETRY_URL = 'https://script.google.com/macros/s/AKfycbxa3i3y17TLp_NfXOOu2jM7-YzXH2fScxcXoQYmIh0-873rxWfxg0HdRP1DVsxZq6iR/exec';
 const FIREBASE_CONFIG = {
@@ -2870,6 +2870,7 @@ function clearDemoResidue() {
   S.demo = false;
   try { localStorage.removeItem('rd_demo_for'); } catch (e) {}
   if (S.raceDay) S.raceDay.demo = false;
+  if (S.track && S.track.name === 'Sample Speedway') S.track.name = '';   // the demo's track name, not theirs
   const demoIds = new Set(S.roster.filter(d => d.demoSeed).map(d => d.id));
   if (demoIds.size) {
     S.roster = S.roster.filter(d => !demoIds.has(d.id));
@@ -2901,7 +2902,7 @@ function currentCounts() {
   return { total: (S.raceDay.entries || []).length, classes };
 }
 // Random per-device id (not derived from the device or person) so tracks without a
-// license, which all report as 'unknown', can still be told apart in the usage sheet.
+// license and no track name yet, which report as 'unknown', can still be told apart in the usage sheet.
 function deviceId() {
   try {
     let id = localStorage.getItem('rd_device');
@@ -2926,13 +2927,19 @@ function featuresUsed() {
 }
 // One 'open' beacon per device per day: shows a track is active even on a night that
 // never gets archived.
+// Where this device first came from: "<source> <first page>" (facebook, qr, google, direct...). Every
+// page's analytics loader records it once; this covers a device whose first page was this app.
+function visitFrom() {
+  try{if(!localStorage.getItem('rd_from')){var rdS=location.search,rdM=/[?&](?:from|utm_source)=([^&#]+)/.exec(rdS),rdH='',rdR;try{rdH=document.referrer?new URL(document.referrer).hostname.replace(/^(www|m|l|lm|mobile)\./,''):''}catch(e){}if(rdM)rdR=decodeURIComponent(rdM[1]);else if(/[?&]fbclid=/.test(rdS))rdR='facebook';else if(/[?&]gclid=/.test(rdS))rdR='google-ads';else if(!rdH)rdR='direct';else if(rdH===location.hostname)rdR='site';else rdR=/(^|\.)(facebook\.com|fb\.com|fb\.me)$/.test(rdH)?'facebook':/instagram\.com$/.test(rdH)?'instagram':/(^|\.)google\./.test(rdH)?'google':/(youtube\.com|youtu\.be)$/.test(rdH)?'youtube':/(linkedin\.com|lnkd\.in)$/.test(rdH)?'linkedin':/bing\.com$/.test(rdH)?'bing':/web\.app$/.test(rdH)?'shared-card':rdH;localStorage.setItem('rd_from',String(rdR).toLowerCase().replace(/[^a-z0-9.\-]/g,'').slice(0,30)+' '+location.pathname.slice(0,40))}}catch(e){}
+  try { return localStorage.getItem('rd_from') || ''; } catch (e) { return ''; }
+}
 function pingOpen() {
   if (!TELEMETRY_URL) return;
   try {
     if (localStorage.getItem('rd_open_ping') === today()) return;
     localStorage.setItem('rd_open_ping', today());
   } catch (e) { return; }
-  sendUsage('open', currentCounts());
+  sendUsage('open', Object.assign(currentCounts(), { features: 'from:' + (visitFrom() || 'unknown') }));
 }
 // Crash reports. Only errors from this page's own code are sent: errors from another
 // file (a browser extension, an in-app browser's injected script, a CDN) and the opaque
@@ -2991,7 +2998,7 @@ function sendUsage(event, extra) {
       event: event,
       version: APP_VERSION,
       date: (S.raceDay && S.raceDay.date) || today(),
-      track: (dontCount() ? 'OWNER · ' : '') + (S.demo ? demoLabel() : ((S.license && S.license.name) || 'unknown')),
+      track: (dontCount() ? 'OWNER · ' : '') + (S.demo ? demoLabel() : ((S.license && S.license.name) || String((S.track && S.track.name) || '').trim().slice(0, 40) || 'unknown')),
       device: deviceId(),
       demo: !!S.demo
     }, extra || {}));
