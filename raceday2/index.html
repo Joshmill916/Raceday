@@ -848,7 +848,7 @@ const GARAGE_KEY = 'rd_garage_v2';
 const ACTIVE_TRACK_KEY = 'rd_active_track_v2';
 // Reported with every usage row and crash. The part after the dot MUST match this app's
 // sw.js CACHE number (tests/test-app-version.js) — bump both together on each release.
-const APP_VERSION = '2026-11-10.v24';
+const APP_VERSION = '2026-11-10.v25';
 const LEGAL_VERSION = '2026-06';   // bump when Terms / Privacy wording changes, so acceptances are versioned
 const TELEMETRY_URL = 'https://script.google.com/macros/s/AKfycbxa3i3y17TLp_NfXOOu2jM7-YzXH2fScxcXoQYmIh0-873rxWfxg0HdRP1DVsxZq6iR/exec';
 const FIREBASE_CONFIG = {
@@ -3900,7 +3900,7 @@ function renderPrereg() {
   const gone = S.settings.preGone || [];
   if (gone.length) h += '<div class="card"><b>Cancelled · ' + gone.length + '</b><div class="stack" style="margin-top:8px">'
     + gone.map((g, k) => ({ g, k })).reverse().map(({ g, k }) => '<div class="lrow"><span style="flex:1;min-width:0"><b>' + esc(g.p.name) + '</b><span class="tiny" style="display:block">'
-      + esc((g.p.classIds || []).map(id => (classById(id) || {}).name).filter(Boolean).join(' · ') || 'No classes') + ' · ' + esc(new Date(g.at).toLocaleString([], { month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit' })) + '</span></span>'
+      + esc((g.p.classIds || []).map(id => (classById(id) || {}).name).filter(Boolean).join(' · ') || 'No classes') + (g.why ? ' · ' + esc(g.why) : '') + ' · ' + esc(new Date(g.at).toLocaleString([], { month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit' })) + '</span></span>'
       + '<button class="btn btn-sm" style="min-height:44px" onclick="preUndo(' + k + ')">Undo</button></div>').join('') + '</div></div>';
   el.innerHTML = h;
   if (UI.preQROn) { const cv = document.getElementById('preQR'); if (cv) drawQR(cv, preEnterUrl()); }
@@ -4101,8 +4101,12 @@ function preOnlinePull(quiet) {
   UI.prePulled = Date.now();
   return preStaffReady().then(ok => {
     if (!ok) { if (!quiet) toast('This device can\'t read entries — open RaceDay from the track\'s staff link.', 'err'); return 0; }
-    return firebase.database().ref('preRegIn/' + syncKey()).once('value').then(snap => {
-      const n = preMergeOnline(snap.val() || {});
+    const db = firebase.database();
+    return Promise.all([db.ref('preRegIn/' + syncKey()).once('value'), db.ref('preRegOut/' + syncKey()).once('value').catch(() => null)]).then(([snap, outSnap]) => {
+      const all = snap.val() || {};
+      const w = preApplyWithdrawals(all, (outSnap && outSnap.val()) || {});
+      const n = preMergeOnline(all);
+      if (w.length) { toast(w.length === 1 ? w[0] + ' withdrew online' : plural(w.length, 'driver') + ' withdrew online', 'ok'); renderPreList(); renderPrereg(); }
       if (n) { toast(plural(n, 'online entry', 'online entries') + ' added — they\'re on the Sign-up page to check in.', 'ok'); if (curPage === 'signup' && !signupDone && !document.getElementById('dName').value) renderSignup(); else renderPreList(); renderPrereg(); }
       else if (!quiet) toast('No new entries.', 'ok');
       return n;
@@ -4137,6 +4141,35 @@ function preMergeOnline(all) {
   });
   if (n) save();
   return n;
+}
+/* Drivers can withdraw from /enter/ (2026-11-10): their phone keeps the entry's random `tok`
+   and writes preRegOut/<code>/<id> = {tok, at}; database.rules.json only accepts it when tok
+   matches the entry's own. Here, staff devices take the driver off the pre-registered list the
+   same careful way an admin cancel does (S.settings.preGone, with Undo + audit log), skip every
+   version of that entry (a changed entry chains through `replaces`), and clear it online.
+   Race-day entries are never touched: someone already checked in gets a warning instead. */
+function preApplyWithdrawals(all, outs) {
+  const o = preOnline(), names = [], drop = {};
+  Object.keys(outs || {}).forEach(id => {
+    const ids = []; let cur = id;
+    while (cur && !ids.includes(cur) && ids.length < 20) { ids.push(cur); cur = all[cur] && all[cur].replaces; }
+    const k = preList().findIndex(p => ids.includes(p.rid));
+    if (k >= 0) {
+      const p = preList()[k];
+      preList().splice(k, 1);
+      if (!Array.isArray(S.settings.preGone)) S.settings.preGone = [];
+      S.settings.preGone.push({ p: JSON.parse(JSON.stringify(p)), at: Date.now(), why: 'withdrew online' });
+      if (S.settings.preGone.length > 60) S.settings.preGone = S.settings.preGone.slice(-60);
+      logAudit('Pre-registration withdrawn by driver', p.name, 'withdrew online', '');
+      names.push(p.name);
+      if (preCheckedIn(p)) setTimeout(() => alert(p.name + ' withdrew online, but is already checked in tonight. If they\'re not racing, cancel them in Today\'s entries.'), 50);
+    }
+    ids.forEach(x => { if (!o.skip.includes(x)) o.skip.push(x); drop['preRegIn/' + syncKey() + '/' + x] = null; delete all[x]; });
+    drop['preRegOut/' + syncKey() + '/' + id] = null;
+  });
+  if (o.skip.length > 400) o.skip = o.skip.slice(-400);
+  if (Object.keys(drop).length) { save(); firebase.database().ref().update(drop).catch(() => {}); }
+  return names;
 }
 /* Removing someone (or clearing the list) also drops their online entries so a pull doesn't bring them back. */
 function preOnlineForget(p) {
