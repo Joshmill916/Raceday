@@ -1566,10 +1566,13 @@ function dpResultsList(results, limit) {
    iPhone Safari has no prompt, so the button shows the two taps (Share → Add to Home Screen).
    Hidden once Driven is opened from the home screen, or after "Not now" on Home (Settings keeps it). */
 var dvInstallEvt = null, dvInstallHelp = false;
-addEventListener('beforeinstallprompt', function (e) { e.preventDefault(); dvInstallEvt = e; if (curPageIs('home')) renderHome(); });
+addEventListener('beforeinstallprompt', function (e) { e.preventDefault(); dvInstallEvt = e; rerenderInstall(); });
 addEventListener('appinstalled', function () { dvInstallEvt = null; try { localStorage.setItem('dv_installed', '1'); } catch (e) {} rerenderInstall(); });
 function curPageIs(pg) { var el = $id('page-' + pg); return !!(el && el.classList.contains('active')); }
-function rerenderInstall() { if (curPageIs('home')) renderHome(); if (curPageIs('settings')) renderSettings(); }
+function rerenderInstall() {
+  if (!P) return;   // a new visitor has no profile yet: Chrome's install signal can arrive before onboarding finishes
+  if (curPageIs('home')) renderHome(); if (curPageIs('settings')) renderSettings();
+}
 function dvStandalone() {
   try { if (window.matchMedia && matchMedia('(display-mode: standalone)').matches) return true; } catch (e) {}
   return navigator.standalone === true;
@@ -2531,7 +2534,7 @@ function deleteProfile() {
 // day, 'driven-profile' when someone makes a profile, 'driven-publish' the first time a card is
 // published, and crashes. No names, emails or numbers — only counts. The track column reads DRIVEN.
 // The part after the dot MUST match sw.js CACHE (tests/test-analytics.js) — bump both together.
-const APP_VERSION = '2026-11-10.v21';
+const APP_VERSION = '2026-11-10.v22';
 var TELEMETRY_URL = 'https://script.google.com/macros/s/AKfycbxa3i3y17TLp_NfXOOu2jM7-YzXH2fScxcXoQYmIh0-873rxWfxg0HdRP1DVsxZq6iR/exec';
 // Devices opted out at /me/ (the owner testing) still report, marked OWNER; copies on this
 // computer (localhost, *.test) report nothing unless rd_count_local='1' (the analytics test).
