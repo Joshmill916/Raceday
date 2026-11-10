@@ -848,7 +848,7 @@ const GARAGE_KEY = 'rd_garage_v2';
 const ACTIVE_TRACK_KEY = 'rd_active_track_v2';
 // Reported with every usage row and crash. The part after the dot MUST match this app's
 // sw.js CACHE number (tests/test-app-version.js) — bump both together on each release.
-const APP_VERSION = '2026-11-09.v23';
+const APP_VERSION = '2026-11-10.v24';
 const LEGAL_VERSION = '2026-06';   // bump when Terms / Privacy wording changes, so acceptances are versioned
 const TELEMETRY_URL = 'https://script.google.com/macros/s/AKfycbxa3i3y17TLp_NfXOOu2jM7-YzXH2fScxcXoQYmIh0-873rxWfxg0HdRP1DVsxZq6iR/exec';
 const FIREBASE_CONFIG = {
@@ -860,7 +860,7 @@ const FIREBASE_CONFIG = {
   messagingSenderId: "891072179363",
   appId: "1:891072179363:web:36d8b91fd7da81932f2316"
 };
-const SYNC_FIELDS = ['raceDay/date', 'raceDay/entries', 'raceDay/heatResults', 'raceDay/pointsRace', 'raceDay/resultGov', 'raceDay/tech', 'classes', 'roster', 'settings', 'track'];
+const SYNC_FIELDS = ['raceDay/date', 'raceDay/entries', 'raceDay/heatResults', 'raceDay/pointsRace', 'raceDay/resultGov', 'raceDay/tech', 'raceDay/cancelled', 'classes', 'roster', 'settings', 'track'];
 const ROLE_PAGES = {
   admin:    ['signup', 'grid', 'results', 'finals', 'points', 'tech', 'announce', 'admin', 'help'],
   register: ['signup', 'help'],
@@ -1220,6 +1220,7 @@ function restoreResVersion(clsId, idx) {
 const UI = {
   viewClsId: null,        /* class selected on Lineups */
   viewStage: 'qual',      /* which stage the Lineups view is showing */
+  fmtClass: 0, fmtSel: "",  /* Build a race: the class + format open in the format sheet */
   preImp: null, preQ: "", prePulled: 0, preOnlineIds: null, preQROn: false,  /* pre-registration import preview + the sign-up check-in search */
   ptsTab: null, ptsNames: [],
   histOpen: null,
@@ -3891,11 +3892,16 @@ function renderPrereg() {
           + (p.waiver ? ' · waiver signed' : '') + (p.tx ? ' · transponder ' + esc(p.tx) : '') + (p.online ? ' · entered online' : '') + '</span></span>'
           + (preCheckedIn(p) ? '<span class="badge badge-green">Checked in</span>' : '')
           + (!p.num ? '<button class="btn btn-sm" onclick="preSetNum(' + i + ')">Set number</button>' : '')
-          + '<button class="btn btn-sm btn-danger" onclick="preRemove(' + i + ')">Remove</button></div>';
+          + '<button class="btn btn-sm btn-danger" onclick="preRemove(' + i + ')">Cancel</button></div>';
       }).join('') + '</div>'
       + '<div class="rowflex" style="margin-top:12px"><button class="btn btn-sm" onclick="preCsv()">Download entry list (CSV)</button>'
       + '<button class="btn btn-sm" onclick="preClear()">Clear the list</button></div></div>';
   }
+  const gone = S.settings.preGone || [];
+  if (gone.length) h += '<div class="card"><b>Cancelled · ' + gone.length + '</b><div class="stack" style="margin-top:8px">'
+    + gone.map((g, k) => ({ g, k })).reverse().map(({ g, k }) => '<div class="lrow"><span style="flex:1;min-width:0"><b>' + esc(g.p.name) + '</b><span class="tiny" style="display:block">'
+      + esc((g.p.classIds || []).map(id => (classById(id) || {}).name).filter(Boolean).join(' · ') || 'No classes') + ' · ' + esc(new Date(g.at).toLocaleString([], { month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit' })) + '</span></span>'
+      + '<button class="btn btn-sm" style="min-height:44px" onclick="preUndo(' + k + ')">Undo</button></div>').join('') + '</div></div>';
   el.innerHTML = h;
   if (UI.preQROn) { const cv = document.getElementById('preQR'); if (cv) drawQR(cv, preEnterUrl()); }
   preOnlinePull(true);
@@ -3972,13 +3978,30 @@ function preSetNum(i) {
 }
 function preRemove(i) {
   if (!adminOk()) return;
-  const p = preList()[i]; if (!p || !confirm('Remove ' + p.name + ' from the pre-registered list? (They stay in the driver book.)')) return;
-  preList().splice(i, 1); preOnlineForget(p); save(); renderPrereg();
+  const p = preList()[i]; if (!p || !confirm('Cancel ' + p.name + '\'s pre-registration? They stay in the driver book, and you can undo it from the Cancelled list below.')) return;
+  preList().splice(i, 1); preOnlineForget(p);
+  if (!Array.isArray(S.settings.preGone)) S.settings.preGone = [];
+  S.settings.preGone.push({ p: JSON.parse(JSON.stringify(p)), at: Date.now() });
+  if (S.settings.preGone.length > 60) S.settings.preGone = S.settings.preGone.slice(-60);
+  logAudit('Pre-registration cancelled', p.name, 'cancelled', '');
+  save(); renderPrereg();
+  toast(p.name + '\'s pre-registration cancelled', 'ok', 'Undo', 'preUndo(' + (S.settings.preGone.length - 1) + ')');
+}
+function preUndo(k) {
+  if (!adminOk()) return;
+  const g = (S.settings.preGone || [])[k]; if (!g) return;
+  S.settings.preGone.splice(k, 1);
+  if (!preFind(g.p.name)) preList().push(g.p);
+  const o = S.settings.preOnline;
+  if (o && Array.isArray(o.skip) && g.p.rid) o.skip = o.skip.filter(id => id !== g.p.rid);
+  logAudit('Pre-registration restored', g.p.name, 'restored', '');
+  save(); renderPrereg();
+  toast(g.p.name + ' is back on the pre-registered list', 'ok');
 }
 function preClear() {
   if (!adminOk() || !confirm('Clear the whole pre-registered list? Drivers stay in the driver book and anyone already checked in stays entered.' + (S.settings.preOnline && S.settings.preOnline.used ? '\n\nOnline entries are cleared too, ready for your next race.' : ''))) return;
   preList().forEach(preOnlineForget);
-  S.settings.preReg = []; save(); renderPrereg();
+  S.settings.preReg = []; delete S.settings.preGone; save(); renderPrereg();
 }
 
 /* ---- Online pre-registration: victoryraceday.com/enter/?ROOMCODE ----
@@ -4035,7 +4058,7 @@ function preOnlineSet(field, v) {
   else if (['title', 'date', 'note', 'waiver'].includes(field)) o[field] = String(v || '').slice(0, field === 'waiver' ? 4000 : field === 'note' ? 200 : field === 'date' ? 40 : 80);
   save();
   if (o.used) preOnlinePublish().catch(() => toast('Saved here — couldn\'t update the entry page. Check your connection.', 'err'));
-  renderPrereg();
+  renderPrereg(); renderRaceBuilder();
 }
 function preStaffReady() {
   if (!syncOn() || !syncKey() || GUEST || !canWrite()) return Promise.resolve(false);
@@ -4063,10 +4086,10 @@ function preOnlineOpen(on) {
   const was = o.open;
   o.open = !!on; o.used = true;
   preOnlinePublish().then(() => {
-    save(); renderPrereg();
+    save(); renderPrereg(); renderRaceBuilder();
     toast(on ? 'Pre-registration is open — copy the link and post it.' : 'Pre-registration closed. New entries are refused.', 'ok');
   }).catch(() => {
-    o.open = was; renderPrereg();
+    o.open = was; renderPrereg(); renderRaceBuilder();
     alert('Couldn\'t reach the cloud to ' + (on ? 'open' : 'close') + ' pre-registration. Check your connection — this needs the track\'s admin device (staff link).');
   });
 }
@@ -5383,6 +5406,404 @@ function secSchedule() {
       + '<input type="text" maxlength="40" value="' + esc(r.label || '') + '" placeholder="' + (['Practice', 'Heats', 'Features'][i] || 'What') + '" onchange="setScheduleRow(' + i + ',\'label\',this.value)">'
       + '<input type="text" maxlength="40" value="' + esc(r.time || '') + '" placeholder="' + (['10:30 AM', '1:00 PM', '6:30 PM'][i] || 'Time') + '" onchange="setScheduleRow(' + i + ',\'time\',this.value)"></div>').join('')
     + '<p class="tiny">Laps for each class are set under <a href="#" onclick="admOpen(\'classes\');return false">Race classes</a>.</p></div>';
+}
+
+/* ---- Build a race + class formats (2026-11-10) ----
+   Admin → Race night → Build a race: one screen for the race's name, day and gate time, a
+   FORMAT for each class, and pre-registration. Nothing here is new race logic:
+   - a format is only a named bundle of the per-class settings the engine already reads
+     (heats, invert/invertScope, invertFeature/invertBMain, maxHeat/maxFeature/maxBMain, laps);
+   - name + day are the same fields as pre-registration (S.settings.preOnline.title/date) and
+     gates open is a row in tonight's schedule (S.settings.schedule).
+   Built-in formats are FORMAT_PRESETS and only set the race shape (sizes + laps stay as the
+   class has them). A track's own formats live at S.settings.formats (synced, v2 adds no
+   top-level fields) and travel between tracks as a .json file: fmtCheck() reads every rule
+   first and refuses the whole file if any rule asks for something RaceDay can't run.
+   Track-wide choices (B-main style, transfers, heat fill) stay in Race format. */
+const FMT_KEYS = ['heats', 'invert', 'invertScope', 'invertFeature', 'invertBMain', 'maxHeat', 'maxFeature', 'maxBMain', 'laps'];
+const FMT_LIMITS = { invert: 99, invertFeature: 40, invertBMain: 30, maxHeat: 30, maxFeature: 40, maxBMain: 30 };
+const FORMAT_PRESETS = [
+  { id: 'pill2', name: 'Pill draw, 2 heats', rules: { heats: 2, invert: 0, invertFeature: 0, invertBMain: 0 } },
+  { id: 'qual1', name: 'One qualifying heat', rules: { heats: 1, invert: 0, invertFeature: 0, invertBMain: 0 } },
+  { id: 'qual0', name: 'Qualify to feature', rules: { heats: 0, invert: 0, invertFeature: 0, invertBMain: 0 } }
+];
+function fmtSaved() { return Array.isArray(S.settings.formats) ? S.settings.formats : []; }
+function fmtAll() { return FORMAT_PRESETS.map(f => Object.assign({ builtIn: true }, f)).concat(fmtSaved()); }
+function fmtById(id) { return fmtAll().find(f => f.id === id) || null; }
+/* Read a rules object from anywhere (a class, a file, a preset). Returns {rules, problems};
+   problems is a list of plain sentences — any problem means the caller changes nothing. */
+function fmtCheck(raw) {
+  const problems = [], rules = {};
+  if (!raw || typeof raw !== 'object' || Array.isArray(raw)) return { rules, problems: ['It has no rules in it.'] };
+  const num = (k, v, lo, hi) => {
+    const n = Number(v);
+    if (!Number.isInteger(n) || (n !== 0 && (n < lo || n > hi))) { problems.push('"' + k + '" must be 0 (off) or a whole number from ' + lo + ' to ' + hi + ' — it says ' + JSON.stringify(v) + '.'); return; }
+    rules[k] = n;
+  };
+  Object.keys(raw).forEach(k => {
+    const v = raw[k];
+    if (k === 'heats') {
+      if ([0, 1, 2].includes(Number(v)) && String(v).trim() !== '') rules.heats = Number(v);
+      else problems.push('It asks for ' + JSON.stringify(v) + ' heat sets. RaceDay runs 2 (pill draw), 1 (one qualifying heat) or 0 (qualify straight to the mains).');
+    } else if (k === 'invertScope') {
+      if (v === 'field' || v === 'heat') rules.invertScope = v;
+      else problems.push('"invertScope" must be "field" or "heat" — it says ' + JSON.stringify(v) + '.');
+    } else if (k === 'laps') {
+      if (!v || typeof v !== 'object' || Array.isArray(v)) { problems.push('"laps" must list heat, bmain and feature laps.'); return; }
+      const laps = {};
+      Object.keys(v).forEach(lk => {
+        const n = Number(v[lk]);
+        if (!['heat', 'bmain', 'feature'].includes(lk)) problems.push('It sets laps for "' + lk + '". RaceDay has laps for heats, B-mains and the feature only.');
+        else if (!Number.isInteger(n) || n < 0 || n > 999) problems.push('Laps for ' + lk + ' must be 0 to 999 — it says ' + JSON.stringify(v[lk]) + '.');
+        else laps[lk] = n;
+      });
+      rules.laps = laps;
+    } else if (k in FMT_LIMITS) {
+      num(k, v, 2, FMT_LIMITS[k]);
+    } else {
+      problems.push('It asks for "' + k + '", which RaceDay can\'t run.');
+    }
+  });
+  if (rules.invert && !rules.invertScope) rules.invertScope = 'field';
+  return { rules, problems };
+}
+/* Every format key as this class has it now (0 = off / the track default). */
+function fmtFromClass(c) {
+  const laps = {};
+  ['heat', 'bmain', 'feature'].forEach(k => { laps[k] = classLaps(c, k); });
+  return { heats: classHeats(c), invert: classInvertN(c), invertScope: c.invertScope === 'heat' ? 'heat' : 'field',
+    invertFeature: clsFeatInvert(c), invertBMain: clsBMainInvert(c),
+    maxHeat: c.maxHeat > 0 ? +c.maxHeat : 0, maxFeature: c.maxFeature > 0 ? +c.maxFeature : 0, maxBMain: c.maxBMain > 0 ? +c.maxBMain : 0, laps };
+}
+/* Only the keys a format names are touched — a built-in leaves sizes and laps alone. */
+function fmtApply(c, rules) {
+  FMT_KEYS.forEach(k => {
+    if (!(k in rules)) return;
+    const v = rules[k];
+    if (k === 'heats') c.heats = v;
+    else if (k === 'invertScope') c.invertScope = v;
+    else if (k === 'invert' || k === 'invertFeature' || k === 'invertBMain') c[k] = v >= 2 ? v : 0;
+    else if (k === 'laps') {
+      const laps = Object.assign({}, c.laps || {});
+      ['heat', 'bmain', 'feature'].forEach(lk => { if (lk in v) { if (v[lk] > 0) laps[lk] = v[lk]; else delete laps[lk]; } });
+      if (Object.keys(laps).length) c.laps = laps; else delete c.laps;
+    } else { if (v >= 2) c[k] = v; else delete c[k]; }
+  });
+}
+function fmtMatches(c, rules) {
+  const now = fmtFromClass(c);
+  return Object.keys(rules).every(k => {
+    if (k === 'invertScope') return !now.invert || now.invertScope === rules[k];
+    if (k === 'laps') return ['heat', 'bmain', 'feature'].every(lk => !(lk in rules.laps) || (rules.laps[lk] || 0) === now.laps[lk]);
+    return (rules[k] || 0) === now[k];
+  });
+}
+/* The format a class is running: the one it was given (if still true), else any that fits. */
+function fmtOf(c) {
+  const given = c.fmt ? fmtById(c.fmt) : null;
+  if (given && fmtMatches(c, given.rules)) return given;
+  return fmtSaved().find(f => fmtMatches(c, f.rules)) || FORMAT_PRESETS.find(f => fmtMatches(c, f.rules)) || null;
+}
+function fmtGridWord(h) { return h === 2 ? 'Pill draw' : h === 1 ? 'Qualifying heat' : 'Qualify'; }
+/* Plain-English lines for "What this format sets". */
+function fmtLines(rules, c) {
+  const L = [], r = rules;
+  if ('heats' in r) {
+    L.push(['Grid', r.heats === 2 ? 'Pill draw at check-in' : 'Sign-up order, then qualifying']);
+    L.push(['Heats', r.heats === 2 ? '2 sets, set 2 inverted' : r.heats === 1 ? '1 qualifying heat' : 'None, straight to the mains']);
+  }
+  if ('invert' in r) L.push(['Heat start', r.invert >= 2 ? 'Invert top ' + r.invert + (r.invertScope === 'heat' ? ', each heat' : ', whole field') : 'No invert']);
+  const size = (k, word) => { if (k in r) L.push([word, r[k] >= 2 ? 'Up to ' + r[k] + ' karts' : 'Track default (' + S.settings[k] + ')']); };
+  size('maxHeat', 'Heat size'); size('maxBMain', 'B-main size'); size('maxFeature', 'Feature size');
+  if ('invertBMain' in r) L.push(['B-main start', r.invertBMain >= 2 ? 'Top ' + r.invertBMain + ' inverted' : 'Straight up']);
+  if ('invertFeature' in r) L.push(['Feature start', r.invertFeature >= 2 ? 'Top ' + r.invertFeature + ' inverted' : 'Straight up']);
+  if (r.laps) {
+    const lp = ['heat', 'bmain', 'feature'].filter(k => r.laps[k] > 0).map(k => r.laps[k] + ' ' + { heat: 'heat', bmain: 'B-main', feature: 'feature' }[k]);
+    L.push(['Laps', lp.length ? lp.join(' · ') : 'Not shown']);
+  }
+  if (!('maxHeat' in r) && !r.laps) L.push(['Sizes & laps', c ? 'Keeps what ' + c.name + ' has' : 'Keeps what each class has']);
+  return L;
+}
+/* One-line summary of how a class runs tonight (for the builder's class list). */
+function fmtSummary(c) {
+  const n = fmtFromClass(c), bits = [];
+  if (n.laps.heat && n.heats) bits.push(n.laps.heat + '-lap heat' + (n.heats === 2 ? 's' : ''));
+  else bits.push(n.heats === 2 ? '2 heats' : n.heats === 1 ? '1 heat' : 'no heats');
+  if (n.laps.feature) bits.push(n.laps.feature + '-lap feature');
+  if (n.invert) bits.push('invert ' + n.invert);
+  if (n.invertFeature) bits.push('feature invert ' + n.invertFeature);
+  return bits.join(' · ');
+}
+function classHasResults(id) {
+  const r = S.raceDay.heatResults && S.raceDay.heatResults[resKey(id)];
+  return !!(r && typeof r === 'object' && Object.keys(r).length);
+}
+
+/* ---- the screen ---- */
+function raceGates() { const r = (S.settings.schedule || []).find(x => x && /^gates( open)?$/i.test(x.label || '')); return r ? r.time : ''; }
+function setRaceField(field, v) {
+  if (!adminOk()) return;
+  v = String(v || '').trim();
+  if (field === 'gates') {
+    const rows = (S.settings.schedule || []).filter(x => x && !/^gates( open)?$/i.test(x.label || ''));
+    if (v) rows.unshift({ label: 'Gates open', time: v.slice(0, 40) });
+    if (rows.length) S.settings.schedule = rows; else delete S.settings.schedule;
+    save();
+  } else if (field === 'title' || field === 'date') {
+    preOnlineSet(field, v);   // same fields as pre-registration — re-publishes the entry page if it's in use
+  }
+  renderRaceBuilder();
+}
+function secRace() { return '<div id="raceWrap"></div>'; }
+function renderRaceBuilder() {
+  const el = document.getElementById('raceWrap'); if (!el) return;
+  const o = preOnline();
+  const inp = (id, label, val, ph, max, field) => '<div class="field" style="margin:0"><label for="' + id + '">' + label + '</label><input id="' + id + '" type="text" maxlength="' + max + '" placeholder="' + esc(ph) + '" value="' + esc(val || '') + '" onchange="setRaceField(\'' + field + '\',this.value)"></div>';
+  let h = '<p class="sub" style="margin-top:0">Set up your next race in one place: when it is, how each class runs, and whether drivers can enter from home. Check-in on race day works the same as always.</p>'
+    + '<div class="card"><div class="stack">'
+    + inp('rbTitle', 'Race name', o.title, 'e.g. Fall Classic', 80, 'title')
+    + '<div class="cols">' + inp('rbDate', 'Race day', o.date, 'e.g. Sat, Nov 22', 40, 'date') + inp('rbGates', 'Gates open', raceGates(), 'e.g. 4:00 PM', 40, 'gates') + '</div>'
+    + '</div><p class="tiny" style="margin:8px 0 0">Gates open shows on the TV and fan view with tonight\'s schedule.</p></div>';
+
+  h += '<div class="spread" style="margin:18px 0 8px"><b style="font-size:17px">Classes &amp; formats</b><span class="push"></span><span class="tiny">' + plural(S.classes.length, 'class', 'classes') + '</span></div>'
+    + '<div class="card card-flush">'
+    + (S.classes.length ? S.classes.map(c => {
+        const f = fmtOf(c);
+        return '<div class="lrow" style="padding:12px 14px"><span style="flex:1;min-width:0"><b>' + esc(c.name) + '</b><span class="tiny" style="display:block">' + esc(fmtSummary(c)) + '</span></span>'
+          + '<button class="btn btn-sm" style="min-height:44px" onclick="fmtPick(' + c.id + ')">' + esc(f ? f.name : fmtGridWord(classHeats(c)) + ' · custom') + '</button></div>';
+      }).join('') : '<div style="padding:14px">' + emptyState('🏎', 'No classes yet.') + '</div>')
+    + '<button class="btn" style="width:100%;border:0;border-radius:0;min-height:48px" onclick="raceAddClass()">+ Add a class</button></div>'
+    + '<p class="tiny" style="margin-top:8px">Running order, pills and fine-tuning: <a href="#" onclick="admOpen(\'classes\');return false">Race classes</a>. B-main style and transfers: <a href="#" onclick="admOpen(\'format\');return false">Race format</a>.</p>';
+
+  const saved = fmtSaved();
+  h += '<div class="card" style="margin-top:14px"><b>Your formats</b>'
+    + (saved.length ? '<div class="stack" style="margin-top:8px">' + saved.map(f => '<div style="padding:10px 0;border-top:1px solid var(--line)"><b>' + esc(f.name) + '</b>' + (f.from ? ' <span class="badge badge-dim">Imported</span>' : '')
+        + '<span class="tiny" style="display:block;margin:2px 0 8px">' + esc(fmtLines(f.rules).slice(1, 4).map(x => x[1]).join(' · ')) + '</span>'
+        + '<div class="rowflex"><button class="btn btn-sm" onclick="fmtExport(\'' + f.id + '\')">Download</button>'
+        + '<button class="btn btn-sm btn-danger" onclick="fmtDelete(\'' + f.id + '\')">Delete</button></div></div>').join('') + '</div>'
+      : '<p class="tiny" style="margin:6px 0 0">None yet. Set a class up the way you like it, then tap its format and "Save as a format". Got a format file from another track or series? Import it.</p>')
+    + '<div class="rowflex" style="margin-top:10px"><button class="btn btn-sm" onclick="document.getElementById(\'fmtFile\').click()">Import a format file</button>'
+    + (saved.length > 1 ? '<button class="btn btn-sm" onclick="fmtExport()">Download all</button>' : '') + '</div>'
+    + '<input type="file" id="fmtFile" accept=".json,application/json" style="display:none" onchange="fmtLoadFile(this)"></div>';
+
+  h += '<div class="card" style="margin-top:14px"><div class="spread"><b>Pre-registration</b><span class="push"></span>'
+    + (preIsOpen(o) ? '<span class="badge badge-green">OPEN</span>' : '<span class="badge badge-dim">CLOSED</span>') + '</div>';
+  if (!syncOn() || !syncKey()) {
+    h += '<p class="tiny" style="margin:6px 0 0">Drivers can enter from home once <a href="#" onclick="admOpen(\'sync\');return false">Multi-device sync</a> is on.</p></div>';
+  } else {
+    h += '<p class="tiny" style="margin:6px 0 10px">Drivers enter from home at <b style="word-break:break-all">' + esc(preEnterUrl()) + '</b>' + (o.closes ? '. Closes ' + esc(new Date(o.closes).toLocaleString([], { weekday: 'short', month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit' })) : '') + '.</p>'
+      + '<div class="field"><label for="rbCloses">Stop taking entries (optional)</label><input id="rbCloses" type="datetime-local" value="' + preLocalDT(o.closes) + '" onchange="preOnlineSet(\'closes\',this.value);renderRaceBuilder()"></div>'
+      + '<div class="rowflex">' + (preIsOpen(o) ? '<button class="btn btn-danger" onclick="preOnlineOpen(false)">Close pre-registration</button>' : '<button class="btn btn-go" onclick="preOnlineOpen(true)">Open pre-registration</button>')
+      + '<button class="btn" onclick="copyText(preEnterUrl(),\'Entry link copied\')">Copy link</button></div>'
+      + '<p class="tiny" style="margin:10px 0 0">Waiver, transponder and the note for drivers: <a href="#" onclick="admOpen(\'prereg\');return false">Pre-registrations</a>.</p></div>';
+  }
+  h += '<button class="btn btn-primary" style="width:100%;min-height:52px;margin-top:16px" onclick="admOpen(\'prereg\')">See entries</button>';
+  el.innerHTML = h;
+}
+function raceAddClass() {
+  if (!adminOk()) return;
+  const name = (prompt('Class name (e.g. Predator, Kid Kart):') || '').trim().slice(0, 60);
+  if (!name) return;
+  if (S.classes.some(c => c.name.toLowerCase() === name.toLowerCase())) { alert(name + ' is already a class.'); return; }
+  addClassNamed(name, 200);
+  save(); renderRaceBuilder();
+  const c = S.classes[S.classes.length - 1];
+  if (c) fmtPick(c.id);
+}
+
+/* ---- pick a format for one class (sheet) ---- */
+function fmtPick(classId, sel) {
+  if (!adminOk()) return;
+  const c = classById(classId); if (!c) return;
+  const cur = fmtOf(c);
+  UI.fmtClass = classId;
+  UI.fmtSel = sel || (cur ? cur.id : '');
+  const f = fmtById(UI.fmtSel);
+  const row = x => {
+    const on = x.id === UI.fmtSel;
+    return '<button type="button" class="lrow" style="width:100%;text-align:left;background:' + (on ? 'var(--bg-3, rgba(255,255,255,.06))' : 'none') + ';border:0;border-bottom:1px solid var(--line);padding:12px 14px;color:inherit;font:inherit;cursor:pointer" onclick="fmtPick(' + classId + ',\'' + x.id + '\')">'
+      + '<span style="flex:none;width:20px;height:20px;border-radius:50%;border:2px solid ' + (on ? 'var(--accent, #ffd449)' : 'var(--line)') + ';display:inline-flex;align-items:center;justify-content:center">' + (on ? '<span style="width:10px;height:10px;border-radius:50%;background:var(--accent, #ffd449)"></span>' : '') + '</span>'
+      + '<span style="flex:1;min-width:0"><b>' + esc(x.name) + '</b><span class="tiny" style="display:block">' + esc(x.builtIn ? fmtLines(x.rules).slice(0, 2).map(l => l[1]).join(' · ') : (x.from ? 'Imported' : 'Saved here')) + '</span></span>'
+      + '<span class="tiny" style="flex:none;text-transform:uppercase;letter-spacing:.5px">' + (x.builtIn ? 'Built in' : x.from ? 'Imported' : 'Yours') + '</span></button>';
+  };
+  let body = '<div class="card card-flush" style="margin-bottom:12px">' + fmtAll().map(row).join('') + '</div>';
+  if (f) {
+    body += '<div class="card"><div class="slbl" style="margin-top:0">What this format sets</div>'
+      + fmtLines(f.rules, c).map(l => '<div class="spread" style="gap:12px;font-size:14px;margin:4px 0"><span class="tiny" style="font-size:14px">' + esc(l[0]) + '</span><span class="push"></span><b style="text-align:right">' + esc(l[1]) + '</b></div>').join('')
+      + '</div>';
+  } else {
+    body += '<p class="tiny">' + esc(c.name) + ' has its own settings right now (' + esc(fmtSummary(c)) + '). Pick a format above, or save these settings as a format.</p>';
+  }
+  if (classHasResults(c.id)) body += '<div class="note note-warn">Results are already in for ' + esc(c.name) + ' tonight. Changing its format changes tonight\'s lineups.</div>';
+  body += '<div class="rowflex" style="margin-top:12px"><button class="btn btn-sm" onclick="fmtSaveFrom(' + classId + ')">Save ' + esc(c.name) + '\'s settings as a format</button>'
+    + '<button class="btn btn-sm" onclick="closeSheet();admOpen(\'classes\')">Fine-tune in Race classes</button></div>';
+  openSheet(c.name + ' · pick a format', body,
+    '<div style="display:flex;flex-direction:column;gap:10px;width:100%">'
+    + '<button class="btn btn-primary" style="width:100%;min-height:52px;white-space:normal"' + (f ? '' : ' disabled') + ' onclick="fmtUse()">Use for ' + esc(c.name) + '</button>'
+    + '<button class="btn" style="width:100%;min-height:48px" onclick="closeSheet()">Cancel</button></div>', { wide: true });
+}
+function fmtUse() {
+  if (!adminOk()) return;
+  const c = classById(UI.fmtClass), f = fmtById(UI.fmtSel);
+  if (!c || !f) return;
+  if (classHasResults(c.id) && !confirm('Results are already in for ' + c.name + ' tonight. Change its format anyway? Tonight\'s lineups will change.')) return;
+  const before = fmtOf(c);
+  fmtApply(c, f.rules);
+  c.fmt = f.id;
+  logAudit('Class format', before ? before.name : 'custom', f.name, c.name);
+  save(); closeSheet(); renderRaceBuilder(); renderClsList(); renderGrid();
+  toast(c.name + ' now runs ' + f.name, 'ok');
+}
+function fmtNewId() { return 'f' + Date.now().toString(36) + Math.random().toString(36).slice(2, 6); }
+function fmtSaveFrom(classId) {
+  if (!adminOk()) return;
+  const c = classById(classId); if (!c) return;
+  const name = (prompt('Name this format (e.g. "Winter Series rules"):', c.name + ' format') || '').trim().slice(0, 40);
+  if (!name) return;
+  const rules = fmtFromClass(c);
+  const same = fmtSaved().find(f => f.name.toLowerCase() === name.toLowerCase());
+  if (same && !confirm('You already have a format called "' + same.name + '". Replace it?')) return;
+  if (!Array.isArray(S.settings.formats)) S.settings.formats = [];
+  let id;
+  if (same) { same.rules = rules; delete same.from; id = same.id; }
+  else { id = fmtNewId(); S.settings.formats.push({ id, name, rules }); }
+  c.fmt = id;
+  logAudit('Format saved', '', name, c.name);
+  save(); fmtPick(classId, id); renderRaceBuilder();
+  toast('Saved "' + name + '". Use it for any class, or download it to share.', 'ok');
+}
+function fmtDelete(id) {
+  if (!adminOk()) return;
+  const f = fmtSaved().find(x => x.id === id); if (!f) return;
+  if (!confirm('Delete the format "' + f.name + '"? Classes using it keep their settings.')) return;
+  S.settings.formats = fmtSaved().filter(x => x.id !== id);
+  logAudit('Format deleted', f.name, '', '');
+  save(); renderRaceBuilder();
+}
+function fmtFileText(list) {
+  return JSON.stringify({ raceday: 'format', version: 1, formats: list.map(f => ({ name: f.name, rules: f.rules })) }, null, 2);
+}
+function fmtExport(id) {
+  const list = id ? fmtSaved().filter(f => f.id === id) : fmtSaved();
+  if (!list.length) return;
+  const base = list.length === 1 ? list[0].name.replace(/[^a-z0-9]+/gi, '-').replace(/^-|-$/g, '').toLowerCase() || 'format' : 'raceday-formats';
+  downloadFile(base + '.json', fmtFileText(list), 'application/json');
+}
+/* Read a format file. Every format and every rule is checked before anything is saved;
+   one bad rule refuses the whole file and says why. Returns true when it imported. */
+function fmtImportText(text, fileName) {
+  if (!adminOk()) return false;
+  let data;
+  try { data = JSON.parse(text); } catch (e) { alert('That file isn\'t a RaceDay format file (it isn\'t JSON). Nothing changed.'); return false; }
+  const list = Array.isArray(data) ? data : (data && Array.isArray(data.formats)) ? data.formats : (data && data.rules) ? [data] : null;
+  if (!list || !list.length) { alert('No formats found in that file. Nothing changed.'); return false; }
+  if (list.length > 50) { alert('That file has ' + list.length + ' formats — the most one file can bring is 50. Nothing changed.'); return false; }
+  const out = [], problems = [];
+  list.forEach((x, i) => {
+    const name = x && typeof x.name === 'string' ? x.name.trim().slice(0, 40) : '';
+    const label = name || 'Format ' + (i + 1);
+    if (!name) problems.push(label + ': it has no name.');
+    const chk = fmtCheck(x && x.rules);
+    chk.problems.forEach(p => problems.push(label + ': ' + p));
+    if (!Object.keys(chk.rules).length && !chk.problems.length) problems.push(label + ': it doesn\'t set anything.');
+    out.push({ name, rules: chk.rules });
+  });
+  if (problems.length) {
+    alert('Couldn\'t import ' + (fileName || 'that file') + '. Nothing changed.\n\n' + problems.slice(0, 8).join('\n') + (problems.length > 8 ? '\n…and ' + (problems.length - 8) + ' more.' : ''));
+    return false;
+  }
+  if (!Array.isArray(S.settings.formats)) S.settings.formats = [];
+  const clash = out.filter(f => S.settings.formats.some(x => x.name.toLowerCase() === f.name.toLowerCase()));
+  if (clash.length && !confirm('You already have ' + clash.map(f => '"' + f.name + '"').join(', ') + '. Replace ' + (clash.length === 1 ? 'it' : 'them') + ' with the file\'s version?')) return false;
+  out.forEach(f => {
+    const same = S.settings.formats.find(x => x.name.toLowerCase() === f.name.toLowerCase());
+    if (same) { same.rules = f.rules; same.from = 'file'; }
+    else S.settings.formats.push({ id: fmtNewId(), name: f.name, rules: f.rules, from: 'file' });
+  });
+  if (S.settings.formats.length > 60) S.settings.formats = S.settings.formats.slice(-60);
+  logAudit('Formats imported', '', out.map(f => f.name).join(', '), fileName || '');
+  save(); renderRaceBuilder();
+  toast(plural(out.length, 'format') + ' imported. Tap a class\'s format to use one.', 'ok');
+  return true;
+}
+function fmtLoadFile(inp) {
+  const f = inp.files && inp.files[0]; if (!f) return;
+  if (f.size > 200 * 1024) { alert('That file is too big to be a format file. Nothing changed.'); inp.value = ''; return; }
+  const rd = new FileReader();
+  rd.onload = () => { fmtImportText(String(rd.result || ''), f.name); inp.value = ''; };
+  rd.readAsText(f);
+}
+
+/* ---- Cancel an entry, carefully (2026-11-10) ----
+   Two steps (a sheet naming the driver, class and pill, then a red button that says exactly
+   what happens), nothing is thrown away: the entry moves to S.raceDay.cancelled (synced as its
+   own field) with Undo for the rest of the night, and both moves go in the audit log. */
+function cancelledList() { if (!Array.isArray(S.raceDay.cancelled)) S.raceDay.cancelled = []; return S.raceDay.cancelled; }
+function delEntry(i) {
+  if (!adminOk()) return;
+  const e = S.raceDay.entries[i]; if (!e) return;
+  const d = driverById(e.driverId) || { name: 'this driver', num: '' };
+  const c = classById(e.classId) || { name: 'this class' };
+  const others = S.raceDay.entries.map((x, j) => ({ x, j })).filter(o => o.j !== i && o.x.driverId === e.driverId);
+  const first = String(d.name).split(' ')[0];
+  let body = '<div class="card"><b>' + esc(d.name) + '</b>' + (d.num ? ' · #' + esc(d.num) : '') + '<span class="tiny" style="display:block;font-size:14px">' + esc(c.name) + (e.pill ? ', pill ' + e.pill + ' drawn' : '') + '</span></div>'
+    + '<div class="note note-warn">' + (e.pill ? 'Pill ' + e.pill + ' goes back in the draw and ' : '') + esc(first) + ' comes out of the ' + esc(c.name) + ' lineup. You can undo this any time tonight.</div>';
+  if (classHasResults(e.classId)) body += '<div class="note note-warn" style="margin-top:8px">Results are already in for ' + esc(c.name) + '. Cancelling now changes tonight\'s lineups for that class.</div>';
+  if (others.length) body += '<div class="stack" style="margin-top:12px">' + others.map(o => '<label class="check"><input type="checkbox" class="cxAlso" value="' + o.j + '"><span>Also cancel ' + esc((classById(o.x.classId) || { name: '?' }).name) + '</span></label>').join('') + '</div>';
+  openSheet('Cancel this entry?', body,
+    '<div style="display:flex;flex-direction:column;gap:10px;width:100%">'
+    + '<button class="btn btn-danger" style="width:100%;min-height:52px;white-space:normal" onclick="cancelEntryNow(' + i + ')">Cancel ' + esc(first) + ' from ' + esc(c.name) + '</button>'
+    + '<button class="btn" style="width:100%;min-height:48px" onclick="closeSheet()">Keep the entry</button></div>');
+}
+function cancelEntryNow(i) {
+  if (!adminOk()) return;
+  const idx = [i].concat(Array.from(document.querySelectorAll('.cxAlso:checked')).map(x => parseInt(x.value, 10)));
+  const picked = idx.map(j => S.raceDay.entries[j]).filter(Boolean);
+  if (!picked.length) { closeSheet(); return; }
+  const at = Date.now(), by = auditUser();
+  picked.forEach(e => {
+    const d = driverById(e.driverId) || { name: '?', num: '' }, c = classById(e.classId) || { name: '?' };
+    cancelledList().push({ id: at.toString(36) + '-' + e.driverId + '-' + e.classId, entry: JSON.parse(JSON.stringify(e)), name: d.name, num: d.num || '', cls: c.name, at, by });
+    logAudit('Entry cancelled', d.name + ' · ' + c.name + (e.pill ? ' · pill ' + e.pill : ''), 'cancelled', c.name);
+  });
+  S.raceDay.entries = S.raceDay.entries.filter(e => !picked.includes(e));
+  if (cancelledList().length > 200) S.raceDay.cancelled = cancelledList().slice(-200);
+  save(); closeSheet(); renderAdmin();
+  const one = picked.length === 1 ? cancelledList()[cancelledList().length - 1] : null;
+  toast(picked.length === 1 ? one.name + ' cancelled from ' + one.cls : plural(picked.length, 'entry', 'entries') + ' cancelled', 'ok', 'Undo', one ? "undoCancel('" + one.id + "')" : "undoCancelAt(" + at + ")");
+}
+function undoCancelAt(at) { cancelledList().filter(r => r.at === at).map(r => r.id).forEach(id => undoCancel(id)); }
+function undoCancel(id) {
+  if (!adminOk()) return;
+  const list = cancelledList(), k = list.findIndex(r => r.id === id); if (k < 0) return;
+  const r = list[k], e = Object.assign({}, r.entry);
+  const c = classById(e.classId);
+  if (!c) { alert('The class ' + r.cls + ' isn\'t set up any more, so this entry can\'t come back. Add the class again first.'); return; }
+  if (S.raceDay.entries.some(x => x.driverId === e.driverId && x.classId === e.classId)) {
+    list.splice(k, 1); save(); renderAdmin(); toast(r.name + ' is already back in ' + c.name, 'ok'); return;
+  }
+  const taken = e.pill && S.raceDay.entries.find(x => x.classId === e.classId && String(x.pill) === String(e.pill));
+  if (taken) {
+    const who = (driverById(taken.driverId) || { name: 'another driver' }).name;
+    const v = prompt('Pill ' + e.pill + ' in ' + c.name + ' now belongs to ' + who + '. Which pill does ' + r.name + ' get?');
+    if (v == null) return;
+    const n = parseInt(v, 10);
+    if (!(n >= 1 && n <= (c.maxPill || 200)) || S.raceDay.entries.some(x => x.classId === e.classId && +x.pill === n)) { alert('Pick a free pill from 1 to ' + (c.maxPill || 200) + '.'); return; }
+    e.pill = n;
+  }
+  S.raceDay.entries.push(e);
+  list.splice(k, 1);
+  logAudit('Entry restored', r.name + ' · ' + c.name, e.pill ? 'pill ' + e.pill : 'restored', c.name);
+  save(); renderAdmin();
+  toast(r.name + ' is back in ' + c.name + (e.pill ? ', pill ' + e.pill : ''), 'ok');
+}
+function cancelledMarkup() {
+  const list = cancelledList();
+  if (!list.length) return '';
+  return '<div class="card" style="margin-top:14px"><b>Cancelled tonight · ' + list.length + '</b>'
+    + '<div class="stack" style="margin-top:8px">' + list.slice().reverse().map(r => '<div class="lrow"><span style="flex:1;min-width:0"><b>' + esc(r.name) + '</b>' + (r.num ? ' · #' + esc(r.num) : '')
+      + '<span class="tiny" style="display:block">' + esc(r.cls) + (r.entry && r.entry.pill ? ' · pill ' + r.entry.pill : '') + ' · ' + esc(new Date(r.at).toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' })) + '</span></span>'
+      + '<button class="btn btn-sm" style="min-height:44px" onclick="undoCancel(\'' + esc(r.id) + '\')">Undo</button></div>').join('') + '</div></div>';
 }
 
 /* Lineup/heat/main/feature slides — verbatim v1 tvSlides(), renamed. */
@@ -7370,14 +7791,17 @@ function addClass() {
   const name = nameEl.value.trim();
   if (!name) return;
   const maxPill = Math.max(2, parseInt(maxEl.value) || 200);
+  addClassNamed(name, maxPill);
+  nameEl.value = ''; maxEl.value = '200';
+  save(); renderClsList(); renderClsLib();
+}
+function addClassNamed(name, maxPill) {
   // A name matching one in the library pulls its spectator info forward instead of
   // starting blank — the whole point of the library is not re-typing this every season.
   const libHit = S.classLib.find(x => x.name.toLowerCase() === name.toLowerCase());
   S.classes.push({ id: newClassId(), name, maxPill,
     description: (libHit && libHit.description) || '', ageGroup: (libHit && libHit.ageGroup) || '', specs: (libHit && libHit.specs) || '' });
   rememberClass(name, maxPill);
-  nameEl.value = ''; maxEl.value = '200';
-  save(); renderClsList(); renderClsLib();
 }
 function delClass(id) {
   const cnt = classRacers(id).length;
@@ -7560,14 +7984,6 @@ function setEntryNum(i, val) {
   save();
   renderEntryList();
 }
-function delEntry(i) {
-  const e = S.raceDay.entries[i]; if (!e) return;
-  const d = driverById(e.driverId) || { name: 'this driver' };
-  const c = classById(e.classId) || { name: 'this class' };
-  if (!confirm('Remove ' + d.name + ' from ' + c.name + '? Pill #' + e.pill + ' goes back in the draw.')) return;
-  S.raceDay.entries.splice(i, 1);
-  save(); renderAdmin();
-}
 function toggleNoPoints(id) {
   const d = driverById(id); if (!d) return;
   d.noPoints = !d.noPoints;
@@ -7694,6 +8110,7 @@ let _impRows = [];        /* points-repair form: [{driverId, name, num, pts}] */
 let _impEditIdx = null;   /* set while editing an existing history entry */
 
 const ADMIN_SECTIONS = [
+  { id:'race',     door:'night',  ico:'🗓', label:'Build a race',       hint:'Name, day, a format for each class, pre-registration', kw:'build race event next format formats pill draw qualifying preset import export file series rules' },
   { id:'today',    door:'night',  ico:'📋', label:"Today's entries",    hint:'Add, move, or fix who\'s racing tonight', kw:'entries pill grid spot number quick add refill' },
   { id:'prereg',   door:'night',  ico:'📝', label:'Pre-registrations',  hint:'Import your Google Form entries, check drivers in at the gate', kw:'pre-registration preregistration pre-entry google form import csv responses check in gate' },
   { id:'history',  door:'night',  ico:'📅', label:'Race day history',   hint:'Past nights, CSV export, edit an import', kw:'archive export csv delete edit imported' },
@@ -7786,6 +8203,7 @@ function renderAdminSearch() {
 /* ---------------------------------------------------------------- sections */
 function secMarkup(id) {
   switch (id) {
+    case 'race':    return secRace();
     case 'today':   return secToday();
     case 'history':  return '<div class="card" id="historyList"></div>';
     case 'prereg':   return '<div id="preregWrap"></div>';
@@ -7811,6 +8229,7 @@ function secMarkup(id) {
   }
 }
 function secMount(id) {
+  if (id === 'race')     renderRaceBuilder();
   if (id === 'today')   { renderQuickAdd(); renderEntryList(); }
   if (id === 'history')  renderHistory();
   if (id === 'prereg')   renderPrereg();
@@ -8150,8 +8569,8 @@ function secToday() {
     + '<hr class="hr">'
     + '<input id="entrySearch" type="text" placeholder="Find a driver — search name, vehicle #, or class" oninput="renderEntryList()" autocomplete="off">'
     + '<div id="entryList" style="margin-top:12px"></div>'
-    + '<p class="tiny" style="margin-top:8px">Removing an entry pulls that driver from that class only — the pill goes back in the draw and their other classes are untouched.</p>'
-    + '</div>';
+    + '<p class="tiny" style="margin-top:8px">Cancelling an entry pulls that driver from that class only — the pill goes back in the draw and their other classes are untouched. Cancelled entries wait below with Undo for the rest of the night.</p>'
+    + '</div><div id="cancelledWrap"></div>';
 }
 function renderQuickAdd() {
   const qd = document.getElementById('qaDriver'), qc = document.getElementById('qaClass');
@@ -8167,6 +8586,7 @@ function renderQuickAdd() {
 function renderEntryList() {
   const el = document.getElementById('entryList');
   if (!el) return;
+  const cw = document.getElementById('cancelledWrap'); if (cw) cw.innerHTML = cancelledMarkup();
   const qaBtn = document.getElementById('qaAddBtn'); if (qaBtn) qaBtn.disabled = !canEnter();
   if (!S.raceDay.entries.length) { el.innerHTML = emptyState('📋', 'No entries yet today.'); return; }
   const qEl = document.getElementById('entrySearch');
@@ -8192,7 +8612,7 @@ function renderEntryList() {
         + '<button class="btn btn-sm" style="padding:4px 8px" onclick="bumpEntryPill(' + r.i + ',1)">▼</button></div></td>'
       + '<td class="r"><div class="rowflex" style="justify-content:flex-end;flex-wrap:nowrap">'
         + '<button class="btn btn-sm' + (r.noPoints ? ' btn-danger' : '') + '" onclick="toggleEntryNoPoints(' + r.i + ')">' + (r.noPoints ? 'No pts' : 'Pts') + '</button>'
-        + '<button class="btn btn-sm btn-danger" onclick="delEntry(' + r.i + ')">Remove</button></div></td></tr>').join('')
+        + '<button class="btn btn-sm btn-danger" onclick="delEntry(' + r.i + ')">Cancel</button></div></td></tr>').join('')
     + '</tbody></table></div>';
 }
 

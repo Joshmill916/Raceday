@@ -179,6 +179,12 @@ profile that follows them across every RaceDay track they race at.
   `closes`; staff-read only — database.rules.json, **needs `firebase deploy --only database`**). Staff devices pull
   them into `S.settings.preReg` (`preOnlinePull`/`preMergeOnline`; `replaces` = newest wins; transponder →
   `d.trans`; removed drivers go in `preOnline.skip` + are deleted online). Guard: `tests/v2/test-v2-prereg-online.js`
+- **Build a race** (2026-11-10, `raceday2/`): Admin → Race night → Build a race (`renderRaceBuilder`). Name/day = the
+  pre-registration fields (`preOnline.title/date`), gates open = a `S.settings.schedule` row. Each class gets a FORMAT = a
+  named bundle of EXISTING class settings (`FMT_KEYS`: heats, invert*, max*, laps; no new race logic). Built-ins
+  `FORMAT_PRESETS` (leave sizes/laps alone); the track's own at `S.settings.formats`; `.json` files go through `fmtCheck()`,
+  which refuses the whole file on any rule RaceDay can't run. Cancel an entry = two-step sheet → `S.raceDay.cancelled`
+  (synced) with Undo + audit log; pre-registrations cancel to `S.settings.preGone` with Undo. Guard: `tests/v2/test-v2-race-builder.js`
 - **Owner backups + dashboard** (local only, NOT in the repo): `~/RaceDay Backups/` (`tools/backup.py`) saves the
   whole RTDB to `database/*.json.gz` (60 + first-of-month), mirrors the repo to `code/Raceday.git`, and rebuilds
   `RaceDay Dashboard.html` (offline Driven lookup, live pull by link code). Restore steps: `RESTORE.txt` there.
