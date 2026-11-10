@@ -68,6 +68,34 @@ const check = (name, ok, extra) => {
   check('no sideways scroll on a phone', await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth));
   await ctx.close();
 
+  console.log('\n=== New visitor: Chrome\'s install signal before they have a profile ===');
+  // Bug 2026-11-10: on Android, beforeinstallprompt arrived while a brand-new visitor was still on
+  // the welcome screen (no profile yet); redrawing Home read P.raceResults on a null P and crashed.
+  {
+    const c2 = await browser.newContext({ viewport: { width: 400, height: 900 } });
+    const p2 = await c2.newPage();
+    const errs = [];
+    p2.on('pageerror', e => errs.push(e.message));
+    await p2.route(/firebaseio\.com|gstatic\.com|cloudfunctions\.net|cloudflareinsights|script\.google\.com/, r => r.abort());
+    await p2.goto(`http://localhost:${PORT}/driven/index.html`, { waitUntil: 'domcontentloaded' });
+    await p2.waitForTimeout(300);
+    await p2.evaluate(() => { localStorage.clear(); P = null; });
+    await p2.evaluate(() => {
+      const e = new Event('beforeinstallprompt', { cancelable: true });
+      e.prompt = () => { window.__prompted = true; };
+      e.userChoice = Promise.resolve({ outcome: 'dismissed' });
+      dispatchEvent(e);
+    });
+    await p2.waitForTimeout(100);
+    check('no crash when the install signal comes before a profile exists', errs.length === 0, errs.join(' | '));
+    await p2.evaluate(() => { $id('obName').value = 'New Driver'; completeOnboarding(); nav('home'); });
+    await p2.waitForTimeout(200);
+    await p2.evaluate(() => [...document.querySelectorAll('#page-home .dv-install button')].find(b => /Add to home screen/.test(b.textContent)).click());
+    await p2.waitForTimeout(100);
+    check('…and after they make a profile, the button still uses that install prompt', await p2.evaluate(() => window.__prompted === true));
+    await c2.close();
+  }
+
   console.log('\n=== Opened from the home screen ===');
   ({ ctx, page } = await open());
   await page.evaluate(() => { Object.defineProperty(navigator, 'standalone', { value: true, configurable: true }); renderHome(); nav('settings'); });
