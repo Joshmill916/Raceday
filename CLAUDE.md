@@ -133,6 +133,12 @@ profile that follows them across every RaceDay track they race at.
 - **Share link** (2026-11-08): Driven's Share button sends `shareCardUrl()` = `https://raceday-d32dd.web.app/d/<CODE>`
   (Firebase Function `driverCard` draws that driver's card as the Facebook/text preview, then forwards to
   `/d/?CODE`). "View" keeps the direct `publicPageUrl()`. Guard: `tests/test-driven-publish.js` section 5b
+- **Pro look + Preview Pro** (2026-11-10): Pro gets its own hero (`dpProHero` in Driven, `proHero` in `/d/`, class `.ph`):
+  header photo or three-color banner with name, number plate (`inkOn()` picks text color) and a gold PRO DRIVER badge, sponsor
+  plates under it, and "The ride" (`kart`, `since`, `kartPhoto`, `helmetPhoto` — card keys sent only for Pro with a value,
+  `rideGearField()`; rules caps 60 / year / 70000 / 70000). Free look is unchanged. A free driver's Card page has a
+  My card / Preview Pro switch (`dvPreviewPro`, local only, resets on leaving the page) with a gold "Keep this look" →
+  `proBuy`. Guard: `tests/test-driven-pro-look.js`
 - **Drivers on this phone** (added 2026-11-07, free): a parent can keep several kids on one phone. Each is a
   whole separate account; the ACTIVE one stays in `profiles_v1` (+ its rides key), the others in
   `profiles_family_v1` = `{order, stash:{memberId:{p, acct}}}` (memberId = primary ride id). Add / switch /

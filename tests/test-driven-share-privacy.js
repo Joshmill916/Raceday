@@ -56,10 +56,10 @@ const check = (name, ok, extra) => {
   check('a parent with that driver on their phone also sees "Share my page"', /^Share my page$/i.test((await pub.innerText('.actions button')).trim()));
   ENT = { tier: 'pro', status: 'active', gift: true, currentPeriodEnd: Date.now() + 864e5 };
   await pub.reload({ waitUntil: 'domcontentloaded' }); await pub.waitForSelector('.actions button');
-  check('a gifted Pro shows the Pro look before its end date', await pub.evaluate(() => !!document.querySelector('.name .badge')));
+  check('a gifted Pro shows the Pro look before its end date', await pub.evaluate(() => !!document.querySelector('.ph-badge')));
   ENT.currentPeriodEnd = Date.now() - 1000;
   await pub.reload({ waitUntil: 'domcontentloaded' }); await pub.waitForSelector('.actions button');
-  check('…and not after it', await pub.evaluate(() => !document.querySelector('.name .badge')));
+  check('…and not after it', await pub.evaluate(() => !document.querySelector('.ph-badge')));
   await ctx.close();
 
   console.log('\n=== 2. Hide hometown / age ===');

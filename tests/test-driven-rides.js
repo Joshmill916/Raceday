@@ -135,7 +135,9 @@ const PHOTO = 'data:image/jpeg;base64,' + Buffer.from('photo-bytes').toString('b
   await page.evaluate((id) => switchRide(id), s2.id);
   check('…and back, with its own results', await page.evaluate(() => P.rideLabel === 'Late Model' && computeStats().byClass['Late Model'].races === 1 && !computeStats().byClass.Junior));
   await page.evaluate(() => nav('home'));
-  check('Home shows the ride name', /Late Model · #7/.test(await page.evaluate(() => document.getElementById('page-home').innerHTML)));
+  // Rides are Pro, so Home shows the Pro hero: ride name in the caption, the number on its plate.
+  check('Home shows the ride name and its number', await page.evaluate(() => { const h = document.getElementById('page-home');
+    return /Late Model/.test((h.querySelector('.ph-id') || {}).textContent || '') && ((h.querySelector('.ph-plate') || {}).textContent === '7'); }));
 
   console.log('\n=== 4. Pro belongs to the account ===');
   const tier = await page.evaluate(() => ({ pro: tierAtLeast('pro'), buy: proBuyUrl('monthly'), portal: billingPortalUrl() }));

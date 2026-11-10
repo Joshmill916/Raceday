@@ -101,6 +101,32 @@ location.replace('https://'+location.host+location.pathname+location.search+loca
   .sponsors { display: grid; grid-template-columns: repeat(auto-fill, minmax(140px, 1fr)); gap: 8px; }
   .sponsor { background: var(--td); color: var(--ink-1); border-radius: 10px; padding: 16px 10px; text-align: center; font: 800 15px var(--display); letter-spacing: .06em; text-transform: uppercase; }
 
+  /* Pro hero (2026-11-10): photo (or banner) with name, number plate and PRO DRIVER badge on it,
+     sponsor plates under it, and "The ride". Same look as driven/index.html's .ph. */
+  .ph { position: relative; height: 260px; overflow: hidden; background: var(--ink-2) center/cover no-repeat; }
+  .ph.gen { background: linear-gradient(115deg, var(--ink-2) 0 46%, var(--team) 46% 54%, var(--ink-2) 54% 56%, var(--team2, var(--team)) 56% 60%, var(--ink-2) 60% 61.5%, var(--team3, var(--team)) 61.5% 63.5%, var(--ink-1) 63.5%); }
+  .ph::after { content: ''; position: absolute; inset: 0; background: linear-gradient(180deg, rgba(11,12,16,0) 30%, rgba(11,12,16,.92)); }
+  .ph-num { position: absolute; right: 8px; top: -18px; font: italic 900 200px/1 var(--display); color: transparent; -webkit-text-stroke: 2px rgba(255,255,255,.16); letter-spacing: -.03em; }
+  .ph-badge { position: absolute; right: 12px; top: 12px; z-index: 2; background: linear-gradient(135deg, #ffe48a, #f2b51b 55%, #c98a0b); color: #1a1405; font: 900 15px var(--display); letter-spacing: .14em; padding: 3px 11px; border-radius: 6px; box-shadow: 0 2px 10px rgba(242,181,27,.4); }
+  .ph-who { position: absolute; left: 16px; right: 16px; bottom: 20px; z-index: 2; display: flex; gap: 12px; align-items: flex-end; }
+  .ph-av { width: 76px; height: 76px; border-radius: 12px; object-fit: cover; border: 3px solid var(--team); flex: none; }
+  .ph-plate { flex: none; min-width: 62px; text-align: center; background: var(--team); color: var(--teamink, #fff); font: italic 900 50px/1 var(--display); padding: 6px 12px 3px; border-radius: 8px; box-shadow: inset 0 -7px 0 var(--team2, var(--team)), 0 6px 18px rgba(0,0,0,.5); }
+  .ph-id { min-width: 0; padding-bottom: 2px; }
+  .ph-name { font: italic 900 38px/.92 var(--display); text-transform: uppercase; color: #fff; text-shadow: 0 2px 8px rgba(0,0,0,.6); overflow-wrap: anywhere; }
+  .ph-id .cap { color: #d6d9df; margin-top: 6px; display: block; }
+  .ph-bar { position: absolute; left: 0; right: 0; bottom: 0; height: 7px; display: flex; z-index: 2; }
+  .ph-bar i { flex: 3; background: var(--team); } .ph-bar i + i { flex: 2; background: var(--team2, var(--team)); } .ph-bar i + i + i { flex: 1; background: var(--team3, var(--team)); }
+  .ph-spons { display: flex; flex-wrap: wrap; gap: 8px; margin: 12px 16px 0; }
+  .ph-spons .s { flex: 1 1 auto; min-width: 0; max-width: 100%; background: var(--td); color: var(--ink-1); border-radius: 8px; padding: 9px 6px; text-align: center; font: 800 13px var(--display); letter-spacing: .05em; text-transform: uppercase; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .ph-ride { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 8px; }
+  .ph-photo { position: relative; aspect-ratio: 4 / 3; border-radius: 12px; overflow: hidden; background: var(--ink-2); }
+  .ph-photo.solo { grid-column: span 2; aspect-ratio: 16 / 9; }
+  .ph-photo img { width: 100%; height: 100%; object-fit: cover; display: block; }
+  .ph-photo span { position: absolute; left: 8px; bottom: 8px; font: 700 11px var(--body); color: #fff; background: rgba(0,0,0,.55); padding: 3px 7px; border-radius: 5px; }
+  .ph-kv { background: var(--ink-1); border-radius: 12px; padding: 4px 14px; margin-top: 8px; }
+  .ph-kv div { display: flex; justify-content: space-between; gap: 12px; padding: 9px 0; border-top: 1px solid var(--line-d); font-size: 14px; }
+  .ph-kv div:first-child { border-top: none; } .ph-kv div span { color: var(--td-mute); } .ph-kv div b { text-align: right; }
+
   .msg { text-align: center; padding: 80px 20px; color: var(--td-mute); }
   .msg h1 { font: 800 30px var(--display); text-transform: uppercase; color: var(--td); margin-bottom: 8px; }
   .foot { text-align: center; margin: 30px 16px 0; font-size: 13px; color: var(--td-mute); line-height: 1.7; }
@@ -304,15 +330,16 @@ function render(profileId, card, isPro, data, rides) {
   var top5 = results.filter(function (r) { return r.pos <= 5; }).length;
   var avg = results.length ? (results.reduce(function (s, r) { return s + r.pos; }, 0) / results.length) : 0;
 
-  // Hero: the driver's header photo (Pro), else a generated team-color banner.
+  // Hero: Pro gets the photo hero (header photo or the three-color banner, with the name, number
+  // plate and PRO DRIVER badge laid on it); free keeps the original banner.
   var banner = isPro && imgOK(card.header);
-  var h = '<div class="banner' + (banner ? '' : ' gen') + '"' + (banner ? ' style="background-image:url(\'' + card.header + '\')"' : '') + '>'
+  var h = isPro ? proHero(card, name, num, home, aka, team, banner, sponsors) : '<div class="banner' + (banner ? '' : ' gen') + '"' + (banner ? ' style="background-image:url(\'' + card.header + '\')"' : '') + '>'
     + (!banner && num ? '<div class="bignum">' + esc(num) + '</div>' : '') + '<div class="checker"></div></div>'
     + '<div class="who">'
     + (imgOK(card.photo) ? '<img class="avatar" src="' + card.photo + '" alt="">' : '<div class="avatar">' + esc(num || initials) + '</div>')
     + '<div style="padding-bottom:6px;min-width:0"><div class="name">' + esc(name) + (isPro ? '<span class="badge">PRO</span>' : '') + '</div>'
-    + '<div class="cap meta">' + meta + '</div></div></div>'
-    + (rides.length ? '<div class="rides">' + rides.map(function (r) {
+    + '<div class="cap meta">' + meta + '</div></div></div>';
+  h += (rides.length ? '<div class="rides">' + rides.map(function (r) {
         return '<a href="?' + encodeURIComponent(r.code) + '"' + (r.on ? ' class="on" aria-current="page"' : '') + '>' + esc(r.label || ('#' + r.num)) + (r.label && r.num ? ' #' + esc(r.num) : '') + '</a>';
       }).join('') + '</div>' : '')
     + '<div class="actions"><button class="btn primary" onclick="shareLink()">' + (viewerOwns(codeFromUrl()) ? 'Share my page' : 'Share this driver') + '</button></div>';
@@ -332,6 +359,7 @@ function render(profileId, card, isPro, data, rides) {
     + '<div class="tile"><b>' + (results.length ? avg.toFixed(1) : '—') + '</b><span class="cap">Avg finish</span></div>'
     + '</div>';
 
+  if (isPro) h += rideSection(card);
   if (isPro && standings.length) {
     h += '<div class="sec"><span class="cap">Points standings</span>' + standings.slice(0, 4).map(function (s) {
       return '<div class="stand"><div class="rk">#' + s.rank + '</div><div><div class="t">' + esc(s.cls) + '</div>'
@@ -375,13 +403,40 @@ function render(profileId, card, isPro, data, rides) {
       + (crew.length ? '<span class="cap">Crew</span><div>' + crew.map(esc).join(' · ') + '</div>' : '')
       + '</div></div>';
   }
-  if (sponsors.length) {
+  if (sponsors.length && !isPro) {
     h += '<div class="sec"><span class="cap">Sponsors</span><div class="sponsors">'
       + sponsors.map(function (s) { return '<div class="sponsor">' + esc(s) + '</div>'; }).join('') + '</div></div>';
   }
   show(h);
 }
 
+function inkOn(hex) {
+  var m = /^#([0-9a-f]{2})([0-9a-f]{2})([0-9a-f]{2})$/i.exec(hex || ''); if (!m) return '#fff';
+  var l = (0.299 * parseInt(m[1], 16) + 0.587 * parseInt(m[2], 16) + 0.114 * parseInt(m[3], 16)) / 255;
+  return l > 0.62 ? '#14161b' : '#fff';
+}
+function proHero(card, name, num, home, aka, team, banner, sponsors) {
+  var meta = [home ? esc(home) : '', aka ? 'AKA ' + esc(aka) : ''].filter(Boolean).join(' · ');
+  var h = '<div class="ph' + (banner ? '' : ' gen') + '" style="--teamink:' + inkOn(team) + (banner ? ';background-image:url(\'' + card.header + '\')' : '') + '">'
+    + (!banner && num ? '<div class="ph-num">' + esc(num) + '</div>' : '')
+    + '<span class="ph-badge">PRO DRIVER</span>'
+    + '<div class="ph-who">' + (imgOK(card.photo) ? '<img class="ph-av" src="' + card.photo + '" alt="">' : '')
+    + (num ? '<div class="ph-plate">' + esc(num) + '</div>' : '')
+    + '<div class="ph-id"><h1 class="ph-name">' + esc(name) + '</h1>' + (meta ? '<span class="cap">' + meta + '</span>' : '') + '</div></div>'
+    + '<div class="ph-bar"><i></i><i></i><i></i></div></div>';
+  if (sponsors.length) h += '<div class="ph-spons">' + sponsors.slice(0, 6).map(function (s) { return '<span class="s">' + esc(s) + '</span>'; }).join('') + '</div>';
+  return h;
+}
+function rideSection(card) {
+  var kp = imgOK(card.kartPhoto), hp = imgOK(card.helmetPhoto);
+  var kart = str(card.kart, 60), since = /^(19|20)\d\d$/.test(card.since || '') ? card.since : '';
+  if (!kp && !hp && !kart && !since) return '';
+  var tile = function (ok, src, label) { return ok ? '<div class="ph-photo' + (kp !== hp ? ' solo' : '') + '"><img src="' + src + '" alt="' + label + '"><span>' + label + '</span></div>' : ''; };
+  var rows = (kart ? '<div><span>Kart</span><b>' + esc(kart) + '</b></div>' : '') + (since ? '<div><span>Racing since</span><b>' + since + '</b></div>' : '');
+  return '<div class="sec"><span class="cap">The ride</span>'
+    + (kp || hp ? '<div class="ph-ride">' + tile(kp, card.kartPhoto, 'Kart') + tile(hp, card.helmetPhoto, 'Helmet') + '</div>' : '')
+    + (rows ? '<div class="ph-kv">' + rows + '</div>' : '') + '</div>';
+}
 /* Is this the viewer's own card? True when this phone's Driven holds the code: the open ride,
    another ride, or another driver on the phone. Only changes the button's wording; the page is
    read-only for everyone. */

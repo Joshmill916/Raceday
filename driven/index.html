@@ -318,6 +318,42 @@
   .dp-sponsor { background: var(--td); color: var(--ink-1); border-radius: 10px; padding: 16px 10px; text-align: center; font: 800 15px var(--display); letter-spacing: .06em; text-transform: uppercase; }
   .dp-empty { color: var(--td-mute); font-size: 14px; padding: 16px 14px; line-height: 1.5; }
 .dv-steps{margin:12px 0 0;padding-left:20px;line-height:1.5}.dv-steps li{margin:4px 0}
+  /* Pro hero (2026-11-10): the driver's photo (or the team-color banner) with name, number plate
+     and PRO DRIVER badge laid over it. Same markup + look as /d/'s .ph. Free keeps .dp-banner. */
+  .ph { position: relative; height: 250px; overflow: hidden; background: var(--ink-2) center/cover no-repeat; margin: -20px -20px 0; }
+  .ph.gen { background: linear-gradient(115deg, var(--ink-2) 0 46%, var(--tc) 46% 54%, var(--ink-2) 54% 56%, var(--tc2, var(--tc)) 56% 60%, var(--ink-2) 60% 61.5%, var(--tc3, var(--tc)) 61.5% 63.5%, var(--ink-1) 63.5%); }
+  .ph::after { content: ''; position: absolute; inset: 0; background: linear-gradient(180deg, rgba(11,12,16,0) 30%, rgba(11,12,16,.92)); }
+  .ph-num { position: absolute; right: 8px; top: -18px; font: italic 900 190px/1 var(--display); color: transparent; -webkit-text-stroke: 2px rgba(255,255,255,.16); letter-spacing: -.03em; }
+  .ph-badge { position: absolute; right: 12px; top: 12px; z-index: 2; background: linear-gradient(135deg, #ffe48a, #f2b51b 55%, #c98a0b); color: #1a1405; font: 900 15px var(--display); letter-spacing: .14em; padding: 3px 11px; border-radius: 6px; box-shadow: 0 2px 10px rgba(242,181,27,.4); }
+  .ph-tip { position: absolute; left: 12px; top: 12px; z-index: 2; font: 700 12px var(--body); color: #fff; background: rgba(0,0,0,.5); padding: 4px 8px; border-radius: 6px; }
+  .ph-who { position: absolute; left: 16px; right: 16px; bottom: 20px; z-index: 2; display: flex; gap: 12px; align-items: flex-end; }
+  .ph-av { width: 74px; height: 74px; border-radius: 12px; object-fit: cover; border: 3px solid var(--tc); flex: none; }
+  .ph-plate { flex: none; min-width: 62px; text-align: center; background: var(--tc); color: var(--tcink, #fff); font: italic 900 48px/1 var(--display); padding: 6px 12px 3px; border-radius: 8px; box-shadow: inset 0 -7px 0 var(--tc2, var(--tc)), 0 6px 18px rgba(0,0,0,.5); }
+  .ph-id { min-width: 0; padding-bottom: 2px; }
+  .ph-name { font: italic 900 36px/.92 var(--display); text-transform: uppercase; color: #fff; text-shadow: 0 2px 8px rgba(0,0,0,.6); overflow-wrap: anywhere; }
+  .ph-id .dp-cap { color: #d6d9df; margin-top: 6px; display: block; }
+  .ph-bar { position: absolute; left: 0; right: 0; bottom: 0; height: 7px; display: flex; z-index: 2; }
+  .ph-bar i { flex: 3; background: var(--tc); } .ph-bar i + i { flex: 2; background: var(--tc2, var(--tc)); } .ph-bar i + i + i { flex: 1; background: var(--tc3, var(--tc)); }
+  .ph-spons { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 12px; align-items: center; }
+  .ph-spons .s { flex: 1 1 auto; min-width: 0; max-width: 100%; background: var(--td); color: var(--ink-1); border-radius: 8px; padding: 9px 6px; text-align: center; font: 800 13px var(--display); letter-spacing: .05em; text-transform: uppercase; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .ph-ride { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 8px; }
+  .ph-ride .ph-photo { position: relative; aspect-ratio: 4 / 3; border-radius: 12px; overflow: hidden; background: var(--ink-2); }
+  .ph-ride .ph-photo.solo { grid-column: span 2; aspect-ratio: 16 / 9; }
+  .ph-ride .ph-photo img { width: 100%; height: 100%; object-fit: cover; display: block; }
+  .ph-ride .ph-photo span { position: absolute; left: 8px; bottom: 8px; font: 700 11px var(--body); color: #fff; background: rgba(0,0,0,.55); padding: 3px 7px; border-radius: 5px; }
+  .ph-ride .ph-photo.empty { border: 1.5px dashed rgba(255,255,255,.2); background: transparent; }
+  .ph-kv { background: var(--ink-1); border-radius: 12px; padding: 4px 14px; margin-top: 8px; color: var(--td); }
+  .ph-kv div { display: flex; justify-content: space-between; gap: 12px; padding: 9px 0; border-top: 1px solid var(--line-d); font-size: 14px; }
+  .ph-kv div:first-child { border-top: none; } .ph-kv div span { color: var(--td-mute); } .ph-kv div b { text-align: right; }
+  .pv-seg + .dp-banner, .pv-seg + .ph { margin-top: 0; }
+  .pv-seg { display: grid; grid-template-columns: 1fr 1fr; gap: 4px; padding: 4px; margin: 0 0 14px; border-radius: 99px; background: var(--ink-1); border: 1px solid var(--ink-3); }
+  .pv-seg button { min-height: 42px; border: 0; border-radius: 99px; background: transparent; color: var(--td-mute); font: 800 15px var(--display); letter-spacing: .06em; text-transform: uppercase; cursor: pointer; }
+  .pv-seg button.on { background: var(--ink-3); color: var(--td); }
+  .pv-seg button.on.gold { background: linear-gradient(135deg, #ffe48a, #f2b51b 55%, #c98a0b); color: #1a1405; }
+  .pv-cta { position: sticky; bottom: 0; z-index: 5; margin: 18px -20px 0; padding: 12px 20px 16px; background: var(--ink-1); border-top: 1px solid var(--ink-3); }
+  .pv-cta .go { display: block; width: 100%; min-height: 52px; border: 0; border-radius: 12px; background: linear-gradient(135deg, #ffe48a, #f2b51b 55%, #c98a0b); color: #1a1405; font: 900 20px var(--display); letter-spacing: .06em; text-transform: uppercase; cursor: pointer; }
+  .pv-cta p { margin: 8px 0 0; text-align: center; font-size: 12.5px; color: var(--td-mute); }
+  .pv-cta p a { color: var(--td); }
 </style>
 </head>
 <body>
@@ -1038,7 +1074,19 @@ function cardPayload() {
     crew: P.crew.map(function (c) { return c.name; }).join(', '),
     header: tierAtLeast('pro') ? (d.header || '') : '',
     updatedAt: firebase.database.ServerValue.TIMESTAMP
-  }, otherCardField(), ridesCardField());
+  }, otherCardField(), ridesCardField(), rideGearField());
+}
+// "The ride" (Pro): kart + helmet photos, kart and the year they started. Only keys with a value,
+// and only for Pro — a free card is exactly what it was before (and the card is written with
+// set(), so a lapsed Pro's ride drops off the public page on the next publish).
+function rideGearField() {
+  if (!tierAtLeast('pro')) return {};
+  var d = P.driver, out = {};
+  if (d.kart) out.kart = String(d.kart).slice(0, 60);
+  if (/^(19|20)\d\d$/.test(d.since || '')) out.since = d.since;
+  if (photoOK(d.kartPhoto)) out.kartPhoto = d.kartPhoto;
+  if (photoOK(d.helmetPhoto)) out.helmetPhoto = d.helmetPhoto;
+  return out;
 }
 // Other results go on the card only for Pro drivers who leave "show on my page" on. The
 // key is left out entirely otherwise, so free cards are exactly what they were before.
@@ -1054,7 +1102,7 @@ function otherOnCard() { return tierAtLeast('pro') && P.showOtherOnPage !== fals
 // can run before the SDK loads. updatedAt is numeric (no length cap) so it's not checked.
 var CARD_CAPS = { name: 40, num: 8, age: 8, hometown: 60, sponsors: 160, photo: 80000, premiumCode: 40,
                   aliases: 60, bio: 300, highlights: 300, crew: 160, header: 140000, teamColor2: 7, teamColor3: 7,
-                  other: 8000, rides: 200, rideLabel: 30 };
+                  other: 8000, rides: 200, rideLabel: 30, kart: 60, since: 4, kartPhoto: 70000, helmetPhoto: 70000 };
 function cardStrings() {
   if (!P || !P.driver) return {};
   var d = P.driver;
@@ -1066,14 +1114,16 @@ function cardStrings() {
     crew: P.crew.map(function (c) { return c.name; }).join(', '), header: tierAtLeast('pro') ? (d.header || '') : '',
     teamColor2: tierAtLeast('pro') ? (d.teamColor2 || '') : '', teamColor3: tierAtLeast('pro') ? (d.teamColor3 || '') : '',
     other: otherOnCard() ? otherPayload() : '',
-    rides: ridesCardField().rides || '', rideLabel: ridesCardField().rideLabel || ''
+    rides: ridesCardField().rides || '', rideLabel: ridesCardField().rideLabel || '',
+    kart: tierAtLeast('pro') ? (d.kart || '') : '', since: tierAtLeast('pro') ? (d.since || '') : '',
+    kartPhoto: tierAtLeast('pro') ? (d.kartPhoto || '') : '', helmetPhoto: tierAtLeast('pro') ? (d.helmetPhoto || '') : ''
   };
 }
 function cardTooLong() {
   var c = cardStrings(), labels = { name: 'Name', num: 'Number', age: 'Age', hometown: 'Hometown', sponsors: 'Sponsors', photo: 'Photo', premiumCode: 'Premium code',
                                       aliases: 'Also known as', bio: 'Bio', highlights: 'Highlights', crew: 'Crew', header: 'Header photo',
                                       teamColor2: 'Accent color 1', teamColor3: 'Accent color 2', other: 'Other results',
-                                      rides: 'Rides', rideLabel: 'Ride name' };
+                                      rides: 'Rides', rideLabel: 'Ride name', kart: 'Kart', since: 'Racing since', kartPhoto: 'Kart photo', helmetPhoto: 'Helmet photo' };
   for (var k in CARD_CAPS) {
     if (typeof c[k] === 'string' && c[k].length > CARD_CAPS[k]) {
       return labels[k] + ' is too long (' + c[k].length + '/' + CARD_CAPS[k] + ' characters) — shorten it so your card can publish.';
@@ -1223,6 +1273,10 @@ function applyCardToProfile(p, card) {
   if (has('teamColor3')) d.teamColor3 = col(card.teamColor3);
   if (has('photo')) d.photo = photoOK(card.photo) ? card.photo : null;
   if (has('header')) d.header = photoOK(card.header) ? card.header : null;
+  if (has('kart')) d.kart = str(card.kart, 60);
+  if (has('since')) d.since = /^(19|20)\d\d$/.test(card.since || '') ? card.since : '';
+  if (has('kartPhoto')) d.kartPhoto = photoOK(card.kartPhoto) ? card.kartPhoto : null;
+  if (has('helmetPhoto')) d.helmetPhoto = photoOK(card.helmetPhoto) ? card.helmetPhoto : null;
   if (has('aliases')) d.aliases = str(card.aliases, 60);
   if (has('bio')) d.bio = str(card.bio, 300);
   if (has('highlights')) d.highlights = str(card.highlights, 300);
@@ -1349,6 +1403,7 @@ function backupProfile() {
 /* ---------- Nav ---------- */
 function nav(page) {
   if (!P) return;
+  if (page !== 'card') dvPreviewPro = false;   // the Pro preview never sticks once they leave the Card page
   document.querySelectorAll('.nav button').forEach(function (b) { b.classList.toggle('active', b.dataset.page === page); });
   document.querySelectorAll('.page').forEach(function (p) { p.classList.remove('active'); });
   $id('page-' + page).classList.add('active');
@@ -1393,13 +1448,52 @@ function dpDate(d) { var t = Date.parse(d + 'T12:00:00'); return isNaN(t) ? d : 
 function dpTeam() { var d = P.driver; return /^#[0-9a-fA-F]{6}$/.test(d.teamColor || '') ? d.teamColor : '#1f6fd6'; }
 // Primary + two accent colors. Accents are Pro-only; free (or unset) falls back to the
 // primary, which renders the original single-color look.
-function dpApplyColors(el, isPro) {
+function dpApplyColors(el, isPro, preview) {
   var d = P.driver, c1 = dpTeam(), ok = function (c) { return /^#[0-9a-fA-F]{6}$/.test(c || ''); };
   el.style.setProperty('--tc', c1);
-  el.style.setProperty('--tc2', isPro && ok(d.teamColor2) ? d.teamColor2 : c1);
-  el.style.setProperty('--tc3', isPro && ok(d.teamColor3) ? d.teamColor3 : c1);
+  // Previewing Pro with no accents picked yet: show the Pro defaults so the three-color look reads.
+  el.style.setProperty('--tc2', isPro && ok(d.teamColor2) ? d.teamColor2 : preview ? '#ffc400' : c1);
+  el.style.setProperty('--tc3', isPro && ok(d.teamColor3) ? d.teamColor3 : preview ? '#f5f6f8' : c1);
 }
-function dpHero(isPro) {
+/* Readable text on a team color: dark ink on light colors (yellow, white), white otherwise. */
+function inkOn(hex) {
+  var m = /^#([0-9a-f]{2})([0-9a-f]{2})([0-9a-f]{2})$/i.exec(hex || ''); if (!m) return '#fff';
+  var l = (0.299 * parseInt(m[1], 16) + 0.587 * parseInt(m[2], 16) + 0.114 * parseInt(m[3], 16)) / 255;
+  return l > 0.62 ? '#14161b' : '#fff';
+}
+/* The Pro hero: photo (or banner) with the name, number plate and PRO DRIVER badge on it, the
+   sponsors as plates under it. preview = a free driver trying Pro on (only they see it). */
+function dpProHero(preview) {
+  var d = P.driver, photo = photoOK(d.header);
+  var meta = [multiRide() ? esc(rideName(P)) : '', d.hometown && d.showHome !== false ? esc(d.hometown) : '', d.aliases ? 'AKA ' + esc(d.aliases) : ''].filter(Boolean).join(' · ');
+  var h = '<div class="ph' + (photo ? '' : ' gen') + '" style="--tcink:' + inkOn(dpTeam()) + (photo ? ';background-image:url(\'' + d.header + '\')' : '') + '">'
+    + (!photo && d.number ? '<div class="ph-num">' + esc(d.number) + '</div>' : '')
+    + (preview && !photo ? '<span class="ph-tip">Your header photo goes here</span>' : '')
+    + '<span class="ph-badge">PRO DRIVER</span>'
+    + '<div class="ph-who">' + (photoOK(d.photo) ? '<img class="ph-av" src="' + d.photo + '" alt="">' : '')
+    + (d.number ? '<div class="ph-plate">' + esc(d.number) + '</div>' : '')
+    + '<div class="ph-id"><div class="ph-name">' + esc(d.name) + '</div>' + (meta ? '<span class="dp-cap">' + meta + '</span>' : '') + '</div></div>'
+    + '<div class="ph-bar"><i></i><i></i><i></i></div></div>';
+  if (P.sponsors.length) h += '<div class="ph-spons">' + P.sponsors.slice(0, 6).map(function (s) { return '<span class="s">' + esc(s.name) + '</span>'; }).join('') + '</div>';
+  return h;
+}
+/* "The ride" (Pro): kart + helmet photos, kart and the year they started. preview shows the
+   empty slots so a free driver sees what goes there. */
+function dpRide(preview) {
+  var d = P.driver, kp = photoOK(d.kartPhoto), hp = photoOK(d.helmetPhoto);
+  if (!preview && !kp && !hp && !d.kart && !d.since) return '';
+  var tile = function (ok, src, label) {
+    if (ok) return '<div class="ph-photo' + (kp !== hp ? ' solo' : '') + '"><img src="' + src + '" alt="' + label + '"><span>' + label + '</span></div>';
+    return preview ? '<div class="ph-photo empty"><span>' + label + '</span></div>' : '';
+  };
+  var rows = (d.kart || preview ? '<div><span>Kart</span><b>' + esc(d.kart || 'Chassis · engine') + '</b></div>' : '')
+    + (d.since || preview ? '<div><span>Racing since</span><b>' + esc(d.since || 'Year') + '</b></div>' : '');
+  return '<div class="dp-sec"><span class="dp-cap">The ride</span>'
+    + (kp || hp || preview ? '<div class="ph-ride">' + tile(kp, d.kartPhoto, 'Kart') + tile(hp, d.helmetPhoto, 'Helmet') + '</div>' : '')
+    + (rows ? '<div class="ph-kv">' + rows + '</div>' : '') + '</div>';
+}
+function dpHero(isPro, preview) {
+  if (isPro) return dpProHero(preview);
   var d = P.driver;
   var initials = d.name.split(/\s+/).map(function (w) { return w[0] || ''; }).slice(0, 2).join('').toUpperCase();
   var banner = isPro && photoOK(d.header);
@@ -1545,17 +1639,26 @@ function feedRow(r) {
 
 /* ---------- Card ---------- */
 function photoOK(src) { return typeof src === 'string' && /^data:image\/(png|jpe?g);base64,[A-Za-z0-9+/=]+$/.test(src); }
+/* Free drivers can flip their own card into Pro to see it before paying (only on this phone;
+   nothing is published). Reset whenever the Card page opens fresh. */
+var dvPreviewPro = false;
+function setPreviewPro(on) { dvPreviewPro = !!on; renderCard(); window.scrollTo(0, 0); }
 function renderCard() {
   document.body.classList.add('dp-dark');
   var d = P.driver;
   var isPro = tierAtLeast('pro'), results = dpResults();
-  dpApplyColors($id('page-card'), isPro);
+  var preview = !isPro && dvPreviewPro, showPro = isPro || preview;
+  dpApplyColors($id('page-card'), showPro, preview);
   var crew = P.crew.map(function (c) { return c.name; });
   // Preview of the public page — what fans and sponsors see from the shared link.
-  var h = dpHero(isPro)
-    + '<p class="sub" style="margin:14px 0 0">This is what fans see on your public page'
-    + (currentTier().paid ? ' — <span class="prem-badge">' + esc(currentTier().label) + '</span>' : '') + '.</p>'
-    + dpSummary(results, isPro);
+  var h = (isPro ? '' : '<div class="pv-seg" role="group" aria-label="Card look">'
+      + '<button type="button" class="' + (preview ? '' : 'on') + '" aria-pressed="' + !preview + '" onclick="setPreviewPro(false)">My card</button>'
+      + '<button type="button" class="' + (preview ? 'on gold' : '') + '" aria-pressed="' + preview + '" onclick="setPreviewPro(true)">Preview Pro</button></div>')
+    + dpHero(showPro, preview)
+    + '<p class="sub" style="margin:14px 0 0">' + (preview ? 'Your card with Pro. Only you see this preview.' : 'This is what fans see on your public page'
+    + (currentTier().paid ? ' — <span class="prem-badge">' + esc(currentTier().label) + '</span>' : '') + '.') + '</p>'
+    + dpSummary(results, showPro)
+    + (showPro ? dpRide(preview) : '');
   if (d.bio || d.highlights || crew.length) {
     h += '<div class="dp-sec"><span class="dp-cap">About</span><div class="dp-about">'
       + (d.bio ? '<div>' + esc(d.bio) + '</div>' : '')
@@ -1563,9 +1666,15 @@ function renderCard() {
       + (crew.length ? '<span class="dp-cap">Crew</span><div>' + crew.map(esc).join(' · ') + '</div>' : '')
       + '</div></div>';
   }
-  if (P.sponsors.length) {
+  if (P.sponsors.length && !showPro) {
     h += '<div class="dp-sec"><span class="dp-cap">Sponsors</span><div class="dp-sponsors">'
       + P.sponsors.map(function (s) { return '<div class="dp-sponsor">' + esc(s.name) + '</div>'; }).join('') + '</div></div>';
+  }
+  if (preview) {
+    h += '<div class="pv-cta"><button type="button" class="go" onclick="proBuy(\'monthly\')">Keep this look · $3/mo</button>'
+      + '<p>or <a href="#" onclick="proBuy(\'yearly\');return false">$30 a year</a> · cancel any time · your results and stats stay either way</p></div>';
+    $id('page-card').innerHTML = h;
+    return;
   }
   h += '<button class="btn btn-block" onclick="nav(\'settings\')" style="margin:16px 0 22px">Edit profile</button>';
 
@@ -1581,7 +1690,7 @@ function renderCard() {
   if (P.publishedAt && P.shortCode) {
     h += '<div class="card"><div class="slbl">Your public page</div>'
       + '<p class="sub" style="margin-bottom:10px">Share this link on Facebook or with sponsors — anyone can open it, no app needed.'
-      + (isPro ? '' : ' Pro adds the broadcast look, header photo and full stats.') + '</p>'
+      + (isPro ? '' : ' Pro adds your own photo across the top, a PRO DRIVER badge, kart and helmet photos, and full stats.') + '</p>'
       + '<div class="pub-status" style="word-break:break-all;margin:0 0 10px">' + esc(shareCardUrl()) + '</div>'
       + '<div style="display:flex;gap:8px">'
       + '<a class="btn" style="flex:1;text-align:center" href="' + esc(publicPageUrl()) + '" target="_blank" rel="noopener">View</a>'
@@ -1593,10 +1702,10 @@ function renderCard() {
   // adding a registry entry (and its copy below), not restructuring this.
   if (!isPro) {
     h += '<div class="card"><div class="slbl">Upgrade to Pro</div>'
-      + '<p class="sub" style="margin-bottom:14px">Your card, in full broadcast style, at every RaceDay track.</p>'
+      + '<p class="sub" style="margin-bottom:14px">Your card, in full broadcast style, at every RaceDay track. <a href="#" onclick="setPreviewPro(true);return false">See your card with Pro</a></p>'
       + '<div style="padding:14px;border:1.5px solid var(--brand);border-radius:10px;background:color-mix(in srgb, var(--brand) 6%, transparent)">'
       + '<div style="font-weight:700;font-size:14px;margin-bottom:4px;color:var(--brand)">Pro \u2014 $3/mo or $30/yr</div>'
-      + '<div style="font-size:13px;color:var(--muted);line-height:1.5">Photo, ghost number, team color accent, and career stats on the card itself \u2014 the look that gets noticed at the sign-up table.</div>'
+      + '<div style="font-size:13px;color:var(--muted);line-height:1.5">Your own photo across the top with your name and number plate on it, a PRO DRIVER badge, three team colors, sponsor plates, kart and helmet photos, plus points standings and season form as you race.</div>'
       + '<button class="btn btn-block" style="margin-top:10px;margin-bottom:6px" onclick="proBuy(\'monthly\')">Get Pro \u2014 $3/mo</button>'
       + '<button class="btn btn-block" style="margin-bottom:8px" onclick="proBuy(\'yearly\')">Get Pro \u2014 $30/yr</button>'
       + '<label style="margin-top:8px;margin-bottom:4px">Have a code?</label><input type="text" id="premCode" placeholder="PREM-XXXXXXXX-XXXXXXXX" autocapitalize="characters" style="margin-bottom:8px">'
@@ -2028,7 +2137,12 @@ function renderSettings() {
           + (photoOK(d.header) ? '<button class="btn btn-sm" type="button" onclick="removeHeader()">Remove</button>' : '')
           + '<input id="stHeaderFile" type="file" accept="image/*" style="display:none" onchange="uploadHeader(this)">'
           + '</div>'
-        : '')
+          + '<label>The ride (Pro) — kart and helmet photos on your public page</label>'
+          + '<div style="display:flex;gap:10px;align-items:center;flex-wrap:wrap">'
+          + rideUpBtn('kartPhoto', 'Kart') + rideUpBtn('helmetPhoto', 'Helmet') + '</div>'
+          + '<label>Kart (chassis · engine)</label><input type="text" id="stKart" value="' + esc(d.kart || '') + '" maxlength="60" placeholder="e.g. Coyote · Predator 212">'
+          + '<label>Racing since</label><input type="text" id="stSince" value="' + esc(d.since || '') + '" maxlength="4" inputmode="numeric" placeholder="e.g. 2019">'
+        : '<p class="sub" style="margin:10px 0 0">Pro adds a header photo, kart and helmet photos. <a href="#" onclick="dvPreviewPro=true;nav(\'card\');return false">See your card with Pro</a></p>')
     + '<label>Hometown</label><input type="text" id="stHometown" value="' + esc(d.hometown) + '" maxlength="60">'
     + '<label>Age</label><input type="number" id="stAge" value="' + (d.age || '') + '" min="1" max="120">'
     + '<div class="sub" style="margin:12px 0 4px"><b>On your public card</b></div>'
@@ -2098,6 +2212,12 @@ function saveProfileFields() {
   P.driver.showAge = !!$id('stShowAge').checked;
   P.driver.bio = ($id('stBio').value || '').trim();
   P.driver.highlights = ($id('stHighlights').value || '').trim();
+  if ($id('stKart')) P.driver.kart = ($id('stKart').value || '').trim().slice(0, 60);
+  if ($id('stSince')) {
+    var since = ($id('stSince').value || '').trim();
+    if (since && !(/^(19|20)\d\d$/.test(since) && +since <= new Date().getFullYear())) { alert('Racing since: type the year you started, like 2019.'); return; }
+    P.driver.since = since;
+  }
   var sponsorsRaw = ($id('stSponsors').value || '').trim();
   P.sponsors = sponsorsRaw ? sponsorsRaw.split(',').map(function (s) { return { name: s.trim() }; }).filter(function (s) { return s.name; }) : [];
   var crewRaw = ($id('stCrew').value || '').trim();
@@ -2212,6 +2332,24 @@ function uploadHeader(input) {
   });
 }
 function removeHeader() { P.driver.header = null; save(); renderSettings(); }
+// Kart + helmet photos (Pro): 4:3, saved as 480x360 JPEG under the card cap.
+function rideUpBtn(k, label) {
+  var d = P.driver, ok = photoOK(d[k]);
+  return '<span style="display:inline-flex;gap:6px;align-items:center">'
+    + (ok ? '<img src="' + d[k] + '" alt="" style="width:48px;height:36px;border-radius:6px;object-fit:cover">' : '')
+    + '<button class="btn btn-sm" type="button" onclick="$id(\'st_' + k + '\').click()">' + icon('camera') + ' ' + (ok ? 'Replace ' : 'Add ') + label.toLowerCase() + '</button>'
+    + (ok ? '<button class="btn btn-sm" type="button" onclick="removeRidePhoto(\'' + k + '\')">Remove</button>' : '')
+    + '<input id="st_' + k + '" type="file" accept="image/*" style="display:none" onchange="uploadRidePhoto(this,\'' + k + '\',\'' + label + '\')"></span>';
+}
+function uploadRidePhoto(input, k, label) {
+  if (k !== 'kartPhoto' && k !== 'helmetPhoto') return;
+  readImageFile(input, function (img) {
+    openPhotoCropper(img, { title: 'Position your ' + label.toLowerCase() + ' photo', aspect: 4 / 3, outW: 480, outH: 360, round: false, maxLen: 65000 }, function (data) {
+      P.driver[k] = data; save(); renderSettings();
+    });
+  });
+}
+function removeRidePhoto(k) { if (k !== 'kartPhoto' && k !== 'helmetPhoto') return; P.driver[k] = null; save(); renderSettings(); }
 
 /* ---------- Import / ingest ---------- */
 // Accepts a single export object or an array of them:
@@ -2393,7 +2531,7 @@ function deleteProfile() {
 // day, 'driven-profile' when someone makes a profile, 'driven-publish' the first time a card is
 // published, and crashes. No names, emails or numbers — only counts. The track column reads DRIVEN.
 // The part after the dot MUST match sw.js CACHE (tests/test-analytics.js) — bump both together.
-const APP_VERSION = '2026-11-09.v20';
+const APP_VERSION = '2026-11-10.v21';
 var TELEMETRY_URL = 'https://script.google.com/macros/s/AKfycbxa3i3y17TLp_NfXOOu2jM7-YzXH2fScxcXoQYmIh0-873rxWfxg0HdRP1DVsxZq6iR/exec';
 // Devices opted out at /me/ (the owner testing) still report, marked OWNER; copies on this
 // computer (localhost, *.test) report nothing unless rd_count_local='1' (the analytics test).
