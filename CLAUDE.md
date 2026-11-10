@@ -178,7 +178,9 @@ profile that follows them across every RaceDay track they race at.
   `preRegOpen/<code>`, staff write). Entries go to `preRegIn/<code>/<id>` (create-only while open and before
   `closes`; staff-read only — database.rules.json, **needs `firebase deploy --only database`**). Staff devices pull
   them into `S.settings.preReg` (`preOnlinePull`/`preMergeOnline`; `replaces` = newest wins; transponder →
-  `d.trans`; removed drivers go in `preOnline.skip` + are deleted online). Guard: `tests/v2/test-v2-prereg-online.js`
+  `d.trans`; removed drivers go in `preOnline.skip` + are deleted online). **Withdraw** (2026-11-10): each entry carries a random `tok`
+  kept on the driver's phone; "Withdraw my entry" (two steps) writes `preRegOut/<code>/<id>` = {tok, at}, accepted only when tok
+  matches; staff pulls move them to `S.settings.preGone` (why: withdrew online, Undo) via `preApplyWithdrawals`. Guard: `tests/v2/test-v2-prereg-online.js`
 - **Build a race** (2026-11-10, `raceday2/`): Admin → Race night → Build a race (`renderRaceBuilder`). Name/day = the
   pre-registration fields (`preOnline.title/date`), gates open = a `S.settings.schedule` row. Each class gets a FORMAT = a
   named bundle of EXISTING class settings (`FMT_KEYS`: heats, invert*, max*, laps; no new race logic). Built-ins

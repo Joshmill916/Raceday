@@ -29,7 +29,7 @@ const CLASSES = [{ id: 1, name: 'Predator', maxPill: 200 }, { id: 2, name: 'Stoc
   /* ---------------- The public entry page ---------------- */
   console.log('\n— The driver\'s entry page —');
   let cfg = { open: true, title: 'Winter Indoor Series · Race #1', date: 'Sunday, Nov 22', tx: true, waiver: 'I accept the risks of racing.', note: '$25 per class at the gate', updatedAt: 1 };
-  const posts = [];
+  const posts = [], outs = [];
   const page = await browser.newPage({ viewport: { width: 390, height: 900 } });
   const errs = [];
   page.on('pageerror', e => { errs.push(e.message); console.log('  ⚠️ page error:', e.message); });
@@ -41,6 +41,7 @@ const CLASSES = [{ id: 1, name: 'Predator', maxPill: 200 }, { id: 2, name: 'Stoc
       if (!cfg.open) return r.fulfill({ status: 401, body: '{"error":"Permission denied"}' });
       posts.push(JSON.parse(r.request().postData())); return json({ name: '-Entry' + posts.length });
     }
+    if (r.request().method() === 'PUT' && /^\/preRegOut\/ROOM1\/[^/]+\.json$/.test(p)) { outs.push({ p, body: JSON.parse(r.request().postData()) }); return json({}); }
     if (p === '/preRegOpen/ROOM1.json') return json(cfg);
     if (p === '/preRegOpen/NOPE.json') return json(null);
     if (p.endsWith('/classes.json')) return json(JSON.stringify(CLASSES));
@@ -67,7 +68,7 @@ const CLASSES = [{ id: 1, name: 'Predator', maxPill: 200 }, { id: 2, name: 'Stoc
   const b = posts[0] || {};
   check('the entry is sent: name, number, transponder, class ids, Driven code, waiver, server time',
     b.name === 'Casey Rivera' && b.num === '47' && b.tx === '4417382' && b.classes === '1,2' && b.driven === 'ABCD1234' && b.waiver === true && b.at && b.at['.sv'] === 'timestamp', JSON.stringify(b));
-  check('only fields the database rules allow', Object.keys(b).every(k => ['name', 'num', 'tx', 'classes', 'want', 'driven', 'waiver', 'at', 'replaces'].includes(k)), Object.keys(b).join(','));
+  check('only fields the database rules allow', Object.keys(b).every(k => ['name', 'num', 'tx', 'classes', 'want', 'driven', 'waiver', 'at', 'replaces', 'tok'].includes(k)), Object.keys(b).join(','));
   const conf = await page.innerText('#app');
   check('confirmation shows their number, name and classes', /47/.test(conf) && /Casey Rivera/.test(conf) && /Predator · Stock Appearing/.test(conf), conf.slice(0, 200));
   await page.reload(); await page.waitForSelector('text=You\'re pre-entered');
@@ -76,6 +77,19 @@ const CLASSES = [{ id: 1, name: 'Predator', maxPill: 200 }, { id: 2, name: 'Stoc
   check('Change my entry opens it filled in', await page.inputValue('#nm') === 'Casey Rivera' && await page.evaluate(() => document.querySelectorAll('.chip.on').length) === 2);
   await page.click('text=Kid Kart'); await page.check('#ok'); await page.click('#go'); await page.waitForSelector('text=You\'re pre-entered');
   check('the change replaces the first entry', posts.length === 2 && posts[1].replaces === '-Entry1' && posts[1].classes === '1,2,3', JSON.stringify(posts[1]));
+
+  console.log('\n— A driver withdraws from home —');
+  check('every entry carries its own random withdraw token', /^[a-f0-9]{24}$/.test(posts[0].tok || '') && /^[a-f0-9]{24}$/.test(posts[1].tok || '') && posts[0].tok !== posts[1].tok);
+  await page.click('text=Withdraw my entry'); await page.waitForSelector('#wd');
+  check('step 1 only asks, naming the driver and classes', outs.length === 0 && /Withdraw Casey Rivera\?/.test(await page.innerText('#wdBox')) && /Kid Kart/.test(await page.innerText('#wdBox')));
+  await page.click('text=Keep my entry'); await page.waitForTimeout(100);
+  check('"Keep my entry" sends nothing', outs.length === 0 && /You're pre-entered/i.test(await page.innerText('#app')));
+  await page.click('text=Withdraw my entry'); await page.waitForSelector('#wd'); await page.click('#wd'); await page.waitForSelector('text=Your entry is withdrawn');
+  check('step 2 sends the withdrawal for the newest entry with its token', outs.length === 1 && outs[0].p === '/preRegOut/ROOM1/-Entry2.json' && outs[0].body.tok === posts[1].tok && outs[0].body.at['.sv'] === 'timestamp' && Object.keys(outs[0].body).length === 2, JSON.stringify(outs));
+  await page.reload(); await page.waitForSelector('text=Your entry is withdrawn');
+  check('coming back still shows it withdrawn', true);
+  await page.click('button:has-text("Enter again")'); await page.waitForSelector('#nm');
+  check('Enter again opens a fresh form with their name and number', await page.inputValue('#nm') === 'Casey Rivera' && await page.inputValue('#nu') === '47');
 
   cfg = Object.assign({}, cfg, { open: true, closes: Date.now() - 1000 });
   await page.evaluate(() => localStorage.clear()); await page.reload(); await page.waitForTimeout(300);
@@ -97,6 +111,10 @@ const CLASSES = [{ id: 1, name: 'Predator', maxPill: 200 }, { id: 2, name: 'Stoc
     /!data\.exists\(\) && newData\.exists\(\)/.test(w) && /child\('open'\)\.val\(\) === true/.test(w) && /closes'\)\.val\(\) > now/.test(w));
   check('entries hold no extra fields (no contact info can be stored)', rules.preRegIn.$key.$id.$other['.validate'] === false && !('email' in rules.preRegIn.$key.$id));
   check('only staff open/close it', rules.preRegOpen.$key['.write'] === staff && rules.preRegOpen.$key['.read'] === true);
+  const ow = rules.preRegOut.$key.$id['.write'];
+  check('a withdrawal is accepted only with the entry\'s own token, create-only (or from staff)',
+    /!data\.exists\(\) && newData\.exists\(\)/.test(ow) && /child\('preRegIn'\)\.child\(\$key\)\.child\(\$id\)\.child\('tok'\)\.val\(\) === newData\.child\('tok'\)\.val\(\)/.test(ow) && /child\('tok'\)\.exists\(\)/.test(ow));
+  check('withdrawals are staff-read only and hold only {tok, at}', rules.preRegOut.$key['.read'] === staff && rules.preRegOut.$key.$id.$other['.validate'] === false && !!rules.preRegIn.$key.$id.tok);
 
   /* ---------------- The track's side (RaceDay 2) ---------------- */
   console.log('\n— The track pulls entries in —');
@@ -159,6 +177,30 @@ const CLASSES = [{ id: 1, name: 'Predator', maxPill: 200 }, { id: 2, name: 'Stoc
   await app.waitForTimeout(100);
   const gone = await app.evaluate(() => { UI.prePulled = 0; return preOnlinePull(false).then(() => ({ riley: S.settings.preReg.some(p => p.name === 'Riley Banks'), cloud: '-C1' in __fb.entries })); });
   check('a removed driver stays removed (deleted online too)', !gone.riley && !gone.cloud, JSON.stringify(gone));
+
+  console.log('\n— The track gets the withdrawal —');
+  await app.evaluate(() => {
+    const orig = firebase.database;
+    __fb.outs = { '-A2': { tok: 'abc', at: 3000 } };
+    window.firebase.database = () => ({ ref: p => {
+      const r = orig().ref(p);
+      return Object.assign({}, r, { once: () => p === 'preRegOut/ROOM1' ? Promise.resolve({ val: () => JSON.parse(JSON.stringify(__fb.outs)) }) : r.once(),
+        update: v => { if (!p) { Object.keys(v).forEach(k => { const m = k.match(/^preRegIn\/ROOM1\/(.+)$/); if (m) delete __fb.entries[m[1]]; const o = k.match(/^preRegOut\/ROOM1\/(.+)$/); if (o) delete __fb.outs[o[1]]; }); return Promise.resolve(); } return r.update(v); } });
+    } });
+  });
+  const wd = await app.evaluate(() => { UI.prePulled = 0; return preOnlinePull(false).then(() => ({
+    casey: S.settings.preReg.some(p => p.name === 'Casey Rivera'),
+    gone: (S.settings.preGone || []).find(g => g.p.name === 'Casey Rivera'),
+    skip: S.settings.preOnline.skip.slice(), cloud: Object.keys(__fb.entries), outs: Object.keys(__fb.outs),
+    audit: S.audit.some(a => a.action === 'Pre-registration withdrawn by driver' && a.target === '' && a.oldValue === 'Casey Rivera'),
+    ui: document.getElementById('preregWrap').innerText })); });
+  check('the driver comes off the pre-registered list, into Cancelled with "withdrew online"', !wd.casey && wd.gone && wd.gone.why === 'withdrew online' && /withdrew online/.test(wd.ui), JSON.stringify(wd.gone));
+  check('both versions of the changed entry are skipped and deleted online, withdrawal cleared', wd.skip.includes('-A1') && wd.skip.includes('-A2') && !wd.cloud.includes('-A1') && !wd.cloud.includes('-A2') && wd.outs.length === 0, JSON.stringify(wd));
+  check('it goes in the audit log', wd.audit);
+  const back = await app.evaluate(() => { UI.prePulled = 0; return preOnlinePull(false).then(() => S.settings.preReg.some(p => p.name === 'Casey Rivera')); });
+  check('pulling again doesn\'t bring them back', !back);
+  const undo = await app.evaluate(() => { preUndo(S.settings.preGone.findIndex(g => g.p.name === 'Casey Rivera')); return S.settings.preReg.some(p => p.name === 'Casey Rivera'); });
+  check('the track can still Undo it (driver changed their mind at the gate)', undo);
 
   console.log('\n— Gate check-in —');
   await app.evaluate(() => nav('signup')); await app.waitForTimeout(100);

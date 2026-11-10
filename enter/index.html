@@ -62,7 +62,10 @@ const CODE = (location.search.replace(/^\?/, '').split('&')[0] || '').replace(/^
 const KEY = 'rd_prereg_' + CODE;
 const app = document.getElementById('app');
 const esc = s => String(s == null ? '' : s).replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
-let cfg = null, classes = [], trackName = '', picked = new Set(), mine = null, editing = false;
+let cfg = null, classes = [], trackName = '', picked = new Set(), mine = null, editing = false, asking = false;
+/* Each entry carries a random tok that only this phone (and the track's staff) knows. Withdrawing
+   writes preRegOut/<code>/<id> = {tok}; the database rules accept it only when tok matches. */
+function newTok() { const a = new Uint8Array(12); crypto.getRandomValues(a); return Array.from(a, b => b.toString(16).padStart(2, '0')).join(''); }
 
 function get(path) { return fetch(DB + '/' + path + '.json').then(r => r.ok ? r.json() : null); }
 function saved() { try { return JSON.parse(localStorage.getItem(KEY) || 'null'); } catch (e) { return null; } }
@@ -149,7 +152,7 @@ async function submitEntry() {
   if (num && !/^[A-Z0-9]{1,5}$/.test(num)) { err.textContent = 'Kart number: 1 to 5 letters or numbers, like 47 or 12A.'; return; }
   if (!cls.length) { err.textContent = 'Pick at least one class.'; return; }
   if (!document.getElementById('ok').checked) { err.textContent = 'Tick the box to accept the entry agreement.'; return; }
-  const entry = { name, num, tx, classes: cls.join(","), want, driven, waiver: true, at: { ".sv": "timestamp" } };
+  const entry = { name, num, tx, classes: cls.join(","), want, driven, waiver: true, tok: newTok(), at: { ".sv": "timestamp" } };
   if (editing && mine && mine.id) entry.replaces = String(mine.id).slice(0, 40);
   const b = document.getElementById('go'); b.disabled = true; b.textContent = 'Sending…';
   try {
@@ -164,7 +167,27 @@ async function submitEntry() {
   }
 }
 
+async function withdraw() {
+  const b = document.getElementById('wd'), err = document.getElementById('wdErr');
+  b.disabled = true; b.textContent = 'Withdrawing…'; err.textContent = '';
+  try {
+    const r = await fetch(DB + '/preRegOut/' + encodeURIComponent(CODE) + '/' + encodeURIComponent(mine.id) + '.json', { method: 'PUT', body: JSON.stringify({ tok: mine.tok, at: { ".sv": "timestamp" } }) });
+    if (!r.ok) throw new Error(r.status === 401 || r.status === 403 ? 'gone' : 'net');
+    mine.withdrawn = Date.now(); keep(mine); asking = false; render(); window.scrollTo(0, 0);
+  } catch (x) {
+    b.disabled = false; b.textContent = 'Yes, withdraw';
+    err.textContent = x.message === 'gone' ? 'The track already has this entry sorted (it may have been removed or already withdrawn). Tell them at the gate if you\'re not coming.' : 'Couldn\'t send. Check your signal and try again.';
+  }
+}
+function withdrawnMarkup() {
+  return '<span class="cap">Withdrawn' + (trackName ? ' · ' + esc(trackName) : '') + '</span>'
+    + '<h1>' + esc(mine.name) + '</h1>'
+    + '<div class="note info">Your entry is withdrawn. The track takes you off its list. Changed your mind? ' + (isOpen() ? 'Tap Enter again.' : 'Sign up at the gate on race day.') + '</div>'
+    + (isOpen() ? '<button class="btn" type="button" onclick="const m=mine;mine=null;keep(null);editing=false;picked=new Set();render();document.getElementById(\'nm\').value=m.name||\'\';document.getElementById(\'nu\').value=m.num||\'\'">Enter again</button>' : '')
+    + foot();
+}
 function confirmMarkup() {
+  if (mine.withdrawn) return withdrawnMarkup();
   const names = String(mine.classes || '').split(',').map(id => (classes.find(k => String(k.id) === id) || {}).name).filter(Boolean);
   const live = 'https://victoryraceday.com/raceday2/?sync=' + encodeURIComponent(CODE) + '&role=viewer';
   return '<span class="cap" style="color:var(--ok)">You\'re pre-entered' + (trackName ? ' · ' + esc(trackName) : '') + '</span>'
@@ -179,6 +202,11 @@ function confirmMarkup() {
     + '</div>'
     + (isOpen() ? '<button class="btn ghost" type="button" onclick="editing=true;render()">Change my entry</button>' : '')
     + '<a class="btn ghost" href="' + esc(live) + '">Race day: live lineups and results</a>'
+    + (mine.tok && mine.id ? (asking
+        ? '<div class="card" id="wdBox"><b>Withdraw ' + esc(mine.name) + '?</b><div class="sub" style="margin-top:4px">The track takes you off its list for ' + esc(names.join(' and ') || 'this race') + '. You can enter again while entries are open.</div>'
+          + '<button class="btn" style="background:#e2483b;color:#fff" id="wd" type="button" onclick="withdraw()">Yes, withdraw</button>'
+          + '<button class="btn ghost" type="button" onclick="asking=false;render()">Keep my entry</button><div class="err" id="wdErr"></div></div>'
+        : '<button class="btn ghost" type="button" onclick="asking=true;render();document.getElementById(\'wdBox\').scrollIntoView({block:\'center\'})">Can\'t make it? Withdraw my entry</button>') : '')
     + (!mine.driven ? '<div class="card"><b>Not on Driven yet?</b><div class="sub" style="margin-top:4px">Make a free driver card and your results from this track land on it.</div><a class="btn ghost" style="margin-top:10px" href="https://victoryraceday.com/driven/" target="_blank" rel="noopener">Make my Driven card</a></div>' : '')
     + '<p class="sub" style="margin-top:16px">Entering another driver? <a href="#" onclick="mine=null;editing=false;picked=new Set();keep(null);render();return false">Start a new entry</a> (this one stays sent).</p>'
     + foot();
