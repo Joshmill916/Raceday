@@ -97,6 +97,15 @@ const TOKEN = '07e858325a984890a4f60c1cec1942bc';
     const off = await fresh(true); await off.page.goto(base + '/' + app + '/'); await off.page.waitForTimeout(900);
     const tracks = h => (h.rows || []).map(r => r.track);
     check(app + ': a normal device logs its daily open, track not labeled', on.hits.usage.includes('open') && tracks(on.hits).every(t => !/OWNER/.test(t)), JSON.stringify(tracks(on.hits)));
+    // Bug 2026-11-10: a track with no license but a track name (set in Admin) reported as "unknown".
+    on.hits.rows = []; on.hits.usage = [];
+    await on.page.evaluate(() => { S.license = null; S.track.name = 'Test Raceway'; sendUsage('night', {}); });
+    await on.page.waitForTimeout(400);
+    check(app + ': no license, track named → the row says the track name', tracks(on.hits).includes('Test Raceway'), JSON.stringify(tracks(on.hits)));
+    on.hits.rows = [];
+    await on.page.evaluate(() => { S.license = { name: 'LICENSED NAME' }; sendUsage('night', {}); });
+    await on.page.waitForTimeout(400);
+    check(app + ': …a license name still wins', tracks(on.hits).includes('LICENSED NAME'), JSON.stringify(tracks(on.hits)));
     await off.page.evaluate(() => { sendUsage('night', {}); reportCrash('Test crash', location.href, 1, 1, null); });
     await off.page.waitForTimeout(400);
     check(app + ': an opted-out device sends opens, nights and crashes', ['open', 'night', 'crash'].every(e => off.hits.usage.includes(e)), JSON.stringify(off.hits.usage));
@@ -109,7 +118,7 @@ const TOKEN = '07e858325a984890a4f60c1cec1942bc';
     const on = await fresh(false); await on.page.goto(base + '/driven/'); await on.page.waitForTimeout(900);
     const tracks = h => (h.rows || []).map(r => r.track);
     check('driven: a normal device logs its daily open as DRIVEN', on.hits.usage.includes('driven-open') && tracks(on.hits).every(t => t === 'DRIVEN'), JSON.stringify(on.hits.rows));
-    check('driven: a device with no profile yet says so', (on.hits.rows || []).some(r => r.event === 'driven-open' && r.features === 'no-profile'));
+    check('driven: a device with no profile yet says so', (on.hits.rows || []).some(r => r.event === 'driven-open' && /^no-profile(,|$)/.test(r.features)));
     await on.page.reload(); await on.page.waitForTimeout(700);
     check('driven: only one open per device per day', on.hits.usage.filter(e => e === 'driven-open').length === 1, JSON.stringify(on.hits.usage));
     await on.page.fill('#obName', 'Test Driver'); await on.page.fill('#obEmail', 'test@example.com');
@@ -125,6 +134,31 @@ const TOKEN = '07e858325a984890a4f60c1cec1942bc';
     await t.page.evaluate(() => { sendUsage('driven-profile'); reportCrash('Test crash', location.href, 1, 1, null); }); await t.page.waitForTimeout(400);
     check('driven on localhost: nothing sent', t.hits.usage.length === 0, JSON.stringify(t.hits.usage));
     await t.ctx.close();
+  }
+
+  console.log('\n=== 5a2. Where visitors first came from (rd_from) rides on the daily open row ===');
+  {
+    // A Facebook short link: /fb/ forwards with ?from=fb, the page it lands on remembers it once.
+    const a = await fresh(false); await a.page.goto(base + '/fb/drivers/'); await a.page.waitForURL(/\/drivers\/\?from=fb/, { timeout: 5000 }).catch(() => {});
+    await a.page.waitForTimeout(300);
+    check('short link /fb/drivers/ lands with ?from=fb', /\/drivers\/\?from=fb/.test(a.page.url()), a.page.url());
+    check('…and the site remembers "fb /drivers/"', (await a.page.evaluate(() => localStorage.getItem('rd_from'))) === 'fb /drivers/', await a.page.evaluate(() => localStorage.getItem('rd_from')));
+    await a.page.goto(base + '/?from=google'); await a.page.waitForTimeout(200);
+    check('first source is kept (a later visit does not overwrite it)', (await a.page.evaluate(() => localStorage.getItem('rd_from'))) === 'fb /drivers/');
+    await a.page.goto(base + '/driven/'); await a.page.waitForTimeout(900);
+    const dvOpen = (a.hits.rows || []).find(r => r.event === 'driven-open');
+    check('Driven open row carries from:fb /drivers/', dvOpen && /(^|,)from:fb \/drivers\/$/.test(dvOpen.features), JSON.stringify(dvOpen));
+    await a.ctx.close();
+    // Landing straight in an app from a Facebook post (fbclid in the link, no referrer).
+    const b = await fresh(false); await b.page.goto(base + '/raceday2/?fbclid=abc123'); await b.page.waitForTimeout(900);
+    const rdOpen = (b.hits.rows || []).find(r => r.event === 'open');
+    check('RaceDay open row says from:facebook when the link had fbclid', rdOpen && rdOpen.features === 'from:facebook /raceday2/', JSON.stringify(rdOpen));
+    check('…and never sends the fbclid itself', !JSON.stringify(b.hits.rows).includes('abc123'));
+    await b.ctx.close();
+    const c = await fresh(false); await c.page.goto(base + '/raceday/'); await c.page.waitForTimeout(900);
+    const rd1 = (c.hits.rows || []).find(r => r.event === 'open');
+    check('typed-in / no-referrer visit reports from:direct', rd1 && rd1.features === 'from:direct /raceday/', JSON.stringify(rd1));
+    await c.ctx.close();
   }
 
   console.log('\n=== 5b. A copy on this computer (tests, local preview) reports nothing ===');
@@ -156,7 +190,7 @@ const TOKEN = '07e858325a984890a4f60c1cec1942bc';
     await t.page.goto(base + p + '?x=1');
     await t.page.waitForURL(u => new URL(u).pathname === to, { timeout: 4000 }).catch(() => {});
     const u = new URL(t.page.url());
-    check(p + ' → ' + to + ' (query kept), beacon loaded first', u.pathname === to && u.search === '?x=1' && t.hits.beacon >= 1, t.page.url() + ' beacon=' + t.hits.beacon);
+    check(p + ' → ' + to + ' (query kept + from=' + p.split('/')[1] + '), beacon loaded first', u.pathname === to && u.search === '?x=1&from=' + p.split('/')[1] && t.hits.beacon >= 1, t.page.url() + ' beacon=' + t.hits.beacon);
     await t.ctx.close();
   }
   {
