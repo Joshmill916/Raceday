@@ -198,6 +198,17 @@ profile that follows them across every RaceDay track they race at.
   `FORMAT_PRESETS` (leave sizes/laps alone); the track's own at `S.settings.formats`; `.json` files go through `fmtCheck()`,
   which refuses the whole file on any rule RaceDay can't run. Cancel an entry = two-step sheet → `S.raceDay.cancelled`
   (synced) with Undo + audit log; pre-registrations cancel to `S.settings.preGone` with Undo. Guard: `tests/v2/test-v2-race-builder.js`
+- **Timing import, MotoSponder** (2026-11-11, both apps, same engine): drivers are matched transponder → number → name
+  **within the row's class first** (`impMatchDriver(row, clsId)`; kart numbers are reused across classes) and a number two
+  drivers still share is a Conflict, not a guess. `impClassFromFilename()` prefers an existing class named in the file
+  ("JR1 +60", "SMALL BLOCK OPEN DIV 1") and treats DIV/group/B MAIN as session words. Heat files' "Last- First" names are
+  flipped. A **B-main** step (`target:'bmain'`, shown when a class outgrows its feature) scores each file into the main most
+  of its drivers are in (`bmKey`); a feature file flags drivers not in the lineup yet. Fixture: `test-data/motosponder-night/`
+  (a real night, names replaced). **RFID read checks** (`impReadChecks()`, every file): a last lap over 3x the field's typical
+  lap (likely missed tag read, `hard` = blocks folder auto-import), 2+ laps down without a DNF, times marked `*`; shown in
+  the preview, results unchanged. **Practice** step (first; a file named "…Practice…" switches to it, from the watched folder
+  too, and the next race file switches back): never saves; `impPracReport()` lists signed-up drivers never read on track.
+  Guard: `tests/test-motosponder-night.js`
 - **Owner backups + dashboard** (local only, NOT in the repo): `~/RaceDay Backups/` (`tools/backup.py`) saves the
   whole RTDB to `database/*.json.gz` (60 + first-of-month), mirrors the repo to `code/Raceday.git`, and rebuilds
   `RaceDay Dashboard.html` (offline Driven lookup, live pull by link code). Restore steps: `RESTORE.txt` there.

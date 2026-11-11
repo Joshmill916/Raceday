@@ -1198,7 +1198,7 @@ const ACTIVE_TRACK_KEY = 'rd_active_track';
 // paste the Google Apps Script web-app URL between the quotes.
 // Reported with every usage row and crash. The part after the dot MUST match this app's
 // sw.js CACHE number (tests/test-app-version.js) — bump both together on each release.
-const APP_VERSION = '2026-11-10.v25';
+const APP_VERSION = '2026-11-11.v26';
 const LEGAL_VERSION = '2026-06';   // bump when Terms / Privacy wording changes, so acceptances are versioned
 const TELEMETRY_URL = 'https://script.google.com/macros/s/AKfycbxa3i3y17TLp_NfXOOu2jM7-YzXH2fScxcXoQYmIh0-873rxWfxg0HdRP1DVsxZq6iR/exec';
 
@@ -6391,7 +6391,7 @@ function impCell(row, key) {
 }
 // Match priority transponder → number → name (forgiving name + "Last, First").
 // Cross-references the car number: a match whose stored number disagrees is flagged.
-function impMatchDriver(row) {
+function impMatchDriver(row, clsId) {
   const trans = impCell(row, 'trans');
   const num   = impCell(row, 'num');
   const n1    = impCell(row, 'name');
@@ -6400,31 +6400,52 @@ function impMatchDriver(row) {
   if (!n2 && name.indexOf(',') >= 0) {
     const parts = name.split(',');
     name = (parts.slice(1).join(' ').trim() + ' ' + parts[0].trim()).trim();
+  } else if (!n2) {
+    // MotoSponder's live/heat files write "Last- First" (a dash right after the last name, then a
+    // space). A hyphenated name ("Mary-Kate Smith") has no space after its dash and is left alone.
+    const lf = name.match(/^([^\s-](?:[^-]*\S)?)-\s+(\S.*)$/);   // no space before the dash: "Joe Smith - Rookie" stays
+    if (lf) name = (lf[2].trim() + ' ' + lf[1].trim()).trim();
   }
   const roster = S.roster || [];
-  let driver = null, matchedBy = '';
+  // Kart numbers are reused across classes (one real night: 6 numbers worn by 13 drivers), so a
+  // "#11" in a JR3 file means the JR3 #11. Drivers entered in this row's class tonight come first;
+  // the whole driver book is only the fallback.
+  const inCls = new Set(clsId > 0 ? (S.raceDay.entries || []).filter(e => e.classId === clsId).map(e => e.driverId) : []);
+  const prefer = list => { const a = list.filter(d => inCls.has(d.id)); return a.length ? a : list; };
+  const nn = name ? impNormName(name) : '';
+  let driver = null, matchedBy = '', numShared = false;
   if (trans && impNormTrans(trans)) {
     const nt = impNormTrans(trans);
-    const d = roster.find(d => d.trans && impNormTrans(d.trans) === nt);
-    if (d) { driver = d; matchedBy = 'transponder'; }
+    const c = prefer(roster.filter(d => d.trans && impNormTrans(d.trans) === nt));
+    if (c.length) { driver = c[0]; matchedBy = 'transponder'; }
   }
   if (!driver && num) {
     const numLc = num.toLowerCase();
-    const d = roster.find(d => String(d.num || '').toLowerCase() === numLc);
-    if (d) { driver = d; matchedBy = 'number'; }
+    const all = roster.filter(d => String(d.num || '').toLowerCase() === numLc);
+    let c = prefer(all);
+    if (c.length > 1 && nn) { const byName = c.filter(d => impNormName(d.name) === nn); if (byName.length) c = byName; }
+    if (c.length) {
+      driver = c[0]; matchedBy = 'number';
+      numShared = c.length > 1;   // still two drivers it could be: say so instead of guessing quietly
+      // Nobody in this class wears that number, and the name points at someone else in the book.
+      if (!inCls.has(driver.id) && nn && impNormName(driver.name) !== nn) {
+        const byName = prefer(roster.filter(d => impNormName(d.name) === nn));
+        if (byName.length) { driver = byName[0]; matchedBy = 'name'; numShared = false; }
+      }
+    }
   }
-  if (!driver && name) {
-    const nn = impNormName(name);
-    const d = roster.find(d => impNormName(d.name) === nn);
-    if (d) { driver = d; matchedBy = 'name'; }
+  if (!driver && nn) {
+    const c = prefer(roster.filter(d => impNormName(d.name) === nn));
+    if (c.length) { driver = c[0]; matchedBy = 'name'; }
   }
   const transConflict = !!(driver && trans && driver.trans && impNormTrans(driver.trans) !== impNormTrans(trans));
   const numConflict = !!(driver && num && driver.num && String(driver.num).trim().toLowerCase() !== num.trim().toLowerCase());
   const nameConflict = !!(driver && name && driver.name && impNormName(driver.name) !== impNormName(name));
   const nameSuspect = impNameSuspect(name, num);
   const canCreate = !!(num || name || trans);
-  return { driver, matchedBy, num, name, trans, transConflict, numConflict, nameConflict, nameSuspect, canCreate };
+  return { driver, matchedBy, num, name, trans, transConflict, numConflict, nameConflict, nameSuspect, canCreate, numShared };
 }
+
 // Resolve a row's class. Returns { id, newName }:
 //  • id > 0      → an existing class
 //  • id null     → no class info (row dropped)
@@ -6457,11 +6478,21 @@ function impClassFromFilename(fn) {
   let s = String(fn || '').replace(/\.[^.]*$/, '').replace(/[_]+/g, ' ').replace(/\s+/g, ' ').trim();
   // strip leading "... Results" event preamble
   s = s.replace(/^.*\bresults\b/i, '').trim();
-  // strip trailing session / round / moto tokens and numbers
-  s = s.replace(/\b(qualifying|qualify|qual|heat|heats|main|mains|feature|features|final|finals|moto|round|race|set|session)\b\s*\d*/ig, ' ');
-  s = s.replace(/\b\d+\b/g, ' ').replace(/\s+/g, ' ').trim();
-  return s ? s.replace(/\b\w/g, m => m.toUpperCase()) : '';
+  // "B MAIN", "C-main": a lettered main is a session, not part of the class name
+  s = s.replace(/\b[a-h]\s*-?\s*mains?\b/ig, ' ');
+  // strip session / round / moto / division tokens and their numbers
+  s = s.replace(/\b(qualifying|qualify|qual|heat|heats|main|mains|feature|features|final|finals|moto|round|race|set|session|div|division|group|live)\b\s*\d*/ig, ' ');
+  // timing-software and file words are never a class name ("westhold-race", "MYLAPS export")
+  s = s.replace(/\b(westhold|mylaps|my laps|orbits?|motosponder|speedhive|race ?manager|export(ed)?|timing|scoring|csv|tsv|txt)\b/ig, ' ');
+  // a lone number left over (a date part, a round) goes; one that belongs to the name stays ("+60", "80cc", "JR2")
+  s = s.replace(/(^|\s)\d+(?=\s|$)/g, ' ').replace(/\s+[-–·:]+\s+/g, ' ').replace(/^[\W_]+|[\W_]+$/g, '').replace(/\s+/g, ' ').trim();
+  if (!s) return '';
+  // What's left IS the class name ("JR1 +60", "SMALL BLOCK OPEN"). Use the track's own spelling when
+  // it already has that class. Exact match only: a class "Heavy" never swallows "Clone Heavy".
+  const known = (S.classes || []).find(c => String(c.name).toLowerCase().replace(/\s+/g, ' ').trim() === s.toLowerCase());
+  return known ? known.name : s.replace(/(^|\s)([a-z])/g, (m, a, b) => a + b.toUpperCase());
 }
+
 // The division number in a heat file name is the heat group (DIV 1 → heat 0, DIV 2 → heat 1).
 // Returns a 0-based heat index, or null when the name has no DIV.
 function impHeatFromFilename(fn) {
@@ -6477,6 +6508,76 @@ function impHeatOfMap(clsId) {
   return map;
 }
 
+/* RFID read checks. Lap-counting systems (MotoSponder's RFID tags especially) sometimes miss a
+   tag read: that lap is counted together with the next, so the car shows one very slow lap and a lap
+   short. The file says so if you look: a last lap far slower than the field's normal lap, a car
+   classified laps down without a DNF, or a time the timing system itself marked with "*". Each row
+   gets a list of { t: what to tell the scorer, hard: block folder auto-import }. Nothing is changed:
+   the results import as the file has them. */
+function impReadChecks(header, rows) {
+  const h = (header || []).map(x => String(x || '').trim().toLowerCase());
+  const col = names => h.findIndex(c => names.includes(c));
+  const iLaps = col(['laps', 'lap count', 'total laps', 'lps']);
+  const iLast = col(['last lap', 'last tm', 'last lap time', 'last']);
+  const iBest = col(['best lap', 'best tm', 'best time', 'best lap time', 'fast time', 'bestlap']);
+  const iPos = col(['pos', 'position', 'place', 'finish', 'pos.']);
+  const out = new Map();
+  if (iLaps < 0 && iLast < 0 && iBest < 0) return out;
+  const sec = v => impParseLapTime(v);
+  const bests = rows.map(r => iBest >= 0 ? sec(r[iBest]) : Infinity).filter(x => isFinite(x) && x > 0).sort((a, b) => a - b);
+  const typical = bests.length ? bests[Math.floor(bests.length / 2)] : 0;
+  const lapsAll = rows.map(r => iLaps >= 0 ? parseInt(r[iLaps], 10) : NaN).filter(n => n >= 0);
+  const lead = lapsAll.length ? Math.max.apply(null, lapsAll) : 0;
+  const clock = s => { const m = Math.floor(s / 60), x = (s - m * 60).toFixed(1); return m ? m + ':' + (x < 10 ? '0' : '') + x : x + 's'; };
+  rows.forEach(r => {
+    const list = [];
+    const out_ = iPos >= 0 && /^(DNF|DNS|DQ|DSQ|NC|RET)$/i.test(String(r[iPos] || '').trim());
+    if (!out_ && typical && iLast >= 0) {
+      const l = sec(r[iLast]);
+      if (isFinite(l) && l > 3 * typical) list.push({ t: 'a lap of ' + clock(l) + ' (about ' + Math.round(l / typical) + ' laps long): likely a missed tag read', hard: true });
+    }
+    if (!out_ && iLaps >= 0 && lead >= 3) {
+      const n = parseInt(r[iLaps], 10);
+      if (n >= 0 && n <= lead - 2) list.push({ t: (lead - n) + ' laps down on the leader', hard: false });
+    }
+    if (r.some(c => /\d\*+\s*$/.test(String(c || '')))) list.push({ t: 'a time marked * by the timing system', hard: false });
+    if (list.length) out.set(r, list);
+  });
+  return out;
+}
+/* Practice tag check: which drivers signed up tonight, in the classes these practice files cover,
+   were never read on track? A dead, missing or swapped tag is found before it costs a heat. */
+function impPracReport() {
+  const pr = Imp && Imp.prac;
+  if (!pr) return null;
+  const cids = Object.keys(pr.cls).map(Number).filter(c => c > 0);
+  const missing = [];
+  cids.forEach(cid => {
+    (S.raceDay.entries || []).filter(e => e.classId === cid && !pr.seen[cid + ':' + e.driverId]).forEach(e => {
+      const d = driverById(e.driverId); const c = classById(cid);
+      if (d) missing.push({ id: d.id, name: d.name, num: d.num, cls: c ? c.name : '' });
+    });
+  });
+  const total = cids.reduce((n, cid) => n + (S.raceDay.entries || []).filter(e => e.classId === cid).length, 0);
+  return { files: Object.keys(pr.files).length, classes: cids.length, total, read: total - missing.length, missing };
+}
+function impPracMarkup() {
+  const rp = impPracReport();
+  if (!rp) return '';
+  const head = '<b>Tag check</b> · ' + rp.files + ' practice file' + (rp.files === 1 ? '' : 's') + ' read · ' + rp.read + ' of ' + rp.total + ' signed-up drivers in ' + rp.classes + ' class' + (rp.classes === 1 ? '' : 'es') + ' seen on track.';
+  if (!rp.missing.length) return head + '<br>Every signed-up driver in these classes was read. Nothing is saved from practice.';
+  return head + '<br><b>No reads yet</b> (check the tag is on the kart and working):<br>'
+    + rp.missing.map(m => '#' + esc(m.num || '?') + ' ' + esc(m.name) + ' · ' + esc(m.cls)).join('<br>')
+    + '<br><span class="tiny">Add more practice files as groups finish. Nothing is saved from practice.</span>';
+}
+function impChecksMarkup() {
+  const rows = impPreview.filter(r => r.status !== 'skip' && r.chk && r.chk.length);
+  if (!rows.length) return '';
+  const hard = rows.filter(r => r.chk.some(c => c.hard)).length;
+  if (Imp.target === 'practice') return hard + ' driver' + (hard === 1 ? '' : 's') + ' had a likely missed tag read in practice: check ' + (hard === 1 ? 'that tag' : 'those tags') + ' too.';
+  return 'Check with the timing stand: ' + rows.length + (rows.length === 1 ? ' row looks off' : ' rows look off')
+    + (hard ? ' (' + hard + ' likely missed tag read' + (hard === 1 ? '' : 's') + ')' : '') + '. They still import as the file has them; fix the file and import again if a result is wrong.';
+}
 function impComputePreview() {
   impPreview = [];
   const unknown = new Set();
@@ -6484,6 +6585,23 @@ function impComputePreview() {
   Imp && (Imp._tmpCls = {}, Imp.pendingCls = {});   // recompute pending new classes each pass
   if (!Imp || !Imp.rows.length) { Imp && (Imp.unknownClasses = [], Imp.emptyClass = 0); return; }
 
+  if (Imp.target === 'practice') {
+    Imp.prac = Imp.prac || { seen: {}, cls: {}, files: {} };
+    Imp.prac.files[Imp.lastFile || 'file'] = true;
+    Imp.rows.forEach(row => {
+      const cr = impClsResolve(row); const cid = cr.id;
+      if (cid === null) { if (Imp.useClsCol) emptyCls++; return; }
+      const m = impMatchDriver(row, cid > 0 ? cid : 0);
+      if (cid > 0) Imp.prac.cls[cid] = true;
+      let status = 'skip', note = 'Not signed up tonight';
+      if (m.driver) { status = 'match'; note = 'Tag read'; if (cid > 0) Imp.prac.seen[cid + ':' + m.driver.id] = true; }
+      // In practice only a likely missed read matters (a weak tag); karts run different lap counts.
+      const hardChk = ((Imp.rc && Imp.rc.get(row)) || []).filter(c => c.hard);
+      impPreview.push({ ...m, status, note, clsId: cid, chk: hardChk.length ? hardChk : null });
+    });
+    Imp.unknownClasses = []; Imp.emptyClass = emptyCls;
+    return;
+  }
   if (Imp.target === 'qual') {
     const groups = {};
     Imp.rows.forEach(row => {
@@ -6491,18 +6609,18 @@ function impComputePreview() {
       if (clsId === null) { if (Imp.useClsCol) emptyCls++; return; }
       if (clsId === -1) unknown.add(impCell(row, 'cls'));
       if (cr.newName && clsId <= -2) Imp.pendingCls[clsId] = cr.newName;
-      const m = impMatchDriver(row);
+      const m = impMatchDriver(row, clsId);
       const rawPos  = Imp.cols.pos  >= 0 ? impParseFinish(impCell(row,'pos'))  : null;
       const timeStr = Imp.cols.time >= 0 ? impCell(row,'time') : '';
       const rawTime = timeStr ? impParseLapTime(timeStr) : Infinity;
-      (groups[clsId] = groups[clsId] || []).push({ m, rawPos, rawTime, timeStr, clsId });
+      (groups[clsId] = groups[clsId] || []).push({ m, rawPos, rawTime, timeStr, clsId, chk: (Imp.rc && Imp.rc.get(row)) || null });
     });
     for (const [clsId, items] of Object.entries(groups)) {
       const hasPos = items.some(it => typeof it.rawPos === 'number');
       if (hasPos) items.sort((a,b)=>(typeof a.rawPos==='number'?a.rawPos:9999)-(typeof b.rawPos==='number'?b.rawPos:9999));
       else items.sort((a,b)=>a.rawTime-b.rawTime);
       let rank = 0; const seen = new Set();
-      items.forEach(({ m, clsId, timeStr }) => {
+      items.forEach(({ m, clsId, timeStr, chk }) => {
         let status = 'match', note = '';
         const timeBad = impTimeUnparsed(timeStr);
         const cid = parseInt(clsId);
@@ -6523,10 +6641,11 @@ function impComputePreview() {
           else if (dkey) seen.add(dkey);
         }
         const r = status !== 'skip' ? ++rank : null;
-        impPreview.push({ ...m, status, note, clsId: parseInt(clsId), rank: r, timeBad });
+        impPreview.push({ ...m, status, note, clsId: parseInt(clsId), rank: r, timeBad, chk });
       });
     }
   } else {
+    const bmFd = {};
     Imp.rows.forEach(row => {
       const cr = impClsResolve(row); const clsId = cr.id;
       if (clsId === null) { if (Imp.useClsCol) emptyCls++; return; }
@@ -6535,13 +6654,14 @@ function impComputePreview() {
       // class, drivers and entries into that heat, just like a feature import.
       const divKnown = (Imp.target === 'heat' && Imp.div != null);
       if (cr.newName && clsId <= -2 && (Imp.target === 'feat' || divKnown)) Imp.pendingCls[clsId] = cr.newName;
-      const m = impMatchDriver(row);
+      const m = impMatchDriver(row, clsId);
       const finish = Imp.cols.pos >= 0 ? impParseFinish(impCell(row,'pos')) : null;
       const cid = parseInt(clsId);
       const cobj = classById(cid);
       const pendName = Imp.pendingCls[clsId];
       let status = 'match', note = '';
       if (cid === -1) { status = 'skip'; note = 'Unknown class'; }
+      else if (cid <= -2 && Imp.target === 'bmain') { status = 'skip'; note = 'Not a class here yet: import qualifying or heats first'; }
       else if (cid <= -2 && Imp.target === 'heat' && !divKnown) { status = 'skip'; note = 'New class — import qualifying/grid first'; }
       else if (Imp.target === 'heat' && cobj && classHeats(cobj) === 0) { status = 'skip'; note = cobj.name + ' runs straight to mains — no heats'; }
       else if (Imp.target === 'heat' && Imp.heatSet === 'h2' && cobj && classHeats(cobj) === 1) { status = 'skip'; note = cobj.name + ' runs a single qualifying heat — no Heat 2'; }
@@ -6552,10 +6672,38 @@ function impComputePreview() {
         const inClass = (S.raceDay.entries||[]).some(e => e.driverId === m.driver.id && e.classId === cid);
         if (!inClass) { status = 'skip'; note = 'Not entered in this class (no pill yet)'; }
       }
+      if (status !== 'skip' && m.numShared && status !== 'conflict') { status = 'conflict'; note = (note ? note + ' · ' : '') + 'Two drivers wear #' + m.num + ' here: check it is the right one'; }
+      if (Imp.target === 'bmain' && status !== 'skip') {
+        const fd = cid > 0 ? (bmFd[cid] = bmFd[cid] || featureData(cid)) : null;
+        if (!fd || !fd.mains.length) { status = 'skip'; note = (cobj ? cobj.name : 'This class') + ' has no B-main tonight'; }
+        else if (!m.driver) { status = 'skip'; note = 'Not in driver book'; }
+      }
+      if (Imp.target === 'feat' && status !== 'skip' && m.driver && cid > 0) {
+        const fd = bmFd[cid] = bmFd[cid] || featureData(cid);
+        if (fd.mains.length && !featureGridOrder(fd, cid).some(r => r.id === m.driver.id)) {
+          status = 'conflict';
+          note = (note ? note + ' · ' : '') + 'Not in the feature lineup yet: import the B-main first';
+        }
+      }
       if (divKnown && status !== 'skip') note = (note ? note + ' · ' : '') + 'Heat ' + (Imp.div + 1);
       if (pendName && status !== 'skip') note = (note ? note + ' · ' : '') + '+ new class “' + pendName + '”';
-      impPreview.push({ ...m, status, note, clsId: cid, finish });
+      impPreview.push({ ...m, status, note, clsId: cid, finish, chk: (Imp.rc && Imp.rc.get(row)) || null });
     });
+  }
+  if (Imp.target === 'bmain') {
+    // Each B-main file is one race: the main most of its drivers are in. Anyone else in the
+    // file is flagged, not quietly scored into a main they didn't run.
+    const byCls = {};
+    impPreview.forEach(r => { if (r.status !== 'skip' && r.driver && r.clsId > 0) (byCls[r.clsId] = byCls[r.clsId] || []).push(r); });
+    for (const [cid, rs] of Object.entries(byCls)) {
+      const fd = featureData(parseInt(cid));
+      let best = null, bestN = 0;
+      fd.mains.forEach(mn => { const ids = new Set(mn.drivers.map(d => d.id)); const n = rs.filter(r => ids.has(r.driver.id)).length; if (n > bestN) { best = mn; bestN = n; } });
+      rs.forEach(r => {
+        if (best && best.drivers.some(d => d.id === r.driver.id)) { r.mi = best.key; r.note = (r.note ? r.note + ' · ' : '') + best.label; }
+        else { r.status = 'skip'; r.note = 'Not in ' + (best ? 'this ' + best.label : 'a B-main') + ' tonight'; }
+      });
+    }
   }
   Imp.unknownClasses = [...unknown].filter(Boolean);
   Imp.emptyClass = emptyCls;
@@ -6599,6 +6747,8 @@ function impRenderPreview() {
   if (Imp.unknownClasses && Imp.unknownClasses.length)
     sum += '<br><span style="color:#7a4f00">Unrecognized class' + (Imp.unknownClasses.length>1?'es':'') + ': ' + Imp.unknownClasses.map(esc).join(', ') + ' — those rows are skipped. Fix the class name or its mapping.</span>';
   if (Imp.emptyClass) sum += '<br><span style="color:#777">' + Imp.emptyClass + ' rows had a blank class and were skipped.</span>';
+  if (impChecksMarkup()) sum += '<br><span style="color:#7a4f00;font-weight:600">⚠ ' + esc(impChecksMarkup()) + '</span>';
+  if (Imp.target === 'practice') sum = impPracMarkup();
   document.getElementById('impSummary').innerHTML = sum;
 
   let cf = '';
@@ -6624,6 +6774,7 @@ function impRenderPreview() {
     if (r.status !== 'skip' && r.nameSuspect) warn += ' <span class="ichip ichip-warn">⚠ name?</span>';
     if (r.status !== 'skip' && r.timeBad) warn += ' <span class="ichip ichip-warn">⚠ time?</span>';
     const noteH = r.note ? ' <span style="font-size:11px;color:var(--muted)">(' + esc(r.note) + ')</span>' : '';
+    if (r.status !== 'skip' && r.chk) warn += ' <span class="ichip ichip-warn imp-chk" title="' + esc(r.chk.map(c => c.t).join(' · ')) + '">⚠ ' + esc(r.chk.map(c => c.t).join(' · ')) + '</span>';
     return '<tr><td>'+dName+'</td><td>'+dNum+'</td><td>'+by+'</td><td>'+val+'</td><td>'+esc(clsName)+'</td><td>'+tag+warn+noteH+'</td></tr>';
   }).join('') || '<tr><td colspan="6" class="empty">No rows — check the column mapping and class above.</td></tr>';
 
@@ -6658,6 +6809,17 @@ function impIngestText(text, filename, quiet) {
   Imp.header = rows[hi];
   Imp.rows = rows.slice(hi + 1);
   Imp.cols = impGuessColumns(Imp.header);
+  Imp.rc = impReadChecks(Imp.header, Imp.rows);
+  {
+    const isPrac = /(^|[^a-z])practice([^a-z]|$)/i.test(String(filename || ''));
+    const steps = impPipeline(), pi = steps.findIndex(x => x.target === 'practice');
+    if (isPrac && Imp.target !== 'practice' && pi >= 0) { Imp.stepBeforePrac = Imp.step; Imp.step = pi; Imp.target = 'practice'; impRenderStepper(); }
+    else if (!isPrac && Imp.target === 'practice' && Imp.stepBeforePrac != null) {
+      const back = steps[Imp.stepBeforePrac]; Imp.step = Imp.stepBeforePrac; Imp.stepBeforePrac = null;
+      if (back) { Imp.target = back.target; if (back.heatSet) Imp.heatSet = back.heatSet; }
+      impRenderStepper();
+    }
+  }
   Imp.vendor = impDetectVendor(Imp.header);
   Imp.lastFile = filename || '';
   Imp.div = impHeatFromFilename(filename);   // 0-based heat group from "DIV n" (null if none)
@@ -6681,7 +6843,7 @@ function impIngestText(text, filename, quiet) {
     if (guess) {
       const match = (S.classes || []).find(c => c.name.toLowerCase() === guess.toLowerCase());
       if (match) { Imp.newCls = false; Imp.clsId = match.id; }
-      else if (Imp.target !== 'heat') { Imp.newCls = true; Imp.newClsName = guess; }  // qual/feat can create; heat only matches
+      else if (Imp.target === 'qual' || Imp.target === 'feat') { Imp.newCls = true; Imp.newClsName = guess; }
       impFillClsSel();
       const nameEl = document.getElementById('impNewClsName');
       if (nameEl) nameEl.value = Imp.newClsName || '';
@@ -6794,7 +6956,8 @@ function impAutoApply() {
   const active = impPreview.filter(r => r.status !== 'skip');
   if (!active.length) return;
   // Only auto-apply if every active row is a clean match: no new drivers, no suspect names, no bad times, no conflicts
-  const clean = active.every(r => r.status === 'match' && !r.nameSuspect && !r.timeBad && !r.transConflict && !r.numConflict && !r.nameConflict);
+  if (Imp.target === 'practice') return;   // the tag check only reads
+  const clean = active.every(r => r.status === 'match' && !r.nameSuspect && !r.timeBad && !r.transConflict && !r.numConflict && !r.nameConflict && !(r.chk && r.chk.some(c => c.hard)));
   if (clean) {
     impApply({ silent: true });
   } else {
@@ -6805,6 +6968,7 @@ function impAutoApply() {
 
 function impApply(opts) {
   opts = opts || {};
+  if (Imp && Imp.target === 'practice') { if (!opts.silent) alert('Practice files only check tags. Nothing is saved from practice.'); return; }
   const silent = !!opts.silent;                  // auto-apply: never show blocking dialogs
   const keepOpen = !!(Imp && Imp.watchDir);      // a watch is active: stay open and keep watching
   if (!Imp) return;
@@ -6895,6 +7059,13 @@ function impApply(opts) {
         createdEntry = true; done++;
       });
     }
+  } else if (target === 'bmain') {
+    resolved.forEach(r => {
+      const k = resKey(r.clsId);
+      if (!S.raceDay.heatResults[k]) S.raceDay.heatResults[k] = {};
+      if (r.mi == null || r.finish == null) { skipped++; return; }
+      S.raceDay.heatResults[k][bmKey(r.mi, r.driver.id)] = r.finish; done++;
+    });
   } else if (target === 'heat') {
     const hof = {};
     const divKnown = Imp.div != null;
@@ -6953,7 +7124,7 @@ function impApply(opts) {
   renderHeader();
   render(curPage);
   markFeature('import');
-  const what = { qual: done + ' drivers placed on the grid', heat: done + ' heat finishes', feat: done + ' feature finishes' }[target];
+  const what = { qual: done + ' drivers placed on the grid', heat: done + ' heat finishes', bmain: done + ' B-main finishes', feat: done + ' feature finishes' }[target];
   const skipMsg = skipped ? ' ' + skipped + ' rows skipped.' : '';
   if (keepOpen) {
     // Watch mode: keep the overlay open and the folder watch running; report inline.
@@ -7007,12 +7178,15 @@ function closeImport() {
 // the second heat shows only when a class runs the two-set pill-draw format.
 function impPipeline() {
   const hasH2 = S.classes.some(c => classHeats(c) === 2);
-  const steps = [{ key: 'qual', label: 'Qualifying', target: 'qual' }];
+  const steps = [{ key: 'prac', label: 'Practice', target: 'practice' }, { key: 'qual', label: 'Qualifying', target: 'qual' }];
   steps.push({ key: 'h1', label: hasH2 ? 'Heat 1' : 'Heat', target: 'heat', heatSet: 'h1' });
   if (hasH2) steps.push({ key: 'h2', label: 'Heat 2', target: 'heat', heatSet: 'h2' });
+  // B-mains only show up when a class has more drivers than its feature holds.
+  if (S.classes.some(c => classRacers(c.id).length > clsFeature(c))) steps.push({ key: 'bm', label: 'B-main', target: 'bmain' });
   steps.push({ key: 'ft', label: 'Feature', target: 'feat' });
   return steps;
 }
+
 function impRenderStepper() {
   if (!Imp) return;
   const steps = impPipeline();
