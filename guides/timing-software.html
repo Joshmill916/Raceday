@@ -145,12 +145,12 @@ location.replace('https://'+location.host+location.pathname+location.search+loca
     </div>
 
     <h3 class="fpart">2 · Race night (folder picked)</h3>
-    <div class="flow" role="img" aria-label="Race night flow chart. Tap Import timing, pick the step, then Start watching. Leave it open. After each session the timing software saves a results file and RaceDay reads it within a few seconds. Every driver matched with no warnings? If yes, it imports on its own. If no, it waits for you to check the preview and tap Import.">
-      <div class="fnode start"><b>📥 Import timing → 📁 Start watching</b><small>On Lineups. Pick the step: Qualifying, Heat or Feature. Leave it open.</small></div>
+    <div class="flow" role="img" aria-label="Race night flow chart. Tap Import timing, pick the step, then Start watching. Leave it open. After each session the timing software saves a results file and RaceDay reads it within a few seconds. Every driver matched, no warnings and no missed tag reads? If yes, it imports on its own. If no, it waits for you to check the preview and tap Import.">
+      <div class="fnode start"><b>📥 Import timing → 📁 Start watching</b><small>On Lineups. Pick the step: Practice, Qualifying, Heat, B-main or Feature. Leave it open.</small></div>
       <div class="farrow"></div>
       <div class="fnode"><b>Timing software saves a results file</b><small>After each session — RaceDay reads it within a few seconds</small></div>
       <div class="farrow"></div>
-      <div class="fnode ask"><b>Every driver matched, no warnings?</b></div>
+      <div class="fnode ask"><b>Every driver matched, no warnings, no missed tag reads?</b></div>
       <div class="farrow"></div>
       <div class="fsplit">
         <div class="fbranch">
@@ -177,11 +177,20 @@ location.replace('https://'+location.host+location.pathname+location.search+loca
       <figure class="shot"><img src="img/timing-folder.jpg" alt="Pick the folder" loading="lazy" style="max-width:560px"><figcaption>Pick the export folder</figcaption></figure>
     </li>
     <li class="step has-img wide-img">
-      <div class="body"><h2>Race night: start watching</h2><p>On <span class="ui">Lineups</span>, tap <span class="ui">📥 Import timing</span>, pick the step (<span class="ui">Qualifying</span>, <span class="ui">Heat</span> or <span class="ui">Feature</span>), then tap <span class="ui">📁 Start watching</span>. You'll see a green dot and <b>Watching &lt;your folder&gt;</b>. Leave this window open, and switch the step as the night moves on. Files already in the folder are ignored — only new results load.</p></div>
+      <div class="body"><h2>Race night: start watching</h2><p>On <span class="ui">Lineups</span>, tap <span class="ui">📥 Import timing</span>, pick the step (<span class="ui">Practice</span>, <span class="ui">Qualifying</span>, <span class="ui">Heat</span>, <span class="ui">B-main</span> or <span class="ui">Feature</span>), then tap <span class="ui">📁 Start watching</span>. You'll see a green dot and <b>Watching &lt;your folder&gt;</b>. Leave this window open, and switch the step as the night moves on. Files already in the folder are ignored — only new results load. A file with <b>Practice</b> in its name always goes to the tag check (below), and the next race file goes back to the step you had open.</p></div>
       <figure class="shot"><img src="img/timing-watching.jpg" alt="Watching the timing folder" loading="lazy" style="max-width:640px"><figcaption>Watching — new results load on their own</figcaption></figure>
     </li>
     <li class="step">
-      <div class="body"><h2>After each session, export from your timing software</h2><p>Save the session's results the way you normally do. Within a few seconds RaceDay reads the file. If <b>every driver matches</b> (by transponder, number or name) and nothing looks wrong, it imports on its own. If a driver isn't in RaceDay, or a time can't be read, it <b>waits</b> — check the preview and tap <span class="ui">Import ✓</span>. Turn off <span class="ui">Import clean files automatically</span> if you'd rather check every file.</p></div>
+      <div class="body"><h2>After each session, export from your timing software</h2><p>Save the session's results the way you normally do. Within a few seconds RaceDay reads the file. If <b>every driver matches</b> (by transponder, number or name) and nothing looks wrong, it imports on its own. If a driver isn't in RaceDay, a time can't be read, or a lap looks like a <b>missed tag read</b>, it <b>waits</b> — check the preview and tap <span class="ui">Import ✓</span>. Turn off <span class="ui">Import clean files automatically</span> if you'd rather check every file.</p></div>
+    </li>
+    <li class="step">
+      <div class="body"><h2>Before the heats: the tag check</h2><p>Export each <b>practice</b> group's results and load them on the <span class="ui">Practice</span> step (or let the folder pick them up). RaceDay lists every signed-up driver whose transponder or tag was <b>never read on track</b> — a dead, missing or swapped tag — so it gets fixed before it costs someone a heat. Practice files never change any results.</p></div>
+    </li>
+    <li class="step">
+      <div class="body"><h2>Watch for the yellow warnings</h2><p>Tags sometimes don't get read, and the car shows one very slow lap and a lap short. Before you import, the preview points these out: <b>“a lap of 2:22 (about 11 laps long): likely a missed tag read”</b>, a car <b>laps down</b> without a DNF, or a time your timing software marked with <b>*</b>. Results still import exactly as the file has them — check with the timing stand, fix the file there if a result is wrong, and import it again.</p></div>
+    </li>
+    <li class="step">
+      <div class="body"><h2>B-mains</h2><p>When a class has more cars than its feature holds, a <span class="ui">B-main</span> step appears. Import each B-main's results file there and RaceDay moves the top finishers into the feature lineup. Import the feature after the B-mains — if a feature file has a car that isn't in the lineup yet, the preview says so.</p></div>
     </li>
   </ol>
 
@@ -189,7 +198,9 @@ location.replace('https://'+location.host+location.pathname+location.search+loca
     <li><b>No “Watch” button?</b> You're not in Chrome or Edge on a computer. See <b>What you need</b> above — or use <span class="ui">📄 Choose CSV file</span> after each session.</li>
     <li><b>Asks for permission each time?</b> That's Chrome keeping your files safe — tap <span class="ui">📁 Start watching</span> and choose <b>Allow</b>. Once a night is normal.</li>
     <li><b>Nothing loads?</b> Check your timing software is saving into the <b>same folder</b> you picked, as a <b>.csv</b>, <b>.txt</b> or <b>.tsv</b> file. Change it in <b>Admin → Race format → Qualifying &amp; heat times</b>.</li>
-    <li><b>Went into the wrong step?</b> The step tabs at the top (Qualifying, Heat, Feature) decide where results go — switch before the next session's file.</li>
+    <li><b>Went into the wrong step?</b> The step tabs at the top (Practice, Qualifying, Heat, B-main, Feature) decide where results go — switch before the next session's file.</li>
+    <li><b>Same kart number in two classes?</b> That's fine — RaceDay matches each file's cars inside that file's class first. If two drivers in the same class still share a number, the preview shows a <b>Conflict</b> to check.</li>
+    <li><b>Files without a Class column?</b> Put the class in the file name (for example <b>Late Model Heat 1.csv</b> or <b>Junior 80cc Feature Results.txt</b>) and RaceDay picks the class for you. Dates and words like Heat, Main, Feature, LCQ, Semi and Results are ignored.</li>
     <li><b>Works with</b> MotoSponder, MYLAPS Orbits and Westhold Race Manager (recognized automatically) and most other timing software that exports a results file. There's no live connection to the timing system — RaceDay reads the files it saves.</li>
   </ul></div>
   <div class="next"><h3>Next guides</h3><div class="cards"><a class="gcard" href="qualifying.html"><div class="k">Race formats</div><div class="t">Qualifying &amp; timing</div><div class="d">Qualifying with one heat or straight to mains, entering times, and CSV timing import.</div></a><a class="gcard" href="scoring-tower.html"><div class="k">Staff roles</div><div class="t">Scoring tower</div><div class="d">Three ways to enter finishes, DNF/DNS/DQ, heat totals and features.</div></a><a class="gcard" href="multi-device.html"><div class="k">Device setups</div><div class="t">Multiple devices</div><div class="d">A sign-up table, scoring, TV and spectators, all in sync.</div></a></div></div>
