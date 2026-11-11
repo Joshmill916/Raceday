@@ -76,6 +76,7 @@ Point the same script at that file instead.
 | `raceday/` | **The RaceDay app** — `index.html` is where all app features go, plus its own `manifest.webmanifest`/`sw.js`/icon |
 | `drivers/` | **Driven website** — home, pricing, FAQ, guides for drivers (see "Site structure") |
 | `driven/` | **Driven companion app** (separate PWA) — driver-owned cross-track racing identity. `driven/index.html` is fully standalone (own manifest/sw/state, `localStorage` key `profiles_v1`). Results move via manual JSON import (`ingestExport()`) or, for a linked profile, a live pull from RaceDay's published results (`shareResultsWithDriven()` → `pullRaceDayResults()`). See "Driven app" below. |
+| Timing folder (v2) | `S.settings.timingSource` (`folder`/`file`/`hand`, asked once when a class first goes to a qualifying format, changeable in Admin → Race format); the folder is a per-computer `FileSystemDirectoryHandle` in IndexedDB `rd_timing` (never in `S`). Import sheet: Start watching → new exports load, clean ones auto-import (`impScanFolder`/`impAutoApply`, ported from v1). Guard: `tests/test-timing-folder.js` |
 | `BACKLOG.md` | Parked items (operator hardening, deferred audit findings) |
 | `ARCHITECTURE.md` | Full technical reference (data model, sync, roles, points system) |
 | `timing-import.html` | Companion CSV timing import tool — separate file, don't modify during main app work |
