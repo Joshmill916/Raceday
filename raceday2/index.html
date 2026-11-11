@@ -19,7 +19,7 @@ location.replace('https://'+location.host+location.pathname+location.search+loca
 <link rel="icon" type="image/png" sizes="512x512" href="icon-rd.png">
 <script>if('serviceWorker' in navigator){addEventListener('load',function(){navigator.serviceWorker.register('sw.js').catch(function(){})})}</script>
 <style>
-  .imp-watch-pulse { display:inline-block; width:8px; height:8px; border-radius:50%; background:#2a9d8f; animation:watchpulse 1.4s infinite; vertical-align:middle; }
+  .imp-watch-pulse { display:inline-block; width:8px; height:8px; border-radius:50%; background:#3ccf91; animation:watchpulse 1.4s infinite; vertical-align:middle; }
   @keyframes watchpulse { 0%,100% { opacity:1 } 50% { opacity:.25 } }
 /* ============================================================================
    RaceDay v2 — display face, self-hosted.
@@ -850,7 +850,7 @@ const GARAGE_KEY = 'rd_garage_v2';
 const ACTIVE_TRACK_KEY = 'rd_active_track_v2';
 // Reported with every usage row and crash. The part after the dot MUST match this app's
 // sw.js CACHE number (tests/test-app-version.js) — bump both together on each release.
-const APP_VERSION = '2026-11-10.v26';
+const APP_VERSION = '2026-11-11.v27';
 const LEGAL_VERSION = '2026-06';   // bump when Terms / Privacy wording changes, so acceptances are versioned
 const TELEMETRY_URL = 'https://script.google.com/macros/s/AKfycbxa3i3y17TLp_NfXOOu2jM7-YzXH2fScxcXoQYmIh0-873rxWfxg0HdRP1DVsxZq6iR/exec';
 const FIREBASE_CONFIG = {
@@ -7240,7 +7240,7 @@ function openTimingSourceSheet() {
     '<button class="btn" onclick="closeSheet()">Ask me later</button>', {});
 }
 function timingSourceMarkup() {
-  return '<p class="sub" style="margin-top:0">Set this once — RaceDay remembers it. Change it any time in Admin → Race format.</p>'
+  return '<p class="sub" style="margin-top:0">Set this once — RaceDay remembers it. Change it any time in Admin → Race format. <a href="/guides/timing-software.html" target="_blank" rel="noopener">What you need + flow chart →</a></p>'
     + '<div class="stack">'
     + '<button class="btn btn-block" style="display:block;width:100%;text-align:left;white-space:normal;height:auto;padding:12px 14px" onclick="timingSourceStep2()"><b>⏱ Timing software</b><span class="tiny" style="display:block;margin-top:3px">MotoSponder, MYLAPS Orbits, Westhold or another transponder system</span></button>'
     + '<button class="btn btn-block" style="display:block;width:100%;text-align:left;white-space:normal;height:auto;padding:12px 14px" onclick="setTimingSource(\'hand\')"><b>✍ We type them in</b><span class="tiny" style="display:block;margin-top:3px">From a stopwatch or the scoring stand</span></button>'
@@ -7250,7 +7250,7 @@ function timingSourceStep2() {
   if (!canWatchFolder()) { setTimingSource('file'); return; }
   const body = document.getElementById('sheetBody');
   if (body) body.innerHTML = '<p class="sub" style="margin-top:0"><b>Pick the folder your timing software saves its results to.</b></p>'
-    + '<p class="tiny">In MotoSponder, that\'s wherever its exports go — export one result to check. Often <b>Documents</b> or <b>Downloads</b>. RaceDay only reads from that folder, and only on this computer.</p>'
+    + '<p class="tiny"><b>Do this on the computer that runs your timing software, in Chrome or Edge.</b> In MotoSponder, the folder is wherever its exports go — export one result to check. Often <b>Documents</b> or <b>Downloads</b>. RaceDay only reads from that folder. <a href="/guides/timing-software.html" target="_blank" rel="noopener">What you need + flow chart →</a></p>'
     + '<button class="btn btn-go btn-block" onclick="setTimingSource(\'folder\')">📁 Pick the folder</button>';
 }
 async function setTimingSource(src) {
@@ -7261,7 +7261,7 @@ async function setTimingSource(src) {
     toast('Saved — on race night, open Lineups → 📥 Import timing → Start watching ' + h.name + '.', 'ok');
   } else if (src === 'file') {
     S.settings.timingSource = 'file'; save(); closeSheet();
-    alert("This device can't watch a folder, so after each session tap 📥 Import timing on Lineups and choose the results file.\n\nTo have results load on their own, set this up in Chrome or Edge on the computer that runs your timing software.");
+    alert("This device can't watch a folder, so after each session tap 📥 Import timing on Lineups and choose the results file.\n\nTo have results load on their own, set this up in Chrome or Edge on the computer that runs your timing software.\n\nWhat you need, with a flow chart: victoryraceday.com/guides/timing-software.html");
   } else {
     S.settings.timingSource = 'hand'; save(); closeSheet();
     toast('Got it — type times with ⏱ Qualifying times on each class.', 'ok');
@@ -7276,7 +7276,8 @@ function timingSourceCard() {
     : src === 'hand' ? 'Typed in by hand'
     : 'Not set yet';
   return '<div class="card"><div class="spread"><span><b>Qualifying &amp; heat times</b><span class="tiny" style="display:block">' + line + '</span></span>'
-    + '<button class="btn btn-sm push" onclick="openTimingSourceSheet()">' + (src ? 'Change' : 'Set up') + '</button></div></div>';
+    + '<button class="btn btn-sm push" onclick="openTimingSourceSheet()">' + (src ? 'Change' : 'Set up') + '</button></div>'
+    + '<p class="tiny" style="margin:8px 0 0">Watching a folder needs Chrome or Edge on the computer that runs your timing software. <a href="/guides/timing-software.html" target="_blank" rel="noopener">What you need + flow chart →</a></p></div>';
 }
 
 function openImport(target) {
@@ -7467,7 +7468,7 @@ function impWatchMarkup() {
     +   (name ? '<button class="btn btn-sm" id="impWatchChange" onclick="impChangeFolder()">Change folder</button>' : '')
     +   '<button class="btn btn-sm" id="impWatchStop" onclick="impStopWatch()" style="display:none">■ Stop watching</button>'
     + '</div>'
-    + '<p class="tiny" id="impWatchStatus" style="margin-top:8px">Each new results file your timing software saves there loads by itself — no hunting for files. Leave this open while you race.</p>'
+    + '<p class="tiny" id="impWatchStatus" style="margin-top:8px">Each new results file your timing software saves there loads by itself — no hunting for files. Leave this open while you race. <a href="/guides/timing-software.html" target="_blank" rel="noopener">What you need + flow chart →</a></p>'
     + '<label class="check" style="margin-top:6px"><input type="checkbox" id="impAutoApply" checked onchange="if(Imp)Imp.watchAuto=this.checked">Import clean files automatically (every driver matched, no warnings)</label>'
     + '</div>';
 }
