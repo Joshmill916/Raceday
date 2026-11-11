@@ -1,0 +1,208 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<script>/* http://victoryraceday.com and https:// are separate origins with separate storage. Send
+   http visitors to https — unless this browser keeps RaceDay/Driven data on the http origin,
+   in which case the apps offer a one-tap move first (see raceday/ offerSecureMove()). */
+(function(){if(location.protocol!=='http:'||!/(^|\.)victoryraceday\.com$/.test(location.hostname))return;
+try{if(localStorage.getItem('raceday_v1')||localStorage.getItem('raceday_v2')||localStorage.getItem('profiles_v1'))return;}catch(e){}
+location.replace('https://'+location.host+location.pathname+location.search+location.hash);})();</script>
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Timing software (MotoSponder &amp; others) — RaceDay Guides</title>
+<meta name="description" content="Have MotoSponder, MYLAPS Orbits or Westhold results load into RaceDay on their own: what you need, a flow chart, and step-by-step setup.">
+<link rel="canonical" href="https://victoryraceday.com/guides/timing-software.html">
+<meta property="og:type" content="website">
+<meta property="og:url" content="https://victoryraceday.com/guides/timing-software.html">
+<meta property="og:title" content="Timing software (MotoSponder &amp; others) — RaceDay Guides">
+<meta property="og:description" content="Have MotoSponder, MYLAPS Orbits or Westhold results load into RaceDay on their own: what you need, a flow chart, and step-by-step setup.">
+<meta property="og:image" content="https://victoryraceday.com/img/share-raceday.png">
+  <meta property="og:image:width" content="1200">
+  <meta property="og:image:height" content="630">
+<meta name="twitter:card" content="summary_large_image">
+<link rel="apple-touch-icon" href="../raceday/icon-rd.png">
+<link rel="icon" type="image/png" sizes="512x512" href="../raceday/icon-rd.png">
+<link rel="stylesheet" href="../fonts.css">
+<link rel="stylesheet" href="guides.css">
+<style>
+/* Page-only: requirements checklist + flow chart (stacks on phones) */
+.req{display:grid;grid-template-columns:1fr 1fr;gap:16px;margin:0 0 30px}
+.req-box{background:var(--card);border:1px solid var(--line);border-radius:14px;padding:20px 22px}
+.req-box.ok{border-top:5px solid #2f9e5b}.req-box.no{border-top:5px solid #c4453c}
+.req-box h2{font-size:1.25rem;font-weight:800;margin-bottom:10px}
+.req-box ul{list-style:none;margin:0;padding:0;display:flex;flex-direction:column;gap:9px}
+.req-box li{padding-left:30px;position:relative;font-size:1rem}
+.req-box.ok li::before{content:"✓";position:absolute;left:0;top:-1px;width:22px;height:22px;border-radius:50%;background:#2f9e5b;color:#fff;font-weight:800;font-size:.8rem;display:flex;align-items:center;justify-content:center}
+.req-box.no li::before{content:"✕";position:absolute;left:0;top:-1px;width:22px;height:22px;border-radius:50%;background:#c4453c;color:#fff;font-weight:800;font-size:.8rem;display:flex;align-items:center;justify-content:center}
+.flow-wrap{background:var(--card);border:1px solid var(--line);border-radius:14px;padding:26px 22px;margin:0 0 30px}
+.flow-wrap > h2{font-size:1.45rem;font-weight:800;margin-bottom:4px}
+.flow-wrap > p{color:var(--muted);margin-bottom:18px}
+.flow{display:flex;flex-direction:column;align-items:center;gap:0}
+.fnode{border:2px solid var(--line);background:var(--paper);border-radius:12px;padding:12px 16px;text-align:center;max-width:440px;width:100%;font-size:.98rem}
+.fnode b{display:block;font-size:1.02rem}
+.fnode small{display:block;color:var(--muted);font-size:.85rem;margin-top:3px}
+.fnode.start{background:var(--asphalt);color:#f2f1ec;border-color:var(--asphalt)}
+.fnode.start small{color:#c7c8cd}
+.fnode.ask{border-color:var(--clay);border-style:dashed}
+.fnode.ask::before{content:"QUESTION";display:block;font-family:var(--mono);font-size:.66rem;letter-spacing:.12em;color:var(--clay);font-weight:700;margin-bottom:4px}
+.fnode.good{border-color:#2f9e5b;background:rgba(47,158,91,.1)}
+.fnode.stop{border-color:#c98a1e;background:rgba(201,138,30,.1)}
+.farrow{width:2px;height:26px;background:var(--muted);position:relative;margin:2px 0 6px}
+.farrow::after{content:"";position:absolute;left:-5px;bottom:-6px;border:6px solid transparent;border-top:7px solid var(--muted);border-bottom:0}
+.fsplit{display:grid;grid-template-columns:1fr 1fr;gap:18px;width:100%;max-width:820px;margin-top:2px}
+.fbranch{display:flex;flex-direction:column;align-items:center}
+.flabel{font-family:var(--mono);font-size:.74rem;font-weight:700;letter-spacing:.06em;text-transform:uppercase;padding:3px 10px;border-radius:99px;margin-bottom:4px}
+.flabel.yes{background:#2f9e5b;color:#fff}.flabel.no{background:#c4453c;color:#fff}.flabel.alt{background:var(--asphalt-2);color:#f2f1ec}
+.fpart{font-family:var(--display);font-size:1.15rem;font-weight:800;text-transform:uppercase;letter-spacing:.02em;margin:22px 0 14px;padding-top:18px;border-top:1px solid var(--line)}
+.fpart:first-of-type{border-top:0;padding-top:0;margin-top:6px}
+.fnode.end::after{content:"END";display:block;width:max-content;margin:10px auto -2px;font-family:var(--mono);font-size:.66rem;font-weight:700;letter-spacing:.14em;color:var(--muted);border:1px solid var(--line);border-radius:4px;padding:2px 8px}
+.fend-inline{font-family:var(--mono);font-size:.7rem;font-weight:700;letter-spacing:.14em;border:1px solid var(--line);border-radius:4px;padding:1px 6px;color:var(--muted)}
+.fnode.next{border-style:dotted;background:transparent;max-width:220px}
+@media (max-width:700px){.req,.fsplit{grid-template-columns:1fr}.fsplit{gap:22px}.flow-wrap{padding:22px 14px}.fbranch+.fbranch{border-top:2px dashed var(--line);padding-top:18px}}
+</style>
+</head>
+<body>
+<div class="sitebar"><div class="wrap sitebar-row"><a href="/drivers/">Driven — for drivers</a><a class="sb-right" href="/driven/">Open Driven →</a></div></div>
+<div class="topbar"><div class="wrap topbar-row">
+  <a class="topbar-brand" href="/?home=1"><img src="/img/logo-raceday.svg" alt="RaceDay" width="160" height="24"></a>
+  <span class="topbar-links">
+    <a class="topbar-link on" href="/guides/">Guides</a>
+    <a class="topbar-link" href="/faq.html">FAQ</a>
+    <a class="topbar-link" href="/pricing.html">Pricing</a>
+    <a class="topbar-link" href="/raceday2/">Open RaceDay <span class="btn-arrow">→</span></a>
+  </span>
+</div></div>
+
+<header class="hero"><div class="wrap">
+  <div class="crumbs"><a href="/guides/">Guides</a> &nbsp;›&nbsp; Race formats</div>
+  <div class="eyebrow"><span class="flag"></span>Race formats</div>
+  <h1>Timing software</h1>
+  <p class="lede">Use MotoSponder, MYLAPS Orbits, Westhold or another transponder system? Point RaceDay at the folder it saves results to, and each session's results load on their own — no hunting for files.</p>
+  <div class="meta"><span><b>Who</b>Race director / scorer</span><span><b>Time</b>5 minutes, once</span><span><b>Where</b>The timing computer</span></div>
+</div></header>
+<div class="checker"></div>
+<main><div class="wrap">
+
+  <div class="req">
+    <div class="req-box ok">
+      <h2>What you need</h2>
+      <ul>
+        <li><b>A Windows or Mac computer</b> that runs your timing software (MotoSponder or similar)</li>
+        <li><b>Google Chrome or Microsoft Edge</b> on that same computer</li>
+        <li><b>RaceDay open in Chrome or Edge on that computer</b> — the computer that saves the results files</li>
+        <li>Your timing software <b>saving its results to one folder</b> as CSV or text files</li>
+        <li>Drivers <b>signed up in RaceDay</b> with their number or transponder, so the results match them</li>
+      </ul>
+    </div>
+    <div class="req-box no">
+      <h2>Won't watch a folder</h2>
+      <ul>
+        <li><b>iPad, iPhone or Android</b> phones and tablets</li>
+        <li><b>Safari or Firefox</b>, even on a computer</li>
+        <li>A <b>different computer</b> from the one running the timing software</li>
+      </ul>
+      <p style="margin-top:12px;font-size:.95rem">On these, results still import — you just choose the file yourself after each session: <span class="ui">📥 Import timing</span> → <span class="ui">📄 Choose CSV file</span>.</p>
+    </div>
+  </div>
+
+  <section class="flow-wrap" aria-labelledby="flowTitle">
+    <h2 id="flowTitle">How it works — flow chart</h2>
+    <p>Two parts: set it up once, then race night. Follow each top to bottom. A path ends where you see <span class="fend-inline">END</span>.</p>
+
+    <h3 class="fpart">1 · Set up (once)</h3>
+    <div class="flow" role="img" aria-label="Set up flow chart. Set a class to qualifying. RaceDay asks where qualifying times come from. If we type them in: type times on Lineups with Qualifying times, end. If timing software: is RaceDay open in Chrome or Edge on the computer that runs the timing software? If no: choose the results file after each session with Import timing, Choose CSV file, end. If yes: pick the timing software's export folder once, then go to part 2, race night.">
+      <div class="fnode start"><b>Set a class to qualifying</b><small>Admin → Race classes → Format</small></div>
+      <div class="farrow"></div>
+      <div class="fnode ask"><b>Where do your qualifying times come from?</b><small>RaceDay asks this once</small></div>
+      <div class="farrow"></div>
+      <div class="fsplit">
+        <div class="fbranch">
+          <span class="flabel alt">We type them in</span>
+          <div class="farrow"></div>
+          <div class="fnode good end"><b>Type times on Lineups</b><small>⏱ Qualifying times → Set grid from times</small></div>
+        </div>
+        <div class="fbranch">
+          <span class="flabel alt">Timing software</span>
+          <div class="farrow"></div>
+          <div class="fnode ask"><b>Is RaceDay open in Chrome or Edge on the computer that runs the timing software?</b></div>
+          <div class="farrow"></div>
+          <div class="fsplit">
+            <div class="fbranch">
+              <span class="flabel no">No</span>
+              <div class="farrow"></div>
+              <div class="fnode stop end"><b>Choose the file each session</b><small>📥 Import timing → 📄 Choose CSV file</small></div>
+            </div>
+            <div class="fbranch">
+              <span class="flabel yes">Yes</span>
+              <div class="farrow"></div>
+              <div class="fnode good"><b>Pick the export folder</b><small>Once — RaceDay remembers it</small></div>
+              <div class="farrow"></div>
+              <div class="fnode next"><b>Go to part 2 ↓</b></div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <h3 class="fpart">2 · Race night (folder picked)</h3>
+    <div class="flow" role="img" aria-label="Race night flow chart. Tap Import timing, pick the step, then Start watching. Leave it open. After each session the timing software saves a results file and RaceDay reads it within a few seconds. Every driver matched with no warnings? If yes, it imports on its own. If no, it waits for you to check the preview and tap Import.">
+      <div class="fnode start"><b>📥 Import timing → 📁 Start watching</b><small>On Lineups. Pick the step: Qualifying, Heat or Feature. Leave it open.</small></div>
+      <div class="farrow"></div>
+      <div class="fnode"><b>Timing software saves a results file</b><small>After each session — RaceDay reads it within a few seconds</small></div>
+      <div class="farrow"></div>
+      <div class="fnode ask"><b>Every driver matched, no warnings?</b></div>
+      <div class="farrow"></div>
+      <div class="fsplit">
+        <div class="fbranch">
+          <span class="flabel yes">Yes</span>
+          <div class="farrow"></div>
+          <div class="fnode good end"><b>Imports on its own</b><small>Lineups update — keep racing</small></div>
+        </div>
+        <div class="fbranch">
+          <span class="flabel no">No</span>
+          <div class="farrow"></div>
+          <div class="fnode stop end"><b>Waits for you</b><small>Check the preview, then tap Import ✓</small></div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <ol class="steps">
+    <li class="step has-img wide-img">
+      <div class="body"><h2>Tell RaceDay where times come from</h2><p>The first time you set a class to <span class="ui">Qualifying · 1 heat</span> or <span class="ui">Qualifying · straight to mains</span>, RaceDay asks. Tap <span class="ui">⏱ Timing software</span>. Missed it or want to change it? <b>Admin → Race format → Qualifying &amp; heat times</b>.</p></div>
+      <figure class="shot"><img src="img/timing-question.jpg" alt="Where do your qualifying times come from?" loading="lazy" style="max-width:560px"><figcaption>Asked once</figcaption></figure>
+    </li>
+    <li class="step has-img wide-img">
+      <div class="body"><h2>Pick the folder your timing software saves to</h2><p>Do this <b>on the timing computer, in Chrome or Edge</b>. Tap <span class="ui">📁 Pick the folder</span> and choose the folder your timing software exports results to. Not sure which one? Export one result from your timing software and see where the file lands — often <b>Documents</b> or <b>Downloads</b>. When Chrome asks, choose <b>View files</b> / <b>Allow</b>. RaceDay only reads that folder; it never changes anything in it.</p></div>
+      <figure class="shot"><img src="img/timing-folder.jpg" alt="Pick the folder" loading="lazy" style="max-width:560px"><figcaption>Pick the export folder</figcaption></figure>
+    </li>
+    <li class="step has-img wide-img">
+      <div class="body"><h2>Race night: start watching</h2><p>On <span class="ui">Lineups</span>, tap <span class="ui">📥 Import timing</span>, pick the step (<span class="ui">Qualifying</span>, <span class="ui">Heat</span> or <span class="ui">Feature</span>), then tap <span class="ui">📁 Start watching</span>. You'll see a green dot and <b>Watching &lt;your folder&gt;</b>. Leave this window open, and switch the step as the night moves on. Files already in the folder are ignored — only new results load.</p></div>
+      <figure class="shot"><img src="img/timing-watching.jpg" alt="Watching the timing folder" loading="lazy" style="max-width:640px"><figcaption>Watching — new results load on their own</figcaption></figure>
+    </li>
+    <li class="step">
+      <div class="body"><h2>After each session, export from your timing software</h2><p>Save the session's results the way you normally do. Within a few seconds RaceDay reads the file. If <b>every driver matches</b> (by transponder, number or name) and nothing looks wrong, it imports on its own. If a driver isn't in RaceDay, or a time can't be read, it <b>waits</b> — check the preview and tap <span class="ui">Import ✓</span>. Turn off <span class="ui">Import clean files automatically</span> if you'd rather check every file.</p></div>
+    </li>
+  </ol>
+
+  <div class="note"><h3>If something's not working</h3><ul>
+    <li><b>No “Watch” button?</b> You're not in Chrome or Edge on a computer. See <b>What you need</b> above — or use <span class="ui">📄 Choose CSV file</span> after each session.</li>
+    <li><b>Asks for permission each time?</b> That's Chrome keeping your files safe — tap <span class="ui">📁 Start watching</span> and choose <b>Allow</b>. Once a night is normal.</li>
+    <li><b>Nothing loads?</b> Check your timing software is saving into the <b>same folder</b> you picked, as a <b>.csv</b>, <b>.txt</b> or <b>.tsv</b> file. Change it in <b>Admin → Race format → Qualifying &amp; heat times</b>.</li>
+    <li><b>Went into the wrong step?</b> The step tabs at the top (Qualifying, Heat, Feature) decide where results go — switch before the next session's file.</li>
+    <li><b>Works with</b> MotoSponder, MYLAPS Orbits and Westhold Race Manager (recognized automatically) and most other timing software that exports a results file. There's no live connection to the timing system — RaceDay reads the files it saves.</li>
+  </ul></div>
+  <div class="next"><h3>Next guides</h3><div class="cards"><a class="gcard" href="qualifying.html"><div class="k">Race formats</div><div class="t">Qualifying &amp; timing</div><div class="d">Qualifying with one heat or straight to mains, entering times, and CSV timing import.</div></a><a class="gcard" href="scoring-tower.html"><div class="k">Staff roles</div><div class="t">Scoring tower</div><div class="d">Three ways to enter finishes, DNF/DNS/DQ, heat totals and features.</div></a><a class="gcard" href="multi-device.html"><div class="k">Device setups</div><div class="t">Multiple devices</div><div class="d">A sign-up table, scoring, TV and spectators, all in sync.</div></a></div></div>
+
+  <div class="help">
+    <p><b>Still stuck?</b> The <a href="/field-manual.html">Field Manual</a> walks through every screen, and the <a href="/faq.html">FAQ</a> covers common questions. Or just text me — it's the fastest way to get an answer.</p>
+    <span class="help-links"><a href="sms:+12602074983">💬 Text Josh · (260) 207-4983 →</a><a class="help-email" href="mailto:josh@victoryraceday.com?subject=RaceDay%20question">or email</a></span>
+  </div>
+</div></main>
+<footer><div class="wrap">
+  <span>RaceDay &amp; Driven — race night, one screen.</span>
+  <span><a href="/?home=1">Overview</a> &nbsp;·&nbsp; <a href="/guides/">Guides</a> &nbsp;·&nbsp; <a href="/faq.html">FAQ</a> &nbsp;·&nbsp; <a href="/pricing.html">Pricing</a> &nbsp;·&nbsp; <a href="/raceday2/">Open the app</a> &nbsp;·&nbsp; <a href="https://www.facebook.com/victoryraceday" target="_blank" rel="noopener">Facebook</a> &nbsp;·&nbsp; <a href="https://www.linkedin.com/company/victoryraceday/" target="_blank" rel="noopener">LinkedIn</a> &nbsp;·&nbsp; <a href="https://www.youtube.com/@victoryraceday" target="_blank" rel="noopener">YouTube</a> &nbsp;·&nbsp; <a href="https://www.instagram.com/victoryraceday/" target="_blank" rel="noopener">Instagram</a></span>
+</div></footer>
+<!-- Cloudflare Web Analytics --><script>/* skipped on devices opted out at /me/ (the owner's own testing) and on local dev/test copies */try{if(localStorage.getItem('rd_dont_count')!=='1'&&!(/^(localhost|127\.0\.0\.1|\[::1\])$|\.(localhost|test)$/.test(location.hostname)&&localStorage.getItem('rd_count_local')!=='1')){var cfb=document.createElement('script');cfb.defer=true;cfb.src='https://static.cloudflareinsights.com/beacon.min.js';cfb.setAttribute('data-cf-beacon','{"token": "07e858325a984890a4f60c1cec1942bc"}');(document.body||document.head).appendChild(cfb);}}catch(e){}/* first visit: remember where this device first came from (rd_from = "<source> <landing path>"); the apps send it with their daily open row */try{if(!localStorage.getItem('rd_from')){var rdS=location.search,rdM=/[?&](?:from|utm_source)=([^&#]+)/.exec(rdS),rdH='',rdR;try{rdH=document.referrer?new URL(document.referrer).hostname.replace(/^(www|m|l|lm|mobile)\./,''):''}catch(e){}if(rdM)rdR=decodeURIComponent(rdM[1]);else if(/[?&]fbclid=/.test(rdS))rdR='facebook';else if(/[?&]gclid=/.test(rdS))rdR='google-ads';else if(!rdH)rdR='direct';else if(rdH===location.hostname)rdR='site';else rdR=/(^|\.)(facebook\.com|fb\.com|fb\.me)$/.test(rdH)?'facebook':/instagram\.com$/.test(rdH)?'instagram':/(^|\.)google\./.test(rdH)?'google':/(youtube\.com|youtu\.be)$/.test(rdH)?'youtube':/(linkedin\.com|lnkd\.in)$/.test(rdH)?'linkedin':/bing\.com$/.test(rdH)?'bing':/web\.app$/.test(rdH)?'shared-card':rdH;localStorage.setItem('rd_from',String(rdR).toLowerCase().replace(/[^a-z0-9.\-]/g,'').slice(0,30)+' '+location.pathname.slice(0,40))}}catch(e){}</script><!-- End Cloudflare Web Analytics -->
+</body>
+</html>

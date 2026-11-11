@@ -19,6 +19,8 @@ location.replace('https://'+location.host+location.pathname+location.search+loca
 <link rel="icon" type="image/png" sizes="512x512" href="icon-rd.png">
 <script>if('serviceWorker' in navigator){addEventListener('load',function(){navigator.serviceWorker.register('sw.js').catch(function(){})})}</script>
 <style>
+  .imp-watch-pulse { display:inline-block; width:8px; height:8px; border-radius:50%; background:#3ccf91; animation:watchpulse 1.4s infinite; vertical-align:middle; }
+  @keyframes watchpulse { 0%,100% { opacity:1 } 50% { opacity:.25 } }
 /* ============================================================================
    RaceDay v2 — display face, self-hosted.
    v1 loaded Saira Condensed from fonts.googleapis.com, which meant a cold
@@ -848,7 +850,7 @@ const GARAGE_KEY = 'rd_garage_v2';
 const ACTIVE_TRACK_KEY = 'rd_active_track_v2';
 // Reported with every usage row and crash. The part after the dot MUST match this app's
 // sw.js CACHE number (tests/test-app-version.js) — bump both together on each release.
-const APP_VERSION = '2026-11-10.v26';
+const APP_VERSION = '2026-11-11.v27';
 const LEGAL_VERSION = '2026-06';   // bump when Terms / Privacy wording changes, so acceptances are versioned
 const TELEMETRY_URL = 'https://script.google.com/macros/s/AKfycbxa3i3y17TLp_NfXOOu2jM7-YzXH2fScxcXoQYmIh0-873rxWfxg0HdRP1DVsxZq6iR/exec';
 const FIREBASE_CONFIG = {
@@ -7192,12 +7194,99 @@ function impPipeline() {
    the smallest slice of use) is dropped to keep the surface reviewable.
    ========================================================================= */
 
+/* ---------- Where qualifying / heat times come from ----------
+   S.settings.timingSource (syncs, track-wide): 'folder' = timing software (MotoSponder, MYLAPS
+   Orbits, Westhold…) saves results files to a folder this computer watches; 'file' = pick the
+   file after each session (a device that can't watch folders); 'hand' = typed in under
+   ⏱ Qualifying times. Asked once, the first time a class is set to a qualifying format, and
+   changeable in Admin → Race format. The folder is a per-computer handle kept in IndexedDB
+   (rd_timing), never in S — it can't sync or go in a backup. */
+const TimingDir = { handle: null };
+function canWatchFolder() { return typeof window.showDirectoryPicker === 'function'; }
+function timingDb() {
+  return new Promise((res, rej) => {
+    const r = indexedDB.open('rd_timing', 1);
+    r.onupgradeneeded = () => r.result.createObjectStore('kv');
+    r.onsuccess = () => res(r.result);
+    r.onerror = () => rej(r.error);
+  });
+}
+function loadTimingDir() {
+  if (!canWatchFolder() || !window.indexedDB) return Promise.resolve(null);
+  return timingDb().then(db => new Promise(res => {
+    const q = db.transaction('kv').objectStore('kv').get('dir');
+    q.onsuccess = () => { TimingDir.handle = q.result || null; res(TimingDir.handle); };
+    q.onerror = () => res(null);
+  })).catch(() => null);
+}
+function saveTimingDir(h) {
+  TimingDir.handle = h;
+  return timingDb().then(db => new Promise(res => {
+    const t = db.transaction('kv', 'readwrite');
+    t.objectStore('kv').put(h, 'dir');
+    t.oncomplete = () => res(true); t.onerror = () => res(false);
+  })).catch(() => false);
+}
+async function pickTimingFolder() {
+  if (!canWatchFolder()) return null;
+  try {
+    const h = await window.showDirectoryPicker({ id: 'rd-timing', mode: 'read' });
+    await saveTimingDir(h);
+    return h;
+  } catch (e) { return null; }   // cancelled
+}
+function openTimingSourceSheet() {
+  openSheet('Where do your qualifying times come from?', timingSourceMarkup(),
+    '<button class="btn" onclick="closeSheet()">Ask me later</button>', {});
+}
+function timingSourceMarkup() {
+  return '<p class="sub" style="margin-top:0">Set this once — RaceDay remembers it. Change it any time in Admin → Race format. <a href="/guides/timing-software.html" target="_blank" rel="noopener">What you need + flow chart →</a></p>'
+    + '<div class="stack">'
+    + '<button class="btn btn-block" style="display:block;width:100%;text-align:left;white-space:normal;height:auto;padding:12px 14px" onclick="timingSourceStep2()"><b>⏱ Timing software</b><span class="tiny" style="display:block;margin-top:3px">MotoSponder, MYLAPS Orbits, Westhold or another transponder system</span></button>'
+    + '<button class="btn btn-block" style="display:block;width:100%;text-align:left;white-space:normal;height:auto;padding:12px 14px" onclick="setTimingSource(\'hand\')"><b>✍ We type them in</b><span class="tiny" style="display:block;margin-top:3px">From a stopwatch or the scoring stand</span></button>'
+    + '</div>';
+}
+function timingSourceStep2() {
+  if (!canWatchFolder()) { setTimingSource('file'); return; }
+  const body = document.getElementById('sheetBody');
+  if (body) body.innerHTML = '<p class="sub" style="margin-top:0"><b>Pick the folder your timing software saves its results to.</b></p>'
+    + '<p class="tiny"><b>Do this on the computer that runs your timing software, in Chrome or Edge.</b> In MotoSponder, the folder is wherever its exports go — export one result to check. Often <b>Documents</b> or <b>Downloads</b>. RaceDay only reads from that folder. <a href="/guides/timing-software.html" target="_blank" rel="noopener">What you need + flow chart →</a></p>'
+    + '<button class="btn btn-go btn-block" onclick="setTimingSource(\'folder\')">📁 Pick the folder</button>';
+}
+async function setTimingSource(src) {
+  if (src === 'folder') {
+    const h = await pickTimingFolder();
+    if (!h) return;   // cancelled — leave the sheet open
+    S.settings.timingSource = 'folder'; save(); closeSheet();
+    toast('Saved — on race night, open Lineups → 📥 Import timing → Start watching ' + h.name + '.', 'ok');
+  } else if (src === 'file') {
+    S.settings.timingSource = 'file'; save(); closeSheet();
+    alert("This device can't watch a folder, so after each session tap 📥 Import timing on Lineups and choose the results file.\n\nTo have results load on their own, set this up in Chrome or Edge on the computer that runs your timing software.\n\nWhat you need, with a flow chart: victoryraceday.com/guides/timing-software.html");
+  } else {
+    S.settings.timingSource = 'hand'; save(); closeSheet();
+    toast('Got it — type times with ⏱ Qualifying times on each class.', 'ok');
+  }
+  if (curPage === 'admin') render('admin');
+}
+function timingSourceCard() {
+  const src = S.settings.timingSource;
+  const name = TimingDir.handle && TimingDir.handle.name;
+  const line = src === 'folder' ? (name ? 'Timing software — watching <b>' + esc(name) + '</b> on this computer' : 'Timing software — no folder picked on this computer yet')
+    : src === 'file' ? 'Timing software — choose the results file after each session'
+    : src === 'hand' ? 'Typed in by hand'
+    : 'Not set yet';
+  return '<div class="card"><div class="spread"><span><b>Qualifying &amp; heat times</b><span class="tiny" style="display:block">' + line + '</span></span>'
+    + '<button class="btn btn-sm push" onclick="openTimingSourceSheet()">' + (src ? 'Change' : 'Set up') + '</button></div>'
+    + '<p class="tiny" style="margin:8px 0 0">Watching a folder needs Chrome or Edge on the computer that runs your timing software. <a href="/guides/timing-software.html" target="_blank" rel="noopener">What you need + flow chart →</a></p></div>';
+}
+
 function openImport(target) {
   Imp = { rows:[], header:[], cols:{trans:-1,num:-1,name:-1,name2:-1,cls:-1,pos:-1,time:-1},
           target: target || 'heat', clsId: (S.classes[0] && S.classes[0].id) || null,
           useClsCol:false, heatSet:'h1', step:0, vendor:null, preamble:0, unknownClasses:[], emptyClass:0,
           newCls: !S.classes.length, newClsName:'', makeClasses:false, userPickedMode:false, lastFile:'',
-          div:null, pendingCls:{}, _tmpCls:{}, watchDir:null };
+          div:null, pendingCls:{}, _tmpCls:{}, watchDir:null,
+          watchInterval:null, watchSeen:{}, watchAuto:true, watchPrimed:false, watchBusy:false };
   impPreview = [];
   const steps = impPipeline();
   const want = target || 'heat';
@@ -7206,13 +7295,14 @@ function openImport(target) {
   impSetStep(startIdx);
   openSheet('Import from timing', impBodyMarkup(),
     '<button class="btn" onclick="closeImport()">Cancel</button><button class="btn btn-primary push" onclick="impApplyClick()">Import ✓</button>',
-    { wide:true, onClose: () => { Imp = null; impPreview = []; } });
+    { wide:true, onClose: () => { impStopWatch(); Imp = null; impPreview = []; } });
   impRenderStepper();
 }
 function closeImport() { closeSheet(); }
 
 function impBodyMarkup() {
   return '<div id="impStepper" class="tabs"></div>'
+    + impWatchMarkup()
     + '<div class="card">'
     + '<div class="rowflex"><button class="btn btn-primary" onclick="document.getElementById(\'impFile\').click()">📄 Choose CSV file</button>'
     + '<input id="impFile" type="file" accept=".csv,.txt,.tsv,text/csv,text/plain,text/tab-separated-values" style="display:none" onchange="impLoadCsv(this)">'
@@ -7244,7 +7334,7 @@ function impLoadCsv(input) {
 }
 /* Rewritten for v2's markup (v1's version hard-coded fixed-overlay DOM ids);
    the parsing/detection calls it makes are the same engine functions. */
-function impIngestText(text, filename) {
+function impIngestText(text, filename, fromWatch) {
   if (!Imp) return false;
   const delim = impDetectDelim(String(text || ''));
   const rows = impParseCSV(String(text || ''), delim);
@@ -7286,6 +7376,7 @@ function impIngestText(text, filename) {
   impSetClsMode(Imp.useClsCol, false);
   document.getElementById('impPrevWrap').style.display = '';
   impRenderPreview();
+  if (fromWatch && Imp.watchAuto) impAutoApply();
   return true;
 }
 function impSetClsMode(useCol, userPicked) {
@@ -7363,9 +7454,108 @@ function impRenderPreview() {
   }).join('') + (impPreview.length > 300 ? '<div class="lrow"><span class="tiny">…and ' + (impPreview.length - 300) + ' more rows</span></div>' : '');
 }
 
-/* Dead in v2 (only reached when Imp.watchDir is set, and v2 never sets it) but kept
-   real rather than stubbed, since impApply() still references both by name. */
-function impWatchSay(html) { toast(html.replace(/<[^>]+>/g, ''), 'ok'); }
+/* ---------- Watching the timing folder (ported from v1, plus a remembered folder) ----------
+   Chrome/Edge only (File System Access API). The first scan records the files already there,
+   so only exports made after watching starts load. A new or changed results file loads into
+   the step picked above (Qualifying / Heat / Feature) and imports on its own when every row
+   is a clean match; anything else waits in the preview for the operator. */
+function impWatchMarkup() {
+  if (!canWatchFolder()) return '';
+  const name = TimingDir.handle && TimingDir.handle.name;
+  return '<div class="card" id="impWatchCard">'
+    + '<div class="rowflex">'
+    +   '<button class="btn btn-go" id="impWatchBtn" onclick="impStartWatch()">📁 ' + (name ? 'Start watching <b>' + esc(name) + '</b>' : 'Watch my timing folder') + '</button>'
+    +   (name ? '<button class="btn btn-sm" id="impWatchChange" onclick="impChangeFolder()">Change folder</button>' : '')
+    +   '<button class="btn btn-sm" id="impWatchStop" onclick="impStopWatch()" style="display:none">■ Stop watching</button>'
+    + '</div>'
+    + '<p class="tiny" id="impWatchStatus" style="margin-top:8px">Each new results file your timing software saves there loads by itself — no hunting for files. Leave this open while you race. <a href="/guides/timing-software.html" target="_blank" rel="noopener">What you need + flow chart →</a></p>'
+    + '<label class="check" style="margin-top:6px"><input type="checkbox" id="impAutoApply" checked onchange="if(Imp)Imp.watchAuto=this.checked">Import clean files automatically (every driver matched, no warnings)</label>'
+    + '</div>';
+}
+function impWatchSay(html) {
+  const status = document.getElementById('impWatchStatus');
+  if (!status) { toast(String(html).replace(/<[^>]+>/g, ''), 'ok'); return; }
+  const step = Imp ? impPipeline()[Imp.step] : null;
+  const head = (Imp && Imp.watchDir)
+    ? '<span class="imp-watch-pulse"></span> Watching <b>' + esc(Imp.watchDir.name) + '</b>' + (step ? ' → <b>' + esc(step.label) + '</b>' : '') + ' · '
+    : '';
+  status.innerHTML = head + html;
+}
+async function impStartWatch() {
+  if (!Imp) return;
+  const h = TimingDir.handle;
+  if (!h) { impChangeFolder(); return; }
+  let ok = false;
+  try { ok = (await h.requestPermission({ mode: 'read' })) === 'granted'; } catch (e) {}
+  if (!ok) { impWatchSay('RaceDay needs permission to read that folder — tap Start watching and choose Allow.'); return; }
+  impWatchBegin(h);
+}
+async function impChangeFolder() {
+  const h = await pickTimingFolder();
+  if (!h || !Imp) return;
+  if (!S.settings.timingSource || S.settings.timingSource === 'file') { S.settings.timingSource = 'folder'; save(); }
+  impWatchBegin(h);
+}
+function impWatchShow(id, on) { const el = document.getElementById(id); if (el) el.style.display = on ? '' : 'none'; }
+function impWatchBegin(dir) {
+  impStopWatch();
+  Imp.watchDir = dir;
+  Imp.watchSeen = {};
+  Imp.watchPrimed = false;   // first scan records existing files without loading them
+  Imp.watchBusy = false;     // guards against overlapping async scans
+  Imp.watchInterval = setInterval(impScanFolder, 3000);
+  impWatchShow('impWatchBtn', false); impWatchShow('impWatchChange', false); impWatchShow('impWatchStop', true);
+  impScanFolder();
+  impWatchSay('export results from your timing software and they load here.');
+}
+function impStopWatch() {
+  if (Imp && Imp.watchInterval) { clearInterval(Imp.watchInterval); Imp.watchInterval = null; }
+  if (Imp) { Imp.watchDir = null; Imp.watchSeen = {}; Imp.watchPrimed = false; Imp.watchBusy = false; }
+  impWatchShow('impWatchBtn', true); impWatchShow('impWatchChange', true); impWatchShow('impWatchStop', false);
+}
+async function impScanFolder() {
+  if (!Imp || !Imp.watchDir || Imp.watchBusy) return;
+  const dir = Imp.watchDir;
+  Imp.watchBusy = true;
+  try {
+    const found = [];
+    for await (const [name, handle] of dir.entries()) {
+      if (handle.kind === 'file' && /\.(csv|tsv|txt)$/i.test(name)) {
+        const file = await handle.getFile();
+        found.push({ name, file, lastModified: file.lastModified });
+      }
+    }
+    if (!Imp || Imp.watchDir !== dir) return;
+    if (!Imp.watchPrimed) {
+      found.forEach(f => { Imp.watchSeen[f.name] = f.lastModified; });
+      Imp.watchPrimed = true;
+      return;
+    }
+    const changed = found.filter(f => Imp.watchSeen[f.name] !== f.lastModified);
+    if (!changed.length) return;
+    const newest = changed.reduce((a, b) => a.lastModified > b.lastModified ? a : b);
+    // Still being written (saved within the last ~1.5s)? Wait for the next scan.
+    if (Date.now() - newest.lastModified < 1500) return;
+    Imp.watchSeen[newest.name] = newest.lastModified;
+    const text = await newest.file.text();
+    const ts = new Date(newest.lastModified).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit' });
+    impWatchSay('loaded <b>' + esc(newest.name) + '</b> at ' + ts + '.');
+    impIngestText(text, newest.name, true);
+  } catch (e) {
+    impStopWatch();   // permission revoked or folder gone
+    impWatchSay("Stopped — RaceDay can't read that folder any more. Tap Start watching to try again.");
+  } finally {
+    if (Imp) Imp.watchBusy = false;
+  }
+}
+function impAutoApply() {
+  if (!Imp || !impPreview.length) return;
+  const active = impPreview.filter(r => r.status !== 'skip');
+  if (!active.length) return;
+  const clean = active.every(r => r.status === 'match' && !r.nameSuspect && !r.timeBad && !r.transConflict && !r.numConflict && !r.nameConflict);
+  if (clean) impApply({ silent: true });
+  else impWatchSay('⚠ <b>' + esc(Imp.lastFile || 'that file') + '</b> needs a look — check the preview below, then tap Import ✓.');
+}
 
 function impApplyClick() {
   if (!Imp) return;
@@ -7790,9 +7980,11 @@ function setClassSize(id, field, val) {
 }
 function setClassHeats(id, val) {
   const c = classById(id); if (!c) return;
+  const wasQual = classHeats(c) !== 2;
   c.heats = (String(val) === '1') ? 1 : (String(val) === '0') ? 0 : 2;
   save(); renderClsList(); renderGrid();
   if (curPage === 'results') renderResults();
+  if (!wasQual && c.heats !== 2 && !S.settings.timingSource) openTimingSourceSheet();
 }
 function moveClass(id, dir) {
   const i = S.classes.findIndex(c => c.id === id);
@@ -8853,7 +9045,7 @@ function renderClsLib() {
 
 /* -------------------------------------------------------------- format ---- */
 function secFormat() {
-  return '<div class="card">'
+  return timingSourceCard() + '<div class="card">'
     + '<div class="cols">'
     +   '<div class="field" style="margin:0"><label>Max cars per heat</label><input type="number" id="mHeat" min="2" max="30" onchange="saveSett()"></div>'
     +   '<div class="field" style="margin:0"><label>Max in feature</label><input type="number" id="mFeat" min="2" max="40" onchange="saveSett()"></div>'
@@ -9524,6 +9716,7 @@ document.addEventListener('keydown', e => {
 });
 
 applyTheme();
+loadTimingDir();
 handleUrlParams();
 applyRole();
 nav(curPage);
