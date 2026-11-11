@@ -28,6 +28,19 @@
 </script>
 <script>if('serviceWorker' in navigator){addEventListener('load',function(){navigator.serviceWorker.register('sw.js').catch(function(){})})}</script>
 <style>
+  /* Finish your card (Home + Card page) */
+  .fc-bar { height: 8px; border-radius: 4px; background: rgba(127,127,127,.25); overflow: hidden; margin: 10px 0 12px; }
+  .fc-bar span { display: block; height: 100%; background: var(--brand); border-radius: 4px; }
+  .fc-row { display: flex; align-items: center; gap: 12px; padding: 9px 0; border-top: 1px solid rgba(127,127,127,.18); }
+  .fc-row:first-of-type { border-top: 0; }
+  .fc-tick { flex: none; width: 24px; height: 24px; border-radius: 50%; display: flex; align-items: center; justify-content: center; font-size: 14px; font-weight: 800; border: 2px solid rgba(127,127,127,.45); }
+  .fc-row.done .fc-tick { background: var(--flag-green); border-color: var(--flag-green); color: #fff; }
+  .fc-row .fc-lbl { flex: 1; min-width: 0; }
+  .fc-row .fc-lbl small { display: block; opacity: .7; font-size: 12px; }
+  .fc-row.done .fc-lbl b { opacity: .6; text-decoration: line-through; }
+  .fc-row .btn { flex: none; min-height: 40px; }
+  .fc-mini { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; margin: 12px 0 0; }
+  .fc-mini span { flex: 1; min-width: 160px; }
   :root {
     /* Dark stack — layered near-blacks (broadcast surfaces), never one flat gray */
     --ink-0: #0b0c10;
@@ -1595,6 +1608,65 @@ function installSteps() {
   return '<ol class="dv-steps"><li>Open your browser\'s menu (the <b>⋮</b> at the top right).</li>'
     + '<li>Tap <b>Add to Home screen</b> or <b>Install app</b>.</li></ol>';
 }
+/* ---------- Finish your card ----------
+   Most cards are only a name (Nov 2026: 5 of 42 had a photo). A short checklist of the FREE
+   fields fans, sponsors and tracks see, each jumping to its field in Settings. Age is left off on
+   purpose (some drivers are kids), and a hometown the driver chose to hide counts as done.
+   "Not now" hides it on Home for 7 days (dv_finish_hide = the day it was hidden); the Card page
+   keeps a one-line reminder while anything is missing. */
+function cardChecklist() {
+  if (!P || !P.driver) return [];
+  var d = P.driver;
+  return [
+    { key: 'photo', label: 'Your photo', why: 'The first thing people see', done: photoOK(d.photo) },
+    { key: 'number', label: 'Kart number', why: 'So fans can spot you on track', done: !!String(d.number || '').trim() },
+    { key: 'hometown', label: 'Hometown', why: 'Local fans and sponsors look for it', done: !!String(d.hometown || '').trim() || d.showHome === false },
+    { key: 'bio', label: 'A line about you', why: 'How you got into racing, your goals', done: !!String(d.bio || '').trim() },
+    { key: 'sponsors', label: 'Sponsors', why: 'Thank the people who back you', done: (P.sponsors || []).length > 0 }
+  ];
+}
+function finishHidden() {
+  try {
+    var v = localStorage.getItem('dv_finish_hide');
+    return !!v && (Date.now() - new Date(v + 'T12:00:00').getTime()) < 7 * 864e5;
+  } catch (e) { return false; }
+}
+function hideFinishCard() { try { localStorage.setItem('dv_finish_hide', todayStr()); } catch (e) {} renderHome(); }
+function finishCardHtml() {
+  var items = cardChecklist();
+  var left = items.filter(function (i) { return !i.done; });
+  if (!left.length || finishHidden()) return '';
+  var doneN = items.length - left.length;
+  return '<div class="card dv-finish" style="margin-top:16px">'
+    + '<h3 style="margin:0">Finish your card</h3>'
+    + '<p class="sub" style="margin:4px 0 0">' + doneN + ' of ' + items.length + ' done. A full card is what fans, sponsors and the tracks you race at actually look at.</p>'
+    + '<div class="fc-bar" aria-hidden="true"><span style="width:' + Math.round(100 * doneN / items.length) + '%"></span></div>'
+    + items.map(function (i) {
+        return '<div class="fc-row' + (i.done ? ' done' : '') + '"><span class="fc-tick" aria-hidden="true">' + (i.done ? '&#10003;' : '') + '</span>'
+          + '<span class="fc-lbl"><b>' + i.label + '</b>' + (i.done ? '' : '<small>' + i.why + '</small>') + '</span>'
+          + (i.done ? '' : '<button class="btn btn-sm" onclick="finishField(\'' + i.key + '\')">Add</button>') + '</div>';
+      }).join('')
+    + '<div style="display:flex;justify-content:flex-end;margin-top:8px"><button class="btn btn-sm" onclick="hideFinishCard()">Not now</button></div>'
+    + '</div>';
+}
+function finishMiniHtml() {
+  var left = cardChecklist().filter(function (i) { return !i.done; });
+  if (!left.length) return '';
+  return '<div class="fc-mini"><span class="sub" style="margin:0">Your card is missing: <b>' + left.map(function (i) { return i.label.toLowerCase(); }).join(', ') + '</b></span>'
+    + '<button class="btn btn-sm" onclick="finishField(\'' + left[0].key + '\')">Finish my card</button></div>';
+}
+// Jump to the field in Settings. The photo picker opens in the same tap (browsers only allow a file
+// picker from a tap), every other field is scrolled to and focused.
+function finishField(key) {
+  nav('settings');
+  var ids = { photo: 'stPhotoFile', number: 'stNumber', hometown: 'stHometown', bio: 'stBio', sponsors: 'stSponsors' };
+  var el = $id(ids[key]);
+  if (!el) return;
+  if (key === 'photo') { el.click(); return; }
+  if (key === 'hometown') { var sh = $id('stShowHome'); if (sh && !sh.checked) sh.checked = true; }
+  el.scrollIntoView({ block: 'center' });
+  try { el.focus({ preventScroll: true }); } catch (e) { el.focus(); }
+}
 function installCardHtml(onHome) {
   if (dvStandalone()) return '';
   if (onHome && dvInstallHidden()) return '';
@@ -1619,6 +1691,7 @@ function renderHome() {
         ? '<button class="btn btn-primary" onclick="sharePublicPage()">Share my page</button><a class="btn" href="' + esc(publicPageUrl()) + '" target="_blank" rel="noopener">View</a>'
         : '<button class="btn btn-primary" onclick="publishNow()">Publish my card</button>')
     + '</div>';
+  h += finishCardHtml();
   if (!P.linkedTracks.length) {
     h += '<div class="card" style="margin-top:16px"><h3>Link your first track</h3><p class="empty">Give your link code at RaceDay sign-up (or import results) to start building your record.</p>'
       + '<button class="btn btn-go btn-block" onclick="nav(\'link\')">' + icon('link') + ' Go to Link page</button></div>';
@@ -1660,6 +1733,7 @@ function renderCard() {
     + dpHero(showPro, preview)
     + '<p class="sub" style="margin:14px 0 0">' + (preview ? 'Your card with Pro. Only you see this preview.' : 'This is what fans see on your public page'
     + (currentTier().paid ? ' — <span class="prem-badge">' + esc(currentTier().label) + '</span>' : '') + '.') + '</p>'
+    + (preview ? '' : finishMiniHtml())
     + dpSummary(results, showPro)
     + (showPro ? dpRide(preview) : '');
   if (d.bio || d.highlights || crew.length) {
@@ -2534,7 +2608,7 @@ function deleteProfile() {
 // day, 'driven-profile' when someone makes a profile, 'driven-publish' the first time a card is
 // published, and crashes. No names, emails or numbers — only counts. The track column reads DRIVEN.
 // The part after the dot MUST match sw.js CACHE (tests/test-analytics.js) — bump both together.
-const APP_VERSION = '2026-11-10.v23';
+const APP_VERSION = '2026-11-11.v24';
 var TELEMETRY_URL = 'https://script.google.com/macros/s/AKfycbxa3i3y17TLp_NfXOOu2jM7-YzXH2fScxcXoQYmIh0-873rxWfxg0HdRP1DVsxZq6iR/exec';
 // Devices opted out at /me/ (the owner testing) still report, marked OWNER; copies on this
 // computer (localhost, *.test) report nothing unless rd_count_local='1' (the analytics test).
