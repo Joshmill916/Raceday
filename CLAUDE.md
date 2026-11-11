@@ -153,6 +153,10 @@ profile that follows them across every RaceDay track they race at.
   (`viewerOwns()` — code found in profiles_v1/rides/family keys) and shares the picture link `raceday-d32dd.web.app/d/CODE`.
   Settings "Show my hometown"/"Show my age" (`d.showHome`/`d.showAge`, default on) blank those in BOTH `cardPayload()` and
   `cardStrings()`. Guard: `tests/test-driven-share-privacy.js`
+- **Finish your card** (2026-11-11): Home shows a checklist of the FREE fields (`cardChecklist()`: photo, kart number,
+  hometown, bio, sponsors; never age; a hometown the driver hid counts as done), each "Add" → `finishField()` jumps to its
+  Settings field (photo opens the picker in the same tap). "Not now" hides it on Home 7 days (`dv_finish_hide`); the Card
+  page keeps a one-line `finishMiniHtml()` reminder (not on Preview Pro). Guard: `tests/test-driven-finish-card.js`
 - **Add to home screen** (2026-11-09): Home + Settings card (`installCardHtml`). Android/Chrome fires the saved
   `beforeinstallprompt`; iPhone shows Share → Add to Home Screen steps. Hidden when standalone; "Not now" hides it on
   Home only (`dv_install_hide`). Guard: `tests/test-driven-install.js`
