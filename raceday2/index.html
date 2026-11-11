@@ -294,6 +294,7 @@ img { max-width:100%; }
   min-height:38px; padding:7px 15px; border:1px solid var(--line); border-radius:99px;
   background:var(--asphalt-1); color:var(--muted); font:inherit; font-size:13.5px; font-weight:600;
   cursor:pointer; white-space:nowrap; transition:background .12s,color .12s,border-color .12s;
+  max-width:100%; overflow:hidden; text-overflow:ellipsis;
 }
 .tab:hover { color:var(--ink); }
 .tab.on { background:var(--plate); border-color:var(--plate); color:var(--plate-ink); font-weight:700; }
@@ -388,10 +389,10 @@ table.tbl .r { text-align:right; }
 /* ============================================================================
    LINEUP GRID — double file, staggered like the real thing
    ========================================================================= */
-.lane-labels { display:grid; grid-template-columns:1fr 1fr; gap:9px; margin-bottom:7px; }
+.lane-labels { display:grid; grid-template-columns:minmax(0,1fr) minmax(0,1fr); gap:9px; margin-bottom:7px; }
 .lane-labels div { font-family:var(--display); font-size:11px; font-weight:700; letter-spacing:.1em; text-transform:uppercase; color:var(--muted); text-align:center; }
-.grid2 { display:grid; grid-template-columns:1fr 1fr; gap:9px; }
-.grid1 { display:grid; grid-template-columns:1fr; gap:9px; max-width:440px; }
+.grid2 { display:grid; grid-template-columns:minmax(0,1fr) minmax(0,1fr); gap:9px; }
+.grid1 { display:grid; grid-template-columns:minmax(0,1fr); gap:9px; max-width:440px; }
 .slot {
   display:flex; align-items:center; gap:11px; min-height:62px; padding:9px 12px;
   background:var(--asphalt-1); border:1.5px solid var(--line); border-radius:var(--r-sm); position:relative;
@@ -527,7 +528,11 @@ body.kiosk .wrap-narrow { max-width:600px; width:100%; }
 .ann-car:hover { border-color:var(--plate); }
 .ann-pos { font-weight:800; font-size:15px; min-width:30px; color:var(--muted); }
 .ann-who { display:flex; flex-direction:column; flex:1; min-width:0; gap:2px; }
-.ann-who b { font-size:18px; }
+.ann-who b { font-size:18px; overflow-wrap:anywhere; }
+/* Long names (a 40-character driver, a 60-character class) wrap or trim inside their row instead of
+   widening the page: these rows sit in flex/grid parents that would otherwise grow to fit. */
+.slot, .ann-car, .tech-row { min-width:0; max-width:100%; }
+.lrow .nm, .lrow b, h2, h3 { overflow-wrap:anywhere; }
 .ann-spon { font-size:13px; font-weight:700; color:var(--plate); }
 .tech-row { display:flex; align-items:center; gap:12px; width:100%; padding:10px 12px; border:1px solid var(--line); border-radius:var(--r); background:var(--asphalt-1); color:var(--ink); font:inherit; text-align:left; cursor:pointer; }
 .tech-row:hover { border-color:var(--plate); }
@@ -664,6 +669,8 @@ body.is-demo::after {
   background:var(--flag-amber-bg); color:var(--flag-amber-ink); opacity:.92;
 }
 @media print { body.is-demo::after { position:absolute; } }
+/* Phones show the bottom tab bar: sit above it instead of covering the Admin/Guide labels. */
+@media (max-width:899px) { body.is-demo::after { bottom:calc(70px + env(safe-area-inset-bottom)); } }
 </style>
 </head>
 <body>
@@ -850,7 +857,7 @@ const GARAGE_KEY = 'rd_garage_v2';
 const ACTIVE_TRACK_KEY = 'rd_active_track_v2';
 // Reported with every usage row and crash. The part after the dot MUST match this app's
 // sw.js CACHE number (tests/test-app-version.js) — bump both together on each release.
-const APP_VERSION = '2026-11-11.v28';
+const APP_VERSION = '2026-11-11.v29';
 const LEGAL_VERSION = '2026-06';   // bump when Terms / Privacy wording changes, so acceptances are versioned
 const TELEMETRY_URL = 'https://script.google.com/macros/s/AKfycbxa3i3y17TLp_NfXOOu2jM7-YzXH2fScxcXoQYmIh0-873rxWfxg0HdRP1DVsxZq6iR/exec';
 const FIREBASE_CONFIG = {
@@ -4301,7 +4308,7 @@ function renderSignup() {
     + '<div class="card">'
     +   '<div id="scanNote" style="display:none;margin-bottom:12px"></div>'
     +   '<div class="field"><label for="dName">Driver name</label>'
-    +     '<input id="dName" class="input-lg" type="text" placeholder="Full name" autocomplete="off" '
+    +     '<input id="dName" class="input-lg" type="text" placeholder="Full name" autocomplete="off" maxlength="40" '
     +     'oninput="suggest()" onkeydown="if(event.key===\'Enter\')document.getElementById(\'dNum\').focus()">'
     +     '<div class="sugg" id="suggBox"></div></div>'
     +   '<div class="field"><label for="dNum">Vehicle number</label>'
@@ -4376,7 +4383,8 @@ function pickRoster(id) {
 
 function signupVals() {
   const n = document.getElementById('dName'), v = document.getElementById('dNum');
-  return { name: n ? n.value.trim() : '', num: v ? v.value.trim() : '' };
+  // Runs of spaces/tabs collapse to one; 40 characters is plenty for a name and keeps every screen intact.
+  return { name: n ? n.value.replace(/\s+/g, ' ').trim().slice(0, 40) : '', num: v ? v.value.trim() : '' };
 }
 
 /* Chips are live: they re-render as the name/number change, so "already entered"
@@ -4448,6 +4456,7 @@ function signupErr(which, msg) {
 }
 
 function register() {
+  if (!document.getElementById('dName') || !document.getElementById('e1')) return;   // the form already moved on (a second tap)
   const vals = signupVals();
   document.getElementById('e1').style.display = 'none';
   document.getElementById('e2').style.display = 'none';
@@ -6922,24 +6931,33 @@ function impClsResolve(row) {
   return { id: -1 };   // unknown class name, not creating
 }
 function impClassFromFilename(fn) {
-  let s = String(fn || '').replace(/\.[^.]*$/, '').replace(/[_]+/g, ' ').replace(/\s+/g, ' ').trim();
-  // strip leading "... Results" event preamble
-  s = s.replace(/^.*\bresults\b/i, '').trim();
-  // "B MAIN", "C-main": a lettered main is a session, not part of the class name
-  s = s.replace(/\b[a-h]\s*-?\s*mains?\b/ig, ' ');
-  // strip session / round / moto / division tokens and their numbers
-  s = s.replace(/\b(qualifying|qualify|qual|heat|heats|main|mains|feature|features|final|finals|moto|round|race|set|session|div|division|group|live)\b\s*\d*/ig, ' ');
-  // timing-software and file words are never a class name ("westhold-race", "MYLAPS export")
-  s = s.replace(/\b(westhold|mylaps|my laps|orbits?|motosponder|speedhive|race ?manager|export(ed)?|timing|scoring|csv|tsv|txt)\b/ig, ' ');
-  // a lone number left over (a date part, a round) goes; one that belongs to the name stays ("+60", "80cc", "JR2")
-  s = s.replace(/(^|\s)\d+(?=\s|$)/g, ' ').replace(/\s+[-–·:]+\s+/g, ' ').replace(/^[\W_]+|[\W_]+$/g, '').replace(/\s+/g, ' ').trim();
-  if (!s) return '';
-  // What's left IS the class name ("JR1 +60", "SMALL BLOCK OPEN"). Use the track's own spelling when
-  // it already has that class. Exact match only: a class "Heavy" never swallows "Clone Heavy".
-  const known = (S.classes || []).find(c => String(c.name).toLowerCase().replace(/\s+/g, ' ').trim() === s.toLowerCase());
-  return known ? known.name : s.replace(/(^|\s)([a-z])/g, (m, a, b) => a + b.toUpperCase());
+  // Session words never belong to a class name; a number right after one goes with it ("Heat 2").
+  const SESSION = /\b(qualifying|qualify|qual|heat|heats|main|mains|feature|features|final|finals|moto|round|race|set|session|div|division|group|live|practice|warm ?-?up|lcq|last chance|semi|semis|consolation|consi|dash|official|unofficial|provisional|results?|run)\b\s*\d*/ig;
+  const VENDOR = /\b(westhold|mylaps|my laps|orbits?|motosponder|speedhive|race ?manager|export(ed)?|timing|scoring|csv|tsv|txt)\b/ig;
+  let base = String(fn || '').replace(/\.[^.]*$/, '').replace(/[_]+/g, ' ')
+    .replace(/\b\d{4}[-./]\d{1,2}[-./]\d{1,2}\b|\b\d{1,2}[-./]\d{1,2}[-./]\d{2,4}\b/g, ' ')   // dates
+    .replace(/\([^)]*\)|\[[^\]]*\]/g, ' ')                                                    // (Official), [v2]
+    .replace(/\s+/g, ' ').trim();
+  const known = t => { const k = t.toLowerCase().replace(/\s+/g, ' ').trim(); return k ? (S.classes || []).find(c => String(c.name).toLowerCase().replace(/\s+/g, ' ').trim() === k) : null; };
+  const tidy = t => t.replace(/\s+[-–·:]+\s+/g, ' ').replace(/^[\W_]+|[\W_]+$/g, '').replace(/\s+/g, ' ').trim();
+  const clean = t => {
+    t = t.replace(/\b[a-h]\s*-?\s*mains?\b/ig, ' ').replace(SESSION, ' ').replace(VENDOR, ' ');
+    const keepNums = tidy(t);
+    // A class this track already has wins with its numbers intact ("Junior 2", "JR1 +60").
+    const k = known(keepNums); if (k) return { name: k.name, known: true };
+    // Otherwise a lone number left over (a round, a car count) goes; "+60", "80cc", "JR2" stay.
+    const s2 = tidy(t.replace(/(^|\s)\d+(?=\s|$)/g, ' '));
+    const k2 = known(s2); if (k2) return { name: k2.name, known: true };
+    return { name: s2, known: false };
+  };
+  // "<event> Results <class> MAIN 1" (MotoSponder) has the class after "Results";
+  // "<class> Feature Results" has it before. Use whichever side holds a class.
+  const parts = base.split(/\bresults?\b/i);
+  const after = clean(parts[parts.length - 1]), before = clean(parts.slice(0, -1).join(' '));
+  const pick = parts.length < 2 ? after
+    : (after.known ? after : before.known ? before : (after.name ? after : before));
+  return pick.name ? (pick.known ? pick.name : pick.name.replace(/(^|\s)([a-z])/g, (m, a, b) => a + b.toUpperCase())) : '';
 }
-
 function impHeatFromFilename(fn) {
   // "…DIV__1__MOTO…" → heat 0. No \b before "div": underscores are word chars, so a
   // boundary check fails on "_DIV". Require a non-letter (or start) before "div" instead.
@@ -6961,13 +6979,16 @@ function impReadChecks(header, rows) {
   const h = (header || []).map(x => String(x || '').trim().toLowerCase());
   const col = names => h.findIndex(c => names.includes(c));
   const iLaps = col(['laps', 'lap count', 'total laps', 'lps']);
-  const iLast = col(['last lap', 'last tm', 'last lap time', 'last']);
+  const iLast = col(['last lap', 'last tm', 'last lap time', 'last time', 'last']);
   const iBest = col(['best lap', 'best tm', 'best time', 'best lap time', 'fast time', 'bestlap']);
   const iPos = col(['pos', 'position', 'place', 'finish', 'pos.']);
   const out = new Map();
   if (iLaps < 0 && iLast < 0 && iBest < 0) return out;
   const sec = v => impParseLapTime(v);
-  const bests = rows.map(r => iBest >= 0 ? sec(r[iBest]) : Infinity).filter(x => isFinite(x) && x > 0).sort((a, b) => a - b);
+  // The field's normal lap: the middle best lap, or (Westhold race files have no best-lap column)
+  // the middle last lap. A middle value isn't thrown by the one bad lap being checked.
+  let bests = rows.map(r => iBest >= 0 ? sec(r[iBest]) : Infinity).filter(x => isFinite(x) && x > 0).sort((a, b) => a - b);
+  if (!bests.length && iLast >= 0) bests = rows.map(r => sec(r[iLast])).filter(x => isFinite(x) && x > 0).sort((a, b) => a - b);
   const typical = bests.length ? bests[Math.floor(bests.length / 2)] : 0;
   const lapsAll = rows.map(r => iLaps >= 0 ? parseInt(r[iLaps], 10) : NaN).filter(n => n >= 0);
   const lead = lapsAll.length ? Math.max.apply(null, lapsAll) : 0;
@@ -6977,13 +6998,13 @@ function impReadChecks(header, rows) {
     const out_ = iPos >= 0 && /^(DNF|DNS|DQ|DSQ|NC|RET)$/i.test(String(r[iPos] || '').trim());
     if (!out_ && typical && iLast >= 0) {
       const l = sec(r[iLast]);
-      if (isFinite(l) && l > 3 * typical) list.push({ t: 'a lap of ' + clock(l) + ' (about ' + Math.round(l / typical) + ' laps long): likely a missed tag read', hard: true });
+      if (isFinite(l) && l > 3 * typical) list.push({ t: 'a lap of ' + clock(l) + ' (about ' + Math.round(l / typical) + ' laps long): likely a missed tag read', hard: true, kind: 'read' });
     }
     if (!out_ && iLaps >= 0 && lead >= 3) {
       const n = parseInt(r[iLaps], 10);
-      if (n >= 0 && n <= lead - 2) list.push({ t: (lead - n) + ' laps down on the leader', hard: false });
+      if (n >= 0 && n <= lead - 2) list.push({ t: (lead - n) + ' laps down on the leader', hard: false, kind: 'down' });
     }
-    if (r.some(c => /\d\*+\s*$/.test(String(c || '')))) list.push({ t: 'a time marked * by the timing system', hard: false });
+    if (r.some(c => /\d\*+\s*$/.test(String(c || '')))) list.push({ t: 'a time marked * by the timing system', hard: false, kind: 'star' });
     if (list.length) out.set(r, list);
   });
   return out;
@@ -7056,7 +7077,8 @@ function impComputePreview() {
       const rawPos  = Imp.cols.pos  >= 0 ? impParseFinish(impCell(row,'pos'))  : null;
       const timeStr = Imp.cols.time >= 0 ? impCell(row,'time') : '';
       const rawTime = timeStr ? impParseLapTime(timeStr) : Infinity;
-      (groups[clsId] = groups[clsId] || []).push({ m, rawPos, rawTime, timeStr, clsId, chk: (Imp.rc && Imp.rc.get(row)) || null });
+      const qchk = ((Imp.rc && Imp.rc.get(row)) || []).filter(c => c.kind !== 'down');   // qualifying: karts run different lap counts
+      (groups[clsId] = groups[clsId] || []).push({ m, rawPos, rawTime, timeStr, clsId, chk: qchk.length ? qchk : null });
     });
     for (const [clsId, items] of Object.entries(groups)) {
       const hasPos = items.some(it => typeof it.rawPos === 'number');
@@ -7208,7 +7230,7 @@ function impApply(opts) {
   const resolved = toAct.map(r => {
     let driver = r.driver;
     if (!driver) {
-      const nameVal = r.name || (r.num ? 'Car #' + r.num : 'Trans ' + r.trans);
+      const nameVal = String(r.name || (r.num ? 'Car #' + r.num : 'Trans ' + r.trans)).replace(/\s+/g, ' ').trim().slice(0, 40);
       const numVal  = (r.num && /^[A-Za-z0-9]{1,5}$/.test(r.num)) ? r.num : '';
       driver = { id: genDriverId(), name: nameVal, num: numVal, trans: impNormTrans(r.trans) };
       S.roster.push(driver);
@@ -8190,14 +8212,17 @@ function newClassId() {
 }
 function addClass() {
   const nameEl = document.getElementById('newClass'), maxEl = document.getElementById('newClassMax');
-  const name = nameEl.value.trim();
+  const name = nameEl.value.replace(/\s+/g, ' ').trim().slice(0, 60);
   if (!name) return;
+  if (S.classes.some(c => c.name.toLowerCase() === name.toLowerCase())) { alert(name + ' is already a class.'); return; }
   const maxPill = Math.max(2, parseInt(maxEl.value) || 200);
   addClassNamed(name, maxPill);
   nameEl.value = ''; maxEl.value = '200';
   save(); renderClsList(); renderClsLib();
 }
 function addClassNamed(name, maxPill) {
+  name = String(name || '').replace(/\s+/g, ' ').trim().slice(0, 60);
+  if (!name) return;
   // A name matching one in the library pulls its spectator info forward instead of
   // starting blank — the whole point of the library is not re-typing this every season.
   const libHit = S.classLib.find(x => x.name.toLowerCase() === name.toLowerCase());
@@ -9055,7 +9080,7 @@ function mountTrack() {
 function secClasses() {
   return '<div class="card">'
     + '<div class="rowflex">'
-    +   '<input id="newClass" type="text" placeholder="Class name (e.g. Junior 80cc)" style="flex:2;min-width:180px">'
+    +   '<input id="newClass" type="text" maxlength="60" placeholder="Class name (e.g. Junior 80cc)" style="flex:2;min-width:180px">'
     +   '<input id="newClassMax" type="number" placeholder="Pills" title="Highest pill number" value="200" min="2" max="999" style="width:90px">'
     +   '<button class="btn btn-primary" onclick="addClass()">Add class</button></div>'
     + '<p class="tiny" style="margin-top:8px">"Pills" is the highest pill number in that class\'s draw. The order below is the <b>running order</b> — use ↑ / ↓ to set which class races first.</p>'
@@ -9076,7 +9101,7 @@ function renderClsList() {
       + '<div class="spread">'
       +   '<div class="rowflex" style="gap:4px"><button class="btn btn-sm" style="padding:3px 9px" onclick="moveClass(' + c.id + ',-1)"' + (idx === 0 ? ' disabled' : '') + '>↑</button>'
       +   '<button class="btn btn-sm" style="padding:3px 9px" onclick="moveClass(' + c.id + ',1)"' + (idx === last ? ' disabled' : '') + '>↓</button></div>'
-      +   '<b style="font-size:15px">' + esc(c.name) + '</b>'
+      +   '<b style="font-size:15px;flex:1 1 120px;min-width:0;overflow-wrap:anywhere">' + esc(c.name) + '</b>'
       +   '<span class="badge badge-dim">' + plural(cnt, 'entered', 'entered') + '</span>'
       +   '<button class="btn btn-sm btn-danger push" onclick="delClass(' + c.id + ')">Remove</button></div>'
       + '<div class="cols" style="margin-top:10px">'

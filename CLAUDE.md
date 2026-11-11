@@ -7,6 +7,11 @@ package.json, no framework. Hosted on GitHub Pages at https://victoryraceday.com
 the bare domain now serves a marketing homepage (root `index.html`), with the app
 itself at `/raceday/` and the Driven companion app at `/driven/`.
 
+## LEGACY: `raceday/` (v1) is frozen (Josh, 2026-11-11)
+RaceDay 2 (`raceday2/`) is the app. `raceday/` stays online for devices still using it, but gets **no new
+features or polish**; it's OK for it to fall behind (e.g. it lacks the 2026-11-11 hostile-input limits and the
+file-name/Westhold import improvements). Fix it only for something that breaks a live night or loses data.
+
 ## CRITICAL CONSTRAINTS — never break these
 - `raceday-codegen.html` is gitignored and **MUST NEVER be committed** — it holds
   the secret license salt. If it appears in `git status`, do not stage it.
@@ -208,7 +213,15 @@ profile that follows them across every RaceDay track they race at.
   lap (likely missed tag read, `hard` = blocks folder auto-import), 2+ laps down without a DNF, times marked `*`; shown in
   the preview, results unchanged. **Practice** step (first; a file named "…Practice…" switches to it, from the watched folder
   too, and the next race file switches back): never saves; `impPracReport()` lists signed-up drivers never read on track.
-  Guard: `tests/test-motosponder-night.js`
+  Guard: `tests/test-motosponder-night.js`. **Other systems** (2026-11-11, v2 only): `impClassFromFilename()` drops dates and
+  (notes), takes the class from either side of "Results", treats practice/LCQ/semi/dash/consolation/official as session
+  words, and matches an existing class before dropping numbers ("Junior 2"); the missed-read check falls back to the middle
+  last lap when a file has no best-lap column (Westhold race files); laps-down is not flagged in qualifying. Guard:
+  `tests/v2/test-v2-timing-night.js` (a whole night per layout: Orbits, Westhold, spreadsheet export + 21 file names).
+- **Hostile-input limits** (2026-11-11, `raceday2/`): driver names 40 chars with spaces collapsed (`signupVals()`, timing-import
+  new drivers), class names 60 with blank/duplicate refused (`addClass`/`addClassNamed`), lineup grids use `minmax(0,1fr)` and
+  name rows wrap/trim so nothing widens a phone; `register()` ignores a tap after the form is gone; the DEMO watermark sits
+  above the phone tab bar. Guard: `tests/v2/test-v2-breakit.js`
 - **Owner backups + dashboard** (local only, NOT in the repo): `~/RaceDay Backups/` (`tools/backup.py`) saves the
   whole RTDB to `database/*.json.gz` (60 + first-of-month), mirrors the repo to `code/Raceday.git`, and rebuilds
   `RaceDay Dashboard.html` (offline Driven lookup, live pull by link code). Restore steps: `RESTORE.txt` there.
