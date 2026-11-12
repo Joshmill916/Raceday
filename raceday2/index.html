@@ -857,7 +857,7 @@ const GARAGE_KEY = 'rd_garage_v2';
 const ACTIVE_TRACK_KEY = 'rd_active_track_v2';
 // Reported with every usage row and crash. The part after the dot MUST match this app's
 // sw.js CACHE number (tests/test-app-version.js) — bump both together on each release.
-const APP_VERSION = '2026-11-12.v32';
+const APP_VERSION = '2026-11-12.v33';
 const LEGAL_VERSION = '2026-06';   // bump when Terms / Privacy wording changes, so acceptances are versioned
 const TELEMETRY_URL = 'https://script.google.com/macros/s/AKfycbxa3i3y17TLp_NfXOOu2jM7-YzXH2fScxcXoQYmIh0-873rxWfxg0HdRP1DVsxZq6iR/exec';
 const FIREBASE_CONFIG = {
@@ -4151,6 +4151,9 @@ function renderPrereg() {
       + '<span class="badge badge-dim">' + inN + ' checked in today</span></div>'
       + '<div class="note" style="margin-bottom:10px">Checking drivers in happens on the Sign-up page. This list is for fixing numbers and cancelling entries.'
       + '<div class="rowflex" style="margin-top:8px"><button class="btn btn-sm btn-primary" id="preGoSignup" onclick="nav(\'signup\')">Check drivers in on Sign-up</button></div></div>'
+      + (() => { const miss = list.flatMap(p => p.missing || []).filter((n, i, a) => a.findIndex(x => preNorm(x) === preNorm(n)) === i);
+          return miss.length ? '<div class="note note-warn" style="margin-bottom:10px"><b>' + plural(miss.length, 'class', 'classes') + ' not set up yet:</b> ' + esc(miss.join(', '))
+            + '<div class="rowflex" style="margin-top:8px"><button class="btn btn-sm btn-primary" id="preAddListCls" onclick="preAddListClasses()">Add ' + (miss.length === 1 ? 'it' : 'all ' + miss.length) + ' and fix these drivers</button></div></div>' : ''; })()
       + preCountsMarkup(list)
       + '<div class="stack">' + list.map((p, i) => {
         const cls = p.classIds.map(id => (classById(id) || {}).name).filter(Boolean);
@@ -4183,12 +4186,11 @@ function preImportMarkup(imp) {
   let h = '<div class="card"><b style="font-size:16px">' + esc(imp.file) + ' · ' + plural(rows.length, 'driver') + ' found</b>'
     + '<div class="tiny" style="margin:4px 0 12px">' + ready + ' ready · ' + rows.filter(r => !r.num).length + ' need a kart number · '
     + rows.filter(r => findRosterMatch(r.name, r.num) || preFind(r.name)).length + ' already here</div>'
+    + (missingAll.length ? '<div class="note note-warn" id="preNewCls" style="margin-bottom:12px"><b>' + plural(missingAll.length, 'new class', 'new classes') + ' in this file:</b> ' + esc(missingAll.join(', '))
+      + '<span class="tiny" style="display:block;margin-top:6px">Import adds ' + (missingAll.length === 1 ? 'it' : 'them') + ' under Race classes, spelled as in the file.</span></div>' : '')
     + '<div class="slbl">Their columns</div><div class="stack" style="gap:6px;margin-bottom:12px">'
     + PRE_FIELDS.map(f => '<label class="spread" style="gap:10px"><span style="min-width:150px">' + f.label + '</span>'
       + '<select onchange="preMap(\'' + f.id + '\',this.value)">' + opt(imp.map[f.id]) + '</select></label>').join('') + '</div>';
-  if (missingAll.length) h += '<div class="note note-warn" style="margin-bottom:12px">Not set up as classes here yet: <b>' + esc(missingAll.join(', ')) + '</b>.'
-    + '<div class="rowflex" style="margin-top:8px"><button class="btn btn-sm btn-primary" id="preAddCls" onclick="preAddMissingClasses()">Add ' + (missingAll.length === 1 ? 'this class' : 'these ' + missingAll.length + ' classes') + '</button></div>'
-    + '<span class="tiny" style="display:block;margin-top:6px">Adds them under Race classes with the file\'s spelling. Or import now and those classes are left off.</span></div>';
   h += '<div class="stack" style="max-height:340px;overflow-y:auto">' + rows.map(r => {
     const cls = r.classIds.map(id => (classById(id) || {}).name).filter(Boolean).join(' · ');
     const here = findRosterMatch(r.name, r.num) || preFind(r.name);
@@ -4201,20 +4203,30 @@ function preImportMarkup(imp) {
     + '<button class="btn" onclick="UI.preImp=null;renderPrereg()">Cancel</button></div></div>';
   return h;
 }
-/* One tap: every class the file names that isn't set up yet becomes a class here, spelled as in the file. */
-function preAddMissingClasses() {
-  if (!adminOk() || !UI.preImp) return;
-  const names = [], seen = new Set();
-  preRows(UI.preImp.table, UI.preImp.map).forEach(r => r.missing.forEach(n => {
-    const k = preNorm(n);
+/* Make a class for each name that isn't one here yet (file's spelling; capitals/spaces ignored when comparing). Returns how many were added. */
+function preAddClassNames(names) {
+  const seen = new Set(); let n = 0;
+  names.forEach(nm => {
+    const k = preNorm(nm);
     if (!k || seen.has(k) || S.classes.some(c => preNorm(c.name) === k)) return;
-    seen.add(k); names.push(n);
-  }));
-  if (!names.length) return;
-  names.forEach(n => addClassNamed(n, 200));
-  save();
-  renderPrereg();
-  toast(plural(names.length, 'class', 'classes') + ' added — check Race classes if any need different settings.', 'ok');
+    seen.add(k); addClassNamed(nm, 200); n++;
+  });
+  return n;
+}
+/* Already imported with "not set up" classes: add those classes and give each driver their missing ones. */
+function preAddListClasses() {
+  if (!adminOk()) return;
+  const n = preAddClassNames(preList().flatMap(p => p.missing || []));
+  preList().forEach(p => {
+    const left = [];
+    (p.missing || []).forEach(nm => {
+      const c = S.classes.find(k => preNorm(k.name) === preNorm(nm));
+      if (c) { if (!p.classIds.includes(c.id)) p.classIds.push(c.id); } else left.push(nm);
+    });
+    p.missing = left;
+  });
+  save(); renderPrereg();
+  toast(n ? plural(n, 'class', 'classes') + ' added and every driver has theirs.' : 'Every driver has their classes.', 'ok');
 }
 function preLoadFile(inp) {
   const f = inp.files && inp.files[0]; if (!f) return;
@@ -4232,6 +4244,8 @@ function preLoadText(text, file) {
 function preMap(field, v) { if (!UI.preImp) return; UI.preImp.map[field] = parseInt(v, 10); renderPrereg(); }
 function preImport() {
   if (!adminOk() || !UI.preImp) return;
+  // The file's classes come with it — a class it names that isn't here yet is added first.
+  const newCls = preAddClassNames(preRows(UI.preImp.table, UI.preImp.map).flatMap(r => r.missing));
   const rows = preRows(UI.preImp.table, UI.preImp.map);
   let added = 0, updated = 0;
   rows.forEach(r => {
@@ -4248,7 +4262,7 @@ function preImport() {
   UI.preImp = null;
   save();
   renderPrereg();
-  toast((added ? plural(added, 'driver') + ' added' : '') + (added && updated ? ', ' : '') + (updated ? updated + ' updated' : '') + (added || updated ? '' : 'Nothing new') + ' — they\'re on the Sign-up page to check in.', 'ok');
+  toast((added ? plural(added, 'driver') + ' added' : '') + (added && updated ? ', ' : '') + (updated ? updated + ' updated' : '') + (added || updated ? '' : 'Nothing new') + (newCls ? ', ' + plural(newCls, 'class', 'classes') + ' added' : '') + ' — they\'re on the Sign-up page to check in.', 'ok');
 }
 function preSetNum(i) {
   if (!adminOk()) return;
