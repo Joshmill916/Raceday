@@ -222,6 +222,13 @@ profile that follows them across every RaceDay track they race at.
   new drivers), class names 60 with blank/duplicate refused (`addClass`/`addClassNamed`), lineup grids use `minmax(0,1fr)` and
   name rows wrap/trim so nothing widens a phone; `register()` ignores a tap after the form is gone; the DEMO watermark sits
   above the phone tab bar. Guard: `tests/v2/test-v2-breakit.js`
+- **Live demo room** (2026-11-12, `raceday2/`): Admin → The Garage → Start live demo (owner devices only: `rd_dont_count`
+  or the unlimited license). Opens a `DEMO…` sync room in its OWN Garage slot (real track untouched), seeds last week's scored
+  night + tonight's board (`demoRoomBoot`), and shows a 16-step presenter script in the banner (`DEMO_STEPS`, Back / Show it /
+  Next). The prospect scans the join QR (`staffLinkParams('admin')`) and becomes a second admin screen. `S.settings.demoRoom`
+  (synced) makes every device in it skip license/trial (`canEnter`, `consumeTrialDay`), never publish to Driven / cloud backup,
+  send no `night` row, and label usage `DEMO ROOM · <for>`. End demo writes `demoRoom.ended`; joined phones wipe the sample data,
+  drop sync and reload fresh (`demoRoomCheckEnded`); the host goes back to its own track. Guard: `tests/v2/test-v2-demo-room.js`
 - **Owner backups + dashboard** (local only, NOT in the repo): `~/RaceDay Backups/` (`tools/backup.py`) saves the
   whole RTDB to `database/*.json.gz` (60 + first-of-month), mirrors the repo to `code/Raceday.git`, and rebuilds
   `RaceDay Dashboard.html` (offline Driven lookup, live pull by link code). Restore steps: `RESTORE.txt` there.

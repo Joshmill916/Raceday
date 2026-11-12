@@ -857,7 +857,7 @@ const GARAGE_KEY = 'rd_garage_v2';
 const ACTIVE_TRACK_KEY = 'rd_active_track_v2';
 // Reported with every usage row and crash. The part after the dot MUST match this app's
 // sw.js CACHE number (tests/test-app-version.js) — bump both together on each release.
-const APP_VERSION = '2026-11-11.v29';
+const APP_VERSION = '2026-11-12.v30';
 const LEGAL_VERSION = '2026-06';   // bump when Terms / Privacy wording changes, so acceptances are versioned
 const TELEMETRY_URL = 'https://script.google.com/macros/s/AKfycbxa3i3y17TLp_NfXOOu2jM7-YzXH2fScxcXoQYmIh0-873rxWfxg0HdRP1DVsxZq6iR/exec';
 const FIREBASE_CONFIG = {
@@ -1352,6 +1352,7 @@ function licStatus() {
   return { licensed: true, name, exp: k, plan: 'month', expired: curYM > k };
 }
 function canEnter() {
+  if (demoRoom()) return true;   // a live demo room is a showcase, open on every device in it
   const st = licStatus();
   if (!st.licensed) return S.trialDays.includes(S.raceDay.date) || S.trialDays.length < TRIAL_DAYS;
   if (st.plan === 'packet') {
@@ -1361,7 +1362,7 @@ function canEnter() {
   return !st.expired;
 }
 function consumeTrialDay() {   // counts a race day against the trial or an active packet (forever/season/month: no count)
-  if (S.demo || (S.raceDay && S.raceDay.demo)) return;   // showing the app off never uses a trial or packet day
+  if (S.demo || (S.raceDay && S.raceDay.demo) || demoRoom()) return;   // showing the app off never uses a trial or packet day
   const st = licStatus();
   if (!st.licensed) {
     if (!S.trialDays.includes(S.raceDay.date)) { S.trialDays.push(S.raceDay.date); renderLicBanner(); }
@@ -1925,7 +1926,7 @@ function validStaffKey(k) { return typeof k === 'string' && /^[a-f0-9]{32}$/.tes
    in backups, so restoring a backup on a replacement device carries it over. */
 function resultsJoin(claim) {
   const tid = S.track && S.track.id;
-  if (!tid || S.demo) return Promise.resolve(false);
+  if (!tid || S.demo || demoRoom()) return Promise.resolve(false);
   return ensureFirebase().then(loadFirebaseAuth).then(() => {
     const auth = firebase.auth();
     return auth.currentUser ? auth.currentUser : auth.signInAnonymously().then(c => c.user);
@@ -2233,7 +2234,8 @@ function syncApplySnapshot(v) {
   persistLocal();   // bypasses save() to prevent a sync echo loop; a guest session persists nothing
   // Now that the room has told us the track's name, label the bookmark and the banner.
   if (GUEST) { setGuestRoom(syncKey(), S.track && S.track.name); renderBanners(); }
-  renderHeader(); render(curPage); if (TV.on) tvRender();
+  renderHeader(); renderBanners(); renderRaceControl(); render(curPage); if (TV.on) tvRender();
+  demoRoomCheckEnded();
   if (wasViewer && prevFin !== null && JSON.stringify(S.classes.map(c => featureFinish(c.id))) !== prevFin) {
     showViewerToast();
   }
@@ -2409,7 +2411,8 @@ function renderGarageCard() {
       + (!r.primary ? '<button class="btn btn-sm btn-danger" ' + (isActive ? 'disabled' : '') + ' onclick="garageRemove(\'' + r.key + '\')">Remove</button>' : '')
       + '</div>';
   }).join('') + '<p style="font-size:12.5px;color:var(--muted);margin:10px 0 8px">Add a second track this device helps run — each keeps its own PIN, license and season, and switching never touches the other track\'s data.</p>'
-    + '<button class="btn btn-primary" onclick="garageAdd()">+ Add another track</button>';
+    + '<button class="btn btn-primary" onclick="garageAdd()">+ Add another track</button>'
+    + demoRoomCardHtml();
 }
 
 /* ============================================================================
@@ -2520,7 +2523,7 @@ function archiveDay() {
   recordPayouts(snap);
   // Report the night now, while S.raceDay still holds it — the caller clears the board next.
   // Not in demo mode: the demo's sample night (and any night a visitor archives) isn't a real race.
-  if (!S.demo) sendUsage('night', Object.assign(currentCounts(), { features: featuresUsed() }));
+  if (!S.demo && !demoRoom()) sendUsage('night', Object.assign(currentCounts(), { features: featuresUsed() }));
   return true;
 }
 function shareableCount(snap) {
@@ -2579,7 +2582,7 @@ function shareResultsWithDriven(idx) {
   // Demo sessions never touch the real Firebase project — the fake profileIds here
   // don't correspond to anything real, and a demo visitor clicking this for real would
   // otherwise write junk to production under a made-up track/profile every time.
-  if (S.demo) {
+  if (S.demo || demoRoom()) {
     snap.published = true; snap.publishedAt = Date.now();
     save();
     renderResultsShareBanner();
@@ -2652,7 +2655,7 @@ function cloudBackupPayload() {
 }
 function cloudBackupOn() { return !!(S.settings && S.settings.cloudBackup); }
 function backupToCloud(reason) {
-  if (!cloudBackupOn() || S.demo || !FIREBASE_CONFIG.apiKey) return Promise.resolve(false);
+  if (!cloudBackupOn() || S.demo || demoRoom() || !FIREBASE_CONFIG.apiKey) return Promise.resolve(false);
   if (deviceRole() === 'viewer') return Promise.resolve(false);   // spectator devices never upload
   if (!S.track.id) { S.track.id = genTrackId(); save(); }
   const rec = {
@@ -2901,6 +2904,245 @@ function exitDemoMode() {
     ? ' Removed ' + removed.drivers + ' sample driver(s) and ' + removed.nights + ' sample night(s) tagged as demo data.'
     : ' No tagged demo data was found — this device\'s demo data predates tagging; check History/Driver book manually.'));
 }
+/* ---- Live demo room (2026-11-12) ---------------------------------------------------
+   The owner shows RaceDay live to a track. This device opens a throwaway sync room in its
+   own Garage slot (the real track is never touched), fills it with a sample night, and the
+   prospect scans a join QR that makes their phone a second admin screen on that room.
+   S.settings.demoRoom (synced, room code DEMO…) marks it: every device in it skips the
+   license/trial count, never publishes to Driven or cloud backup, sends no night row, and
+   reports usage as DEMO ROOM. The host device (rd_demo_host) shows a step-by-step script.
+   Ending writes demoRoom.ended; every joined device then wipes the sample data and turns
+   sync off, so the old QR leads nowhere useful. Guard: tests/v2/test-v2-demo-room.js */
+const DEMO_HOST_KEY = 'rd_demo_host', DEMO_SEED_KEY = 'rd_demo_seed', DEMO_STEP_KEY = 'rd_demo_step';
+function demoRoom() {
+  const d = S.settings && S.settings.demoRoom;
+  return (d && typeof d === 'object' && !d.ended && syncOn() && /^DEMO[A-Z0-9]{4,}$/.test(syncKey())) ? d : null;
+}
+function demoRoomHost() { try { return !!syncKey() && localStorage.getItem(DEMO_HOST_KEY) === syncKey(); } catch (e) { return false; } }
+function demoRoomLabel() { const d = demoRoom(); return 'DEMO ROOM' + (d && d.for ? ' · ' + String(d.for).slice(0, 30) : ''); }
+// Who may start one: the owner's devices (marked "don't count me" at /me/, or holding the
+// unlimited license). It only opens a sample room, so nothing is at stake if spoofed.
+function demoRoomAllowed() { return deviceRole() === 'admin' && !GUEST && (dontCount() || licStatus().plan === 'forever'); }
+function demoRoomStart() {
+  if (!adminOk() || !demoRoomAllowed()) return;
+  if (!FIREBASE_CONFIG.apiKey) { alert('Live sync is not set up on this build yet.'); return; }
+  if (demoRoom()) { alert('This device is already in a live demo room.'); return; }
+  if (S.demo) { alert('This device is in demo mode. Exit demo mode first (Admin → Danger zone).'); return; }
+  const raw = prompt('Start a live demo?\n\nThis opens a separate sample track on this device. Your own track is not touched, and you come back to it when the demo ends.\n\nWho is the demo for? (Only shows in your usage reports. Leave blank to skip.)', '');
+  if (raw === null) return;
+  const label = String(raw).replace(/[^A-Za-z0-9 .&'-]/g, '').replace(/\s+/g, ' ').trim().slice(0, 30);
+  let rnd = ''; while (rnd.length < 5) rnd += Math.random().toString(36).slice(2).replace(/[^a-z0-9]/g, '');
+  const code = 'DEMO' + rnd.slice(0, 5).toUpperCase();
+  const slotKey = KEY + '__' + code;
+  const seed = defaults();
+  seed.sync = { enabled: true, key: code };
+  seed.settings.demoRoom = { at: Date.now(), for: label };
+  const old = garageIndex().filter(g => g.demoRoom);
+  try {
+    old.forEach(g => localStorage.removeItem(g.key));   // an earlier demo that never ended
+    localStorage.setItem(slotKey, JSON.stringify(seed));
+    localStorage.setItem(DEMO_HOST_KEY, code);
+    localStorage.setItem(DEMO_SEED_KEY, code);
+    localStorage.setItem(DEMO_STEP_KEY, '0');
+  } catch (e) { alert("Couldn't make the demo room. This device may be low on storage."); return; }
+  garageSaveIndex(garageIndex().filter(g => !g.demoRoom).concat([{ key: slotKey, syncCode: code, trackId: seed.track.id, name: 'Live demo room', addedAt: Date.now(), demoRoom: true }]));
+  setDeviceRole('admin');
+  garageSwitch(slotKey);
+}
+// First boot of a new demo room on the host: a scored night from last week (season points,
+// history, driver cards) and tonight's board with most drivers already checked in.
+function demoRoomBoot() {
+  let want = null; try { want = localStorage.getItem(DEMO_SEED_KEY); } catch (e) {}
+  if (GUEST || !want || want !== syncKey() || !demoRoom()) return;
+  try { localStorage.removeItem(DEMO_SEED_KEY); } catch (e) {}
+  seedFullDemoNight(true);
+  S.demo = false;   // a demo ROOM is a live, synced night; demo mode would switch sync off
+  const d = new Date(); d.setDate(d.getDate() - 7);
+  if (S.history[0]) S.history[0].date = d.getFullYear() + '-' + String(d.getMonth() + 1).padStart(2, '0') + '-' + String(d.getDate()).padStart(2, '0');
+  S.raceDay = { date: today(), entries: [], heatResults: {}, pointsRace: {}, resultGov: {}, resultVersions: {}, tech: {} };
+  resOverride = {};
+  S.roster.filter(r => r.demoSeed).forEach((r, i) => {
+    if (i >= 15) return;   // a few left for the sign-up step
+    const cid = S.classes[i % S.classes.length].id, pill = drawPill(cid);
+    if (pill !== null) S.raceDay.entries.push({ driverId: r.id, classId: cid, pill });
+  });
+  save();
+}
+// Every device that joined clears itself once the host ends the demo.
+function demoRoomCheckEnded() {
+  const d = S.settings && S.settings.demoRoom;
+  if (!d || !d.ended || !/^DEMO/.test(syncKey()) || demoRoomHost()) return;
+  if (Sync.db) { try { Sync.db.off(); } catch (e) {} Sync.db = null; }
+  Sync.connected = false;
+  staffStop();
+  const bye = () => setTimeout(() => {
+    alert('The live demo is over. Thanks for trying RaceDay!\n\nThe sample race was cleared from this device, so it is ready for your own track.');
+    location.href = location.pathname;
+  }, 50);
+  if (GUEST) { try { localStorage.removeItem(GUEST_ROOM_KEY); } catch (e) {} bye(); return; }
+  const keep = { license: S.license, trialDays: S.trialDays, licUse: S.licUse };
+  const slot = activeKey();
+  try { localStorage.removeItem(slot); localStorage.removeItem('rd_url_applied'); } catch (e) {}
+  if (slot !== KEY) { garageSaveIndex(garageIndex().filter(g => g.key !== slot)); try { localStorage.removeItem(ACTIVE_TRACK_KEY); } catch (e) {} }
+  else { S = defaults(); Object.assign(S, keep); persistLocal(); }
+  setDeviceRole('admin');
+  bye();
+}
+function demoRoomEnd() {
+  if (!adminOk() || !demoRoomHost()) return;
+  if (!confirm('End the live demo?\n\nEvery phone that joined is cleared and disconnected, the sample room is deleted from this device, and this device goes back to your own track.')) return;
+  const slot = activeKey();
+  if (!Sync.connected) alert('This device is offline, so the other phones won\'t hear that the demo ended until they reconnect. Ending it here anyway.');
+  S.settings.demoRoom = Object.assign({}, S.settings.demoRoom, { ended: Date.now() });
+  const done = () => {
+    if (Sync.db) { try { Sync.db.off(); } catch (e) {} Sync.db = null; }
+    staffStop();
+    try {
+      if (slot !== KEY) localStorage.removeItem(slot);
+      localStorage.removeItem(DEMO_HOST_KEY);
+      localStorage.removeItem(DEMO_STEP_KEY);
+      localStorage.removeItem(ACTIVE_TRACK_KEY);
+    } catch (e) {}
+    garageSaveIndex(garageIndex().filter(g => g.key !== slot));
+    location.href = location.pathname;
+  };
+  const w = Sync.db ? Sync.db.update({ settings: JSON.stringify(S.settings) }) : Promise.resolve();
+  Promise.race([w, new Promise(r => setTimeout(r, 4000))]).then(done, done);
+}
+function demoJoinUrl() { return location.origin + location.pathname + staffLinkParams('admin'); }
+function demoJoinQr() {
+  if (!demoRoomHost()) return;
+  const ready = validStaffKey(S.sync.staffKey);
+  openSheet('Join the live demo',
+    ready
+      ? '<p>Have them point their phone camera at this code. Their phone opens the same race as a second admin screen.</p>'
+        + '<div style="text-align:center;margin:14px 0"><canvas id="demoJoinQR" width="240" height="240" style="background:#fff;border-radius:10px;max-width:100%"></canvas></div>'
+        + linkRow('Or send this link', demoJoinUrl())
+        + '<p class="tiny" style="margin-top:10px">If their phone already runs RaceDay for their own track, have them use a different phone or browser: joining replaces what is on it. Everything clears from their phone when you end the demo.</p>'
+      : '<p>Getting the room ready. This device needs to be online for a moment…</p>',
+    '<button class="btn" onclick="closeSheet()">Done</button>');
+  if (ready) { const cv = document.getElementById('demoJoinQR'); if (cv) drawQR(cv, demoJoinUrl()); }
+  else setTimeout(() => { if (sheetOpen() && document.getElementById('sheetTitle').textContent === 'Join the live demo') demoJoinQr(); }, 1500);
+}
+function demoSampleImport() {
+  const cls = S.classes.find(c => classRacers(c.id).length >= 2);
+  if (!cls) { alert('Sign up a couple of drivers first.'); return; }
+  const heat = (heatArrays(classRacers(cls.id), cls)[0] || []).slice();
+  for (let i = heat.length - 1; i > 0; i--) { const j = Math.floor(Math.random() * (i + 1)); [heat[i], heat[j]] = [heat[j], heat[i]]; }
+  const csvq = v => '"' + String(v).replace(/"/g, '""') + '"';
+  const lines = ['Pos,Car #,Driver,Class,Laps,Best Lap,Last Lap'];
+  heat.forEach((r, i) => {
+    const best = (18.2 + i * 0.11 + Math.random() * 0.05).toFixed(3), last = (+best + 0.2 + Math.random() * 0.3).toFixed(3);
+    lines.push([i + 1, csvq(r.num), csvq(r.name), csvq(cls.name), 10, best, last].join(','));
+  });
+  nav('results');
+  openImport('heat');
+  impIngestText(lines.join('\n'), cls.name + ' Heat 1 Results.csv');
+}
+function demoOpenProCard() {
+  const d = S.roster.find(r => r.profile && r.profile.demoOnly && r.profile.premiumCode) || S.roster.find(r => r.profile);
+  nav('grid');
+  if (d) openDriverCard(d.id);
+}
+const DEMO_STEPS = [
+  { t: 'Join on their phone', go: demoJoinQr,
+    show: 'Show the join QR. They scan it with the phone camera and their phone becomes a second admin screen on this race. You can leave the script any time and tap around; Show it brings you back.',
+    say: 'Everything you do on your phone shows up on mine, live. It is all sample data, so tap anything.' },
+  { t: 'Sign-up at the gate', go: () => nav('signup'),
+    show: 'Type a new driver, pick a class, tap Draw my pills. Start typing a returning name (try "Quinn") to see the driver book fill it in.',
+    say: 'Drivers sign themselves in on a tablet at the gate, or on their own phone. Pills are drawn for them, so there is no hat and no paper.' },
+  { t: 'Their own Driven card', go: () => nav('signup'),
+    show: 'On their phone: sign themselves up with their own name and number. If they have Driven, they type their link code or tap Scan to scan their Driven QR, and their real card comes in. Then tap Draw my pills.',
+    say: 'One Driven profile follows a driver to every RaceDay track. Here it only reads your card. Nothing from this sample track is added to your profile.' },
+  { t: 'Their spot in the lineup', go: () => nav('grid'),
+    show: 'Their phone shows "You\'re on the grid" with their pill and a QR. Scanning it opens their own lineup with their spot marked. Then find them here on Lineups and tap their name for their card.',
+    say: 'Every driver can follow their own lineup on their phone, live, and gets a heads-up when results change.' },
+  { t: 'Pre-registration', go: () => { nav('admin'); admOpen('prereg'); },
+    show: 'Admin → Pre-registrations: the online entry page and the Google Form import.',
+    say: 'Drivers can enter from home. You see the list here and check each one in at the gate with one tap.' },
+  { t: 'Lineups', go: () => nav('grid'),
+    show: 'Heats, built from the pill draw. Move a driver on one phone and watch the other update.',
+    say: 'Heats build themselves from the pills with your heat size and inversion rules. Change anything and every screen updates.' },
+  { t: 'Driver cards', go: demoOpenProCard,
+    show: 'A Pro driver card: photo, number, hometown, sponsors.',
+    say: 'Drivers with the free Driven app bring their own card, and their results follow them to every track they race.' },
+  { t: 'Scoring by hand', go: () => nav('results'),
+    show: 'Score a heat by tapping the finishers in order.',
+    say: 'No timing system? The tower scores each race by tapping finishers in order. Heats roll straight into the feature lineup.' },
+  { t: 'Timing import', go: demoSampleImport,
+    show: 'A sample results file for Heat 1 loads into the import. Tap Import.',
+    say: 'If you run MYLAPS Orbits, Westhold, MotoSponder or most other timing software, RaceDay reads its results file. Point it at the export folder and each race imports on its own, and likely missed transponder reads are flagged before anything is saved.' },
+  { t: 'Results', go: () => nav('finals'),
+    show: 'Feature lineups and results. Last week\'s night is already in.',
+    say: 'Feature lineups, B-mains and results are worked out for you. When the night is done, results go to every driver\'s Driven profile.' },
+  { t: 'Season points', go: () => nav('points'),
+    show: 'Season standings with last week counted in.',
+    say: 'Season points add up every night with your own points table. No spreadsheet on Monday.' },
+  { t: 'TV display', go: () => openTV(),
+    show: 'The TV screen. Tap it for controls, then Exit to come back.',
+    say: 'Any TV with a web browser in the pits or the stands. It rotates lineups, now racing and results on its own.' },
+  { t: 'Announcer', go: () => nav('announce'),
+    show: 'Who is on track now and next, with each driver\'s info.',
+    say: 'The announcer always knows who is up and has something to say about every driver.' },
+  { t: 'Tech inspection', go: () => nav('tech'),
+    show: 'Car-by-car checklist: weight, tires, safety gear.',
+    say: 'Tech checks cars off on a tablet. Anyone who fails shows up for a recheck before their race.' },
+  { t: 'A job for every device', go: () => { nav('admin'); admOpen('sync'); },
+    show: 'Admin → Multi-device sync: one link per job, and the spectator QR.',
+    say: 'Registration tablet, scoring tower, TV, tech and announcer each get their own link. Fans scan a QR and follow lineups free on their phones.' },
+  { t: 'Build a race', go: () => { nav('admin'); admOpen('race'); },
+    show: 'Admin → Build a race: classes, format, heat sizes, laps.',
+    say: 'Set up a night once and save it as a format. Reuse it every week, or share it with another track.' },
+  { t: 'Payouts', go: () => { nav('admin'); admOpen('payouts'); },
+    show: 'Admin → Payouts: purse by finish, paid or unpaid, season totals.',
+    say: 'Enter the purse and RaceDay works out each driver\'s payout from the finish, and keeps the season totals.' },
+  { t: 'Wrap up', go: () => demoStepsSheet(),
+    show: 'Pricing, then End demo. Their phone clears itself.',
+    say: 'Your first race night is free, with every feature. After that it is a 10-night packet for $200 or a season pass for $350. No add-ons and no per-seat fees.' }
+];
+function demoStepIdx() {
+  let i = 0; try { i = parseInt(localStorage.getItem(DEMO_STEP_KEY) || '0', 10) || 0; } catch (e) {}
+  return Math.max(0, Math.min(DEMO_STEPS.length - 1, i));
+}
+function demoSetStep(i) { try { localStorage.setItem(DEMO_STEP_KEY, String(i)); } catch (e) {} renderBanners(); }
+function demoGo() { if (sheetOpen()) closeSheet(); const s = DEMO_STEPS[demoStepIdx()]; if (s && s.go) s.go(); renderBanners(); }
+function demoStep(d) { demoSetStep(Math.max(0, Math.min(DEMO_STEPS.length - 1, demoStepIdx() + d))); demoGo(); }
+function demoJump(i) { demoSetStep(i); demoGo(); }
+function demoStepsSheet() {
+  const cur = demoStepIdx();
+  openSheet('Live demo',
+    '<p class="tiny">Room ' + esc(syncKey()) + ((demoRoom() || {}).for ? ' · for ' + esc(demoRoom().for) : '') + '</p>'
+    + '<div class="list">' + DEMO_STEPS.map((s, i) => '<div class="lrow" style="cursor:pointer" onclick="demoJump(' + i + ')">'
+      + '<span class="tiny" style="width:22px">' + (i + 1) + '</span><span class="nm" style="flex:1' + (i === cur ? ';font-weight:700' : '') + '">' + esc(s.t) + '</span></div>').join('') + '</div>',
+    '<button class="btn" onclick="demoJoinQr()">Join QR</button><button class="btn btn-danger push" onclick="demoRoomEnd()">End demo</button>');
+}
+function demoRoomBannerHtml() {
+  if (!demoRoom()) return '';
+  if (!demoRoomHost()) return '<div class="banner note">Live demo: a sample track with sample drivers. Try anything. Nothing here counts, and it all clears when the demo ends.</div>';
+  const i = demoStepIdx(), s = DEMO_STEPS[i], last = DEMO_STEPS.length - 1;
+  return '<div class="banner note" id="demoScript"><div style="flex:1 1 220px;min-width:0">'
+    + '<div class="tiny">Live demo · step ' + (i + 1) + ' of ' + DEMO_STEPS.length + '</div>'
+    + '<b>' + esc(s.t) + '</b>'
+    + '<div class="tiny" style="margin-top:4px">' + esc(s.show) + '</div>'
+    + '<div style="margin-top:4px;font-style:italic">Say: "' + esc(s.say) + '"</div></div>'
+    + '<div style="display:flex;gap:6px;flex-wrap:wrap">'
+    + '<button class="btn btn-sm" onclick="demoStep(-1)"' + (i ? '' : ' disabled') + '>Back</button>'
+    + '<button class="btn btn-sm" onclick="demoGo()">Show it</button>'
+    + '<button class="btn btn-sm btn-primary" onclick="demoStep(1)"' + (i < last ? '' : ' disabled') + '>Next</button>'
+    + '<button class="btn btn-sm btn-ghost" onclick="demoStepsSheet()">Steps</button></div></div>';
+}
+function demoRoomCardHtml() {
+  if (demoRoomHost() && demoRoom()) return '<div style="margin-top:16px;border-top:1px solid var(--line);padding-top:12px">'
+    + '<div class="slbl" style="margin:0 0 6px">Live demo room is on</div>'
+    + '<p class="tiny" style="margin:0 0 8px">Room ' + esc(syncKey()) + '. Follow the script at the top of the screen.</p>'
+    + '<div class="rowflex"><button class="btn btn-sm btn-primary" onclick="demoJoinQr()">Join QR</button>'
+    + '<button class="btn btn-sm btn-danger" onclick="demoRoomEnd()">End demo</button></div></div>';
+  if (!demoRoomAllowed() || demoRoom()) return '';
+  return '<div style="margin-top:16px;border-top:1px solid var(--line);padding-top:12px">'
+    + '<div class="slbl" style="margin:0 0 6px">Live demo</div>'
+    + '<p class="tiny" style="margin:0 0 8px">Show RaceDay to a track live. Opens a separate sample track on this device with every feature on, a join QR for their phone, and a step-by-step script. Your own track is not touched.</p>'
+    + '<button class="btn btn-primary" onclick="demoRoomStart()">Start live demo</button></div>';
+}
 function currentCounts() {
   const classes = {};
   (S.raceDay.entries || []).forEach(e => {
@@ -3007,9 +3249,9 @@ function sendUsage(event, extra) {
       event: event,
       version: APP_VERSION,
       date: (S.raceDay && S.raceDay.date) || today(),
-      track: (dontCount() ? 'OWNER · ' : '') + (S.demo ? demoLabel() : ((S.license && S.license.name) || String((S.track && S.track.name) || '').trim().slice(0, 40) || 'unknown')),
+      track: (dontCount() ? 'OWNER · ' : '') + (demoRoom() ? demoRoomLabel() : S.demo ? demoLabel() : ((S.license && S.license.name) || String((S.track && S.track.name) || '').trim().slice(0, 40) || 'unknown')),
       device: deviceId(),
-      demo: !!S.demo
+      demo: !!S.demo || !!demoRoom()
     }, extra || {}));
     if (navigator.sendBeacon) navigator.sendBeacon(TELEMETRY_URL, body);
     else fetch(TELEMETRY_URL, { method: 'POST', body: body, mode: 'no-cors' }).catch(() => {});
@@ -3042,7 +3284,7 @@ function seedDemo() {
   render(curPage);
   nav('grid');
 }
-function seedFullDemoNight() {
+function seedFullDemoNight(quiet) {
   S.demo = true;
   if (!S.track.id) S.track.id = genTrackId();
   S.track.name = 'Sample Speedway';
@@ -3118,6 +3360,7 @@ function seedFullDemoNight() {
   S.history[0].demo = true;
   S.raceDay.demo = true;   // the scored board left on screen is still the showcase
   save();
+  if (quiet) return;
   render(curPage);
   nav('grid');
   setTimeout(() => alert('🏁 Welcome to the RaceDay demo!\n\nA full night is already scored and archived. Tap any driver\'s name to see their card, check Points for series standings, or start a new race day yourself to try the "Share results with Driven" flow.'), 300);
@@ -3435,6 +3678,7 @@ function renderHeader() {
 
   const bits = [];
   if (S.demo) bits.push('<span class="badge badge-amber">Demo</span>');
+  else if (demoRoom()) bits.push('<span class="badge badge-amber">Live demo</span>');
   document.body.classList.toggle('is-demo', !!S.demo);
   if (syncOn()) bits.push('<span class="badge ' + (Sync.connected ? 'badge-green' : 'badge-dim') + '">'
     + (Sync.connected ? '◉ Synced' : '○ Offline') + '</span>');
@@ -3555,6 +3799,7 @@ function renderRaceControl() {
 function renderBanners() {
   const out = [];
   const gst = guestBannerHtml();    if (gst) out.push(gst);
+  const dmr = demoRoomBannerHtml(); if (dmr) out.push(dmr);
   const lic = licBannerHtml();      if (lic) out.push(lic);
   const day = dayBannerHtml();      if (day) out.push(day);
   const bak = backupBannerHtml();   if (bak) out.push(bak);
@@ -3599,7 +3844,7 @@ function backupBannerHtml() {
 }
 
 function licBannerHtml() {
-  if (deviceRole() !== 'admin') return '';
+  if (deviceRole() !== 'admin' || demoRoom()) return '';
   const msg = licWarnText();
   if (!msg) return '';
   return '<div class="banner note ' + (canEnter() ? 'note-warn' : 'note-err') + '">' + esc(msg)
@@ -9913,6 +10158,7 @@ document.addEventListener('keydown', e => {
 applyTheme();
 loadTimingDir();
 handleUrlParams();
+demoRoomBoot();
 applyRole();
 nav(curPage);
 renderAll();
