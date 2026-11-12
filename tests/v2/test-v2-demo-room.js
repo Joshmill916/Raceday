@@ -77,7 +77,8 @@ const wait = ms => new Promise(r => setTimeout(r, ms));
   const { pg: host } = await newPage();
   await host.goto(base); await wait(500);
   await host.evaluate(() => {
-    closeSheet(); localStorage.setItem('rd_dont_count', '1'); localStorage.setItem('rd_role_v2', 'admin');
+    closeSheet(); localStorage.setItem('rd_role_v2', 'admin');
+    S.license = { code: 'OWNER-0-TEST', name: 'OWNER', exp: '0' };   // the unlimited license
     S.track.name = 'Home Track';
     S.roster = [{ id: 501, name: 'Real Racer', num: '9' }];
     S.raceDay.entries = [{ driverId: 501, classId: 1, pill: 1 }];
@@ -87,9 +88,14 @@ const wait = ms => new Promise(r => setTimeout(r, ms));
 
   console.log('— starting a demo —');
   const card = await host.evaluate(() => { nav('admin'); admOpen('garage'); return document.getElementById('garageCard').textContent; });
-  check('Admin → The Garage offers "Start live demo" on the owner\'s device', /Start live demo/.test(card));
-  const notOwner = await host.evaluate(() => { localStorage.removeItem('rd_dont_count'); const a = demoRoomAllowed(); localStorage.setItem('rd_dont_count', '1'); return a; });
-  check('…and not on a track\'s device (no owner mark, no unlimited license)', notOwner === false);
+  check('Admin → The Garage offers "Start live demo" with the unlimited license', /Start live demo/.test(card));
+  const notOwner = await host.evaluate(() => {
+    const keep = S.license, out = [];
+    localStorage.setItem('rd_dont_count', '1'); S.license = null; out.push(demoRoomAllowed());   // the public /me/ mark is not enough
+    S.license = { code: 'T-S2026-X', name: 'T', exp: 'S2026' }; out.push(demoRoomAllowed());     // nor a season pass
+    localStorage.removeItem('rd_dont_count'); S.license = keep; return out;
+  });
+  check('…and not on a track\'s device (the public /me/ mark, a season pass)', notOwner.every(a => a === false), notOwner.join());
   await Promise.all([host.waitForNavigation(), host.evaluate(() => demoRoomStart())]);
   await wait(1200);
   const st = await host.evaluate(() => ({
@@ -137,6 +143,8 @@ const wait = ms => new Promise(r => setTimeout(r, ms));
   check('…and it does not use a trial day on their phone', signup.trial.length === 1 && signup.trial[0] === '2000-01-01', signup.trial.join());
   await wait(1200);
   check('the new driver shows up on the host, live', await host.evaluate(() => S.raceDay.entries.length === 16 && S.roster.some(r => r.name === 'Prospect Kid')));
+  const expired = await guest.evaluate(() => { const d = S.settings.demoRoom, at = d.at; d.at = Date.now() - 13 * 3600000; const r = [!!demoRoom(), canEnter()]; d.at = at; return r; });
+  check('after 12 hours the room stops being free (trial rules come back)', expired[0] === false && expired[1] === false, expired.join());
   check('nothing is published to Driven from a demo room', await guest.evaluate(() => resultsJoin(true)) === false);
   setPath('profiles/prof_realcard01/card', { name: 'Prospect Kid', hometown: 'Their Town', age: '12', sponsors: 'Mom', teamColor: '#123456' });
   await notify();
@@ -175,6 +183,8 @@ const wait = ms => new Promise(r => setTimeout(r, ms));
   check('TV step opens the TV display', by('TV display').tv === true);
   check('A job for every device opens Admin → Multi-device sync', by('A job for every device').page === 'admin');
   check('Wrap up shows the steps list with End demo', by('Wrap up').sheet === 'Live demo');
+  const late = await host.evaluate(() => { const d = S.settings.demoRoom, at = d.at; d.at = Date.now() - 13 * 3600000; nav('admin'); admOpen('garage'); const t = document.getElementById('garageCard').textContent; d.at = at; return t; });
+  check('the host keeps its End demo button after the 12 hours', /End demo/.test(late) && /hours are up/.test(late));
   const nextBack = await host.evaluate(() => { demoJump(4); demoStep(1); const a = demoStepIdx(); demoStep(-1); const b = demoStepIdx(); if (sheetOpen()) closeSheet(); return [a, b, curPage]; });
   check('Next and Back move one step and open that screen', nextBack[0] === 5 && nextBack[1] === 4 && nextBack[2] === 'admin', nextBack.join());
 

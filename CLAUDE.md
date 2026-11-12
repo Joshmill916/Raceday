@@ -222,8 +222,8 @@ profile that follows them across every RaceDay track they race at.
   new drivers), class names 60 with blank/duplicate refused (`addClass`/`addClassNamed`), lineup grids use `minmax(0,1fr)` and
   name rows wrap/trim so nothing widens a phone; `register()` ignores a tap after the form is gone; the DEMO watermark sits
   above the phone tab bar. Guard: `tests/v2/test-v2-breakit.js`
-- **Live demo room** (2026-11-12, `raceday2/`): Admin → The Garage → Start live demo (owner devices only: `rd_dont_count`
-  or the unlimited license). Opens a `DEMO…` sync room in its OWN Garage slot (real track untouched), seeds last week's scored
+- **Live demo room** (2026-11-12, `raceday2/`): Admin → The Garage → Start live demo (only with the unlimited/forever
+  license — never the public `rd_dont_count` mark; a room is free for `DEMO_ROOM_HOURS` = 12h). Opens a `DEMO…` sync room in its OWN Garage slot (real track untouched), seeds last week's scored
   night + tonight's board (`demoRoomBoot`), and shows a 16-step presenter script in the banner (`DEMO_STEPS`, Back / Show it /
   Next). The prospect scans the join QR (`staffLinkParams('admin')`) and becomes a second admin screen. `S.settings.demoRoom`
   (synced) makes every device in it skip license/trial (`canEnter`, `consumeTrialDay`), never publish to Driven / cloud backup,

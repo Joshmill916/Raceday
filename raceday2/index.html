@@ -857,7 +857,7 @@ const GARAGE_KEY = 'rd_garage_v2';
 const ACTIVE_TRACK_KEY = 'rd_active_track_v2';
 // Reported with every usage row and crash. The part after the dot MUST match this app's
 // sw.js CACHE number (tests/test-app-version.js) — bump both together on each release.
-const APP_VERSION = '2026-11-12.v30';
+const APP_VERSION = '2026-11-12.v31';
 const LEGAL_VERSION = '2026-06';   // bump when Terms / Privacy wording changes, so acceptances are versioned
 const TELEMETRY_URL = 'https://script.google.com/macros/s/AKfycbxa3i3y17TLp_NfXOOu2jM7-YzXH2fScxcXoQYmIh0-873rxWfxg0HdRP1DVsxZq6iR/exec';
 const FIREBASE_CONFIG = {
@@ -2916,13 +2916,18 @@ function exitDemoMode() {
 const DEMO_HOST_KEY = 'rd_demo_host', DEMO_SEED_KEY = 'rd_demo_seed', DEMO_STEP_KEY = 'rd_demo_step';
 function demoRoom() {
   const d = S.settings && S.settings.demoRoom;
-  return (d && typeof d === 'object' && !d.ended && syncOn() && /^DEMO[A-Z0-9]{4,}$/.test(syncKey())) ? d : null;
+  return (d && typeof d === 'object' && !d.ended && syncOn() && /^DEMO[A-Z0-9]{4,}$/.test(syncKey())
+    && Date.now() - (+d.at || 0) < DEMO_ROOM_HOURS * 3600000) ? d : null;   // a demo is an evening, not a free season
 }
+const DEMO_ROOM_HOURS = 12;
+// The host's own room, even after the free window: it still needs its End demo button.
+function demoRoomHosting() { const d = S.settings && S.settings.demoRoom; return !!(d && typeof d === 'object' && !d.ended && demoRoomHost()); }
 function demoRoomHost() { try { return !!syncKey() && localStorage.getItem(DEMO_HOST_KEY) === syncKey(); } catch (e) { return false; } }
 function demoRoomLabel() { const d = demoRoom(); return 'DEMO ROOM' + (d && d.for ? ' · ' + String(d.for).slice(0, 30) : ''); }
-// Who may start one: the owner's devices (marked "don't count me" at /me/, or holding the
-// unlimited license). It only opens a sample room, so nothing is at stake if spoofed.
-function demoRoomAllowed() { return deviceRole() === 'admin' && !GUEST && (dontCount() || licStatus().plan === 'forever'); }
+// Who may start one: a device holding the unlimited (forever) license. Everyone in a demo room
+// skips the license/trial count, so this can't hang on anything a track could set itself
+// (the /me/ "don't count me" page is public). License codes are hash-checked on activation.
+function demoRoomAllowed() { return deviceRole() === 'admin' && !GUEST && !!S.license && licStatus().plan === 'forever'; }
 function demoRoomStart() {
   if (!adminOk() || !demoRoomAllowed()) return;
   if (!FIREBASE_CONFIG.apiKey) { alert('Live sync is not set up on this build yet.'); return; }
@@ -2989,7 +2994,7 @@ function demoRoomCheckEnded() {
   bye();
 }
 function demoRoomEnd() {
-  if (!adminOk() || !demoRoomHost()) return;
+  if (!adminOk() || !demoRoomHosting()) return;
   if (!confirm('End the live demo?\n\nEvery phone that joined is cleared and disconnected, the sample room is deleted from this device, and this device goes back to your own track.')) return;
   const slot = activeKey();
   if (!Sync.connected) alert('This device is offline, so the other phones won\'t hear that the demo ended until they reconnect. Ending it here anyway.');
@@ -3011,7 +3016,7 @@ function demoRoomEnd() {
 }
 function demoJoinUrl() { return location.origin + location.pathname + staffLinkParams('admin'); }
 function demoJoinQr() {
-  if (!demoRoomHost()) return;
+  if (!demoRoomHosting()) return;
   const ready = validStaffKey(S.sync.staffKey);
   openSheet('Join the live demo',
     ready
@@ -3132,12 +3137,12 @@ function demoRoomBannerHtml() {
     + '<button class="btn btn-sm btn-ghost" onclick="demoStepsSheet()">Steps</button></div></div>';
 }
 function demoRoomCardHtml() {
-  if (demoRoomHost() && demoRoom()) return '<div style="margin-top:16px;border-top:1px solid var(--line);padding-top:12px">'
+  if (demoRoomHosting()) return '<div style="margin-top:16px;border-top:1px solid var(--line);padding-top:12px">'
     + '<div class="slbl" style="margin:0 0 6px">Live demo room is on</div>'
-    + '<p class="tiny" style="margin:0 0 8px">Room ' + esc(syncKey()) + '. Follow the script at the top of the screen.</p>'
+    + '<p class="tiny" style="margin:0 0 8px">Room ' + esc(syncKey()) + '. ' + (demoRoom() ? 'Follow the script at the top of the screen.' : 'Its ' + DEMO_ROOM_HOURS + ' hours are up, so it now counts like a normal track. End it to go back to your own track.') + '</p>'
     + '<div class="rowflex"><button class="btn btn-sm btn-primary" onclick="demoJoinQr()">Join QR</button>'
     + '<button class="btn btn-sm btn-danger" onclick="demoRoomEnd()">End demo</button></div></div>';
-  if (!demoRoomAllowed() || demoRoom()) return '';
+  if (!demoRoomAllowed() || demoRoom()) return '';   // (the button shows only with the unlimited license)
   return '<div style="margin-top:16px;border-top:1px solid var(--line);padding-top:12px">'
     + '<div class="slbl" style="margin:0 0 6px">Live demo</div>'
     + '<p class="tiny" style="margin:0 0 8px">Show RaceDay to a track live. Opens a separate sample track on this device with every feature on, a join QR for their phone, and a step-by-step script. Your own track is not touched.</p>'
