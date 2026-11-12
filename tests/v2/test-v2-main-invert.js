@@ -27,6 +27,9 @@ const TYPES = { '.html': 'text/html', '.js': 'application/javascript', '.json': 
   page.on('dialog', d => d.accept());
 
   await page.goto(`http://localhost:${PORT}/`);
+  // New tracks start with no classes (2026-11-12) — this suite needs some to race.
+  await page.waitForTimeout(300);
+  await page.evaluate(() => { if (!S.classes.length) { ['Junior 80cc', 'Senior 100cc', 'Open Shifter'].forEach(n => addClassNamed(n, 200)); save(); if (typeof render === 'function') render(curPage); } });
   await page.waitForTimeout(400);
 
   // Seed: 12 drivers (D01 fastest .. D12 slowest by heat finish), one heat, feature of 8,

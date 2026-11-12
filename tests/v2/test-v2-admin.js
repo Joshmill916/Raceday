@@ -52,6 +52,8 @@ const ALL_SECTIONS = ['today','history','track','classes','format','points','leg
   check('a track name enables next', await page.evaluate(() => !document.getElementById('wizNextBtn').disabled));
   await page.click('#wizNextBtn'); await page.waitForTimeout(200);          // → classes
   const wizClassesBefore = await page.evaluate(() => S.classes.length);
+  check('a new track starts with no classes (no generic starter classes)', wizClassesBefore === 0
+    && await page.evaluate(() => !S.classLib.length && !/Junior 80cc|Senior 100cc|Open Shifter/.test(document.getElementById('wizClassList').innerText)), wizClassesBefore);
   await page.click('button:has-text("+ Add a class")'); await page.waitForTimeout(150);
   check('wizard step 3 "+ Add a class" button actually adds one',
     await page.evaluate((n) => S.classes.length === n + 1, wizClassesBefore));

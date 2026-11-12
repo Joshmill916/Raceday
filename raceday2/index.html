@@ -857,7 +857,7 @@ const GARAGE_KEY = 'rd_garage_v2';
 const ACTIVE_TRACK_KEY = 'rd_active_track_v2';
 // Reported with every usage row and crash. The part after the dot MUST match this app's
 // sw.js CACHE number (tests/test-app-version.js) — bump both together on each release.
-const APP_VERSION = '2026-11-12.v33';
+const APP_VERSION = '2026-11-12.v34';
 const LEGAL_VERSION = '2026-06';   // bump when Terms / Privacy wording changes, so acceptances are versioned
 const TELEMETRY_URL = 'https://script.google.com/macros/s/AKfycbxa3i3y17TLp_NfXOOu2jM7-YzXH2fScxcXoQYmIh0-873rxWfxg0HdRP1DVsxZq6iR/exec';
 const FIREBASE_CONFIG = {
@@ -910,17 +910,9 @@ function defaults() {
     license: null,                                // {code, name, exp} once activated; exp = plan token (0/YYYYMM/SYYYY/Rn)
     trialDays: [],                                // dates that used a free-trial race day
     licUse: {},                                   // packet usage per code: { code: [dates] }
-    classLib: [                                   // every class name ever used: {name, maxPill, description, ageGroup, specs}
-      { name: 'Junior 80cc', maxPill: 200, description: '', ageGroup: '', specs: '' },
-      { name: 'Senior 100cc', maxPill: 200, description: '', ageGroup: '', specs: '' },
-      { name: 'Open Shifter', maxPill: 200, description: '', ageGroup: '', specs: '' }
-    ],
+    classLib: [],                                 // every class name ever used: {name, maxPill, description, ageGroup, specs}
     roster: [],                                   // persistent driver book: {id, name, num}
-    classes: [
-      { id: 1, name: 'Junior 80cc', maxPill: 200 },
-      { id: 2, name: 'Senior 100cc', maxPill: 200 },
-      { id: 3, name: 'Open Shifter', maxPill: 200 }
-    ],
+    classes: [],                                  // a new track starts with none — the owner adds their own (Josh, 2026-11-12)
     settings: { maxHeat: 8, maxBMain: 12, maxFeature: 20, transfers: 2, gridStyle: 'double', heatFill: 'alternate', bmainMode: 'single', bmainCount: 2, points: { mode: 'fixed', table: [10, 8, 6, 5, 4, 3, 2, 1], beyond: 0 }, requireConsent: true, captureConsentIP: true, cloudBackup: false },
     raceDay: { date: today(), entries: [], heatResults: {}, pointsRace: {}, resultGov: {}, resultVersions: {}, tech: {} },  // tech: per-car inspection {status,weight,items,notes,at}; entries: {driverId, classId, pill}; resultGov: per-class {status,locked}; resultVersions: per-class snapshots
     nextId: 100,
@@ -3266,13 +3258,13 @@ function sendUsage(event, extra) {
    auto-seeded night for a marketing-site visitor (?demo=1). */
 function seedDemo() {
   if (!adminOk()) return;
-  if (!S.classes.length) { alert('Add at least one race class before loading a demo race day.'); return; }
   if (syncOn()) { alert('This device is on Multi-device sync — loading demo here would push demo data to every synced device and replace the real race.\n\nTurn off sync on this device first (Admin → Multi-device sync), then load the demo.'); return; }
   if (!confirm('Load a demo race day with 25 sample drivers? Current entries are archived to history first (driver book is kept).\n\nThe demo is just for showing how RaceDay works — it doesn\'t use a free-trial day, and it isn\'t saved to race history or season points.')) return;
   if (!archiveDay()) return;   // cancelled at the incomplete-points warning — keep the board
   // A demo day is a showcase, not a race: it never uses a trial or packet day (see
   // consumeTrialDay()), and archiveDay() discards it instead of saving it to history.
   resOverride = {};
+  if (!S.classes.length) ['Junior 80cc', 'Senior 100cc', 'Open Shifter'].forEach(n => addClassNamed(n, 200));   // a new track has none; the demo brings sample ones
   const demoNames = ['Ava Brooks','Ben Carter','Cody Diaz','Dana Evans','Eli Ford','Finn Gray','Gia Hall','Hank Irwin','Ivy James','Jax King','Kya Lane','Leo Moss','Mia Nash','Noah Otis','Opal Pratt','Quinn Reed','Rio Sands','Sky Tate','Tess Uri','Uma Vance','Vic Webb','Wes Xu','Yara York','Zane Zell','Pat Quick'];
   S.raceDay = { date: today(), entries: [], heatResults: {}, pointsRace: {}, resultGov: {}, resultVersions: {}, demo: true };
   demoNames.forEach((name, i) => {
@@ -3297,6 +3289,8 @@ function seedFullDemoNight(quiet) {
   S.track.surface = 'Dirt';
   S.track.configuration = 'Oval';
   S.track.history = 'Racing every week since 1978 — a tight, family-owned bullring known for side-by-side finishes.';
+  // New tracks start with no classes, so the sample night brings its own.
+  if (!S.classes.length) ['Junior 80cc', 'Senior 100cc', 'Open Shifter'].forEach(n => addClassNamed(n, 200));
 
   const classContext = {
     'Junior 80cc': { ageGroup: 'Ages 8-13', specs: 'Yamaha KT100, 55 lb min weight', description: 'The entry point for new racers — tight, low-speed racing that still teaches real car control.' },
