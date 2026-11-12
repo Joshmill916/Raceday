@@ -857,7 +857,7 @@ const GARAGE_KEY = 'rd_garage_v2';
 const ACTIVE_TRACK_KEY = 'rd_active_track_v2';
 // Reported with every usage row and crash. The part after the dot MUST match this app's
 // sw.js CACHE number (tests/test-app-version.js) — bump both together on each release.
-const APP_VERSION = '2026-11-12.v31';
+const APP_VERSION = '2026-11-12.v32';
 const LEGAL_VERSION = '2026-06';   // bump when Terms / Privacy wording changes, so acceptances are versioned
 const TELEMETRY_URL = 'https://script.google.com/macros/s/AKfycbxa3i3y17TLp_NfXOOu2jM7-YzXH2fScxcXoQYmIh0-873rxWfxg0HdRP1DVsxZq6iR/exec';
 const FIREBASE_CONFIG = {
@@ -4149,6 +4149,8 @@ function renderPrereg() {
     const inN = list.filter(preCheckedIn).length;
     h += '<div class="card"><div class="spread" style="margin-bottom:8px"><b>' + plural(list.length, 'pre-registered driver') + '</b><span class="push"></span>'
       + '<span class="badge badge-dim">' + inN + ' checked in today</span></div>'
+      + '<div class="note" style="margin-bottom:10px">Checking drivers in happens on the Sign-up page. This list is for fixing numbers and cancelling entries.'
+      + '<div class="rowflex" style="margin-top:8px"><button class="btn btn-sm btn-primary" id="preGoSignup" onclick="nav(\'signup\')">Check drivers in on Sign-up</button></div></div>'
       + preCountsMarkup(list)
       + '<div class="stack">' + list.map((p, i) => {
         const cls = p.classIds.map(id => (classById(id) || {}).name).filter(Boolean);
@@ -4177,14 +4179,16 @@ function preImportMarkup(imp) {
   const head = imp.table[0] || [];
   const opt = (sel) => '<option value="-1">— none —</option>' + head.map((x, i) => '<option value="' + i + '"' + (i === sel ? ' selected' : '') + '>' + esc(String(x).slice(0, 60)) + '</option>').join('');
   const ready = rows.filter(r => r.num && !r.missing.length).length;
-  const missingAll = [...new Set(rows.flatMap(r => r.missing))];
+  const missingAll = rows.flatMap(r => r.missing).filter((n, i, a) => a.findIndex(x => preNorm(x) === preNorm(n)) === i);   // HEAVEY 160 / heavey 160 = one class (first spelling wins, same as the Add button)
   let h = '<div class="card"><b style="font-size:16px">' + esc(imp.file) + ' · ' + plural(rows.length, 'driver') + ' found</b>'
     + '<div class="tiny" style="margin:4px 0 12px">' + ready + ' ready · ' + rows.filter(r => !r.num).length + ' need a kart number · '
     + rows.filter(r => findRosterMatch(r.name, r.num) || preFind(r.name)).length + ' already here</div>'
     + '<div class="slbl">Their columns</div><div class="stack" style="gap:6px;margin-bottom:12px">'
     + PRE_FIELDS.map(f => '<label class="spread" style="gap:10px"><span style="min-width:150px">' + f.label + '</span>'
       + '<select onchange="preMap(\'' + f.id + '\',this.value)">' + opt(imp.map[f.id]) + '</select></label>').join('') + '</div>';
-  if (missingAll.length) h += '<div class="note note-warn" style="margin-bottom:12px">Not set up as classes here yet: <b>' + esc(missingAll.join(', ')) + '</b>. Add them in Admin → Race classes (same name), then pick the file again — or import now and those classes are left off.</div>';
+  if (missingAll.length) h += '<div class="note note-warn" style="margin-bottom:12px">Not set up as classes here yet: <b>' + esc(missingAll.join(', ')) + '</b>.'
+    + '<div class="rowflex" style="margin-top:8px"><button class="btn btn-sm btn-primary" id="preAddCls" onclick="preAddMissingClasses()">Add ' + (missingAll.length === 1 ? 'this class' : 'these ' + missingAll.length + ' classes') + '</button></div>'
+    + '<span class="tiny" style="display:block;margin-top:6px">Adds them under Race classes with the file\'s spelling. Or import now and those classes are left off.</span></div>';
   h += '<div class="stack" style="max-height:340px;overflow-y:auto">' + rows.map(r => {
     const cls = r.classIds.map(id => (classById(id) || {}).name).filter(Boolean).join(' · ');
     const here = findRosterMatch(r.name, r.num) || preFind(r.name);
@@ -4196,6 +4200,21 @@ function preImportMarkup(imp) {
     + '<div class="rowflex" style="margin-top:12px"><button class="btn btn-go" onclick="preImport()">Import ' + plural(rows.length, 'driver') + '</button>'
     + '<button class="btn" onclick="UI.preImp=null;renderPrereg()">Cancel</button></div></div>';
   return h;
+}
+/* One tap: every class the file names that isn't set up yet becomes a class here, spelled as in the file. */
+function preAddMissingClasses() {
+  if (!adminOk() || !UI.preImp) return;
+  const names = [], seen = new Set();
+  preRows(UI.preImp.table, UI.preImp.map).forEach(r => r.missing.forEach(n => {
+    const k = preNorm(n);
+    if (!k || seen.has(k) || S.classes.some(c => preNorm(c.name) === k)) return;
+    seen.add(k); names.push(n);
+  }));
+  if (!names.length) return;
+  names.forEach(n => addClassNamed(n, 200));
+  save();
+  renderPrereg();
+  toast(plural(names.length, 'class', 'classes') + ' added — check Race classes if any need different settings.', 'ok');
 }
 function preLoadFile(inp) {
   const f = inp.files && inp.files[0]; if (!f) return;

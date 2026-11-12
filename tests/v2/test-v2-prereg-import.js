@@ -111,6 +111,32 @@ const CSV = fs.readFileSync(path.join(ROOT, 'test-data', 'prereg-google-form.csv
   const viewer = await page.evaluate(() => { const old = localStorage.getItem('rd_role_v2'); localStorage.setItem('rd_role_v2', 'viewer'); const m = preregCheckinMarkup(); localStorage.setItem('rd_role_v2', old || 'admin'); return m; });
   check('spectators never get the check-in list', viewer === '');
 
+  console.log('\n— Adding the file\'s classes in one tap —');
+  const csv2 = 'Timestamp,Name,Email address,select classes ,KART #\n'
+    + '9/29/2026 7:00:00,Ada Larkin,a@example.com,"HEAVEY 160, PREDATOR",101\n'
+    + '9/29/2026 7:01:00,Alex Barker,b@example.com,"heavey 160, JR 3",102\n'
+    + '9/29/2026 7:02:00,Avery Everett,c@example.com,Predator,103\n';
+  const before2 = await page.evaluate(() => S.classes.length);
+  await page.evaluate(csv => { UI.preImp = null; S.settings.preReg = []; save(); preLoadText(csv, 'Entries.csv'); }, csv2);
+  const pv2 = await page.evaluate(() => document.getElementById('preregWrap').innerText);
+  check('the warning offers to add the 2 missing classes', /Add these 2 classes/i.test(pv2), pv2.slice(-500));
+  await page.evaluate(() => document.getElementById('preAddCls').click());
+  const cls2 = await page.evaluate(() => S.classes.map(c => c.name));
+  check('2 classes added, spelled as in the file, no doubles', cls2.length === before2 + 2 && cls2.includes('HEAVEY 160') && cls2.includes('JR 3')
+    && cls2.filter(n => /heavey 160/i.test(n)).length === 1, JSON.stringify(cls2));
+  check('an existing class with different capitals is not added again', cls2.filter(n => /^predator$/i.test(n)).length === 1, JSON.stringify(cls2));
+  const pv3 = await page.evaluate(() => document.getElementById('preregWrap').innerText);
+  check('the warning is gone and the import is still open', !/Not set up as classes here yet/.test(pv3) && /Entries\.csv · 3 drivers found/.test(pv3), pv3.slice(0, 300));
+  await page.evaluate(() => [...document.querySelectorAll('#preregWrap button')].find(b => /^Import/.test(b.textContent)).click());
+  const imp2 = await page.evaluate(() => S.settings.preReg.map(p => ({ n: p.name, c: p.classIds.length, m: p.missing.length })));
+  check('every driver imports with all their classes', imp2.length === 3 && imp2.every(p => p.m === 0) && imp2.find(p => p.n === 'Ada Larkin').c === 2, JSON.stringify(imp2));
+  const nonAdmin = await page.evaluate(csv => { preLoadText(csv, 'x.csv'); const n = S.classes.length; const r = deviceRole; deviceRole = () => 'viewer';
+    try { preAddMissingClasses(); } finally { deviceRole = r; } return S.classes.length === n; }, 'Name,Class,Kart\nZed,BRAND NEW,9\n');
+  check('a spectator device cannot add classes this way', nonAdmin);
+
+  const goSu = await page.evaluate(() => { nav('admin'); admOpen('prereg'); const b = document.getElementById('preGoSignup'); if (!b) return 'no button'; b.click(); return curPage; });
+  check('the admin list sends you to Sign-up to check drivers in', goSu === 'signup', goSu);
+
   check('no page errors', errs.length === 0, errs.join(' | '));
   console.log(`\n==== ${pass} passed, ${fail} failed ====`);
   await browser.close(); server.close();
