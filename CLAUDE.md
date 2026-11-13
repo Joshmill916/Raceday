@@ -230,6 +230,11 @@ profile that follows them across every RaceDay track they race at.
   (synced) makes every device in it skip license/trial (`canEnter`, `consumeTrialDay`), never publish to Driven / cloud backup,
   send no `night` row, and label usage `DEMO ROOM · <for>`. End demo writes `demoRoom.ended`; joined phones wipe the sample data,
   drop sync and reload fresh (`demoRoomCheckEnded`); the host goes back to its own track. Guard: `tests/v2/test-v2-demo-room.js`
+- **Race note alerts** (2026-11-13, `raceday2/`): posting a note (Admin → Schedule & notes, `postRaceNote`) also keeps
+  tonight's list at `S.settings.raceNotes` (newest first, max 5, cleared by `newRaceDay`). A following phone (viewer) shows
+  `raceNoteBanner()` (time, NEW for 10 min, "Earlier tonight") on Lineups + Results and, when synced data brings a note it
+  hasn't seen (`rd_note_seen` = note `at`, per phone), pops `#noteAlert` + `navigator.vibrate` (`checkRaceNoteAlert`, called
+  from `syncApplySnapshot`). Only works while the page is open — no push to locked phones. Guard: `tests/v2/test-v2-race-note-alerts.js`
 - **Owner backups + dashboard** (local only, NOT in the repo): `~/RaceDay Backups/` (`tools/backup.py`) saves the
   whole RTDB to `database/*.json.gz` (60 + first-of-month), mirrors the repo to `code/Raceday.git`, and rebuilds
   `RaceDay Dashboard.html` (offline Driven lookup, live pull by link code). Restore steps: `RESTORE.txt` there.
