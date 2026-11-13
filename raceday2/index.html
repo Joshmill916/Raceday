@@ -610,6 +610,16 @@ body.kiosk .wrap-narrow { max-width:600px; width:100%; }
 .tv-sched span { font-family:var(--display); font-weight:800; text-transform:uppercase; }
 .tv-sched b { font-variant-numeric:tabular-nums; color:#9a9da6; }
 .fan-note { background:var(--plate); color:var(--plate-ink); font-weight:700; border-radius:var(--r-lg); padding:10px 14px; margin-bottom:12px; }
+.fan-note .note-time { font-weight:600; opacity:.7; font-size:12px; white-space:nowrap; }
+.note-new { display:inline-block; font-size:10px; font-weight:800; letter-spacing:.08em; background:var(--plate-ink); color:var(--plate); border-radius:4px; padding:1px 6px; vertical-align:1px; }
+.note-earlier { margin:-4px 0 12px; font-size:13px; color:var(--muted); }
+.note-earlier summary { cursor:pointer; font-weight:700; padding:2px 0; }
+.note-earlier div { padding:5px 0; border-top:1px solid var(--line); color:var(--ink); }
+.note-earlier .note-time { color:var(--muted); font-size:12px; margin-right:4px; }
+.note-alert { position:fixed; top:calc(10px + env(safe-area-inset-top)); left:50%; transform:translateX(-50%); width:min(560px, calc(100% - 24px)); z-index:260; background:var(--plate); color:var(--plate-ink); border-radius:var(--r-lg); padding:12px 14px; box-shadow:0 12px 34px rgba(0,0,0,.5); display:flex; gap:10px; align-items:flex-start; animation:noteIn .28s ease-out; }
+.note-alert .note-time { font-size:12px; opacity:.7; }
+.note-alert button { flex:none; background:var(--plate-ink); color:var(--plate); border:none; border-radius:99px; padding:7px 14px; font:inherit; font-size:13px; font-weight:800; cursor:pointer; }
+@keyframes noteIn { from { transform:translate(-50%,-14px); opacity:0 } to { transform:translate(-50%,0); opacity:1 } }
 .fan-sched { display:flex; flex-wrap:wrap; gap:6px 16px; margin-top:10px; font-size:13.5px; }
 .fan-sched b { color:var(--ink); }
 .tv-clock { margin-left:auto; font-family:var(--display); font-weight:700; font-size:2.6vh; font-variant-numeric:tabular-nums; color:#9a9da6; }
@@ -857,7 +867,7 @@ const GARAGE_KEY = 'rd_garage_v2';
 const ACTIVE_TRACK_KEY = 'rd_active_track_v2';
 // Reported with every usage row and crash. The part after the dot MUST match this app's
 // sw.js CACHE number (tests/test-app-version.js) — bump both together on each release.
-const APP_VERSION = '2026-11-12.v34';
+const APP_VERSION = '2026-11-13.v35';
 const LEGAL_VERSION = '2026-06';   // bump when Terms / Privacy wording changes, so acceptances are versioned
 const TELEMETRY_URL = 'https://script.google.com/macros/s/AKfycbxa3i3y17TLp_NfXOOu2jM7-YzXH2fScxcXoQYmIh0-873rxWfxg0HdRP1DVsxZq6iR/exec';
 const FIREBASE_CONFIG = {
@@ -2231,6 +2241,7 @@ function syncApplySnapshot(v) {
   if (wasViewer && prevFin !== null && JSON.stringify(S.classes.map(c => featureFinish(c.id))) !== prevFin) {
     showViewerToast();
   }
+  if (wasViewer) checkRaceNoteAlert();
   // Only alert when a DISTINCT existing identity was silently replaced — skip a fresh
   // device's first join (prevTrackName empty), which is normal, not a surprise overwrite.
   // A guest is looking at somebody else's race on purpose; nothing was replaced.
@@ -2813,7 +2824,8 @@ function newRaceDay() {
   logAudit('Started new race day', S.raceDay.date, today(), 'Race day');
   resOverride = {};
   S.raceDay = { date: today(), entries: [], heatResults: {}, pointsRace: {}, resultGov: {}, resultVersions: {}, tech: {}, demo: !!S.demo };
-  delete S.settings.raceNote;   // tonight's note doesn't carry into next week
+  delete S.settings.raceNote;   // tonight's notes don't carry into next week
+  delete S.settings.raceNotes;
   save();
   resetReg();
   render(curPage);
@@ -5690,6 +5702,42 @@ function classLaps(cls, kind) { const n = cls && cls.laps ? parseInt(cls.laps[ki
 function withLaps(txt, cls, kind) { const n = classLaps(cls, kind); return n ? txt + ' · ' + n + ' laps' : txt; }
 function nightSchedule() { return (S.settings.schedule || []).filter(r => r && (r.label || r.time)); }
 function raceNote() { const n = S.settings.raceNote; return n && n.text ? n.text : ''; }
+/* Tonight's notes + alerts on drivers' phones (2026-11-13). Every posted note also goes on
+   S.settings.raceNotes (newest first, max 5; syncs with settings, cleared with the race day).
+   A phone following the track (viewer) shows the current note — with its time, NEW for 10
+   minutes — and the earlier ones on every tab it can open, and pops a banner + vibrates the
+   first time it sees a note (rd_note_seen = the newest note's `at`, kept per phone). */
+const RACE_NOTES_MAX = 5;
+function raceNotes() { return Array.isArray(S.settings.raceNotes) ? S.settings.raceNotes.filter(n => n && n.text) : []; }
+function noteTime(at) { return at ? new Date(at).toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' }) : ''; }
+function raceNoteBanner() {
+  const cur = S.settings.raceNote && S.settings.raceNote.text ? S.settings.raceNote : null;
+  const earlier = raceNotes().filter(n => !cur || n.at !== cur.at);
+  if (!cur && !earlier.length) return '';
+  const fresh = cur && cur.at && Date.now() - cur.at < 10 * 60000;
+  return (cur ? '<div class="fan-note">📣 <span style="font-weight:800">Track update:</span> ' + esc(cur.text)
+      + (cur.at ? ' <span class="note-time">' + esc(noteTime(cur.at)) + '</span>' : '') + (fresh ? ' <span class="note-new">NEW</span>' : '') + '</div>' : '')
+    + (earlier.length ? '<details class="note-earlier"><summary>Earlier tonight (' + earlier.length + ')</summary>'
+      + earlier.map(n => '<div><span class="note-time">' + esc(noteTime(n.at)) + '</span> ' + esc(n.text) + '</div>').join('') + '</details>' : '');
+}
+function noteSeen() { try { return Number(localStorage.getItem('rd_note_seen')) || 0; } catch (e) { return 0; } }
+function markNoteSeen(at) { try { localStorage.setItem('rd_note_seen', String(at)); } catch (e) {} }
+/* Called after synced data lands on a following phone. */
+function checkRaceNoteAlert() {
+  const n = S.settings.raceNote;
+  if (!n || !n.text || !n.at || n.at <= noteSeen()) return;
+  markNoteSeen(n.at);
+  showNoteAlert(n);
+}
+function showNoteAlert(n) {
+  let el = document.getElementById('noteAlert');
+  if (!el) { el = document.createElement('div'); el.id = 'noteAlert'; el.className = 'note-alert'; el.setAttribute('role', 'alert'); document.body.appendChild(el); }
+  el.innerHTML = '<span style="font-size:22px;line-height:1">📣</span><div style="flex:1"><b>Track update</b> <span class="note-time">' + esc(noteTime(n.at)) + '</span>'
+    + '<div style="margin-top:2px">' + esc(n.text) + '</div></div><button onclick="hideNoteAlert()">Got it</button>';
+  el.style.display = '';
+  try { if (navigator.vibrate) navigator.vibrate([220, 120, 220]); } catch (e) {}
+}
+function hideNoteAlert() { const el = document.getElementById('noteAlert'); if (el) el.style.display = 'none'; }
 function setClassLaps(id, kind, val) {
   if (!adminOk()) return;
   const c = classById(id); if (!c || ['heat', 'bmain', 'feature'].indexOf(kind) < 0) return;
@@ -5711,7 +5759,10 @@ function setScheduleRow(i, field, val) {
 function postRaceNote() {
   if (!adminOk()) return;
   const t = String(document.getElementById('raceNoteIn').value || '').trim().slice(0, 140);
-  if (t) S.settings.raceNote = { text: t, at: Date.now() }; else delete S.settings.raceNote;
+  if (t) {
+    S.settings.raceNote = { text: t, at: Date.now() };
+    S.settings.raceNotes = [S.settings.raceNote].concat(raceNotes()).slice(0, RACE_NOTES_MAX);
+  } else delete S.settings.raceNote;
   save(); renderAdmin();
   toast(t ? 'Posted to the TV and every phone following the track' : 'Note cleared');
 }
@@ -5724,10 +5775,13 @@ function secSchedule() {
   const rows = nightSchedule().concat([{ label: '', time: '' }]).slice(0, 8);
   const note = raceNote();
   return '<div class="card"><h3 style="margin-top:0">Race note</h3>'
-    + '<p class="tiny">Shows across the top of the TV and on every phone following the track — drivers, crews, parents and fans — until you clear it, or until the next race day starts.</p>'
+    + '<p class="tiny">Shows across the top of the TV and on every phone following the track — drivers, crews, parents and fans — until you clear it, or until the next race day starts. Phones that have the lineups open pop up an alert and vibrate (Android) when you post.</p>'
     + '<div class="field"><input id="raceNoteIn" type="text" maxlength="140" value="' + esc(note) + '" placeholder="e.g. Kid Karts to the grid — heats start at 1:00"></div>'
     + '<div class="rowflex"><button class="btn btn-primary btn-sm" onclick="postRaceNote()">📣 Post note</button>'
-    + (note ? '<button class="btn btn-sm" onclick="clearRaceNote()">Clear</button>' : '') + '</div></div>'
+    + (note ? '<button class="btn btn-sm" onclick="clearRaceNote()">Clear</button>' : '') + '</div>'
+    + (raceNotes().length ? '<p class="tiny" style="margin:12px 0 4px"><b>Posted tonight</b> — phones show these under the current note</p>'
+      + raceNotes().map(n => '<div class="tiny">' + esc(noteTime(n.at)) + ' · ' + esc(n.text) + '</div>').join('') : '')
+    + '</div>'
     + '<div class="card"><h3 style="margin-top:0">Tonight\'s schedule</h3>'
     + '<p class="tiny">Practice, heats, mains — whatever you\'d write on the board. Shows as its own screen on the TV and at the top of the fan view. Leave it blank to hide it.</p>'
     + rows.map((r, i) => '<div class="cols" style="margin-bottom:8px">'
@@ -6492,8 +6546,8 @@ function fanNowNext() {
 function fanHero() {
   const t = S.track;
   const { phase, cls } = fanNowNext();
-  const note = raceNote(), sched = nightSchedule();
-  return (note ? '<div class="fan-note">📣 <span style="font-weight:800">Track update:</span> ' + esc(note) + '</div>' : '')
+  const sched = nightSchedule();
+  return raceNoteBanner()
     + '<div class="fan-hero">'
     + '<div class="eyebrow">' + esc(t.name || 'RaceDay') + (t.length || t.surface ? ' · ' + [t.surface, t.length].filter(Boolean).join(' · ') : '') + '</div>'
     + '<h3>' + esc(phase.note) + '</h3>'
@@ -6798,7 +6852,7 @@ function renderFinals() {
   if (UI.finalsNight == null || UI.finalsNight === '' || !hist[UI.finalsNight]) UI.finalsNight = '';
   const snap = UI.finalsNight === '' ? null : hist[UI.finalsNight];
   const classes = snap ? finalsFromSnap(snap) : finalsTonight();
-  let h = '<h2>Results</h2>'
+  let h = (deviceRole() === 'viewer' ? raceNoteBanner() : '') + '<h2>Results</h2>'
     + '<p class="sub">Every class\'s feature, with where each car started and the Hard Charger — the driver who gained the most spots.</p>';
   if (hist.length) {
     h += '<select onchange="setFinalsNight(this.value)" style="margin-bottom:14px;max-width:320px">'
@@ -10086,7 +10140,7 @@ function renderHelp() {
         '<p>Run a registration tablet, scoring tower and TV screen on the same race day at once — Admin → Multi-device sync → Start sync, then open the matching link on each device. The free spectator QR link is the same place. '
         + 'With sync on, every driver also gets <b>📱 their own lineup on their phone</b>: a QR code on the "You\'re on the grid" screen after sign-up (or <b>📱 Lineup link</b> on their driver card) shows their heats, starting spots and results live all night.</p>')
     + guideStep(7, 'Race-night extras',
-        '<p><b>📣 Schedule &amp; track updates</b> — Admin → Race night → Schedule &amp; notes: tonight\'s times and a note ("Drivers meeting at 12:45") on the TV and every phone following the track. Set <b>laps</b> per class in Race classes. All optional. '
+        '<p><b>📣 Schedule &amp; track updates</b> — Admin → Race night → Schedule &amp; notes: tonight\'s times and a note ("Drivers meeting at 12:45") on the TV and every phone following the track — drivers\' and fans\' phones pop an alert (and vibrate on Android) when you post, and keep tonight\'s earlier notes. Set <b>laps</b> per class in Race classes. All optional. '
         + '<b>🔧 Tech inspection</b> — Admin → Race night → Tech inspection, or send the <b>Tech inspection link</b> to a tablet: checklist, weight, Pass / Fail / Recheck per car. '
         + '<b>💵 Payouts</b> — set a purse per class in Race classes; tonight\'s payouts, a paid/unpaid ledger and season totals for 1099s are in Admin → Payouts, and Print has a payout sheet. '
         + '<b>🎙 Announcer</b> — Lineups → Announcer, or the <b>Announcer link</b>: who\'s on track, in order, with talking points. '
