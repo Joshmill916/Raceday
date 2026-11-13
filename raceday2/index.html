@@ -867,7 +867,7 @@ const GARAGE_KEY = 'rd_garage_v2';
 const ACTIVE_TRACK_KEY = 'rd_active_track_v2';
 // Reported with every usage row and crash. The part after the dot MUST match this app's
 // sw.js CACHE number (tests/test-app-version.js) — bump both together on each release.
-const APP_VERSION = '2026-11-13.v35';
+const APP_VERSION = '2026-11-13.v36';
 const LEGAL_VERSION = '2026-06';   // bump when Terms / Privacy wording changes, so acceptances are versioned
 const TELEMETRY_URL = 'https://script.google.com/macros/s/AKfycbxa3i3y17TLp_NfXOOu2jM7-YzXH2fScxcXoQYmIh0-873rxWfxg0HdRP1DVsxZq6iR/exec';
 const FIREBASE_CONFIG = {
@@ -7144,6 +7144,43 @@ function impParseCSV(text, delim) {
   }
   return rows;
 }
+/* Westhold Race Manager XML (from Julian at Westhold, 2026-11-13). Two kinds, both <RACEDATA>:
+   - XMLExport/<class>.xml, written when a session is stopped: <SESSION> has CLASS, HEAT, MODE
+     (RACE|QUALIFY); each <CAR> has FIRSTNAME/LASTNAME.
+   - racedata.xml, rewritten live during a session: <SESSION> has INFO (class), MODE, FLAG
+     (Green/Yellow/Checkered/Stop…); each <CAR> has NAME and TOTALTIME.
+   RACE files are in finish order, QUALIFY files in fast-time order. Both become the same rows as
+   Race Manager's CSV results (Trns ID → Westhold detected) so the rest of the engine is unchanged.
+   A live file whose flag isn't Stop is a race still running: never imported. */
+function impXmlToCsv(text) {
+  const s = String(text || '');
+  if (!/<RACEDATA[\s>]/i.test(s)) return null;
+  const un = v => v.replace(/<!\[CDATA\[([\s\S]*?)\]\]>/g, '$1').replace(/&lt;/g, '<').replace(/&gt;/g, '>')
+    .replace(/&quot;/g, '"').replace(/&apos;/g, "'").replace(/&#(\d+);/g, (m, n) => String.fromCharCode(+n)).replace(/&amp;/g, '&');
+  const tag = (blk, t) => { const m = blk.match(new RegExp('<' + t + '\\s*>([\\s\\S]*?)</' + t + '\\s*>', 'i')); return m ? un(m[1]).trim() : ''; };
+  const sess = (s.match(/<SESSION\s*>([\s\S]*?)<\/SESSION\s*>/i) || [])[1] || '';
+  const mode = tag(sess, 'MODE').toUpperCase(), flag = tag(sess, 'FLAG');
+  const live = !tag(sess, 'CLASS') && /<FLAG\s*>/i.test(sess);
+  const cls = tag(sess, 'CLASS') || tag(sess, 'INFO'), heat = tag(sess, 'HEAT');
+  const head = ['Place', 'No.', 'Name', 'Trns ID', 'Laps', 'Lag', 'Last Lap', 'Fast Time', 'Total Time', 'Misc'];
+  const rows = [head];
+  (s.match(/<CAR\s*>[\s\S]*?<\/CAR\s*>/gi) || []).forEach(c => {
+    const name = tag(c, 'NAME') || [tag(c, 'FIRSTNAME'), tag(c, 'LASTNAME')].filter(Boolean).join(' ');
+    rows.push([tag(c, 'POSITION'), tag(c, 'CARNO'), name, tag(c, 'TXID'), tag(c, 'LAPS'), tag(c, 'LAG'),
+      tag(c, 'LASTLAP'), tag(c, 'FASTTIME'), tag(c, 'TOTALTIME'), tag(c, 'MISC')]);
+  });
+  // The class goes in a stand-in file name, so the usual file-name class match picks it up.
+  const fileName = [cls, heat, mode === 'QUALIFY' ? 'Qualifying' : ''].filter(Boolean).join(' ') + '.xml';
+  return { csv: csvRows(rows), cls, heat, mode, flag, live, running: live && !/^stop/i.test(flag), cars: rows.length - 1, fileName };
+}
+/* Race Manager writes ISO-8859-1 XML; reading it as UTF-8 would garble accented names. */
+async function impFileText(file) {
+  if (!/\.xml$/i.test(file.name || '')) return file.text();
+  const buf = await file.arrayBuffer();
+  const peek = new TextDecoder('latin1').decode(buf.slice(0, 120));
+  const enc = (peek.match(/encoding=["']([\w-]+)["']/i) || [])[1] || 'utf-8';
+  try { return new TextDecoder(enc).decode(buf); } catch (e) { return new TextDecoder('utf-8').decode(buf); }
+}
 function impGuessColumns(hdr) {
   const h = hdr.map(v => v.trim().toLowerCase());
   const out = { trans:-1, num:-1, name:-1, name2:-1, cls:-1, pos:-1, time:-1 };
@@ -7785,7 +7822,50 @@ function timingSourceCard() {
     : 'Not set yet';
   return '<div class="card"><div class="spread"><span><b>Qualifying &amp; heat times</b><span class="tiny" style="display:block">' + line + '</span></span>'
     + '<button class="btn btn-sm push" onclick="openTimingSourceSheet()">' + (src ? 'Change' : 'Set up') + '</button></div>'
-    + '<p class="tiny" style="margin:8px 0 0">Watching a folder needs Chrome or Edge on the computer that runs your timing software. <a href="/guides/timing-software.html" target="_blank" rel="noopener">What you need + flow chart →</a></p></div>';
+    + '<p class="tiny" style="margin:8px 0 0">Watching a folder needs Chrome or Edge on the computer that runs your timing software. <a href="/guides/timing-software.html" target="_blank" rel="noopener">What you need + flow chart →</a></p>'
+    + '<div class="rowflex" style="margin-top:10px"><button class="btn btn-sm" id="rmLineupBtn" onclick="openRmLineups()">⬇ Lineups for Westhold Race Manager</button></div></div>';
+}
+/* Westhold Race Manager assignment file (format from Julian at Westhold, 2026-11-13): one line per
+   racer, no header, CRLF line ends:
+     <Transponder>,<Racer Number>,<Last Name>,<First Name>,<Misc>,<Backup Transponder>,<Qualify Time>
+   Empty fields keep their commas. Misc shows up in Race Manager's XML too; we put the class name
+   there. Race Manager's CSV has no quoting, so commas are taken out of every field. A driver with
+   no transponder can't be matched by the decoder: left out, and counted on screen. The optional
+   .DAT file (Laps,N) isn't written: laps differ by heat/feature, and Race Manager doesn't need it. */
+function rmLineupRows(clsId) {
+  const cls = classById(clsId);
+  const clean = v => String(v == null ? '' : v).replace(/[,\r\n]+/g, ' ').replace(/\s+/g, ' ').trim();
+  const out = [], missing = [];
+  classRacers(clsId).forEach(r => {
+    const d = driverById(r.id) || {};
+    const tx = impNormTrans(d.trans);
+    if (!tx) { missing.push(r.name); return; }
+    const nm = clean(r.name), sp = nm.lastIndexOf(' ');
+    const first = sp > 0 ? nm.slice(0, sp) : nm, last = sp > 0 ? nm.slice(sp + 1) : '';
+    out.push([clean(tx), clean(r.num), last, first, clean(cls && cls.name).slice(0, 20), '', ''].join(','));
+  });
+  return { lines: out, missing };
+}
+function rmLineupDownload(clsId) {
+  const cls = classById(clsId); if (!cls) return;
+  const r = rmLineupRows(clsId);
+  if (!r.lines.length) { toast('No drivers in ' + cls.name + ' have a transponder number yet.', 'err'); return; }
+  const fname = String(cls.name).replace(/[^\w\- ]+/g, '').trim().replace(/\s+/g, '-').toUpperCase() || 'CLASS';
+  downloadFile(fname + '.CSV', r.lines.join('\r\n') + '\r\n', 'text/csv');
+}
+function openRmLineups() {
+  const list = S.classes.map(c => {
+    const n = classRacers(c.id).length;
+    if (!n) return '';
+    const r = rmLineupRows(c.id);
+    return '<div class="lrow"><span style="flex:1;min-width:0"><b>' + esc(c.name) + '</b><span class="tiny" style="display:block">' + plural(r.lines.length, 'driver')
+      + (r.missing.length ? ' · <span style="color:var(--flag-yellow)">' + r.missing.length + ' with no transponder, left out: ' + esc(r.missing.slice(0, 6).join(', ')) + (r.missing.length > 6 ? '…' : '') + '</span>' : '') + '</span></span>'
+      + '<button class="btn btn-sm" ' + (r.lines.length ? '' : 'disabled ') + 'onclick="rmLineupDownload(' + JSON.stringify(c.id).replace(/"/g, '&quot;') + ')">Download</button></div>';
+  }).join('');
+  openSheet('Lineups for Race Manager',
+    (list ? '<div class="list" id="rmLineupList">' + list + '</div>' : '<p>No one is signed up tonight yet.</p>')
+    + '<p class="tiny" style="margin-top:10px">Each class downloads as an assignment file (transponder, number, last name, first name). In Race Manager, open it from the assignment page before that class goes out.</p>',
+    '<button class="btn push" onclick="closeSheet()">Done</button>');
 }
 
 function openImport(target) {
@@ -7812,10 +7892,10 @@ function impBodyMarkup() {
   return '<div id="impStepper" class="tabs"></div>'
     + impWatchMarkup()
     + '<div class="card">'
-    + '<div class="rowflex"><button class="btn btn-primary" onclick="document.getElementById(\'impFile\').click()">📄 Choose CSV file</button>'
-    + '<input id="impFile" type="file" accept=".csv,.txt,.tsv,text/csv,text/plain,text/tab-separated-values" style="display:none" onchange="impLoadCsv(this)">'
+    + '<div class="rowflex"><button class="btn btn-primary" onclick="document.getElementById(\'impFile\').click()">📄 Choose results file</button>'
+    + '<input id="impFile" type="file" accept=".csv,.txt,.tsv,.xml,text/csv,text/plain,text/tab-separated-values,text/xml,application/xml" style="display:none" onchange="impLoadCsv(this)">'
     + '<span class="tiny" id="impCsvInfo" style="display:none"></span></div>'
-    + '<p class="tiny" style="margin-top:8px">Export a results file from your timing software — CSV or tab-separated. Reads MYLAPS Orbits, Westhold Race Manager, MotoSponder and most others by their column names.</p>'
+    + '<p class="tiny" style="margin-top:8px">Export a results file from your timing software — CSV, tab-separated, or Race Manager XML. Reads MYLAPS Orbits, Westhold Race Manager (CSV or the XMLExport folder), MotoSponder and most others.</p>'
     + '<div id="impClsMode" style="display:none;margin-top:14px">'
     +   '<div class="seg"><button class="on" id="impCmOne" onclick="impSetClsMode(false,true)">One class for this file</button>'
     +   '<button id="impCmCol" onclick="impSetClsMode(true,true)">Use the file\'s Class column</button></div>'
@@ -7836,14 +7916,22 @@ function impLoadCsv(input) {
   const f = input.files && input.files[0];
   input.value = '';
   if (!f || !Imp) return;
-  const fr = new FileReader();
-  fr.onload = () => impIngestText(String(fr.result || ''), f.name);
-  fr.readAsText(f);
+  impFileText(f).then(t => impIngestText(String(t || ''), f.name)).catch(() => toast("Couldn't read that file.", 'err'));
 }
 /* Rewritten for v2's markup (v1's version hard-coded fixed-overlay DOM ids);
    the parsing/detection calls it makes are the same engine functions. */
 function impIngestText(text, filename, fromWatch) {
   if (!Imp) return false;
+  const shownName = filename;
+  const xml = impXmlToCsv(text);
+  if (xml) {
+    if (xml.running) {
+      if (!fromWatch) toast('That Race Manager file is from a session still running (flag: ' + (xml.flag || 'none') + '). Load it after you press Stop.', 'err');
+      return false;
+    }
+    if (!xml.cars) { if (!fromWatch) toast('That Race Manager file has no drivers in it.', 'err'); return false; }
+    text = xml.csv; filename = xml.fileName;
+  }
   const delim = impDetectDelim(String(text || ''));
   const rows = impParseCSV(String(text || ''), delim);
   if (rows.length < 2) { toast("That file doesn't look like a results file (no data rows).", 'err'); return false; }
@@ -7854,7 +7942,7 @@ function impIngestText(text, filename, fromWatch) {
   Imp.cols = impGuessColumns(Imp.header);
   Imp.rc = impReadChecks(Imp.header, Imp.rows);
   {
-    const isPrac = /(^|[^a-z])practice([^a-z]|$)/i.test(String(filename || ''));
+    const isPrac = /(^|[^a-z])practice([^a-z]|$)/i.test(String(shownName || '') + ' ' + String(filename || ''));
     const steps = impPipeline(), pi = steps.findIndex(x => x.target === 'practice');
     if (isPrac && Imp.target !== 'practice' && pi >= 0) { Imp.stepBeforePrac = Imp.step; Imp.step = pi; Imp.target = 'practice'; impRenderStepper(); }
     else if (!isPrac && Imp.target === 'practice' && Imp.stepBeforePrac != null) {
@@ -7888,7 +7976,8 @@ function impIngestText(text, filename, fromWatch) {
 
   const info = document.getElementById('impCsvInfo');
   info.style.display = '';
-  info.innerHTML = plural(Imp.rows.length, 'row') + (filename ? ' from <b>' + esc(filename) + '</b>' : ' loaded')
+  info.innerHTML = plural(Imp.rows.length, 'row') + (shownName ? ' from <b>' + esc(shownName) + '</b>' : ' loaded')
+    + (xml ? ' · Race Manager ' + (xml.mode === 'QUALIFY' ? 'qualifying' : 'race') + ' file' + (xml.cls ? ', class <b>' + esc(xml.cls) + '</b>' : '') + (xml.heat ? ', ' + esc(xml.heat) : '') : '')
     + (Imp.vendor ? ' · <span style="color:var(--flag-green)">' + esc(Imp.vendor.name) + ' format detected</span>' : '')
     + (hi > 0 ? ' · skipped ' + hi + ' title line' + (hi > 1 ? 's' : '') + ' above the header' : '') + '.';
   document.getElementById('impClsMode').style.display = '';
@@ -8042,7 +8131,7 @@ async function impScanFolder() {
   try {
     const found = [];
     for await (const [name, handle] of dir.entries()) {
-      if (handle.kind === 'file' && /\.(csv|tsv|txt)$/i.test(name)) {
+      if (handle.kind === 'file' && /\.(csv|tsv|txt|xml)$/i.test(name)) {
         const file = await handle.getFile();
         found.push({ name, file, lastModified: file.lastModified });
       }
@@ -8059,7 +8148,7 @@ async function impScanFolder() {
     // Still being written (saved within the last ~1.5s)? Wait for the next scan.
     if (Date.now() - newest.lastModified < 1500) return;
     Imp.watchSeen[newest.name] = newest.lastModified;
-    const text = await newest.file.text();
+    const text = await impFileText(newest.file);
     const ts = new Date(newest.lastModified).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit' });
     impWatchSay('loaded <b>' + esc(newest.name) + '</b> at ' + ts + '.');
     impIngestText(text, newest.name, true);

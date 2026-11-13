@@ -218,6 +218,13 @@ profile that follows them across every RaceDay track they race at.
   words, and matches an existing class before dropping numbers ("Junior 2"); the missed-read check falls back to the middle
   last lap when a file has no best-lap column (Westhold race files); laps-down is not flagged in qualifying. Guard:
   `tests/v2/test-v2-timing-night.js` (a whole night per layout: Orbits, Westhold, spreadsheet export + 21 file names).
+- **Westhold Race Manager XML + lineups** (2026-11-13, v2 only; format from Julian at Westhold): `impXmlToCsv()` turns Race
+  Manager's `<RACEDATA>` XML (XMLExport file at Stop: CLASS/HEAT/MODE + FIRSTNAME/LASTNAME; live `racedata.xml`: INFO/FLAG + NAME)
+  into Westhold CSV rows, class via a stand-in file name; a live file whose FLAG isn't Stop is never imported. Folder watch and the
+  file picker read `.xml` (`impFileText` honors ISO-8859-1). Admin → Race format → Lineups for Westhold Race Manager
+  (`openRmLineups`/`rmLineupRows`) downloads one headerless assignment CSV per class: `Transponder,Number,Last,First,Misc(class),,`
+  (CRLF, commas stripped, no-transponder drivers left out and named). Fixtures: `test-data/westhold-xml/` (Westhold's Demo files).
+  Guard: `tests/v2/test-v2-westhold-xml.js` + the "Westhold XML" night in `tests/v2/test-v2-timing-night.js`
 - **Hostile-input limits** (2026-11-11, `raceday2/`): driver names 40 chars with spaces collapsed (`signupVals()`, timing-import
   new drivers), class names 60 with blank/duplicate refused (`addClass`/`addClassNamed`), lineup grids use `minmax(0,1fr)` and
   name rows wrap/trim so nothing widens a phone; `register()` ignores a tap after the form is gone; the DEMO watermark sits
