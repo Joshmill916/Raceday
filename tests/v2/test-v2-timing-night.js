@@ -1,6 +1,7 @@
 // A whole race night through the timing import, once per timing system's file layout, in RaceDay 2:
 // MYLAPS Orbits (tab-separated, title lines, First/Last Name, Transponder, "… Results.txt" names),
 // Westhold Race Manager (Place/No./Name/Trns ID, no class column: class from the file name) and a
+// Westhold Race Manager XML (XMLExport at Stop + live racedata.xml), and a
 // plain spreadsheet export (BOM, Windows line endings, "Last, First" names, no transponders).
 // MotoSponder has its own real-night test (tests/test-motosponder-night.js).
 //
@@ -37,6 +38,23 @@ const LAYOUTS = {
     name: (cls, sess) => cls + ' ' + sess + '.csv',
     file: (cls, sess, rows) => [sess === 'Qualifying' || sess === 'Practice' ? 'Place,No.,Name,Trns ID,Laps,Fast Lap,Fast Time,Last Time' : 'Place,No.,Name,Trns ID,Laps,Lag,Scored Time,Last Time']
       .concat(rows.map(r => [r.pos, r.d.num, full(r.d), r.d.trans, r.laps, sess === 'Qualifying' || sess === 'Practice' ? 3 : '0.000', r.best.toFixed(3), sec(r.last)].join(','))).join('\n'),
+  },
+  // Race Manager XML (format from Westhold, 2026-11-13). Qualifying/practice come as the XMLExport
+  // file written at Stop (CLASS/HEAT/MODE, FIRSTNAME/LASTNAME); races as the live racedata.xml once
+  // its flag is Stop (INFO/FLAG, NAME). No Class column: the class comes from <CLASS>/<INFO>.
+  'Westhold XML': {
+    trans: true,
+    name: (cls, sess) => (/Qualifying|Practice/.test(sess) ? cls + (sess === 'Practice' ? ' Practice' : '-Q') + '.xml' : 'racedata.xml'),
+    file: (cls, sess, rows) => {
+      const q = /Qualifying|Practice/.test(sess), x = v => String(v).replace(/&/g, '&amp;').replace(/</g, '&lt;');
+      const t = (k, v) => '\t\t<' + k + '>' + x(v) + '</' + k + '>';
+      const sessXml = q ? [t('ORGANIZATION', ''), t('CLASS', cls), t('HEAT', 'Heat 1'), t('DATE', '11/15/26'), t('TIME', '07:10PM'), t('MODE', 'QUALIFY')]
+        : [t('INFO', cls), t('MODE', 'RACE'), t('FLAG', 'Stop'), t('LAP', rows[0] ? rows[0].laps : 0), t('STARTTIME', '19:40:00')];
+      return '<?xml version="1.0" encoding="ISO-8859-1"?>\n<RACEDATA>\n\t<SESSION>\n' + sessXml.join('\n') + '\n\t</SESSION>\n'
+        + rows.map(r => '\t<CAR>\n' + [t('POSITION', r.pos)].concat(q ? [t('FIRSTNAME', r.d.first), t('LASTNAME', r.d.last)] : [t('NAME', full(r.d))])
+          .concat([t('CARNO', r.d.num), t('TXID', r.d.trans), t('LAPS', r.laps), t('LAG', '00.000'), t('LASTLAP', sec(r.last)), t('FASTTIME', r.best.toFixed(3)), t('MISC', 'A')]).join('\n') + '\n\t</CAR>\n').join('')
+        + '</RACEDATA>\n';
+    },
   },
   'Spreadsheet export': {
     trans: false,
