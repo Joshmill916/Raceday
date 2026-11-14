@@ -867,7 +867,7 @@ const GARAGE_KEY = 'rd_garage_v2';
 const ACTIVE_TRACK_KEY = 'rd_active_track_v2';
 // Reported with every usage row and crash. The part after the dot MUST match this app's
 // sw.js CACHE number (tests/test-app-version.js) — bump both together on each release.
-const APP_VERSION = '2026-11-14.v39';
+const APP_VERSION = '2026-11-14.v40';
 const LEGAL_VERSION = '2026-06';   // bump when Terms / Privacy wording changes, so acceptances are versioned
 const TELEMETRY_URL = 'https://script.google.com/macros/s/AKfycbxa3i3y17TLp_NfXOOu2jM7-YzXH2fScxcXoQYmIh0-873rxWfxg0HdRP1DVsxZq6iR/exec';
 const FIREBASE_CONFIG = {
@@ -2150,14 +2150,37 @@ function stopDrivenScan() {
 }
 function cancelDrivenScan() { stopDrivenScan(); hideModal('scanHost'); }
 
-function linkProfile(driverId, codeOrId) {
+/* Same person? Exact match after tidying, or the same last name with first names that start alike
+   ("Mike"/"Michael", "Jake Smith"/"Jacob Smith"). Anything else asks a person before linking. */
+function sameDriverName(a, b) {
+  const t = x => impNormName(x || '').split(' ').filter(Boolean);
+  const A = t(a), B = t(b);
+  if (!A.length || !B.length) return true;
+  if (A.join(' ') === B.join(' ')) return true;
+  return A[A.length - 1] === B[B.length - 1] && A[0][0] === B[0][0];
+}
+// quiet: refreshes and offline retries of a link a person already made skip the questions.
+function linkProfile(driverId, codeOrId, quiet) {
   const d = driverById(driverId);
   if (!d) return Promise.reject(new Error('no driver'));
   const raw = String(codeOrId || '').trim();
   return ensureFirebase().then(() => resolveProfileId(raw)).then(id =>
     firebase.database().ref('profiles/' + id + '/card').once('value').then(snap => {
+      const raw0 = snap.val() || {};
       const clean = sanitizeProfileCard(id, snap.val());
+      const cardName = profStr(raw0.name, 40), cardNum = profStr(raw0.num, 8);   // the card as published; clean keeps neither
       if (!clean) { const e = new Error('no published card'); e.known = true; throw e; }
+      if (!quiet && d.profileId !== id) {
+        // Results go to this card as verified, so a wrong link puts one driver's night on another's card.
+        const other = (S.roster || []).find(o => o.id !== d.id && o.profileId === id);
+        if (other && !confirm('This Driven card is already linked to ' + other.name + '.\n\nMove it to ' + d.name + '? ' + other.name + ' will be unlinked.')) {
+          const e = new Error('declined'); e.known = true; e.declined = true; throw e;
+        }
+        if (!sameDriverName(cardName, d.name) && !confirm('This Driven card is for ' + cardName + (cardNum ? ' #' + cardNum : '') + '.\n\nLink it to ' + d.name + ' anyway? Their results will show on that card.')) {
+          const e = new Error('declined'); e.known = true; e.declined = true; throw e;
+        }
+        if (other) { delete other.profileId; delete other.profileCode; delete other.profile; logAudit('Moved Driven card', other.name, d.name, ''); }
+      }
       d.profileId = id;
       d.profileCode = raw.toUpperCase();
       d.profile = clean;
@@ -2186,7 +2209,7 @@ function retryPendingProfiles() {
   if (GUEST) return;
   (S.roster || []).forEach(d => {
     if (d.profile && d.profile.pendingFetch && (d.profileId || d.profileCode)) {
-      linkProfile(d.id, d.profileId || d.profileCode)
+      linkProfile(d.id, d.profileId || d.profileCode, true)
         .then(() => { if (driverCardId === d.id) renderDriverCard(); })
         .catch(() => {});
     }
@@ -4880,6 +4903,8 @@ function register() {
   renderSignup();
   renderRaceControl();
   window.scrollTo(0, 0);
+  const tx = impNormTrans(driver.trans), dups = tx ? dupTransTonight() : {};
+  if (dups[tx]) toast('⚠ Transponder ' + tx + ' is also on ' + dups[tx].filter(n => n !== driver.name).join(', ') + ' tonight. Check whose kart it is — timing results follow the transponder.', 'err');
 }
 
 function doneMarkup(driver, drawn) {
@@ -6979,6 +7004,7 @@ function linkProfilePrompt() {
     .then(renderDriverCard)
     .catch(err => {
       renderDriverCard();
+      if (err && err.declined) return;
       toast(err && err.pending ? 'Linked — the card loads when this device is online.'
         : "That code didn't match a published card — check it and try again.", err && err.pending ? 'ok' : 'err');
     });
@@ -6994,14 +7020,14 @@ function autoRefreshProfile(d) {
   if (_profAutoRefreshed[d.id] && now - _profAutoRefreshed[d.id] < 60000) return;
   _profAutoRefreshed[d.id] = now;
   const before = JSON.stringify(d.profile || {});
-  linkProfile(d.id, d.profileId).then(() => {
+  linkProfile(d.id, d.profileId, true).then(() => {
     if (driverCardId === d.id && JSON.stringify(d.profile || {}) !== before) renderDriverCard();
   }).catch(() => {});
 }
 function refreshProfile() {
   const d = driverById(driverCardId); if (!d || !(d.profileId || d.profileCode)) return;
   if (d.profile && d.profile.demoOnly) { toast('This is demo data — nothing to refresh.'); return; }
-  linkProfile(d.id, d.profileId || d.profileCode)
+  linkProfile(d.id, d.profileId || d.profileCode, true)
     .then(renderDriverCard)
     .catch(() => { renderDriverCard(); toast("Couldn't refresh — check the connection.", 'err'); });
 }
@@ -7271,11 +7297,11 @@ function impMatchDriver(row, clsId) {
   const inCls = new Set(clsId > 0 ? (S.raceDay.entries || []).filter(e => e.classId === clsId).map(e => e.driverId) : []);
   const prefer = list => { const a = list.filter(d => inCls.has(d.id)); return a.length ? a : list; };
   const nn = name ? impNormName(name) : '';
-  let driver = null, matchedBy = '', numShared = false;
+  let driver = null, matchedBy = '', numShared = false, transShared = false;
   if (trans && impNormTrans(trans)) {
     const nt = impNormTrans(trans);
     const c = prefer(roster.filter(d => d.trans && impNormTrans(d.trans) === nt));
-    if (c.length) { driver = c[0]; matchedBy = 'transponder'; }
+    if (c.length) { driver = c[0]; matchedBy = 'transponder'; transShared = c.length > 1; }   // rentals, borrowed karts: say so
   }
   if (!driver && num) {
     const numLc = num.toLowerCase();
@@ -7301,7 +7327,7 @@ function impMatchDriver(row, clsId) {
   const nameConflict = !!(driver && name && driver.name && impNormName(driver.name) !== impNormName(name));
   const nameSuspect = impNameSuspect(name, num);
   const canCreate = !!(num || name || trans);
-  return { driver, matchedBy, num, name, trans, transConflict, numConflict, nameConflict, nameSuspect, canCreate, numShared };
+  return { driver, matchedBy, num, name, trans, transConflict, numConflict, nameConflict, nameSuspect, canCreate, numShared, transShared };
 }
 
 function impClsResolve(row) {
@@ -7531,6 +7557,7 @@ function impComputePreview() {
         const inClass = (S.raceDay.entries||[]).some(e => e.driverId === m.driver.id && e.classId === cid);
         if (!inClass) { status = 'skip'; note = 'Not entered in this class (no pill yet)'; }
       }
+      if (status !== 'skip' && m.transShared && status !== 'conflict') { status = 'conflict'; note = (note ? note + ' · ' : '') + 'Transponder ' + m.trans + ' is saved on two drivers: check who ran it'; }
       if (status !== 'skip' && m.numShared && status !== 'conflict') { status = 'conflict'; note = (note ? note + ' · ' : '') + 'Two drivers wear #' + m.num + ' here: check it is the right one'; }
       if (Imp.target === 'bmain' && status !== 'skip') {
         const fd = cid > 0 ? (bmFd[cid] = bmFd[cid] || featureData(cid)) : null;
@@ -7621,6 +7648,7 @@ function impApply(opts) {
   }
 
   // Resolve / create drivers
+  const notLearned = [];   // transponders a weak match didn't save (reported below)
   const resolved = toAct.map(r => {
     let driver = r.driver;
     if (!driver) {
@@ -7629,7 +7657,15 @@ function impApply(opts) {
       driver = { id: genDriverId(), name: nameVal, num: numVal, trans: impNormTrans(r.trans) };
       S.roster.push(driver);
     } else {
-      if (r.trans && !driver.trans) driver.trans = impNormTrans(r.trans);                       // learn
+      // Learn a transponder only when the file's number AND name both agree with this driver, and
+      // nobody else already has it: a wrong one learned here would go to Race Manager and make
+      // every later session look right while crediting the wrong driver.
+      if (r.trans && !driver.trans) {
+        const nt = impNormTrans(r.trans);
+        const strong = r.num && r.name && !r.numConflict && !r.nameConflict && !r.nameSuspect;
+        const taken = (S.roster || []).some(o => o.id !== driver.id && o.trans && impNormTrans(o.trans) === nt);
+        if (strong && !taken) driver.trans = nt; else notLearned.push(driver.name + ' (' + nt + ')');
+      }
       if (r.transConflict && Imp.updTrans && r.trans) driver.trans = impNormTrans(r.trans);     // update
       if (r.numConflict && Imp.updNum && r.num && /^[A-Za-z0-9]{1,5}$/.test(r.num)) driver.num = r.num;
       // Heal a placeholder/numeric book name from the file (self-corrects a prior bad import), or update on request.
@@ -7738,7 +7774,8 @@ function impApply(opts) {
   markFeature('import');
   const what = { qual: done + ' drivers placed on the grid', heat: done + ' heat finishes', bmain: done + ' B-main finishes', feat: done + ' feature finishes' }[target];
   const skipMsg = (skipped ? ' ' + skipped + ' rows skipped.' : '')
-    + (keptBack ? ' ' + plural(keptBack, 'driver') + ' not in the file kept at the back.' : '');
+    + (keptBack ? ' ' + plural(keptBack, 'driver') + ' not in the file kept at the back.' : '')
+    + (notLearned.length ? ' Transponders not saved (number and name didn\'t both match, or someone else has it): ' + notLearned.slice(0, 5).join(', ') + (notLearned.length > 5 ? '…' : '') + ' — add them on the driver card if they\'re right.' : '');
   if (Imp && Imp.lastHash) impDoneSet(impDoneKey(), Imp.lastHash);
   if (keepOpen) {
     // Watch mode: keep the overlay open and the folder watch running; report inline.
@@ -7871,19 +7908,29 @@ function timingSourceCard() {
    there. Race Manager's CSV has no quoting, so commas are taken out of every field. A driver with
    no transponder can't be matched by the decoder: left out, and counted on screen. The optional
    .DAT file (Laps,N) isn't written: laps differ by heat/feature, and Race Manager doesn't need it. */
+/* Transponders saved on two or more different drivers entered tonight (rental tags, last week's
+   driver still holding one). Map normalized transponder -> [driver names]. */
+function dupTransTonight() {
+  const seen = {}, ids = new Set((S.raceDay.entries || []).map(e => e.driverId));
+  ids.forEach(id => { const d = driverById(id); const t = d && impNormTrans(d.trans); if (t) (seen[t] = seen[t] || new Set()).add(id); });
+  const out = {};
+  Object.keys(seen).forEach(t => { if (seen[t].size > 1) out[t] = [...seen[t]].map(id => (driverById(id) || {}).name || '?'); });
+  return out;
+}
 function rmLineupRows(clsId) {
   const cls = classById(clsId);
   const clean = v => String(v == null ? '' : v).replace(/[,\r\n]+/g, ' ').replace(/\s+/g, ' ').trim();
-  const out = [], missing = [];
+  const out = [], missing = [], dup = [], dups = dupTransTonight();
   classRacers(clsId).forEach(r => {
     const d = driverById(r.id) || {};
     const tx = impNormTrans(d.trans);
     if (!tx) { missing.push(r.name); return; }
+    if (dups[tx]) { dup.push(r.name + ' (' + tx + ')'); return; }   // left out until fixed: Race Manager would credit one of them
     const nm = clean(r.name), sp = nm.lastIndexOf(' ');
     const first = sp > 0 ? nm.slice(0, sp) : nm, last = sp > 0 ? nm.slice(sp + 1) : '';
     out.push([clean(tx), clean(r.num), last, first, clean(cls && cls.name).slice(0, 20), '', ''].join(','));
   });
-  return { lines: out, missing };
+  return { lines: out, missing, dup };
 }
 function rmLineupDownload(clsId) {
   const cls = classById(clsId); if (!cls) return;
@@ -7898,7 +7945,12 @@ function rmLineupDownload(clsId) {
    transponders change — here or on a synced sign-up tablet — and Race Manager's Auto Refresh picks it
    up. Lines are sorted by car number, so a pill draw or qualifying never touches the file: Race
    Manager's list only changes when a driver is actually added or a transponder changes. */
-var RmSync = { dir: null, ok: false, timer: null, last: {}, err: '' };   // var: save() can run before this line
+var RmSync = { dir: null, ok: false, timer: null, last: {}, err: '', held: {} };   // var: save() can run before this line
+/* What RaceDay last wrote to each Assign file (rd_rm_last = {file: fingerprint}, this computer). If the
+   file there now is different, someone fixed it in Race Manager: RaceDay holds that class instead of
+   overwriting the fix, until a person chooses on the Lineups screen. */
+function rmLastAll() { try { return JSON.parse(localStorage.getItem('rd_rm_last') || '{}') || {}; } catch (e) { return {}; } }
+function rmLastSet(name, h) { const m = rmLastAll(); if (h) m[name] = h; else delete m[name]; try { localStorage.setItem('rd_rm_last', JSON.stringify(m)); } catch (e) {} }
 function rmFileName(cls) { return (String(cls.name).replace(/[^\w\- ]+/g, '').trim().replace(/\s+/g, '-').toUpperCase() || 'CLASS') + '.CSV'; }
 function rmSyncContent(clsId) {
   const lines = rmLineupRows(clsId).lines.slice().sort((a, b) => a.split(',')[1].localeCompare(b.split(',')[1], undefined, { numeric: true }));
@@ -7938,6 +7990,8 @@ async function rmResumeAssign() {
   if (RmSync.ok) { RmSync.err = ''; RmSync.last = {}; await rmSyncNow(); }
   openRmLineups();
 }
+async function rmUseRaceDay(name) { delete RmSync.held[name]; await rmSyncNow({ [name]: true }); openRmLineups(); }
+function rmKeepTheirs(name) { toast('Kept Race Manager\'s version. Change that class\'s drivers in RaceDay and it will ask again.'); }
 async function rmStopAssign() {
   RmSync.dir = null; RmSync.ok = false; RmSync.last = {}; RmSync.err = '';
   await saveAssignDir(null);
@@ -7948,18 +8002,27 @@ function rmQueueSync() {
   clearTimeout(RmSync.timer);
   RmSync.timer = setTimeout(rmSyncNow, 1500);
 }
-async function rmSyncNow() {
+async function rmSyncNow(force) {
   if (!RmSync.dir || !RmSync.ok) return 0;
   let wrote = 0;
   for (const c of S.classes) {
     const body = rmSyncContent(c.id);
     if (!body) continue;   // nobody with a transponder in this class: leave Race Manager's file alone
     const name = rmFileName(c);
-    if (RmSync.last[name] === body) continue;
+    if (RmSync.last[name] === body && !(force && force[name])) continue;
+    let there = null;
+    try { const fh0 = await RmSync.dir.getFileHandle(name); there = await (await fh0.getFile()).text(); } catch (e) { there = null; }   // not there yet
+    const mine = rmLastAll()[name];
+    if (there !== null && there !== body && impHash(there) !== mine && !(force && force[name])) {
+      if (!RmSync.held[name]) toast('Race Manager\'s lineup for ' + c.name + ' was changed outside RaceDay — not overwritten. Open Admin → Race format → Lineups to choose.', 'err');
+      RmSync.held[name] = c.name;
+      continue;
+    }
+    if (there === body) { RmSync.last[name] = body; rmLastSet(name, impHash(body)); delete RmSync.held[name]; continue; }
     try {
       const fh = await RmSync.dir.getFileHandle(name, { create: true });
       const w = await fh.createWritable(); await w.write(body); await w.close();
-      RmSync.last[name] = body; wrote++;
+      RmSync.last[name] = body; rmLastSet(name, impHash(body)); delete RmSync.held[name]; wrote++;
     } catch (e) {
       RmSync.ok = false; RmSync.err = String((e && e.message) || e);
       toast('Race Manager lineups stopped saving — open Admin → Race format → Lineups to resume.', 'err');
@@ -7971,7 +8034,11 @@ async function rmSyncNow() {
 function rmAssignCard() {
   if (!canWatchFolder()) return '';
   const name = RmSync.dir && RmSync.dir.name;
-  if (name && RmSync.ok) return '<div class="card"><b>✅ Saving straight to Race Manager</b>'
+  const held = Object.keys(RmSync.held || {});
+  const heldHtml = held.length ? '<div class="note note-warn" style="margin:0 0 8px">⚠ Changed in Race Manager since RaceDay saved it, so RaceDay left it alone: '
+    + held.map(f => '<div style="margin-top:6px"><b>' + esc(RmSync.held[f]) + '</b> <button class="btn btn-sm" onclick="rmUseRaceDay(' + JSON.stringify(f).replace(/"/g, '&quot;') + ')">Use RaceDay\'s lineup</button></div>').join('')
+    + '<div class="tiny" style="margin-top:6px">Someone may have fixed a name or transponder at the timing stand. Make the same fix in RaceDay, or choose RaceDay\'s lineup.</div></div>' : '';
+  if (name && RmSync.ok) return '<div class="card">' + heldHtml + '<b>✅ Saving straight to Race Manager</b>'
     + '<p class="tiny" style="margin:4px 0 8px">Each class\'s lineup goes into <b>' + esc(name) + '</b> on this computer and updates by itself when drivers or transponders change. In Race Manager, turn on <b>Auto Refresh</b> on the assignment page.</p>'
     + '<button class="btn btn-sm" onclick="rmStopAssign()">Stop saving there</button></div>';
   if (name) return '<div class="card"><b>Paused: saving to ' + esc(name) + '</b>'
@@ -7987,7 +8054,8 @@ function openRmLineups() {
     if (!n) return '';
     const r = rmLineupRows(c.id);
     return '<div class="lrow"><span style="flex:1;min-width:0"><b>' + esc(c.name) + '</b><span class="tiny" style="display:block">' + plural(r.lines.length, 'driver')
-      + (r.missing.length ? ' · <span style="color:var(--flag-yellow)">' + r.missing.length + ' with no transponder, left out: ' + esc(r.missing.slice(0, 6).join(', ')) + (r.missing.length > 6 ? '…' : '') + '</span>' : '') + '</span></span>'
+      + (r.missing.length ? ' · <span style="color:var(--flag-yellow)">' + r.missing.length + ' with no transponder, left out: ' + esc(r.missing.slice(0, 6).join(', ')) + (r.missing.length > 6 ? '…' : '') + '</span>' : '')
+      + (r.dup.length ? ' · <span style="color:var(--pit-red)">⚠ same transponder on two drivers, left out until fixed: ' + esc(r.dup.slice(0, 6).join(', ')) + '</span>' : '') + '</span></span>'
       + '<button class="btn btn-sm" ' + (r.lines.length ? '' : 'disabled ') + 'onclick="rmLineupDownload(' + JSON.stringify(c.id).replace(/"/g, '&quot;') + ')">Download</button></div>';
   }).join('');
   openSheet('Lineups for Race Manager', rmAssignCard() +
@@ -8323,7 +8391,7 @@ function impAutoApply() {
   const prev = impDoneGet(impDoneKey());
   if (prev && prev === Imp.lastHash) { impWatchSay('<b>' + esc(Imp.lastFile || 'that file') + '</b> is already in — no changes.'); return; }
   if (prev) { impWatchSay('⚠ <b>' + esc(Imp.lastFile || 'that session') + '</b> was saved again with changes. It already went in once, so it waits for you: check the preview, then tap Import ✓ to replace it.'); return; }
-  const clean = active.every(r => r.status === 'match' && !r.nameSuspect && !r.timeBad && !r.transConflict && !r.numConflict && !r.nameConflict && !(r.chk && r.chk.some(c => c.hard)));
+  const clean = active.every(r => r.status === 'match' && !r.nameSuspect && !r.timeBad && !r.transConflict && !r.transShared && !r.numConflict && !r.nameConflict && !(r.chk && r.chk.some(c => c.hard)));
   if (clean) impApply({ silent: true });
   else impWatchSay('⚠ <b>' + esc(Imp.lastFile || 'that file') + '</b> needs a look — check the preview below, then tap Import ✓.');
 }

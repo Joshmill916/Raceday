@@ -39,10 +39,12 @@ const RACERS = read('DEMO.CSV').trim().split(/\r?\n/).map(l => { const c = l.spl
         } }];
       } };
     const assign = { kind: 'directory', name: 'Assign', requestPermission: async () => 'granted', queryPermission: async () => 'granted',
-      getFileHandle: async (name) => ({ createWritable: async () => {
+      getFileHandle: async (name, opt) => {
+        if (!(opt && opt.create) && !(name in window.__assign)) throw new DOMException('not found', 'NotFoundError');
+        return { getFile: async () => ({ text: async () => window.__assign[name] }), createWritable: async () => {
         if (window.__assignFail) throw new DOMException('denied', 'NotAllowedError');
         let buf = ''; return { write: async t => { buf += t; }, close: async () => { window.__assign[name] = buf; window.__writes.push(name); } };
-      } }) };
+      } }; } };
     window.showDirectoryPicker = async (o) => (o && o.mode === 'readwrite' ? assign : results);
   });
   const p = await ctx.newPage();
@@ -111,7 +113,7 @@ const RACERS = read('DEMO.CSV').trim().split(/\r?\n/).map(l => { const c = l.spl
 
   console.log('\n=== 5. Lineups straight into the Assign folder ===');
   await setup();
-  await p.evaluate(() => { closeSheet(); openRmLineups(); });
+  await p.evaluate(() => { closeSheet(); localStorage.removeItem('rd_rm_last'); openRmLineups(); });
   check('the lineup sheet offers to pick the Assign folder', await p.evaluate(() => /Pick the Assign folder/.test(document.getElementById('sheetBody').textContent)));
   await p.evaluate(() => rmPickAssign()); await p.waitForTimeout(300);
   const file = await p.evaluate(() => window.__assign['DEMO.CSV'] || '');
