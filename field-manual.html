@@ -118,8 +118,15 @@ location.replace('https://'+location.host+location.pathname+location.search+loca
     height: 100vh; overflow-y: auto; padding: 28px 18px 60px;
     border-right: 1px solid var(--border); background: var(--surface);
   }
-  .toc-brand { display: flex; align-items: baseline; gap: 8px; margin-bottom: 4px; }
-  .toc-brand .flag { font-size: 20px; }
+  .toc-brand { display: flex; flex-direction: column; align-items: flex-start; gap: 2px; margin-bottom: 4px; }
+  .toc-brand img { display: block; margin-bottom: 6px; height: auto; }
+  .logo-on-dark { display: none !important; }
+  :root[data-theme="dark"] .logo-on-dark { display: block !important; }
+  :root[data-theme="dark"] .logo-on-light { display: none !important; }
+  @media (prefers-color-scheme: dark) {
+    :root:not([data-theme="light"]) .logo-on-dark { display: block !important; }
+    :root:not([data-theme="light"]) .logo-on-light { display: none !important; }
+  }
   .toc-brand h1 { font-size: 20px; margin: 0; letter-spacing: .02em; }
   .toc-sub { font-family: 'Overpass'; text-transform: none; font-size: 12.5px; color: var(--text-muted); margin: 0 0 22px; }
   .toc nav { display: flex; flex-direction: column; gap: 22px; }
@@ -272,7 +279,7 @@ location.replace('https://'+location.host+location.pathname+location.search+loca
 <div class="shell">
   <button class="toc-toggle" onclick="document.querySelector('.toc').classList.toggle('open')">☰ Contents</button>
   <aside class="toc">
-    <div class="toc-brand"><span class="flag">🏁</span><h1>Field Manual</h1></div>
+    <div class="toc-brand"><img class="logo-on-light" src="/img/logo-raceday-light.svg" alt="RaceDay" width="132" height="20"><img class="logo-on-dark" src="/img/logo-raceday.svg" alt="RaceDay" width="132" height="20"><h1>Field Manual</h1></div>
     <p class="toc-sub">RaceDay (new &amp; classic) · Driven — every workflow, screen by screen.</p>
     <nav>
       <div>
