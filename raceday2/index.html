@@ -867,7 +867,7 @@ const GARAGE_KEY = 'rd_garage_v2';
 const ACTIVE_TRACK_KEY = 'rd_active_track_v2';
 // Reported with every usage row and crash. The part after the dot MUST match this app's
 // sw.js CACHE number (tests/test-app-version.js) — bump both together on each release.
-const APP_VERSION = '2026-11-13.v36';
+const APP_VERSION = '2026-11-13.v37';
 const LEGAL_VERSION = '2026-06';   // bump when Terms / Privacy wording changes, so acceptances are versioned
 const TELEMETRY_URL = 'https://script.google.com/macros/s/AKfycbxa3i3y17TLp_NfXOOu2jM7-YzXH2fScxcXoQYmIh0-873rxWfxg0HdRP1DVsxZq6iR/exec';
 const FIREBASE_CONFIG = {
@@ -3033,20 +3033,39 @@ function demoJoinQr() {
   if (ready) { const cv = document.getElementById('demoJoinQR'); if (cv) drawQR(cv, demoJoinUrl()); }
   else setTimeout(() => { if (sheetOpen() && document.getElementById('sheetTitle').textContent === 'Join the live demo') demoJoinQr(); }, 1500);
 }
+/* Sample transponder numbers for the demo's drivers (sample data only): a stored one, or one made from
+   the driver's place in the driver book, so the import and the lineup download agree on them. */
+function demoTx(d) { return (d && d.trans) || String(7100000 + Math.max(0, S.roster.indexOf(d))); }
+/* The sample heat comes as a Westhold Race Manager XML file (what Race Manager writes at Stop), so the
+   prospect sees the format detected and transponders learned. */
 function demoSampleImport() {
   const cls = S.classes.find(c => classRacers(c.id).length >= 2);
   if (!cls) { alert('Sign up a couple of drivers first.'); return; }
   const heat = (heatArrays(classRacers(cls.id), cls)[0] || []).slice();
   for (let i = heat.length - 1; i > 0; i--) { const j = Math.floor(Math.random() * (i + 1)); [heat[i], heat[j]] = [heat[j], heat[i]]; }
-  const csvq = v => '"' + String(v).replace(/"/g, '""') + '"';
-  const lines = ['Pos,Car #,Driver,Class,Laps,Best Lap,Last Lap'];
-  heat.forEach((r, i) => {
+  const x = v => String(v == null ? '' : v).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+  const t = (k, v) => '<' + k + '>' + x(v) + '</' + k + '>';
+  const cars = heat.map((r, i) => {
     const best = (18.2 + i * 0.11 + Math.random() * 0.05).toFixed(3), last = (+best + 0.2 + Math.random() * 0.3).toFixed(3);
-    lines.push([i + 1, csvq(r.num), csvq(r.name), csvq(cls.name), 10, best, last].join(','));
-  });
+    const nm = String(r.name || '').trim(), sp = nm.lastIndexOf(' ');
+    return '<CAR>' + t('POSITION', i + 1) + t('FIRSTNAME', sp > 0 ? nm.slice(0, sp) : nm) + t('LASTNAME', sp > 0 ? nm.slice(sp + 1) : '')
+      + t('CARNO', r.num) + t('TXID', demoTx(driverById(r.id))) + t('LAPS', 10) + t('LAG', i ? '-0' + (i * 0.4).toFixed(3) : '00.000')
+      + t('LASTLAP', last) + t('FASTTIME', best) + t('MISC', '') + '</CAR>';
+  }).join('');
+  const xml = '<?xml version="1.0" encoding="ISO-8859-1"?><RACEDATA><SESSION>' + t('ORGANIZATION', S.track.name) + t('CLASS', cls.name)
+    + t('HEAT', 'Heat 1') + t('MODE', 'RACE') + '</SESSION>' + cars + '</RACEDATA>';
   nav('results');
   openImport('heat');
-  impIngestText(lines.join('\n'), cls.name + ' Heat 1 Results.csv');
+  impIngestText(xml, cls.name.replace(/[^\w\- ]+/g, '').trim().toUpperCase() + '.xml');
+}
+/* Lineups out to Race Manager: sample transponders for every driver signed up tonight (sample data),
+   then the download sheet. */
+function demoRmLineups() {
+  const ids = new Set(S.raceDay.entries.map(e => e.driverId));
+  S.roster.forEach(d => { if (ids.has(d.id) && !d.trans) d.trans = demoTx(d); });
+  save();
+  nav('admin'); admOpen('format');
+  openRmLineups();
 }
 function demoOpenProCard() {
   const d = S.roster.find(r => r.profile && r.profile.demoOnly && r.profile.premiumCode) || S.roster.find(r => r.profile);
@@ -3079,8 +3098,11 @@ const DEMO_STEPS = [
     show: 'Score a heat by tapping the finishers in order.',
     say: 'No timing system? The tower scores each race by tapping finishers in order. Heats roll straight into the feature lineup.' },
   { t: 'Timing import', go: demoSampleImport,
-    show: 'A sample results file for Heat 1 loads into the import. Tap Import.',
-    say: 'If you run MYLAPS Orbits, Westhold, MotoSponder or most other timing software, RaceDay reads its results file. Point it at the export folder and each race imports on its own, and likely missed transponder reads are flagged before anything is saved.' },
+    show: 'A sample Westhold Race Manager file for Heat 1 loads into the import (Westhold format detected). Tap Import.',
+    say: 'If you run MYLAPS Orbits, Westhold, MotoSponder or most other timing software, RaceDay reads its results file. This one is a Westhold Race Manager file. Point RaceDay at the export folder and each race imports on its own, and likely missed transponder reads are flagged before anything is saved.' },
+  { t: 'Lineups to the timing computer', go: demoRmLineups,
+    show: 'Admin → Race format → Lineups for Westhold Race Manager: one file per class, ready to download.',
+    say: 'It works the other way too. Tonight\'s lineups download in Race Manager\'s own format: transponder, number and name. Save them in Race Manager\'s Assign folder and they show up there, so nobody types a lineup twice.' },
   { t: 'Results', go: () => nav('finals'),
     show: 'Feature lineups and results. Last week\'s night is already in.',
     say: 'Feature lineups, B-mains and results are worked out for you. When the night is done, results go to every driver\'s Driven profile.' },

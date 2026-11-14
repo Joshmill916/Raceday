@@ -113,7 +113,7 @@ const wait = ms => new Promise(r => setTimeout(r, ms));
   check('it is a live room, not demo mode (sync stays on)', st.demo === false);
   check('the room got its staff key, so the join QR works', st.staff);
   check('every feature is open (no license on this slot, entry still allowed)', st.canEnter);
-  check('the script bar shows step 1', /step 1 of 18/.test(st.banner) && /Join on their phone/.test(st.banner), st.banner.slice(0, 120));
+  check('the script bar shows step 1', /step 1 of 19/.test(st.banner) && /Join on their phone/.test(st.banner), st.banner.slice(0, 120));
   check('usage rows say DEMO ROOM with who it was for', st.label === 'DEMO ROOM · Test Prospect', st.label);
   check('the room is in the cloud with its demo mark', getPath('tracks/' + st.code + '/settings') && /demoRoom/.test(getPath('tracks/' + st.code + '/settings')));
 
@@ -167,19 +167,24 @@ const wait = ms => new Promise(r => setTimeout(r, ms));
       try { demoJump(i); await new Promise(r => setTimeout(r, 120)); } catch (e) { err = e.message; }
       const sheet = sheetOpen() ? document.getElementById('sheetTitle').textContent : '';
       out.push({ i, t: DEMO_STEPS[i].t, page: curPage, tv: TV.on, sheet, err, prev: DEMO_STEPS[i].t === 'Timing import' ? document.getElementById('impPrevList') && document.getElementById('impPrevList').children.length : null,
+        info: DEMO_STEPS[i].t === 'Timing import' ? (document.getElementById('impCsvInfo') || {}).textContent : null,
+        rm: DEMO_STEPS[i].t === 'Lineups to the timing computer' ? (document.getElementById('rmLineupList') || {}).textContent : null,
         banner: (document.getElementById('banners').textContent.match(/step (\d+) of/) || [])[1] });
       if (TV.on) closeTV();
       if (sheetOpen()) closeSheet();
     }
     return out;
   });
-  check('all 18 steps open without an error', steps.length === 18 && steps.every(s => !s.err), steps.filter(s => s.err).map(s => s.t + ': ' + s.err).join(' | '));
+  check('all 19 steps open without an error', steps.length === 19 && steps.every(s => !s.err), steps.filter(s => s.err).map(s => s.t + ': ' + s.err).join(' | '));
   check('the script bar follows along', steps.every(s => s.banner === String(s.i + 1)), steps.map(s => s.banner).join(','));
   const by = t => steps.find(s => s.t === t) || {};
   check('Sign-up step opens Sign up', by('Sign-up at the gate').page === 'signup');
   check('Driven card and lineup-spot steps open Sign up and Lineups', by('Their own Driven card').page === 'signup' && by('Their spot in the lineup').page === 'grid');
   check('Driver cards step opens a driver card', !!by('Driver cards').sheet, by('Driver cards').sheet);
   check('Timing import step loads a sample file with rows to import', by('Timing import').sheet === 'Import from timing' && by('Timing import').prev > 0, JSON.stringify(by('Timing import')));
+  check('…and it is a Westhold Race Manager file', /Westhold format detected/.test(by('Timing import').info || '') && /Race Manager race file/.test(by('Timing import').info || ''), by('Timing import').info);
+  const rmStep = by('Lineups to the timing computer');
+  check('Lineups step opens the Race Manager download in Admin, every class ready (sample transponders)', rmStep.page === 'admin' && rmStep.sheet === 'Lineups for Race Manager' && /Download/.test(rmStep.rm || '') && !/no transponder/.test(rmStep.rm || ''), JSON.stringify(rmStep));
   check('TV step opens the TV display', by('TV display').tv === true);
   check('A job for every device opens Admin → Multi-device sync', by('A job for every device').page === 'admin');
   check('Wrap up shows the steps list with End demo', by('Wrap up').sheet === 'Live demo');
