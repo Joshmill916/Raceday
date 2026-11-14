@@ -234,6 +234,13 @@ profile that follows them across every RaceDay track they race at.
   `visibilitychange`/`focus` scan at once (hidden pages' timers are slowed). Lineups save straight into Race Manager's Assign folder
   (`RmSync`, handle in IndexedDB `rd_timing` 'assign', `rmSyncNow` on `save()` + `syncApplySnapshot`, lines sorted by number so pill
   draws never rewrite them; Resume after reopen). Guard: `tests/v2/test-v2-westhold-same-pc.js`
+- **Driver identity guards** (2026-11-14, v2): a transponder saved on 2+ drivers entered tonight (`dupTransTonight()`) is a
+  Conflict on import (`transShared`, never auto-imported), is left out of Race Manager lineup files with a warning, and warns at
+  sign-up. Import learns a transponder only when the file's number AND name both agree and nobody else has it (`notLearned`,
+  reported). Assign files remember what RaceDay last wrote (`rd_rm_last`); one changed in Race Manager since is held
+  (`RmSync.held`) until "Use RaceDay's lineup". `linkProfile(id, code, quiet)` asks before linking a Driven card whose published
+  name differs (`sameDriverName`: exact, or same last name + same first initial) or that's on another driver (moving unlinks
+  them); refreshes/retries pass `quiet`. Guard: `tests/v2/test-v2-driver-id.js`
 - **Hostile-input limits** (2026-11-11, `raceday2/`): driver names 40 chars with spaces collapsed (`signupVals()`, timing-import
   new drivers), class names 60 with blank/duplicate refused (`addClass`/`addClassNamed`), lineup grids use `minmax(0,1fr)` and
   name rows wrap/trim so nothing widens a phone; `register()` ignores a tap after the form is gone; the DEMO watermark sits
