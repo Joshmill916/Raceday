@@ -60,6 +60,12 @@ function refTier(offlineTier, entitlement, nowMs) {
     else await d.dismiss();
   });
   const resetDlg = () => { dlgSeen.length = 0; answer = () => false; };
+  // Wait until a dialog matching re has been seen (dialogs are recorded on the Node side,
+  // so page.waitForFunction can't see them). Returns on the condition, not a fixed delay.
+  const waitDlg = async (re, ms = 10000) => {
+    const end = Date.now() + ms;
+    while (!dlgSeen.some(m => re.test(m)) && Date.now() < end) await new Promise(r => setTimeout(r, 50));
+  };
 
   const base = `http://localhost:${PORT}/`;
   const go = (u) => page.goto(u, { waitUntil: 'domcontentloaded' }).catch(() => {});
@@ -81,11 +87,18 @@ function refTier(offlineTier, entitlement, nowMs) {
 
   const seedAndCheck = async (offlineTier, entTier, ageMs, label) => {
     const result = await page.evaluate(({ offlineTier, entTier, ageMs }) => {
-      const now = Date.now();
-      P.tier = offlineTier;
-      P.entitlement = entTier == null ? null : { tier: entTier, status: 'active', currentPeriodEnd: 0, checkedAt: now - ageMs };
-      save();
-      return { actual: currentTier().key, now };
+      // Freeze the clock for this check: the app reads Date.now() itself inside
+      // currentTier(), and if even 1 ms passes after `now` (save() in between often takes
+      // that long) the EXACT-boundary case below becomes GRACE_MS + 1 → free, a ~6% flake.
+      // Frozen, the app and refTier() judge the very same instant.
+      const realNow = Date.now, now = realNow();
+      Date.now = () => now;
+      try {
+        P.tier = offlineTier;
+        P.entitlement = entTier == null ? null : { tier: entTier, status: 'active', currentPeriodEnd: 0, checkedAt: now - ageMs };
+        save();
+        return { actual: currentTier().key, now };
+      } finally { Date.now = realNow; }
     }, { offlineTier, entTier, ageMs });
     const expected = refTier(offlineTier, entTier == null ? null : { tier: entTier, checkedAt: result.now - ageMs }, result.now);
     check(label, result.actual === expected, `got ${result.actual}, expected ${expected}`);
@@ -157,7 +170,9 @@ function refTier(offlineTier, entitlement, nowMs) {
     history.pushState(null, '', '/driven/index.html?pro=1');
     handleBootParams();
   });
-  await page.waitForTimeout(2500);   // pollEntitlement's first attempt should resolve pro immediately
+  // pollEntitlement's first attempt should resolve pro immediately — wait for that, not a fixed delay.
+  await page.waitForFunction(() => P.entitlement && P.entitlement.tier === 'pro', null, { timeout: 10000 }).catch(() => {});
+  await waitDlg(/Pro is active/i);
   check('the query string is stripped from the URL bar', await page.evaluate(() => location.search === ''));
   check('the idempotency flag is set under the exact key "rd_pro_applied_?pro=1"',
     await page.evaluate(() => localStorage.getItem('rd_pro_applied_?pro=1') === '1'));
@@ -174,7 +189,7 @@ function refTier(offlineTier, entitlement, nowMs) {
   // event — the flag key is the whole location.search, not just "pro=1" as a boolean.
   resetDlg();
   await page.evaluate(() => { history.pushState(null, '', '/driven/index.html?pro=1&x=2'); handleBootParams(); });
-  await page.waitForTimeout(2500);
+  await waitDlg(/Pro is active/i);
   check('a different query string (still containing pro=1) is NOT suppressed by the earlier flag — distinct flag key',
     dlgSeen.some(m => /Pro is active/i.test(m)), JSON.stringify(dlgSeen));
 
@@ -182,7 +197,7 @@ function refTier(offlineTier, entitlement, nowMs) {
   resetDlg();
   await page.evaluate(() => { localStorage.clear(); });
   await go(base + 'driven/index.html?pro=1');
-  await page.waitForTimeout(400);
+  await waitDlg(/no matching Driven profile/i);
   check('no local profile: a clear message, not a silent failure or a crash',
     dlgSeen.some(m => /no matching Driven profile/i.test(m)), JSON.stringify(dlgSeen));
 
@@ -198,7 +213,7 @@ function refTier(offlineTier, entitlement, nowMs) {
   resetDlg();
   answer = () => false;   // decline the "check again?" retry offer
   await page.evaluate(() => pollEntitlement(9));   // last attempt (0..9 = 10 total)
-  await page.waitForTimeout(300);
+  await waitDlg(/Still confirming your payment/i);
   check('at the last attempt with no pro entitlement, offerEntitlementRetry() fires (not an infinite/silent loop)',
     dlgSeen.some(m => /Still confirming your payment/i.test(m)), JSON.stringify(dlgSeen));
   check('declining the retry does not throw or hang', true);   // reaching this line at all is the assertion
