@@ -220,7 +220,9 @@ profile that follows them across every RaceDay track they race at.
   `tests/v2/test-v2-timing-night.js` (a whole night per layout: Orbits, Westhold, spreadsheet export + 21 file names).
 - **Westhold Race Manager XML + lineups** (2026-11-13, v2 only; format from Julian at Westhold): `impXmlToCsv()` turns Race
   Manager's `<RACEDATA>` XML (XMLExport file at Stop: CLASS/HEAT/MODE + FIRSTNAME/LASTNAME; live `racedata.xml`: INFO/FLAG + NAME)
-  into Westhold CSV rows, class via a stand-in file name; a live file whose FLAG isn't Stop is never imported. Folder watch and the
+  into Westhold CSV rows, class via a stand-in file name; a live file whose FLAG isn't Stop is never imported, nor a start-of-session
+  file (no car has a lap). Folders (Julian, 11/13): results at Stop → `C:\RaceManager\UploadXML`; racedata.xml → Setup → Web Data → Set
+  Data Path; lineups → `C:\RaceManager\Assign` (Auto Refresh). Folder watch and the
   file picker read `.xml` (`impFileText` honors ISO-8859-1). Admin → Race format → Lineups for Westhold Race Manager
   (`openRmLineups`/`rmLineupRows`) downloads one headerless assignment CSV per class: `Transponder,Number,Last,First,Misc(class),,`
   (CRLF, commas stripped, no-transponder drivers left out and named). Fixtures: `test-data/westhold-xml/` (Westhold's Demo files).
