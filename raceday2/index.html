@@ -867,7 +867,7 @@ const GARAGE_KEY = 'rd_garage_v2';
 const ACTIVE_TRACK_KEY = 'rd_active_track_v2';
 // Reported with every usage row and crash. The part after the dot MUST match this app's
 // sw.js CACHE number (tests/test-app-version.js) — bump both together on each release.
-const APP_VERSION = '2026-11-14.v40';
+const APP_VERSION = '2026-11-14.v41';
 const LEGAL_VERSION = '2026-06';   // bump when Terms / Privacy wording changes, so acceptances are versioned
 const TELEMETRY_URL = 'https://script.google.com/macros/s/AKfycbxa3i3y17TLp_NfXOOu2jM7-YzXH2fScxcXoQYmIh0-873rxWfxg0HdRP1DVsxZq6iR/exec';
 const FIREBASE_CONFIG = {
@@ -2179,7 +2179,7 @@ function linkProfile(driverId, codeOrId, quiet) {
         if (!sameDriverName(cardName, d.name) && !confirm('This Driven card is for ' + cardName + (cardNum ? ' #' + cardNum : '') + '.\n\nLink it to ' + d.name + ' anyway? Their results will show on that card.')) {
           const e = new Error('declined'); e.known = true; e.declined = true; throw e;
         }
-        if (other) { delete other.profileId; delete other.profileCode; delete other.profile; logAudit('Moved Driven card', other.name, d.name, ''); }
+        if (other) { delete other.profileId; delete other.profileCode; delete other.profile; logAudit('Moved Driven card', other.name, d.name, ''); hintReshare(other.name, other.id); }
       }
       d.profileId = id;
       d.profileCode = raw.toUpperCase();
@@ -2595,11 +2595,12 @@ function shareResultsWithDriven(idx) {
   if (!snap) return;
   const trackId = S.track.id, trackName = S.track.name || '';
   const rows = [];
+  const clear = [];   // rows from an earlier share for drivers no longer linked: take them back
   snap.classes.forEach(cls => {
     const clsKey = fbKey(cls.name);
     nightFinishOrder(snap, cls).forEach(f => {
       const d = driverById(f.driverId);
-      if (!d || !d.profileId) return;
+      if (!d || !d.profileId) { if (snap.published) clear.push('results/' + trackId + '/' + snap.date + '/' + clsKey + '/' + f.driverId); return; }
       const pointsRow = (cls.points || []).find(p => p.driverId === f.driverId);
       const payload = { profileId: d.profileId, name: String(f.name || '').slice(0, 40), num: String(f.num || '').slice(0, 8), position: f.fin, trackName: trackName };
       if (pointsRow) payload.points = pointsRow.pts;
@@ -2621,7 +2622,8 @@ function shareResultsWithDriven(idx) {
     if (!ok) throw Object.assign(new Error('not a results device'), { denied: true });
     const db = firebase.database();
     return Promise.all(rows.map(r => db.ref(r.path).set(r.payload)
-      .then(() => db.ref('profileTracks/' + r.profileId + '/' + trackId).set({ trackName: trackName, lastSeen: Date.now() }))));
+      .then(() => db.ref('profileTracks/' + r.profileId + '/' + trackId).set({ trackName: trackName, lastSeen: Date.now() })))
+      .concat(clear.map(path => db.ref(path).remove().catch(() => {}))));
   }).then(() => {
     snap.published = true; snap.publishedAt = Date.now();
     save();
@@ -2631,6 +2633,29 @@ function shareResultsWithDriven(idx) {
     if (e && e.denied) { alert('This device can\'t publish this track\'s results to Driven.\n\nResults are shared from the track\'s admin device (the one that first shared results). On a replacement device, restore your RaceDay backup first so it carries the Driven key over.'); return; }
     alert("Couldn't reach Driven — check your connection and try again. Nothing was lost; you can share from Race day history anytime.");
   });
+}
+/* Take a shared night back from Driven: every driver row for that night is removed (the rules only
+   let a results device write one driver row at a time). Driven apps drop it the next time they check
+   (pullRaceDayResults reconciles), so a night shared to the wrong card can be undone. */
+function unshareResultsWithDriven(idx) {
+  if (!adminOk()) return;
+  const snap = S.history[idx]; if (!snap || !snap.published) return;
+  if (!confirm('Take ' + snap.date + ' back from Driven?\n\nDrivers\' Driven apps remove it the next time they open. You can share it again anytime.')) return;
+  const trackId = S.track.id, paths = [];
+  snap.classes.forEach(cls => nightFinishOrder(snap, cls).forEach(f => paths.push('results/' + trackId + '/' + snap.date + '/' + fbKey(cls.name) + '/' + f.driverId)));
+  const done = () => { snap.published = false; delete snap.publishedAt; logAudit('Took results back from Driven', snap.date, '', ''); save(); renderResultsShareBanner(); render(curPage); };
+  if (S.demo || demoRoom()) { done(); return; }
+  resultsJoin(true).then(ok => {
+    if (!ok) throw Object.assign(new Error('not a results device'), { denied: true });
+    const db = firebase.database();
+    return Promise.all(paths.map(p => db.ref(p).remove()));
+  }).then(() => { done(); alert('✅ Taken back. Drivers\' Driven apps remove it the next time they open.'); })
+    .catch(e => alert(e && e.denied ? 'Only the track\'s results device (the one that first shared) can take results back.' : "Couldn't reach Driven — check your connection and try again."));
+}
+// A Driven card just moved or came off a driver: if any shared night has their results, say how to fix it.
+function hintReshare(driverName, driverId) {
+  const n = (S.history || []).filter(h => h.published && h.classes.some(c => nightFinishOrder(h, c).some(f => String(f.driverId) === String(driverId)))).length;
+  if (n) toast(driverName + ' has results in ' + plural(n, 'shared night') + '. Share ' + (n === 1 ? 'it' : 'them') + ' again from Race day history so Driven moves them to the right card.', 'ok');
 }
 function csvCell(v) { v = String(v == null ? '' : v); return /[",\n]/.test(v) ? '"' + v.replace(/"/g, '""') + '"' : v; }
 function csvRows(rows) { return rows.map(r => r.map(csvCell).join(',')).join('\n'); }
@@ -4903,8 +4928,8 @@ function register() {
   renderSignup();
   renderRaceControl();
   window.scrollTo(0, 0);
-  const tx = impNormTrans(driver.trans), dups = tx ? dupTransTonight() : {};
-  if (dups[tx]) toast('⚠ Transponder ' + tx + ' is also on ' + dups[tx].filter(n => n !== driver.name).join(', ') + ' tonight. Check whose kart it is — timing results follow the transponder.', 'err');
+  const tx = effTrans(driver), dups = tx ? dupTransTonight() : {};
+  if (dups[tx]) toast('⚠ Transponder ' + tx + ' is also on ' + dups[tx].filter(n => n !== driver.name).join(', ') + ' tonight. Check whose kart it is — timing results follow the transponder.', 'err', 'Fix', 'openDriverCard(' + driver.id + ')');
 }
 
 function doneMarkup(driver, drawn) {
@@ -5208,6 +5233,7 @@ function openDriverCard(driverId) {
   if (card.age || (d.profile && d.profile.age)) rows.push(['Age', card.age || d.profile.age]);
   if (card.sponsors || (d.profile && d.profile.sponsors)) rows.push(['Sponsors', card.sponsors || d.profile.sponsors]);
   if (d.noPoints) rows.push(['Points', 'Does not score toward the series']);
+  h += txTonightMarkup(d);
   if (rows.length) h += '<div class="dc-rows" style="margin:0 -20px -18px">'
     + rows.map(r => '<div class="dc-row"><b>' + esc(r[0]) + '</b><span>' + esc(String(r[1])) + '</span></div>').join('') + '</div>';
 
@@ -7038,6 +7064,7 @@ function unlinkProfile() {
   if (d.profile) { delete d.profile.pendingFetch; delete d.profile.source; }
   save();
   renderDriverCard();
+  hintReshare(d.name, d.id);
 }
 
 function editDriverCard() {
@@ -7300,7 +7327,7 @@ function impMatchDriver(row, clsId) {
   let driver = null, matchedBy = '', numShared = false, transShared = false;
   if (trans && impNormTrans(trans)) {
     const nt = impNormTrans(trans);
-    const c = prefer(roster.filter(d => d.trans && impNormTrans(d.trans) === nt));
+    const c = prefer(roster.filter(d => effTrans(d) === nt));   // tonight's borrowed transponders count
     if (c.length) { driver = c[0]; matchedBy = 'transponder'; transShared = c.length > 1; }   // rentals, borrowed karts: say so
   }
   if (!driver && num) {
@@ -7322,7 +7349,7 @@ function impMatchDriver(row, clsId) {
     const c = prefer(roster.filter(d => impNormName(d.name) === nn));
     if (c.length) { driver = c[0]; matchedBy = 'name'; }
   }
-  const transConflict = !!(driver && trans && driver.trans && impNormTrans(driver.trans) !== impNormTrans(trans));
+  const transConflict = !!(driver && trans && effTrans(driver) && effTrans(driver) !== impNormTrans(trans));
   const numConflict = !!(driver && num && driver.num && String(driver.num).trim().toLowerCase() !== num.trim().toLowerCase());
   const nameConflict = !!(driver && name && driver.name && impNormName(driver.name) !== impNormName(name));
   const nameSuspect = impNameSuspect(name, num);
@@ -7660,7 +7687,7 @@ function impApply(opts) {
       // Learn a transponder only when the file's number AND name both agree with this driver, and
       // nobody else already has it: a wrong one learned here would go to Race Manager and make
       // every later session look right while crediting the wrong driver.
-      if (r.trans && !driver.trans) {
+      if (r.trans && !driver.trans && !txOverrideOf(driver.id)) {
         const nt = impNormTrans(r.trans);
         const strong = r.num && r.name && !r.numConflict && !r.nameConflict && !r.nameSuspect;
         const taken = (S.roster || []).some(o => o.id !== driver.id && o.trans && impNormTrans(o.trans) === nt);
@@ -7910,9 +7937,48 @@ function timingSourceCard() {
    .DAT file (Laps,N) isn't written: laps differ by heat/feature, and Race Manager doesn't need it. */
 /* Transponders saved on two or more different drivers entered tonight (rental tags, last week's
    driver still holding one). Map normalized transponder -> [driver names]. */
+/* Borrowed transponders (2026-11-14). "Running Jake's transponder tonight" is stored on the driver's
+   entries for tonight (entry.tx, synced with entries, gone with the race day). Tonight that
+   transponder means the borrower everywhere it matters (results matching, Race Manager lineup files,
+   the duplicate check), and its owner counts as having lent it out. The driver book is unchanged. */
+function txOverrideOf(driverId) { const e = (S.raceDay.entries || []).find(x => x.driverId === driverId && x.tx); return e ? impNormTrans(e.tx) : ''; }
+function txLentTonight(t) { return !!t && (S.raceDay.entries || []).some(x => x.tx && impNormTrans(x.tx) === t); }
+function effTrans(d) {
+  if (!d) return '';
+  const o = txOverrideOf(d.id); if (o) return o;
+  const t = impNormTrans(d.trans);
+  return t && txLentTonight(t) ? '' : t;
+}
+function setTxTonight(driverId, val) {
+  if (deviceRole() === 'viewer' || GUEST) return;
+  const d = driverById(driverId); if (!d) return;
+  const mine = (S.raceDay.entries || []).filter(e => e.driverId === driverId);
+  if (!mine.length) { toast('Sign ' + d.name + ' up for tonight first.', 'err'); return; }
+  const t = impNormTrans(val);
+  mine.forEach(e => { if (t) e.tx = t; else delete e.tx; });
+  const owner = t ? (S.roster || []).find(o => o.id !== driverId && impNormTrans(o.trans) === t) : null;
+  logAudit(t ? 'Borrowed transponder tonight' : 'Cleared borrowed transponder', d.name, t ? t + (owner ? ' (' + owner.name + '\'s)' : '') : '', '');
+  save();
+  toast(t ? d.name + ' runs transponder ' + t + (owner ? ' (' + owner.name + '\'s)' : '') + ' tonight.' : d.name + ' is back on their own transponder.', 'ok');
+  openDriverCard(driverId);
+}
+function txTonightMarkup(d) {
+  if (deviceRole() === 'viewer' || GUEST || !(S.raceDay.entries || []).some(e => e.driverId === d.id)) return '';
+  const o = txOverrideOf(d.id), own = impNormTrans(d.trans);
+  const owner = o ? (S.roster || []).find(x => x.id !== d.id && impNormTrans(x.trans) === o) : null;
+  const lentTo = own && !o ? (S.raceDay.entries || []).find(e => e.tx && impNormTrans(e.tx) === own) : null;
+  const lentName = lentTo ? (driverById(lentTo.driverId) || {}).name : '';
+  return '<div class="card" style="margin:12px 0 0"><b>Transponder tonight</b>'
+    + (o ? '<p class="tiny" style="margin:4px 0 8px">Running <b>' + esc(o) + '</b>' + (owner ? ' (' + esc(owner.name) + '\'s)' : '') + ' tonight' + (own ? ' instead of their own ' + esc(own) : '') + '. Results for that transponder go to ' + esc(d.name) + '.</p>'
+         + '<button class="btn btn-sm" onclick="setTxTonight(' + d.id + ',\'\')">Back to their own</button>'
+       : '<p class="tiny" style="margin:4px 0 8px">' + (own ? 'Their own: <b>' + esc(own) + '</b>' + (lentName ? ' — lent to ' + esc(lentName) + ' tonight' : '') : 'None saved yet') + '. Running a borrowed or rental transponder tonight? Enter its number — timing results follow the transponder.</p>'
+         + '<div class="rowflex"><input id="txTonightIn" type="text" inputmode="numeric" maxlength="20" placeholder="Transponder number" style="max-width:200px">'
+         + '<button class="btn btn-sm" onclick="setTxTonight(' + d.id + ',document.getElementById(\'txTonightIn\').value)">Use tonight</button></div>')
+    + '</div>';
+}
 function dupTransTonight() {
   const seen = {}, ids = new Set((S.raceDay.entries || []).map(e => e.driverId));
-  ids.forEach(id => { const d = driverById(id); const t = d && impNormTrans(d.trans); if (t) (seen[t] = seen[t] || new Set()).add(id); });
+  ids.forEach(id => { const d = driverById(id); const t = effTrans(d); if (t) (seen[t] = seen[t] || new Set()).add(id); });
   const out = {};
   Object.keys(seen).forEach(t => { if (seen[t].size > 1) out[t] = [...seen[t]].map(id => (driverById(id) || {}).name || '?'); });
   return out;
@@ -7923,7 +7989,7 @@ function rmLineupRows(clsId) {
   const out = [], missing = [], dup = [], dups = dupTransTonight();
   classRacers(clsId).forEach(r => {
     const d = driverById(r.id) || {};
-    const tx = impNormTrans(d.trans);
+    const tx = effTrans(d);
     if (!tx) { missing.push(r.name); return; }
     if (dups[tx]) { dup.push(r.name + ' (' + tx + ')'); return; }   // left out until fixed: Race Manager would credit one of them
     const nm = clean(r.name), sp = nm.lastIndexOf(' ');
@@ -10133,6 +10199,7 @@ function renderHistory() {
       + '<button class="btn btn-sm" onclick="toggleHist(' + i + ')">' + (UI.histOpen === i ? 'Hide' : 'View') + '</button>'
       + '<button class="btn btn-sm" onclick="histCSV(' + i + ')">CSV</button>'
       + (!hd.imported && deviceRole() === 'admin' ? '<button class="btn btn-sm" onclick="shareResultsWithDriven(' + i + ')" title="Send this night to every linked driver\'s Driven card">' + (hd.published ? 'Share again' : 'Share with Driven') + '</button>' : '')
+      + (!hd.imported && hd.published && deviceRole() === 'admin' ? '<button class="btn btn-sm" onclick="unshareResultsWithDriven(' + i + ')" title="Remove this night from every Driven card">Take back from Driven</button>' : '')
       + (hd.imported && hd.classes.length === 1 ? '<button class="btn btn-sm" onclick="editImportedRace(' + i + ')">Edit</button>' : '')
       + '<button class="btn btn-sm btn-danger" onclick="delHist(' + i + ')">Delete</button></div></div>';
     if (UI.histOpen === i) {

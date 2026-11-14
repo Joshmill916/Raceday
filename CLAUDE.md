@@ -241,6 +241,15 @@ profile that follows them across every RaceDay track they race at.
   (`RmSync.held`) until "Use RaceDay's lineup". `linkProfile(id, code, quiet)` asks before linking a Driven card whose published
   name differs (`sameDriverName`: exact, or same last name + same first initial) or that's on another driver (moving unlinks
   them); refreshes/retries pass `quiet`. Guard: `tests/v2/test-v2-driver-id.js`
+- **Borrowed transponders + taking results back** (2026-11-14, v2 + Driven): driver card → "Transponder tonight" sets `entry.tx`
+  on the driver's entries (`setTxTonight`; staff only; synced with entries, gone with the race day). `effTrans(d)` = tonight's
+  override, else the saved one unless someone borrowed it tonight (owner = lent out); import matching, `dupTransTonight`, Race
+  Manager lineup files and the sign-up warning all use it, and nothing is learned from a borrowed tag. Sharing a night again
+  removes rows for drivers no longer linked; Race day history → **Take back from Driven** (`unshareResultsWithDriven`) removes
+  every driver row (rules allow one row at a time); moving/unlinking a card shows `hintReshare`. Driven's `pullRaceDayResults()`
+  now reconciles 'raceday' results per track: updates changed position/points, removes ones the track took back, never removes
+  on an empty/failed read, never touches other sources. Guards: `tests/v2/test-v2-borrowed-tx-undo.js` +
+  `tests/test-driven-results-reconcile.js`
 - **Hostile-input limits** (2026-11-11, `raceday2/`): driver names 40 chars with spaces collapsed (`signupVals()`, timing-import
   new drivers), class names 60 with blank/duplicate refused (`addClass`/`addClassNamed`), lineup grids use `minmax(0,1fr)` and
   name rows wrap/trim so nothing widens a phone; `register()` ignores a tap after the form is gone; the DEMO watermark sits

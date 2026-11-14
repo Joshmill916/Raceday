@@ -2501,8 +2501,29 @@ function pullRaceDayResults() {
         return { trackId: trackId, fallbackName: (tracks[trackId] && tracks[trackId].trackName) || trackId, data: rsnap.val() || {} };
       });
     })).then(function (perTrack) {
-      var added = 0;
+      var added = 0, fixed = 0;
       perTrack.forEach(function (t) {
+        // Keep what the track says (2026-11-14): a corrected finish or points updates here, and a
+        // result the track took back (shared to the wrong card, or the whole night withdrawn) is
+        // removed. Only 'raceday' results, and only when this track's results read back with data —
+        // an empty or failed read never removes anything.
+        var mine = {};
+        Object.keys(t.data).forEach(function (date) {
+          var byClass = t.data[date] || {};
+          Object.keys(byClass).forEach(function (className) {
+            var byDriver = byClass[className] || {};
+            Object.keys(byDriver).forEach(function (k) { var row = byDriver[k]; if (row && row.profileId === P.profileId) mine[date + '|' + className] = row; });
+          });
+        });
+        var hasData = Object.keys(t.data).length > 0;
+        P.raceResults = P.raceResults.filter(function (x) {
+          if (x.source !== 'raceday' || x.trackId !== t.trackId) return true;
+          var row = mine[x.date + '|' + x.class];
+          if (!row) { if (hasData) { fixed++; return false; } return true; }
+          var pos = typeof row.position === 'number' ? row.position : null, pts = typeof row.points === 'number' ? row.points : null;
+          if (x.position !== pos || x.points !== pts) { x.position = pos; x.points = pts; fixed++; }
+          return true;
+        });
         Object.keys(t.data).forEach(function (date) {           // t.data[date] = {className: {driverKey: row}}
           var byClass = t.data[date] || {};
           Object.keys(byClass).forEach(function (className) {
@@ -2526,7 +2547,11 @@ function pullRaceDayResults() {
           });
         });
       });
-      if (added) save();
+      if (added || fixed) save();
+      if (fixed) {
+        resultsToast(fixed === 1 ? 'The track corrected one of your results' : 'The track corrected ' + fixed + ' of your results');
+        if (!added) { var cur = document.querySelector('.nav button.active'); nav(cur ? cur.dataset.page : 'home'); }
+      }
       return added;
     });
   });
@@ -2608,7 +2633,7 @@ function deleteProfile() {
 // day, 'driven-profile' when someone makes a profile, 'driven-publish' the first time a card is
 // published, and crashes. No names, emails or numbers — only counts. The track column reads DRIVEN.
 // The part after the dot MUST match sw.js CACHE (tests/test-analytics.js) — bump both together.
-const APP_VERSION = '2026-11-11.v24';
+const APP_VERSION = '2026-11-14.v25';
 var TELEMETRY_URL = 'https://script.google.com/macros/s/AKfycbxa3i3y17TLp_NfXOOu2jM7-YzXH2fScxcXoQYmIh0-873rxWfxg0HdRP1DVsxZq6iR/exec';
 // Devices opted out at /me/ (the owner testing) still report, marked OWNER; copies on this
 // computer (localhost, *.test) report nothing unless rd_count_local='1' (the analytics test).
