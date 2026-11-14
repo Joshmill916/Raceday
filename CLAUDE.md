@@ -232,7 +232,7 @@ profile that follows them across every RaceDay track they race at.
 - **No starter classes** (2026-11-12, `raceday2/`): `defaults()` has empty `classes`/`classLib` — a new track adds its own. The demos (`seedDemo`, `seedFullDemoNight`) add the three sample classes when there are none. Suites that need classes add them after load. Guard: `tests/v2/test-v2-admin.js`
 - **Live demo room** (2026-11-12, `raceday2/`): Admin → The Garage → Start live demo (only with the unlimited/forever
   license — never the public `rd_dont_count` mark; a room is free for `DEMO_ROOM_HOURS` = 12h). Opens a `DEMO…` sync room in its OWN Garage slot (real track untouched), seeds last week's scored
-  night + tonight's board (`demoRoomBoot`), and shows a 16-step presenter script in the banner (`DEMO_STEPS`, Back / Show it /
+  night + tonight's board (`demoRoomBoot`), and shows a 19-step presenter script (Timing import loads a sample Westhold Race Manager XML; "Lineups to the timing computer" opens the Race Manager lineup download, giving tonight's sample drivers sample transponders via `demoTx`) in the banner (`DEMO_STEPS`, Back / Show it /
   Next). The prospect scans the join QR (`staffLinkParams('admin')`) and becomes a second admin screen. `S.settings.demoRoom`
   (synced) makes every device in it skip license/trial (`canEnter`, `consumeTrialDay`), never publish to Driven / cloud backup,
   send no `night` row, and label usage `DEMO ROOM · <for>`. End demo writes `demoRoom.ended`; joined phones wipe the sample data,
