@@ -867,7 +867,7 @@ const GARAGE_KEY = 'rd_garage_v2';
 const ACTIVE_TRACK_KEY = 'rd_active_track_v2';
 // Reported with every usage row and crash. The part after the dot MUST match this app's
 // sw.js CACHE number (tests/test-app-version.js) — bump both together on each release.
-const APP_VERSION = '2026-11-13.v38';
+const APP_VERSION = '2026-11-14.v39';
 const LEGAL_VERSION = '2026-06';   // bump when Terms / Privacy wording changes, so acceptances are versioned
 const TELEMETRY_URL = 'https://script.google.com/macros/s/AKfycbxa3i3y17TLp_NfXOOu2jM7-YzXH2fScxcXoQYmIh0-873rxWfxg0HdRP1DVsxZq6iR/exec';
 const FIREBASE_CONFIG = {
@@ -1129,6 +1129,7 @@ function save() {
   if (GUEST) return;   // a guest session persists nothing, and never writes to the room
   try { localStorage.setItem(activeKey(), JSON.stringify(S)); } catch(e) {}
   if (syncOn()) syncPush();
+  if (window.RmSync && RmSync.ok) rmQueueSync();
 }
 // Persist to this device WITHOUT pushing to the shared room. Several call sites need
 // this (a local-only operator PIN, sync being switched off, applying a snapshot we
@@ -2242,6 +2243,7 @@ function syncApplySnapshot(v) {
     showViewerToast();
   }
   if (wasViewer) checkRaceNoteAlert();
+  if (window.RmSync && RmSync.ok) rmQueueSync();   // a sign-up from the registration tablet reaches Race Manager too
   // Only alert when a DISTINCT existing identity was silently replaced — skip a fresh
   // device's first join (prevTrackName empty), which is normal, not a surprise overwrite.
   // A guest is looking at somebody else's race on purpose; nothing was replaced.
@@ -7636,7 +7638,7 @@ function impApply(opts) {
     return { ...r, driver };
   });
 
-  let done = 0, skipped = 0, createdEntry = false;
+  let done = 0, skipped = 0, keptBack = 0, createdEntry = false;
 
   if (target === 'qual') {
     const groups = {};
@@ -7644,19 +7646,30 @@ function impApply(opts) {
     for (const [clsId, rows] of Object.entries(groups)) {
       const cid = parseInt(clsId);
       const cls = classById(cid);
+      // Signed-up drivers the file doesn't list (never went out, tag not read) stay in the
+      // class and start at the back in their old order — the same rule as typed times. A
+      // qualifying file used to replace the whole class, silently dropping them.
+      const before = S.raceDay.entries.filter(e => e.classId === cid).sort((a, b) => a.pill - b.pill);
       S.raceDay.entries = S.raceDay.entries.filter(e => e.classId !== cid);
       const k = resKey(cid);
       if (S.raceDay.heatResults[k]) delete S.raceDay.heatResults[k];
-      if (cls && rows.length > cls.maxPill) cls.maxPill = rows.length;
-      const seenNums = new Set();
+      const seenNums = new Set(), placed = new Set();
+      let topPill = 0;
       rows.forEach(r => {
         if (r.rank == null) return;
         const numLc = String(r.driver.num || '').toLowerCase();
         if (numLc && seenNums.has(numLc)) { skipped++; return; }
         if (numLc) seenNums.add(numLc);
         S.raceDay.entries.push({ driverId: r.driver.id, classId: cid, pill: r.rank });
+        placed.add(r.driver.id); topPill = Math.max(topPill, r.rank);
         createdEntry = true; done++;
       });
+      before.forEach(e => {
+        if (placed.has(e.driverId)) return;
+        S.raceDay.entries.push(Object.assign({}, e, { pill: ++topPill }));
+        keptBack++;
+      });
+      if (cls && topPill > cls.maxPill) cls.maxPill = topPill;
     }
   } else if (target === 'bmain') {
     resolved.forEach(r => {
@@ -7724,7 +7737,9 @@ function impApply(opts) {
   render(curPage);
   markFeature('import');
   const what = { qual: done + ' drivers placed on the grid', heat: done + ' heat finishes', bmain: done + ' B-main finishes', feat: done + ' feature finishes' }[target];
-  const skipMsg = skipped ? ' ' + skipped + ' rows skipped.' : '';
+  const skipMsg = (skipped ? ' ' + skipped + ' rows skipped.' : '')
+    + (keptBack ? ' ' + plural(keptBack, 'driver') + ' not in the file kept at the back.' : '');
+  if (Imp && Imp.lastHash) impDoneSet(impDoneKey(), Imp.lastHash);
   if (keepOpen) {
     // Watch mode: keep the overlay open and the folder watch running; report inline.
     impRenderPreview();
@@ -7877,6 +7892,95 @@ function rmLineupDownload(clsId) {
   const fname = String(cls.name).replace(/[^\w\- ]+/g, '').trim().replace(/\s+/g, '-').toUpperCase() || 'CLASS';
   downloadFile(fname + '.CSV', r.lines.join('\r\n') + '\r\n', 'text/csv');
 }
+/* Lineups straight into Race Manager (2026-11-14). The timing computer picks Race Manager's Assign
+   folder once (C:\RaceManager\Assign; the handle lives in IndexedDB rd_timing 'assign', never in S).
+   While RaceDay may write there, each class's assignment file is rewritten whenever its drivers or
+   transponders change — here or on a synced sign-up tablet — and Race Manager's Auto Refresh picks it
+   up. Lines are sorted by car number, so a pill draw or qualifying never touches the file: Race
+   Manager's list only changes when a driver is actually added or a transponder changes. */
+var RmSync = { dir: null, ok: false, timer: null, last: {}, err: '' };   // var: save() can run before this line
+function rmFileName(cls) { return (String(cls.name).replace(/[^\w\- ]+/g, '').trim().replace(/\s+/g, '-').toUpperCase() || 'CLASS') + '.CSV'; }
+function rmSyncContent(clsId) {
+  const lines = rmLineupRows(clsId).lines.slice().sort((a, b) => a.split(',')[1].localeCompare(b.split(',')[1], undefined, { numeric: true }));
+  return lines.length ? lines.join('\r\n') + '\r\n' : '';
+}
+function loadAssignDir() {
+  if (!canWatchFolder() || !window.indexedDB) return Promise.resolve(null);
+  return timingDb().then(db => new Promise(res => {
+    const q = db.transaction('kv').objectStore('kv').get('assign');
+    q.onsuccess = () => res(q.result || null); q.onerror = () => res(null);
+  })).then(async h => {
+    RmSync.dir = h;
+    if (h) { try { RmSync.ok = (await h.queryPermission({ mode: 'readwrite' })) === 'granted'; } catch (e) { RmSync.ok = false; } }
+    if (RmSync.ok) rmQueueSync();
+    return h;
+  }).catch(() => null);
+}
+function saveAssignDir(h) {
+  return timingDb().then(db => new Promise(res => {
+    const t = db.transaction('kv', 'readwrite');
+    if (h) t.objectStore('kv').put(h, 'assign'); else t.objectStore('kv').delete('assign');
+    t.oncomplete = () => res(true); t.onerror = () => res(false);
+  })).catch(() => false);
+}
+async function rmPickAssign() {
+  if (!canWatchFolder()) return;
+  let h;
+  try { h = await window.showDirectoryPicker({ id: 'rd-assign', mode: 'readwrite' }); } catch (e) { return; }   // cancelled
+  RmSync.dir = h; RmSync.ok = true; RmSync.last = {}; RmSync.err = '';
+  await saveAssignDir(h);
+  await rmSyncNow();
+  openRmLineups();
+}
+async function rmResumeAssign() {
+  if (!RmSync.dir) return;
+  try { RmSync.ok = (await RmSync.dir.requestPermission({ mode: 'readwrite' })) === 'granted'; } catch (e) { RmSync.ok = false; }
+  if (RmSync.ok) { RmSync.err = ''; RmSync.last = {}; await rmSyncNow(); }
+  openRmLineups();
+}
+async function rmStopAssign() {
+  RmSync.dir = null; RmSync.ok = false; RmSync.last = {}; RmSync.err = '';
+  await saveAssignDir(null);
+  openRmLineups();
+}
+function rmQueueSync() {
+  if (!RmSync.dir || !RmSync.ok) return;
+  clearTimeout(RmSync.timer);
+  RmSync.timer = setTimeout(rmSyncNow, 1500);
+}
+async function rmSyncNow() {
+  if (!RmSync.dir || !RmSync.ok) return 0;
+  let wrote = 0;
+  for (const c of S.classes) {
+    const body = rmSyncContent(c.id);
+    if (!body) continue;   // nobody with a transponder in this class: leave Race Manager's file alone
+    const name = rmFileName(c);
+    if (RmSync.last[name] === body) continue;
+    try {
+      const fh = await RmSync.dir.getFileHandle(name, { create: true });
+      const w = await fh.createWritable(); await w.write(body); await w.close();
+      RmSync.last[name] = body; wrote++;
+    } catch (e) {
+      RmSync.ok = false; RmSync.err = String((e && e.message) || e);
+      toast('Race Manager lineups stopped saving — open Admin → Race format → Lineups to resume.', 'err');
+      return wrote;
+    }
+  }
+  return wrote;
+}
+function rmAssignCard() {
+  if (!canWatchFolder()) return '';
+  const name = RmSync.dir && RmSync.dir.name;
+  if (name && RmSync.ok) return '<div class="card"><b>✅ Saving straight to Race Manager</b>'
+    + '<p class="tiny" style="margin:4px 0 8px">Each class\'s lineup goes into <b>' + esc(name) + '</b> on this computer and updates by itself when drivers or transponders change. In Race Manager, turn on <b>Auto Refresh</b> on the assignment page.</p>'
+    + '<button class="btn btn-sm" onclick="rmStopAssign()">Stop saving there</button></div>';
+  if (name) return '<div class="card"><b>Paused: saving to ' + esc(name) + '</b>'
+    + '<p class="tiny" style="margin:4px 0 8px">The browser needs your OK again after RaceDay reopens.</p>'
+    + '<button class="btn btn-go btn-sm" onclick="rmResumeAssign()">Resume saving to ' + esc(name) + '</button> <button class="btn btn-sm" onclick="rmStopAssign()">Stop</button></div>';
+  return '<div class="card"><b>Save straight into Race Manager</b>'
+    + '<p class="tiny" style="margin:4px 0 8px">On the timing computer, in Chrome or Edge: pick Race Manager\'s Assign folder (usually <b>C:\\RaceManager\\Assign</b>). Lineups then update there by themselves — no downloading. Turn on <b>Auto Refresh</b> on Race Manager\'s assignment page.</p>'
+    + '<button class="btn btn-go btn-sm" onclick="rmPickAssign()">📁 Pick the Assign folder</button></div>';
+}
 function openRmLineups() {
   const list = S.classes.map(c => {
     const n = classRacers(c.id).length;
@@ -7886,9 +7990,9 @@ function openRmLineups() {
       + (r.missing.length ? ' · <span style="color:var(--flag-yellow)">' + r.missing.length + ' with no transponder, left out: ' + esc(r.missing.slice(0, 6).join(', ')) + (r.missing.length > 6 ? '…' : '') + '</span>' : '') + '</span></span>'
       + '<button class="btn btn-sm" ' + (r.lines.length ? '' : 'disabled ') + 'onclick="rmLineupDownload(' + JSON.stringify(c.id).replace(/"/g, '&quot;') + ')">Download</button></div>';
   }).join('');
-  openSheet('Lineups for Race Manager',
+  openSheet('Lineups for Race Manager', rmAssignCard() +
     (list ? '<div class="list" id="rmLineupList">' + list + '</div>' : '<p>No one is signed up tonight yet.</p>')
-    + '<p class="tiny" style="margin-top:10px">Each class downloads as an assignment file (transponder, number, last name, first name). In Race Manager, open it from the assignment page before that class goes out.</p>',
+    + '<p class="tiny" style="margin-top:10px">Each class downloads as an assignment file (transponder, number, last name, first name). Not saving straight to the Assign folder? Move the downloaded file there, or open it from Race Manager\'s assignment page, before that class goes out.</p>',
     '<button class="btn push" onclick="closeSheet()">Done</button>');
 }
 
@@ -7957,6 +8061,7 @@ function impIngestText(text, filename, fromWatch) {
     if (!xml.started) { if (!fromWatch) toast('That Race Manager file is from the start of a session: nobody has a lap yet. Load the one saved at Stop.', 'err'); return false; }
     text = xml.csv; filename = xml.fileName;
   }
+  Imp.lastHash = impHash(String(text || ''));
   const delim = impDetectDelim(String(text || ''));
   const rows = impParseCSV(String(text || ''), delim);
   if (rows.length < 2) { toast("That file doesn't look like a results file (no data rows).", 'err'); return false; }
@@ -8157,8 +8262,12 @@ async function impScanFolder() {
     const found = [];
     for await (const [name, handle] of dir.entries()) {
       if (handle.kind === 'file' && /\.(csv|tsv|txt|xml)$/i.test(name)) {
-        const file = await handle.getFile();
-        found.push({ name, file, lastModified: file.lastModified });
+        // The timing software can hold a file for a moment while it writes it (Windows locks
+        // it). Skip it this time; the next scan, 3 seconds later, tries again.
+        try {
+          const file = await handle.getFile();
+          found.push({ name, file, lastModified: file.lastModified });
+        } catch (e) {}
       }
     }
     if (!Imp || Imp.watchDir !== dir) return;
@@ -8172,23 +8281,48 @@ async function impScanFolder() {
     const newest = changed.reduce((a, b) => a.lastModified > b.lastModified ? a : b);
     // Still being written (saved within the last ~1.5s)? Wait for the next scan.
     if (Date.now() - newest.lastModified < 1500) return;
+    let text;
+    try { text = await impFileText(newest.file); } catch (e) { return; }   // being written right now: next scan
     Imp.watchSeen[newest.name] = newest.lastModified;
-    const text = await impFileText(newest.file);
     const ts = new Date(newest.lastModified).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit' });
     impWatchSay('loaded <b>' + esc(newest.name) + '</b> at ' + ts + '.');
     impIngestText(text, newest.name, true);
   } catch (e) {
-    impStopWatch();   // permission revoked or folder gone
+    impStopWatch();   // the folder itself is gone or permission was taken back
     impWatchSay("Stopped — RaceDay can't read that folder any more. Tap Start watching to try again.");
   } finally {
     if (Imp) Imp.watchBusy = false;
   }
 }
+/* Sessions already imported tonight (rd_imp_done = {date, keys:{step|session: fingerprint}}, this
+   device only). Race Manager rewrites one racedata.xml for every session and re-saves a session
+   when the scorer fixes it, so a session that already went in never auto-imports again: the same
+   results are skipped quietly; changed ones wait for a person (they'd replace hand fixes like a DQ). */
+function impHash(t) { let h = 2166136261; for (let i = 0; i < t.length; i++) { h ^= t.charCodeAt(i); h = Math.imul(h, 16777619); } return (h >>> 0).toString(36) + ':' + t.length; }
+function impDoneKey() { return Imp ? Imp.target + (Imp.target === 'heat' ? ':' + Imp.heatSet : '') + '|' + (Imp.lastFile || '') : ''; }
+function impDoneAll() {
+  let d = null; try { d = JSON.parse(localStorage.getItem('rd_imp_done') || 'null'); } catch (e) {}
+  const date = (S.raceDay && S.raceDay.date) || today();
+  return d && d.date === date && d.keys ? d : { date, keys: {} };
+}
+function impDoneGet(k) { return impDoneAll().keys[k] || null; }
+function impDoneSet(k, h) {
+  if (!k || !h) return;
+  const d = impDoneAll(); d.keys[k] = h;
+  try { localStorage.setItem('rd_imp_done', JSON.stringify(d)); } catch (e) {}   // this device's watch memory, not race data
+}
+// Chrome and Edge slow a hidden page's timers (RaceDay minimized or behind the timing software),
+// so look straight away when it's back in view instead of waiting for the slowed timer.
+document.addEventListener('visibilitychange', () => { if (document.visibilityState === 'visible' && Imp && Imp.watchDir) impScanFolder(); });
+window.addEventListener('focus', () => { if (Imp && Imp.watchDir) impScanFolder(); });
 function impAutoApply() {
   if (!Imp || !impPreview.length) return;
   const active = impPreview.filter(r => r.status !== 'skip');
   if (!active.length) return;
   if (Imp.target === 'practice') return;   // the tag check only reads
+  const prev = impDoneGet(impDoneKey());
+  if (prev && prev === Imp.lastHash) { impWatchSay('<b>' + esc(Imp.lastFile || 'that file') + '</b> is already in — no changes.'); return; }
+  if (prev) { impWatchSay('⚠ <b>' + esc(Imp.lastFile || 'that session') + '</b> was saved again with changes. It already went in once, so it waits for you: check the preview, then tap Import ✓ to replace it.'); return; }
   const clean = active.every(r => r.status === 'match' && !r.nameSuspect && !r.timeBad && !r.transConflict && !r.numConflict && !r.nameConflict && !(r.chk && r.chk.some(c => c.hard)));
   if (clean) impApply({ silent: true });
   else impWatchSay('⚠ <b>' + esc(Imp.lastFile || 'that file') + '</b> needs a look — check the preview below, then tap Import ✓.');
@@ -10357,6 +10491,7 @@ document.addEventListener('keydown', e => {
 
 applyTheme();
 loadTimingDir();
+loadAssignDir();
 handleUrlParams();
 demoRoomBoot();
 applyRole();

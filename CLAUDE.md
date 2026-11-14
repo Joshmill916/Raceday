@@ -227,6 +227,13 @@ profile that follows them across every RaceDay track they race at.
   (`openRmLineups`/`rmLineupRows`) downloads one headerless assignment CSV per class: `Transponder,Number,Last,First,Misc(class),,`
   (CRLF, commas stripped, no-transponder drivers left out and named). Fixtures: `test-data/westhold-xml/` (Westhold's Demo files).
   Guard: `tests/v2/test-v2-westhold-xml.js` + the "Westhold XML" night in `tests/v2/test-v2-timing-night.js`
+- **Same computer as Race Manager** (2026-11-14, v2): qualifying import keeps signed-up drivers the file doesn't list, at the back in
+  their old order (`keptBack`); a file the timing software holds for a moment is skipped and retried (only the folder going away
+  stops the watch); sessions already imported tonight are fingerprinted (`rd_imp_done` = {date, keys: step|session → hash}, this
+  device) so a re-save with the same results is skipped and with changes waits for Import ✓ (protects hand fixes like a DQ);
+  `visibilitychange`/`focus` scan at once (hidden pages' timers are slowed). Lineups save straight into Race Manager's Assign folder
+  (`RmSync`, handle in IndexedDB `rd_timing` 'assign', `rmSyncNow` on `save()` + `syncApplySnapshot`, lines sorted by number so pill
+  draws never rewrite them; Resume after reopen). Guard: `tests/v2/test-v2-westhold-same-pc.js`
 - **Hostile-input limits** (2026-11-11, `raceday2/`): driver names 40 chars with spaces collapsed (`signupVals()`, timing-import
   new drivers), class names 60 with blank/duplicate refused (`addClass`/`addClassNamed`), lineup grids use `minmax(0,1fr)` and
   name rows wrap/trim so nothing widens a phone; `register()` ignores a tap after the form is gone; the DEMO watermark sits
