@@ -37,13 +37,14 @@ const RACERS = read('DEMO.CSV').trim().split(/\r?\n/).map(l => { const c = l.spl
   }, RACERS);
 
   console.log('\n=== Reading the XML ===');
-  const parsed = await p.evaluate(files => files.map(([n, t]) => { const x = impXmlToCsv(t); return x && { n, cls: x.cls, mode: x.mode, flag: x.flag, live: x.live, running: x.running, cars: x.cars, file: x.fileName }; }),
+  const parsed = await p.evaluate(files => files.map(([n, t]) => { const x = impXmlToCsv(t); return x && { n, cls: x.cls, mode: x.mode, flag: x.flag, live: x.live, running: x.running, started: x.started, cars: x.cars, file: x.fileName }; }),
     ['DEMO.xml', 'DEMO-Q.xml', 'racedata - lap 5.xml', 'racedata - checkered.xml', 'racedata - stopped.xml', 'racedata - qualify.xml', 'racedata - qualify stopped.xml'].map(f => [f, read(f)]));
   const by = Object.fromEntries(parsed.map(x => [x.n, x]));
   check('XMLExport race file: class DEMO, RACE, 10 cars, not live', by['DEMO.xml'].cls === 'DEMO' && by['DEMO.xml'].mode === 'RACE' && by['DEMO.xml'].cars === 10 && !by['DEMO.xml'].live, JSON.stringify(by['DEMO.xml']));
   check('XMLExport qualifying file: QUALIFY, 5 cars, stand-in name says Qualifying', by['DEMO-Q.xml'].mode === 'QUALIFY' && by['DEMO-Q.xml'].cars === 5 && /Qualifying/.test(by['DEMO-Q.xml'].file), JSON.stringify(by['DEMO-Q.xml']));
   check('live files at lap 5, checkered and qualifying-in-progress count as still running', by['racedata - lap 5.xml'].running && by['racedata - checkered.xml'].running && by['racedata - qualify.xml'].running);
   check('live files with flag Stop are finished', !by['racedata - stopped.xml'].running && !by['racedata - qualify stopped.xml'].running && by['racedata - stopped.xml'].live);
+  check('finished files count as started (someone has a lap)', parsed.every(x => x.started === true), JSON.stringify(parsed.map(x => [x.n, x.started])));
   check('a CSV is not mistaken for XML', await p.evaluate(t => impXmlToCsv(t) === null, read('DEMO.CSV')));
   check('XML entities and CDATA come through as text', await p.evaluate(() => {
     const x = impXmlToCsv('<RACEDATA><SESSION><CLASS>A &amp; B</CLASS><MODE>RACE</MODE></SESSION><CAR><POSITION>1</POSITION><NAME><![CDATA[Zoë O\'Neil]]></NAME><CARNO>7</CARNO><TXID>9</TXID></CAR></RACEDATA>');
@@ -61,6 +62,11 @@ const RACERS = read('DEMO.CSV').trim().split(/\r?\n/).map(l => { const c = l.spl
   const close = () => p.evaluate(() => { try { closeImport(); } catch (e) {} });
 
   console.log('\n=== Importing ===');
+  const startFile = read('DEMO.xml').replace(/<LAPS>\d+<\/LAPS>/g, '<LAPS>0</LAPS>');
+  const st0 = await load('DEMO.xml', startFile, 'h1', true);
+  const st0saved = await p.evaluate(() => Object.keys(getRes(1)).length);
+  check('a start-of-session file (UploadXML, nobody has a lap) is skipped, nothing saved', st0.ok === false && st0saved === 0, JSON.stringify(st0));
+  await close();
   const h = await load('DEMO.xml', read('DEMO.xml'), 'h1');
   check('race XML: all 10 matched in the Demo class', h.ok && h.cls === 'Demo' && h.st.match === 10 && !h.st.new && !h.st.conflict, JSON.stringify(h));
   await p.evaluate(() => impApplyClick()); await close();

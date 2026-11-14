@@ -867,7 +867,7 @@ const GARAGE_KEY = 'rd_garage_v2';
 const ACTIVE_TRACK_KEY = 'rd_active_track_v2';
 // Reported with every usage row and crash. The part after the dot MUST match this app's
 // sw.js CACHE number (tests/test-app-version.js) — bump both together on each release.
-const APP_VERSION = '2026-11-13.v37';
+const APP_VERSION = '2026-11-13.v38';
 const LEGAL_VERSION = '2026-06';   // bump when Terms / Privacy wording changes, so acceptances are versioned
 const TELEMETRY_URL = 'https://script.google.com/macros/s/AKfycbxa3i3y17TLp_NfXOOu2jM7-YzXH2fScxcXoQYmIh0-873rxWfxg0HdRP1DVsxZq6iR/exec';
 const FIREBASE_CONFIG = {
@@ -7167,7 +7167,7 @@ function impParseCSV(text, delim) {
   return rows;
 }
 /* Westhold Race Manager XML (from Julian at Westhold, 2026-11-13). Two kinds, both <RACEDATA>:
-   - XMLExport/<class>.xml, written when a session is stopped: <SESSION> has CLASS, HEAT, MODE
+   - C:\\RaceManager\\UploadXML\\<class>.xml (Julian 11/13: always under the install folder), written at Stop: <SESSION> has CLASS, HEAT, MODE
      (RACE|QUALIFY); each <CAR> has FIRSTNAME/LASTNAME.
    - racedata.xml, rewritten live during a session: <SESSION> has INFO (class), MODE, FLAG
      (Green/Yellow/Checkered/Stop…); each <CAR> has NAME and TOTALTIME.
@@ -7193,7 +7193,9 @@ function impXmlToCsv(text) {
   });
   // The class goes in a stand-in file name, so the usual file-name class match picks it up.
   const fileName = [cls, heat, mode === 'QUALIFY' ? 'Qualifying' : ''].filter(Boolean).join(' ') + '.xml';
-  return { csv: csvRows(rows), cls, heat, mode, flag, live, running: live && !/^stop/i.test(flag), cars: rows.length - 1, fileName };
+  // Race Manager also writes a file into UploadXML when a session STARTS: cars listed, nobody has a lap.
+  const started = rows.slice(1).some(r => parseInt(r[4], 10) > 0);
+  return { csv: csvRows(rows), cls, heat, mode, flag, live, running: live && !/^stop/i.test(flag), started, cars: rows.length - 1, fileName };
 }
 /* Race Manager writes ISO-8859-1 XML; reading it as UTF-8 would garble accented names. */
 async function impFileText(file) {
@@ -7917,7 +7919,7 @@ function impBodyMarkup() {
     + '<div class="rowflex"><button class="btn btn-primary" onclick="document.getElementById(\'impFile\').click()">📄 Choose results file</button>'
     + '<input id="impFile" type="file" accept=".csv,.txt,.tsv,.xml,text/csv,text/plain,text/tab-separated-values,text/xml,application/xml" style="display:none" onchange="impLoadCsv(this)">'
     + '<span class="tiny" id="impCsvInfo" style="display:none"></span></div>'
-    + '<p class="tiny" style="margin-top:8px">Export a results file from your timing software — CSV, tab-separated, or Race Manager XML. Reads MYLAPS Orbits, Westhold Race Manager (CSV or the XMLExport folder), MotoSponder and most others.</p>'
+    + '<p class="tiny" style="margin-top:8px">Export a results file from your timing software — CSV, tab-separated, or Race Manager XML. Reads MYLAPS Orbits, Westhold Race Manager (CSV, or XML from C:\\RaceManager\\UploadXML), MotoSponder and most others.</p>'
     + '<div id="impClsMode" style="display:none;margin-top:14px">'
     +   '<div class="seg"><button class="on" id="impCmOne" onclick="impSetClsMode(false,true)">One class for this file</button>'
     +   '<button id="impCmCol" onclick="impSetClsMode(true,true)">Use the file\'s Class column</button></div>'
@@ -7952,6 +7954,7 @@ function impIngestText(text, filename, fromWatch) {
       return false;
     }
     if (!xml.cars) { if (!fromWatch) toast('That Race Manager file has no drivers in it.', 'err'); return false; }
+    if (!xml.started) { if (!fromWatch) toast('That Race Manager file is from the start of a session: nobody has a lap yet. Load the one saved at Stop.', 'err'); return false; }
     text = xml.csv; filename = xml.fileName;
   }
   const delim = impDetectDelim(String(text || ''));
