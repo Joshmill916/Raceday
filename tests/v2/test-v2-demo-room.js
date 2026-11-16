@@ -193,6 +193,26 @@ const wait = ms => new Promise(r => setTimeout(r, ms));
   const nextBack = await host.evaluate(() => { demoJump(4); demoStep(1); const a = demoStepIdx(); demoStep(-1); const b = demoStepIdx(); if (sheetOpen()) closeSheet(); return [a, b, curPage]; });
   check('Next and Back move one step and open that screen', nextBack[0] === 5 && nextBack[1] === 4 && nextBack[2] === 'admin', nextBack.join());
 
+  console.log('— the prospect\'s phone follows —');
+  const goStep = async t => { await host.evaluate(t => { demoJump(DEMO_STEPS.findIndex(s => s.t === t)); if (sheetOpen()) closeSheet(); }, t); await wait(700); await notify(); await wait(400); };  // sync pushes after 400 ms
+  const gView = () => guest.evaluate(() => ({ page: curPage, sec: UI.admSec, banner: (document.getElementById('banners') || {}).textContent || '' }));
+  await guest.evaluate(() => nav('points'));
+  await goStep('Sign-up at the gate');
+  let gv = await gView();
+  check('when the presenter shows Sign-up, the prospect\'s phone goes to Sign-up', gv.page === 'signup', JSON.stringify(gv));
+  check('…and its banner says it follows the presenter, with a Stop following button', /follows the presenter/.test(gv.banner) && /Stop following/.test(gv.banner), gv.banner.slice(0, 160));
+  await goStep('Pre-registration');
+  gv = await gView();
+  check('Admin steps take the phone to the same Admin section', gv.page === 'admin' && gv.sec === 'prereg', JSON.stringify(gv));
+  await guest.evaluate(() => nav('results')); await notify(); await wait(300);
+  check('between steps the prospect can tap around (a re-sync does not pull them back)', (await gView()).page === 'results');
+  await guest.evaluate(() => demoFollowToggle());
+  await goStep('Lineups');
+  check('after Stop following, the phone stays where the prospect is', (await gView()).page === 'results');
+  await guest.evaluate(() => demoFollowToggle()); await wait(200);
+  check('Follow presenter again jumps straight to the presenter\'s screen', (await gView()).page === 'grid');
+  check('the presenter\'s own screen is never moved by its own steps twice (host ignores follow)', await host.evaluate(() => { const before = curPage; demoRoomFollow(); return curPage === before; }));
+
   console.log('— ending the demo —');
   await Promise.all([host.waitForNavigation(), guest.waitForNavigation(), host.evaluate(() => demoRoomEnd())]);
   await wait(1200);

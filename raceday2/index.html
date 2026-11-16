@@ -867,7 +867,7 @@ const GARAGE_KEY = 'rd_garage_v2';
 const ACTIVE_TRACK_KEY = 'rd_active_track_v2';
 // Reported with every usage row and crash. The part after the dot MUST match this app's
 // sw.js CACHE number (tests/test-app-version.js) — bump both together on each release.
-const APP_VERSION = '2026-11-14.v41';
+const APP_VERSION = '2026-11-15.v42';
 const LEGAL_VERSION = '2026-06';   // bump when Terms / Privacy wording changes, so acceptances are versioned
 const TELEMETRY_URL = 'https://script.google.com/macros/s/AKfycbxa3i3y17TLp_NfXOOu2jM7-YzXH2fScxcXoQYmIh0-873rxWfxg0HdRP1DVsxZq6iR/exec';
 const FIREBASE_CONFIG = {
@@ -2262,6 +2262,7 @@ function syncApplySnapshot(v) {
   if (GUEST) { setGuestRoom(syncKey(), S.track && S.track.name); renderBanners(); }
   renderHeader(); renderBanners(); renderRaceControl(); render(curPage); if (TV.on) tvRender();
   demoRoomCheckEnded();
+  demoRoomFollow();
   if (wasViewer && prevFin !== null && JSON.stringify(S.classes.map(c => featureFinish(c.id))) !== prevFin) {
     showViewerToast();
   }
@@ -3186,7 +3187,42 @@ function demoStepIdx() {
   return Math.max(0, Math.min(DEMO_STEPS.length - 1, i));
 }
 function demoSetStep(i) { try { localStorage.setItem(DEMO_STEP_KEY, String(i)); } catch (e) {} renderBanners(); }
-function demoGo() { if (sheetOpen()) closeSheet(); const s = DEMO_STEPS[demoStepIdx()]; if (s && s.go) s.go(); renderBanners(); }
+function demoGo() {
+  if (sheetOpen()) closeSheet();
+  const i = demoStepIdx(), s = DEMO_STEPS[i];
+  if (s && s.go) s.go();
+  // Tell the prospect's phone where we are (synced with settings): it follows to the same screen.
+  const d = S.settings && S.settings.demoRoom;
+  if (d && typeof d === 'object' && demoRoomHost()) {
+    d.step = { i, page: curPage, sec: curPage === 'admin' ? (UI.admSec || null) : null, tv: !!TV.on, at: Date.now() };
+    save();
+  }
+  renderBanners();
+}
+/* The prospect's phone follows the presenter: each time the host shows a step, a joined phone
+   jumps to the same page (and Admin section, and TV) once. In between they can tap around freely;
+   "Stop following" on their banner keeps them where they are (rd_demo_follow_off, this phone only).
+   Sheets the host opens (import, lineup files, driver card, QR) stay on the host. */
+const DEMO_FOLLOW_SEEN = 'rd_demo_follow', DEMO_FOLLOW_OFF = 'rd_demo_follow_off';
+function demoFollowOn() { try { return localStorage.getItem(DEMO_FOLLOW_OFF) !== '1'; } catch (e) { return true; } }
+function demoFollowToggle() {
+  const on = demoFollowOn();
+  try { if (on) localStorage.setItem(DEMO_FOLLOW_OFF, '1'); else { localStorage.removeItem(DEMO_FOLLOW_OFF); localStorage.removeItem(DEMO_FOLLOW_SEEN); } } catch (e) {}
+  if (!on) demoRoomFollow();
+  renderBanners();
+}
+function demoRoomFollow() {
+  const d = demoRoom(); const st = d && d.step;
+  if (!st || !st.at || demoRoomHost() || !demoFollowOn()) return;
+  let seen = 0; try { seen = +localStorage.getItem(DEMO_FOLLOW_SEEN) || 0; } catch (e) {}
+  if (st.at <= seen) return;
+  try { localStorage.setItem(DEMO_FOLLOW_SEEN, String(st.at)); } catch (e) {}
+  if (sheetOpen()) closeSheet();
+  if (TV.on && !st.tv) closeTV();
+  if (st.page) nav(st.page);
+  if (st.page === 'admin' && st.sec) admOpen(st.sec);
+  if (st.tv && !TV.on) openTV();
+}
 function demoStep(d) { demoSetStep(Math.max(0, Math.min(DEMO_STEPS.length - 1, demoStepIdx() + d))); demoGo(); }
 function demoJump(i) { demoSetStep(i); demoGo(); }
 function demoStepsSheet() {
@@ -3199,7 +3235,9 @@ function demoStepsSheet() {
 }
 function demoRoomBannerHtml() {
   if (!demoRoom()) return '';
-  if (!demoRoomHost()) return '<div class="banner note">Live demo: a sample track with sample drivers. Try anything. Nothing here counts, and it all clears when the demo ends.</div>';
+  if (!demoRoomHost()) return '<div class="banner note"><span style="flex:1 1 220px;min-width:0">Live demo: a sample track with sample drivers. Try anything. Nothing here counts, and it all clears when the demo ends.'
+    + '<span class="tiny" style="display:block;margin-top:4px">' + (demoFollowOn() ? 'This screen follows the presenter.' : 'Not following the presenter.') + '</span></span>'
+    + '<button class="btn btn-sm" id="demoFollowBtn" onclick="demoFollowToggle()">' + (demoFollowOn() ? 'Stop following' : 'Follow presenter') + '</button></div>';
   const i = demoStepIdx(), s = DEMO_STEPS[i], last = DEMO_STEPS.length - 1;
   return '<div class="banner note" id="demoScript"><div style="flex:1 1 220px;min-width:0">'
     + '<div class="tiny">Live demo · step ' + (i + 1) + ' of ' + DEMO_STEPS.length + '</div>'
