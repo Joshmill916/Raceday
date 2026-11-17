@@ -867,7 +867,7 @@ const GARAGE_KEY = 'rd_garage_v2';
 const ACTIVE_TRACK_KEY = 'rd_active_track_v2';
 // Reported with every usage row and crash. The part after the dot MUST match this app's
 // sw.js CACHE number (tests/test-app-version.js) — bump both together on each release.
-const APP_VERSION = '2026-11-17.v43';
+const APP_VERSION = '2026-11-17.v44';
 const LEGAL_VERSION = '2026-06';   // bump when Terms / Privacy wording changes, so acceptances are versioned
 const TELEMETRY_URL = 'https://script.google.com/macros/s/AKfycbxa3i3y17TLp_NfXOOu2jM7-YzXH2fScxcXoQYmIh0-873rxWfxg0HdRP1DVsxZq6iR/exec';
 const FIREBASE_CONFIG = {
@@ -1128,7 +1128,7 @@ function load() {
 function save() {
   if (GUEST) return;   // a guest session persists nothing, and never writes to the room
   try { localStorage.setItem(activeKey(), JSON.stringify(S)); } catch(e) {}
-  if (syncOn()) syncPush();
+  if (syncOn()) { syncPush(); drivenLiveQueue(); }
   if (window.RmSync && RmSync.ok) rmQueueSync();
 }
 // Persist to this device WITHOUT pushing to the shared room. Several call sites need
@@ -1972,7 +1972,7 @@ function staffJoin() {
     }, () => false);
   }).then(ok => {
     Staff.ok = !!ok;
-    if (Staff.ok) { Staff.denied = false; staffWatchPin(); }
+    if (Staff.ok) { Staff.denied = false; staffWatchPin(); drivenLiveQueue(); }
     if (typeof renderSyncCard === 'function') renderSyncCard();
     return Staff.ok;
   }).catch(e => { console.warn('RaceDay staff sign-in:', e && e.message || e); Staff.ok = false; return false; });
@@ -2272,6 +2272,7 @@ function syncApplySnapshot(v) {
   }
   if (wasViewer) checkRaceNoteAlert();
   if (window.RmSync && RmSync.ok) rmQueueSync();   // a sign-up from the registration tablet reaches Race Manager too
+  if (!GUEST && !wasViewer) drivenLiveQueue();     // …and drivers' "Racing today" on Driven
   // Only alert when a DISTINCT existing identity was silently replaced — skip a fresh
   // device's first join (prevTrackName empty), which is normal, not a surprise overwrite.
   // A guest is looking at somebody else's race on purpose; nothing was replaced.
@@ -2661,6 +2662,64 @@ function unshareResultsWithDriven(idx) {
 function hintReshare(driverName, driverId) {
   const n = (S.history || []).filter(h => h.published && h.classes.some(c => nightFinishOrder(h, c).some(f => String(f.driverId) === String(driverId)))).length;
   if (n) toast(driverName + ' has results in ' + plural(n, 'shared night') + '. Share ' + (n === 1 ? 'it' : 'them') + ' again from Race day history so Driven moves them to the right card.', 'ok');
+}
+/* Racing today on Driven (2026-11-17): a driver whose Driven card is linked and who is entered
+   tonight sees their own night on Driven's Home — each class, every race's starting spot, on
+   track / up next / done (the same myNight() the fan view's "follow a driver" uses) — plus a
+   one-tap link to their lineup (the spectator link with &me=), so nobody needs the QR code.
+   Any registered staff device writes liveDriven/<profileId>/<room> (rules: staff of that room
+   only); Driven shows it only for today and only when this room's own roster links that card
+   to that driver. Never from a demo, a demo room, a guest or a spectator. Only rows that
+   changed are written; a driver who leaves tonight (cancelled, unlinked, new race day) is
+   removed. rd_driven_live remembers what this device last wrote. */
+var LIVE_KEY = 'rd_driven_live', _liveT = null;   // var: save() can run during boot, before this line (a let would throw there)
+function drivenLiveQueue() { clearTimeout(_liveT); _liveT = setTimeout(drivenLivePush, 1500); }
+function drivenLiveRows() {
+  const rows = {};
+  const date = S.raceDay.date || today();
+  const cap = (v, n) => String(v == null ? '' : v).slice(0, n);
+  [...new Set(S.raceDay.entries.map(e => e.driverId))].forEach(id => {
+    const d = driverById(id);
+    if (!d || !d.profileId || !/^prof_[a-z0-9]{4,40}$/.test(d.profileId)) return;
+    const n = myNight(id);
+    if (!n.classes.length) return;
+    let classes = n.classes.slice(0, 8).map(c => ({
+      c: cap(c.cls.name, 60), t: cap(c.total, 40), p: typeof c.pts === 'number' ? c.pts : null,
+      r: c.races.slice(0, 10).map(r => r.note ? { l: cap(r.label, 30), n: cap(r.note, 80) }
+        : { l: cap(r.label, 30), s: cap(r.spot, 30), k: r.laps || 0, d: r.done ? 1 : 0, f: r.done && r.fin != null ? (typeof r.fin === 'number' ? r.fin : cap(r.fin, 10)) : '', w: cap(r.when, 30), now: r.now ? 1 : 0 })
+    }));
+    let cj = JSON.stringify(classes);
+    while (cj.length > 4000 && classes.length > 1) { classes = classes.slice(0, -1); cj = JSON.stringify(classes); }
+    if (cj.length > 4000) return;
+    rows[d.profileId] = {
+      trackName: cap(S.track.name || 'RaceDay', 60), date, me: id, name: cap(d.name, 40), num: cap(d.num, 8), classes: cj,
+      next: n.next ? cap(n.next.cls.name + ' · ' + n.next.label + (n.next.when ? ' — ' + n.next.when : ''), 120) : ''
+    };
+  });
+  return rows;
+}
+function drivenLivePush() {
+  if (GUEST || S.demo || demoRoom() || !syncOn() || !syncKey() || !Staff.ok) return;
+  if (deviceRole() === 'viewer' || deviceRole() === 'announcer' || operatorWatching()) return;
+  if (!window.firebase || !firebase.apps || !firebase.apps.length) return;
+  const room = syncKey();
+  let last = null;
+  try { last = JSON.parse(localStorage.getItem(LIVE_KEY) || 'null'); } catch (e) {}
+  if (!last || last.room !== room || !last.rows || typeof last.rows !== 'object') last = { room, rows: {} };
+  const rows = drivenLiveRows(), db = firebase.database(), jobs = [];
+  Object.keys(rows).forEach(pid => {
+    const h = JSON.stringify(rows[pid]);
+    if (last.rows[pid] === h) return;
+    last.rows[pid] = h;
+    jobs.push(db.ref('liveDriven/' + pid + '/' + room).set(Object.assign({ at: Date.now() }, rows[pid])).catch(() => { delete last.rows[pid]; }));
+  });
+  Object.keys(last.rows).forEach(pid => {
+    if (rows[pid]) return;
+    delete last.rows[pid];
+    jobs.push(db.ref('liveDriven/' + pid + '/' + room).remove().catch(() => {}));
+  });
+  if (!jobs.length) return;
+  Promise.all(jobs).then(() => { try { localStorage.setItem(LIVE_KEY, JSON.stringify(last)); } catch (e) {} });   // this device's memory, not race data
 }
 function csvCell(v) { v = String(v == null ? '' : v); return /[",\n]/.test(v) ? '"' + v.replace(/"/g, '""') + '"' : v; }
 function csvRows(rows) { return rows.map(r => r.map(csvCell).join(',')).join('\n'); }

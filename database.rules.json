@@ -171,6 +171,24 @@
         }
       }
     },
+    "liveDriven": {
+      "$profileId": {
+        ".read": true,
+        "$room": {
+          ".write": "auth != null && root.child('trackStaff').child($room).child(auth.uid).exists()",
+          ".validate": "$profileId.matches(/^prof_[a-z0-9]{4,40}$/) && newData.hasChildren(['trackName','date','me','at'])",
+          "trackName": { ".validate": "newData.isString() && newData.val().length <= 60" },
+          "date": { ".validate": "newData.isString() && newData.val().matches(/^[0-9]{4}-[0-9]{2}-[0-9]{2}$/)" },
+          "me": { ".validate": "newData.isNumber()" },
+          "name": { ".validate": "newData.isString() && newData.val().length <= 40" },
+          "num": { ".validate": "newData.isString() && newData.val().length <= 8" },
+          "classes": { ".validate": "newData.isString() && newData.val().length <= 4000" },
+          "next": { ".validate": "newData.isString() && newData.val().length <= 120" },
+          "at": { ".validate": "newData.isNumber()" },
+          "$other": { ".validate": false }
+        }
+      }
+    },
     "resultsKey": {
       "$trackId": {
         ".read": false,

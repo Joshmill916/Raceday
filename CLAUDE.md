@@ -250,6 +250,15 @@ profile that follows them across every RaceDay track they race at.
   now reconciles 'raceday' results per track: updates changed position/points, removes ones the track took back, never removes
   on an empty/failed read, never touches other sources. Guards: `tests/v2/test-v2-borrowed-tx-undo.js` +
   `tests/test-driven-results-reconcile.js`
+- **Racing today on Driven** (2026-11-17, `raceday2/` + Driven): a driver whose Driven card is linked and who is entered tonight
+  sees their own night on Driven's Home: each class, every race's starting spot, on track / up next / finished (the fan view's
+  `myNight()`), and "Open my lineup" (the `&me=` spectator link, no QR). RaceDay: `drivenLivePush()` (queued from `save()`,
+  `syncApplySnapshot`, staff sign-in) writes `liveDriven/<profileId>/<room>` from registered staff devices only (rules: trackStaff of
+  that room, capped fields, `classes` a JSON string <= 4000), only changed rows, removes drivers who leave tonight; never demo / demo
+  room / guest / spectator. `rd_driven_live` = what this device last wrote. Driven: `pullLive()` (open, back to screen, every 30 s
+  while showing) for every published driver/ride on the phone, shown only for today and only when `tracks/<room>/roster` links that
+  card to that driver (`liveVerify`). **Needs `firebase deploy --only database`.** Guards: `tests/v2/test-v2-driven-live.js` +
+  `tests/test-driven-live.js`
 - **Hostile-input limits** (2026-11-11, `raceday2/`): driver names 40 chars with spaces collapsed (`signupVals()`, timing-import
   new drivers), class names 60 with blank/duplicate refused (`addClass`/`addClassNamed`), lineup grids use `minmax(0,1fr)` and
   name rows wrap/trim so nothing widens a phone; `register()` ignores a tap after the form is gone; the DEMO watermark sits
