@@ -27,7 +27,8 @@ location.replace('https://'+location.host+location.pathname+location.search+loca
 /* Returning devices skip the pitch entirely — this must run before anything renders.
    A saved station link (?sync=/&role=) always means "go straight to the app", and so
    does a browser that already has RaceDay data from a previous visit — the new app
-   (raceday_v2) wins over the classic one, so a track that moved over lands on v2.
+   (raceday_v2, at /raceday/) wins over the classic one (/raceday-classic/), so a track that
+   moved over lands on the new app.
    location.replace so it doesn't leave a broken back-button entry. */
 (function () {
   var q = location.search;
@@ -36,20 +37,20 @@ location.replace('https://'+location.host+location.pathname+location.search+loca
   try {
     // A real v2 track, not a prospect who only tried the demo or opened it once.
     var v2 = JSON.parse(localStorage.getItem('raceday_v2') || 'null');
-    if (v2 && v2.track && v2.track.name && !v2.demo) { location.replace('/raceday2/'); return; }
+    if (v2 && v2.track && v2.track.name && !v2.demo) { location.replace('/raceday/'); return; }
   } catch (e) {}
   try {
     var raw = localStorage.getItem('raceday_v1');
     if (raw) {
       var s = JSON.parse(raw);
-      if (s && s.raceDay && s.classes) { location.replace('/raceday/'); return; }
+      if (s && s.raceDay && s.classes) { location.replace('/raceday-classic/'); return; }
     }
   } catch (e) {}
   // A fan or driver phone that scanned a track's lineup QR (no track of its own): back to
   // that track's live view, so typing victoryraceday.com finds the lineup again.
   try {
     var gr = JSON.parse(localStorage.getItem('rd_guest_room_v2') || 'null');
-    if (gr && gr.code) { location.replace('/raceday2/'); return; }
+    if (gr && gr.code) { location.replace('/raceday/'); return; }
   } catch (e) {}
 })();
 </script>
@@ -181,9 +182,9 @@ img{max-width:100%;height:auto;display:block}
 .topbar-link:focus-visible{outline:3px solid var(--clay-bright);outline-offset:3px;border-radius:2px}
 
 /* "Open RaceDay" in the top bar is the main action — style it as a button. */
-.topbar a[href="/raceday2/"]{background:var(--btn);color:var(--on-btn);border-radius:6px;padding:7px 12px;white-space:nowrap}
-.topbar a[href="/raceday2/"]:hover{background:var(--btn-2);color:var(--on-btn)}
-@media (max-width:600px){.topbar a[href="/raceday2/"]{padding:6px 9px}.topbar a[href="/raceday2/"] .btn-arrow{display:none}}
+.topbar a[href="/raceday/"]{background:var(--btn);color:var(--on-btn);border-radius:6px;padding:7px 12px;white-space:nowrap}
+.topbar a[href="/raceday/"]:hover{background:var(--btn-2);color:var(--on-btn)}
+@media (max-width:600px){.topbar a[href="/raceday/"]{padding:6px 9px}.topbar a[href="/raceday/"] .btn-arrow{display:none}}
 @media (max-width:380px){.topbar a[href="/faq.html"]{display:none}.topbar-links{gap:12px!important}.topbar-link{font-size:.7rem!important;letter-spacing:.02em!important}}
 
 /* ---------- Hero ---------- */
@@ -449,7 +450,7 @@ footer .wrap{display:flex;justify-content:space-between;gap:16px;flex-wrap:wrap}
       <a class="topbar-link" href="/guides/">Guides</a>
       <a class="topbar-link" href="/pricing.html">Pricing</a>
       <a class="topbar-link" href="/faq.html">FAQ</a>
-      <a class="topbar-link" href="/raceday2/">Open RaceDay <span class="btn-arrow">→</span></a>
+      <a class="topbar-link" href="/raceday/">Open RaceDay <span class="btn-arrow">→</span></a>
     </span>
   </div>
 </div>
@@ -460,7 +461,7 @@ footer .wrap{display:flex;justify-content:space-between;gap:16px;flex-wrap:wrap}
       <h1>Run the whole card<br>from <em>one screen.</em></h1>
       <p class="lede">Sign-up, heat lineups, results, and season points — no clipboard, no spreadsheet, less time at the table. Built for tracks that race every week.</p>
       <div class="cta-row">
-        <a class="btn" href="/raceday2/?demo=1">Try the live demo <span class="btn-arrow">→</span></a>
+        <a class="btn" href="/raceday/?demo=1">Try the live demo <span class="btn-arrow">→</span></a>
         <a class="link-quiet" href="#gate">See how it works</a>
       </div>
       <p style="margin-top:16px"><a class="link-quiet" href="/raceday/">Already using RaceDay? Open it here →</a></p>
@@ -666,7 +667,7 @@ footer .wrap{display:flex;justify-content:space-between;gap:16px;flex-wrap:wrap}
     <h2>Try it on your next<br>race night.</h2>
     <p class="lede">Click in, poke around with the demo field already loaded, and see how it feels before you commit to anything.</p>
     <div class="cta-row">
-      <a class="btn" href="/raceday2/?demo=1">Try the live demo <span class="btn-arrow">→</span></a>
+      <a class="btn" href="/raceday/?demo=1">Try the live demo <span class="btn-arrow">→</span></a>
       <a class="link-quiet" href="/pricing.html">See pricing <span class="btn-arrow">→</span></a>
       <a class="link-quiet" href="/drivers/">Meet Driven <span class="btn-arrow">→</span></a>
     </div>

@@ -40,7 +40,7 @@ const PA = 'prof_livea0001', PB = 'prof_liveb0002';
   const p = await browser.newPage({ viewport: { width: 900, height: 900 } });
   const errs = []; p.on('pageerror', e => errs.push(e.message)); p.on('dialog', d => d.accept());
   await p.route(/firebaseio\.com|gstatic\.com|cloudfunctions\.net|cloudflareinsights|script\.google\.com/, r => r.abort());
-  await p.goto(`http://localhost:${PORT}/raceday2/`); await p.waitForTimeout(600);
+  await p.goto(`http://localhost:${PORT}/raceday/`); await p.waitForTimeout(600);
   await p.evaluate(([PA, PB]) => {
     closeSheet(); localStorage.setItem('rd_role_v2', 'admin'); sessionStorage.setItem('rd_admin_ok', '1'); setDeviceRole('admin'); applyRole();
     localStorage.removeItem('rd_driven_live');
@@ -152,7 +152,7 @@ const PA = 'prof_livea0001', PB = 'prof_liveb0002';
   const errs2 = []; p2.on('pageerror', e => errs2.push(e.message));
   await p2.route(/firebaseio\.com|gstatic\.com|cloudfunctions\.net|cloudflareinsights|script\.google\.com/, r => r.abort());
   await p2.addInitScript(() => { try { localStorage.setItem('raceday_v1', JSON.stringify({ sync: { enabled: true, key: 'BOOTRM', staffKey: '' }, schemaVersion: 1 })); } catch (e) {} });
-  await p2.goto(`http://localhost:${PORT}/raceday2/`); await p2.waitForTimeout(2200);
+  await p2.goto(`http://localhost:${PORT}/raceday/`); await p2.waitForTimeout(2200);
   check('a synced device starts up without errors', !errs2.length, errs2.join('; '));
   await p2.close();
 

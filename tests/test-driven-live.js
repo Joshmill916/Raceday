@@ -62,7 +62,7 @@ const PID = 'prof_driveliv01', KID2 = 'prof_driveliv02';
   check('…finished, up next and on track', /Finished P3/.test(t) && /Up next/.test(t) && /On track now/.test(t), t);
   check('…and the feature note until the lineup posts', /Lineup posts once the heats are in/.test(t));
   const href = await page.evaluate(() => (document.querySelector('#liveToday a.live-go') || {}).href);
-  check('"Open my lineup" opens their own lineup, no QR (version 1)', href === 'https://victoryraceday.com/raceday2/?sync=ROOM1&role=viewer&me=101', href);
+  check('"Open my lineup" opens their own lineup, no QR (version 1)', href === 'https://victoryraceday.com/raceday/?sync=ROOM1&role=viewer&me=101', href);
   check('it says when the track last updated it', /updated 2 min ago/.test(t), t);
   check('it keeps itself current while it\'s showing', await page.evaluate(() => !!LIVE.timer));
   check('a one-driver phone doesn\'t repeat the driver\'s name', !/Avery Lane at/i.test(t));

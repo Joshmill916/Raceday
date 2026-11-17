@@ -57,7 +57,7 @@ const MOCK = () => {
   const browser = await chromium.launch({ executablePath: '/opt/pw-browsers/chromium' });
   const errors = [];
 
-  for (const app of ['raceday2', 'raceday']) {
+  for (const app of ['raceday', 'raceday-classic']) {
     console.log('\n=== ' + app + ' ===');
     const ctx = await browser.newContext({ viewport: { width: 420, height: 850 } });
     await ctx.route(/^(?!http:\/\/localhost)/, r => r.abort());

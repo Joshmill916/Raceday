@@ -242,7 +242,7 @@ const PID = 'prof_othertest001';
   const rules = JSON.parse(fs.readFileSync(path.join(ROOT, 'database.rules.json'), 'utf8')).rules;
   const otherRule = rules.profiles.$id.card.other && rules.profiles.$id.card.other['.validate'];
   check('rules allow the card field, capped at CARD_CAPS.other', /length <= 8000/.test(otherRule || '') && (await page.evaluate(() => CARD_CAPS.other)) === 8000, otherRule);
-  for (const f of ['raceday/index.html', 'raceday2/index.html']) {
+  for (const f of ['raceday-classic/index.html', 'raceday/index.html']) {
     const src = fs.readFileSync(path.join(ROOT, f), 'utf8');
     const m = src.match(/function sanitizeProfileCard[\s\S]*?\n}/);
     check(f + ': tracks never receive other results (card whitelist)', m && !/card\.other\b/.test(m[0]));

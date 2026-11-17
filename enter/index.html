@@ -7,7 +7,7 @@
 <meta name="description" content="Pre-register for a race run on RaceDay. Your entry goes straight to the track.">
 <meta name="robots" content="noindex">
 <link href="https://fonts.googleapis.com/css2?family=Saira+Condensed:wght@600;700;800&display=swap" rel="stylesheet">
-<link rel="icon" type="image/png" href="../raceday2/icon-rd.png">
+<link rel="icon" type="image/png" href="../raceday/icon-rd.png">
 <meta name="theme-color" content="#0b0c0f">
 <style>
   /* Public pre-registration page: victoryraceday.com/enter/?ROOMCODE
@@ -189,7 +189,7 @@ function withdrawnMarkup() {
 function confirmMarkup() {
   if (mine.withdrawn) return withdrawnMarkup();
   const names = String(mine.classes || '').split(',').map(id => (classes.find(k => String(k.id) === id) || {}).name).filter(Boolean);
-  const live = 'https://victoryraceday.com/raceday2/?sync=' + encodeURIComponent(CODE) + '&role=viewer';
+  const live = 'https://victoryraceday.com/raceday/?sync=' + encodeURIComponent(CODE) + '&role=viewer';
   return '<span class="cap" style="color:var(--ok)">You\'re pre-entered' + (trackName ? ' · ' + esc(trackName) : '') + '</span>'
     + '<h1>' + (mine.num ? '<span class="plate">' + esc(mine.num) + '</span>' : '') + esc(mine.name) + '</h1>'
     + '<div class="sub">' + esc(names.join(' · ')) + '</div>'

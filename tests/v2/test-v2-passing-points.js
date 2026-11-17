@@ -13,7 +13,7 @@ const check = (name, ok, extra) => {
 
 (async () => {
   const server = http.createServer((req, res) => {
-    const rel = req.url === '/' ? 'raceday2/index.html' : req.url.split('?')[0];
+    const rel = req.url === '/' ? 'raceday/index.html' : req.url.split('?')[0];
     fs.readFile(path.join(ROOT, rel), (err, data) => {
       if (err) { res.writeHead(404); res.end(); return; }
       res.writeHead(200, { 'Content-Type': 'text/html' }); res.end(data);

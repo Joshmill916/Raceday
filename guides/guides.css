@@ -44,9 +44,9 @@ b,strong{font-weight:700}
 .topbar-link:hover,.topbar-link.on{color:#fff}
 
 /* "Open RaceDay" in the top bar is the main action — style it as a button. */
-.topbar a[href="/raceday2/"]{background:var(--btn);color:var(--on-btn);border-radius:6px;padding:7px 12px;white-space:nowrap}
-.topbar a[href="/raceday2/"]:hover{background:var(--btn-2);color:var(--on-btn)}
-@media (max-width:600px){.topbar a[href="/raceday2/"]{padding:6px 9px}.topbar a[href="/raceday2/"] .btn-arrow{display:none}}
+.topbar a[href="/raceday/"]{background:var(--btn);color:var(--on-btn);border-radius:6px;padding:7px 12px;white-space:nowrap}
+.topbar a[href="/raceday/"]:hover{background:var(--btn-2);color:var(--on-btn)}
+@media (max-width:600px){.topbar a[href="/raceday/"]{padding:6px 9px}.topbar a[href="/raceday/"] .btn-arrow{display:none}}
 @media (max-width:380px){.topbar a[href="/faq.html"]{display:none}.topbar-links{gap:12px!important}.topbar-link{font-size:.7rem!important;letter-spacing:.02em!important}}
 @media (max-width:600px){.topbar-links{gap:14px}.topbar-link{font-size:.72rem}}
 

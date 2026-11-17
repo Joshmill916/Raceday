@@ -1,4 +1,4 @@
-// Two owner-reported regressions, checked in BOTH apps (raceday/ and raceday2/):
+// Two owner-reported regressions, checked in BOTH apps (raceday-classic/ and raceday/):
 //  1. "Load a demo race day" is a showcase: it must never use a free-trial day, must work
 //     even after the trial is used up, and the demo night is discarded on archive (no race
 //     history, no season points) instead of being saved like a real night.
@@ -29,7 +29,7 @@ const check = (name, ok, extra) => {
   }).listen(PORT);
   const browser = await chromium.launch({ executablePath: '/opt/pw-browsers/chromium' });
 
-  for (const app of ['raceday', 'raceday2']) {
+  for (const app of ['raceday-classic', 'raceday']) {
     console.log('\n=== ' + app + ' ===');
     const ctx = await browser.newContext();
     await ctx.route(/script\.google\.com|firebaseio\.com|gstatic\.com|cloudflareinsights/, r => r.abort());
@@ -83,7 +83,7 @@ const check = (name, ok, extra) => {
       save();
       if (typeof hideModal === 'function') hideModal('setupWizard');
       openDriverCard(d.id);
-      if (app === 'raceday2') {
+      if (app === 'raceday') {
         const hero = document.querySelector('.sheet.dc .dc-hero') || document.querySelector('.dc-hero');
         const sheet = document.querySelector('.sheet.dc');
         return { team: hero && hero.style.getPropertyValue('--dc-team'), cls: sheet && sheet.className, kept2: d.profile.teamColor2 };
@@ -98,7 +98,7 @@ const check = (name, ok, extra) => {
     const unlinked = await page.evaluate((app) => {
       const d = { id: genDriverId(), name: 'Plain Driver', num: '7' }; S.roster.push(d); save();
       openDriverCard(d.id);
-      if (app === 'raceday2') { const s = document.querySelector('.sheet.dc'); return s && s.className; }
+      if (app === 'raceday') { const s = document.querySelector('.sheet.dc'); return s && s.className; }
       return document.getElementById('dcPanel').className;
     }, app);
     check('an unlinked driver keeps the stock card', !/\bteam\b/.test(unlinked || ''), unlinked);

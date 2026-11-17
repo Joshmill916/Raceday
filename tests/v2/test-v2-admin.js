@@ -18,7 +18,7 @@ const ALL_SECTIONS = ['today','history','track','classes','format','points','leg
 
 (async () => {
   const server = http.createServer((req, res) => {
-    const rel = req.url === '/' ? 'raceday2/index.html' : req.url.split('?')[0];
+    const rel = req.url === '/' ? 'raceday/index.html' : req.url.split('?')[0];
     fs.readFile(path.join(ROOT, rel), (e, d) => {
       if (e) { res.writeHead(404); res.end(); return; }
       res.writeHead(200, { 'Content-Type': TYPES[path.extname(rel)] || 'text/plain' }); res.end(d);
@@ -165,7 +165,7 @@ const ALL_SECTIONS = ['today','history','track','classes','format','points','leg
 
   console.log('— History entry actually expands on "View" (not just that the section renders) —');
   // (Real bug found by audit: renderHistory() emits onclick="toggleHist(i)", but
-  //  toggleHist() was never defined in raceday2/index.html — a dangling reference. The
+  //  toggleHist() was never defined in raceday/index.html — a dangling reference. The
   //  ALL_SECTIONS loop above only asserts the history section renders >200 chars; it
   //  never actually clicks View, so this was never caught.)
   errs.length = 0;

@@ -26,7 +26,7 @@ const RACERS = read('DEMO.CSV').trim().split(/\r?\n/).map(l => { const c = l.spl
   p.on('pageerror', e => errs.push(e.message));
   p.on('dialog', d => d.accept());
   await p.route(/^(?!http:\/\/localhost)/, r => r.abort());
-  await p.goto(`http://localhost:${PORT}/raceday2/index.html`); await p.waitForTimeout(600);
+  await p.goto(`http://localhost:${PORT}/raceday/index.html`); await p.waitForTimeout(600);
   await p.evaluate((racers) => {
     S.classes = [{ id: 1, name: 'Demo', maxPill: 200, heats: 1 }, { id: 2, name: 'Clone, Heavy', maxPill: 200, heats: 1 }];
     // Drivers known by name + number only (no transponders yet), except one with a stored tag.

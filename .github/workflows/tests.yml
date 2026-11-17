@@ -39,9 +39,9 @@ jobs:
           echo "Chromium: $CHROME"
           ln -sf "$CHROME" /opt/pw-browsers/chromium
 
-      - name: JavaScript syntax check (all three apps)
+      - name: JavaScript syntax check (every app)
         run: |
-          for f in raceday/index.html driven/index.html index.html; do
+          for f in raceday/index.html raceday-classic/index.html driven/index.html index.html; do
             python3 - "$f" <<'PY'
           import re, sys
           html = open(sys.argv[1]).read()

@@ -81,7 +81,7 @@ const LAYOUTS = {
     p.on('pageerror', e => errs.push(e.message));
     p.on('dialog', d => d.accept());
     await p.route(/^(?!http:\/\/localhost)/, r => r.abort());
-    await p.goto(`http://localhost:${PORT}/raceday2/index.html`); await p.waitForTimeout(600);
+    await p.goto(`http://localhost:${PORT}/raceday/index.html`); await p.waitForTimeout(600);
     await p.evaluate((all) => {
       S.track.name = 'Sample Speedway';
       S.classes = [{ id: 1, name: 'Late Model', maxPill: 200, heats: 1, maxFeature: 10, maxBMain: 12 }, { id: 2, name: 'Pro Stock', maxPill: 200, heats: 1 }];
@@ -171,7 +171,7 @@ const LAYOUTS = {
   {
     const p = await browser.newPage();
     await p.route(/^(?!http:\/\/localhost)/, r => r.abort());
-    await p.goto(`http://localhost:${PORT}/raceday2/index.html`); await p.waitForTimeout(500);
+    await p.goto(`http://localhost:${PORT}/raceday/index.html`); await p.waitForTimeout(500);
     const cases = [
       ['Junior 80cc Feature Results.csv', 'Junior 80cc'], ['Results - Junior 80cc - Heat 2.csv', 'Junior 80cc'],
       ['2026-11-07 Junior 80cc Qualifying.csv', 'Junior 80cc'], ['Junior 80cc_B-Main_11-07-2026.txt', 'Junior 80cc'],

@@ -4,6 +4,8 @@ User-agent: *
 Disallow: /me/
 Disallow: /claim.html
 Disallow: /sync-test.html
+Disallow: /raceday/
+Disallow: /raceday-classic/
 Disallow: /raceday2/
 Disallow: /fb/
 Disallow: /li/

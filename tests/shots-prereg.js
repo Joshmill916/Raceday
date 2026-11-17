@@ -7,7 +7,7 @@ const CLASSES = [{ id: 1, name: 'Predator', maxPill: 200 }, { id: 2, name: 'Stoc
 const G = path.join(ROOT, 'guides/img'), D = path.join(ROOT, 'drivers/img');
 (async () => {
   const server = http.createServer((req, res) => {
-    let rel = req.url.split('?')[0]; if (rel === '/') rel = '/raceday2/index.html'; if (rel.endsWith('/')) rel += 'index.html';
+    let rel = req.url.split('?')[0]; if (rel === '/') rel = '/raceday/index.html'; if (rel.endsWith('/')) rel += 'index.html';
     fs.readFile(path.join(ROOT, rel), (err, data) => { if (err) { res.writeHead(404); res.end(); return; } res.writeHead(200, { 'Content-Type': rel.endsWith('.svg') ? 'image/svg+xml' : rel.endsWith('.css') ? 'text/css' : 'text/html' }); res.end(data); });
   }).listen(PORT);
   const browser = await chromium.launch({ executablePath: process.env.CH });

@@ -17,7 +17,7 @@ const CLASSES = [{ id: 1, name: 'Predator', maxPill: 200 }, { id: 2, name: 'Stoc
 (async () => {
   const server = http.createServer((req, res) => {
     let rel = req.url.split('?')[0];
-    if (rel === '/') rel = '/raceday2/index.html';
+    if (rel === '/') rel = '/raceday/index.html';
     if (rel.endsWith('/')) rel += 'index.html';
     fs.readFile(path.join(ROOT, rel), (err, data) => {
       if (err) { res.writeHead(404); res.end(); return; }

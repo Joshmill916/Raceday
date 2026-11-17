@@ -40,7 +40,7 @@ const check = (n, ok, x) => { if (ok) { pass++; console.log('  ✅ ' + n); } els
   const errs = []; p.on('pageerror', e => errs.push(e.message));
   const dialogs = []; let answer = true;
   p.on('dialog', d => { dialogs.push(d.message()); if (d.type() === 'confirm' && !answer) d.dismiss(); else d.accept(); });
-  await p.goto(`http://localhost:${PORT}/raceday2/`); await p.waitForTimeout(800);
+  await p.goto(`http://localhost:${PORT}/raceday/`); await p.waitForTimeout(800);
   const setup = () => p.evaluate(() => {
     closeSheet(); localStorage.setItem('rd_role_v2', 'admin'); sessionStorage.setItem('rd_admin_ok', '1'); setDeviceRole('admin'); applyRole();
     S.track.name = 'ID Speedway'; S.classes = [{ id: 1, name: 'Junior', maxPill: 200, heats: 2 }];

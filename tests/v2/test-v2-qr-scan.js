@@ -34,7 +34,7 @@ const fakeCamera = ({ src, deny }) => {
 
 (async () => {
   const server = http.createServer((req, res) => {
-    let rel = req.url === '/' ? 'raceday2/index.html' : decodeURIComponent(req.url.split('?')[0]).slice(1);
+    let rel = req.url === '/' ? 'raceday/index.html' : decodeURIComponent(req.url.split('?')[0]).slice(1);
     if (rel.endsWith('/')) rel += 'index.html';
     fs.readFile(path.join(ROOT, rel), (err, data) => {
       if (err) { res.writeHead(404); res.end(); return; }
@@ -43,7 +43,7 @@ const fakeCamera = ({ src, deny }) => {
     });
   }).listen(PORT);
   const browser = await chromium.launch({ executablePath: '/opt/pw-browsers/chromium' });
-  const url = `http://localhost:${PORT}/raceday2/?demo=1`;
+  const url = `http://localhost:${PORT}/raceday/?demo=1`;
 
   // Opens sign-up with the Driven link box expanded and returns the page.
   const openSignup = async (src, deny = false) => {
@@ -114,11 +114,11 @@ const fakeCamera = ({ src, deny }) => {
   // ---- 4. the decoder is local (no external script) and cached for offline use
   console.log('— Offline and bundling —');
   {
-    const html = fs.readFileSync(path.join(ROOT, 'raceday2/index.html'), 'utf8');
+    const html = fs.readFileSync(path.join(ROOT, 'raceday/index.html'), 'utf8');
     check('the scanner is loaded from the same site, not a CDN', !/src=["']https?:\/\/[^"']*jsqr/i.test(html));
-    const sw = fs.readFileSync(path.join(ROOT, 'raceday2/sw.js'), 'utf8');
+    const sw = fs.readFileSync(path.join(ROOT, 'raceday/sw.js'), 'utf8');
     check('the service worker precaches the scanner file', sw.includes("'./vendor/jsqr.min.js'"));
-    check('the scanner file is present in the repo', fs.existsSync(path.join(ROOT, 'raceday2/vendor/jsqr.min.js')));
+    check('the scanner file is present in the repo', fs.existsSync(path.join(ROOT, 'raceday/vendor/jsqr.min.js')));
   }
 
   await browser.close(); server.close();

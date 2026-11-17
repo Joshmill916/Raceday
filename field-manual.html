@@ -280,14 +280,14 @@ location.replace('https://'+location.host+location.pathname+location.search+loca
   <button class="toc-toggle" onclick="document.querySelector('.toc').classList.toggle('open')">☰ Contents</button>
   <aside class="toc">
     <div class="toc-brand"><img class="logo-on-light" src="/img/logo-raceday-light.svg" alt="RaceDay" width="132" height="20"><img class="logo-on-dark" src="/img/logo-raceday.svg" alt="RaceDay" width="132" height="20"><h1>Field Manual</h1></div>
-    <p class="toc-sub">RaceDay (new &amp; classic) · Driven — every workflow, screen by screen.</p>
+    <p class="toc-sub">RaceDay (current &amp; classic) · Driven — every workflow, screen by screen.</p>
     <nav>
       <div>
         <p class="toc-group-label"><span class="dot" style="background:var(--text-muted)"></span>Start here</p>
         <a class="tocl" href="#top">How to use this guide</a>
       </div>
       <div>
-        <p class="toc-group-label"><span class="dot" style="background:var(--accent)"></span>Part 1 · Classic RaceDay (v1)</p>
+        <p class="toc-group-label"><span class="dot" style="background:var(--accent)"></span>Part 1 · Classic RaceDay</p>
         <a class="tocl" href="#v1-setup">Setting up a track</a>
         <a class="tocl" href="#v1-drivers">Adding drivers</a>
         <a class="tocl" href="#v1-raceday">Running a race night</a>
@@ -297,7 +297,7 @@ location.replace('https://'+location.host+location.pathname+location.search+loca
         <a class="tocl" href="#v1-other">Other admin tools</a>
       </div>
       <div>
-        <p class="toc-group-label"><span class="dot" style="background:var(--v2)"></span>Part 2 · New RaceDay (v2)</p>
+        <p class="toc-group-label"><span class="dot" style="background:var(--v2)"></span>Part 2 · RaceDay</p>
         <a class="tocl" href="#v2-setup">Setting up a track</a>
         <a class="tocl" href="#v2-drivers">Adding drivers</a>
         <a class="tocl" href="#v2-raceday">Running a race night</a>
@@ -328,7 +328,7 @@ location.replace('https://'+location.host+location.pathname+location.search+loca
     <div class="wrap">
 
       <div id="top"></div>
-      <nav class="sitenav" aria-label="Site"><a href="/?home=1">Home</a><a href="/guides/">Guides</a><a href="/faq.html">FAQ</a><a href="/pricing.html">Pricing</a><a href="/raceday2/">Open RaceDay →</a><a href="/driven/">Open Driven →</a></nav>
+      <nav class="sitenav" aria-label="Site"><a href="/?home=1">Home</a><a href="/guides/">Guides</a><a href="/faq.html">FAQ</a><a href="/pricing.html">Pricing</a><a href="/raceday/">Open RaceDay →</a><a href="/driven/">Open Driven →</a></nav>
       <p class="hero-kicker">User guide — every screen, every scenario</p>
       <div class="hero">
         <h1>The RaceDay &amp; Driven<br>Field Manual</h1>
@@ -341,14 +341,14 @@ location.replace('https://'+location.host+location.pathname+location.search+loca
       <p>This guide covers three pieces of software, documented side by side:</p>
       <table class="ref">
         <tr><th style="width:110px">App</th><th>What it is</th><th style="width:120px">Status</th></tr>
-        <tr><td><span class="tag tag-v1">V1</span></td><td>The classic RaceDay app. Tracks that started on it can keep using it as long as they like.</td><td>Live at <code>/raceday/</code> (existing tracks)</td></tr>
-        <tr><td><span class="tag tag-v2">V2</span></td><td>A ground-up rewrite of the same app — same features, reworked navigation and screens (a single-screen sign-up, a "Race Control" status bar, three scoring styles instead of one).</td><td>Live at <code>/raceday2/</code> — the default for new tracks</td></tr>
+        <tr><td><span class="tag tag-v1">Classic</span></td><td>The classic RaceDay app. Tracks that started on it can keep using it as long as they like.</td><td>Live at <code>/raceday-classic/</code> (existing tracks)</td></tr>
+        <tr><td><span class="tag tag-v2">Current</span></td><td>A ground-up rewrite of the same app — same features, reworked navigation and screens (a single-screen sign-up, a "Race Control" status bar, three scoring styles instead of one).</td><td>Live at <code>/raceday/</code> — the default for new tracks</td></tr>
         <tr><td><span class="tag tag-driven">Driven</span></td><td>A separate, driver-owned companion app. A racer builds one profile that follows them across every track that runs RaceDay.</td><td>Live at <code>/driven/</code></td></tr>
       </table>
       <p><b>New to RaceDay? Start with <a href="#v2-setup">Part 2</a></b> — that's the version new tracks
       get. Parts 1 and 2 mirror each other section-for-section, so if you're moving over from the classic
-      app, jump between <a href="#v1-drivers">V1 → Adding drivers</a> and
-      <a href="#v2-drivers">V2 → Adding drivers</a> and the steps line up. Part 4 is flagged separately
+      app, jump between <a href="#v1-drivers">Classic → Adding drivers</a> and
+      <a href="#v2-drivers">RaceDay → Adding drivers</a> and the steps line up. Part 4 is flagged separately
       because it's the one workflow every track eventually needs and gets wrong the first time:
       making sure points from a combined or missed race night add up correctly.</p>
       <p>Every screenshot in this guide was captured from the real, running app with sample data — a
@@ -356,8 +356,8 @@ location.replace('https://'+location.host+location.pathname+location.search+loca
       what appears on screen, not a mockup.</p>
 
       <div class="roadmap">
-        <a href="#v1-setup"><span class="n">Part 1</span><span class="t">Classic (V1)</span></a>
-        <a href="#v2-setup"><span class="n">Part 2</span><span class="t">New RaceDay (V2)</span></a>
+        <a href="#v1-setup"><span class="n">Part 1</span><span class="t">Classic</span></a>
+        <a href="#v2-setup"><span class="n">Part 2</span><span class="t">RaceDay</span></a>
         <a href="#dr-profile"><span class="n">Part 3</span><span class="t">Driven</span></a>
         <a href="#combine"><span class="n">Part 4</span><span class="t">Combining points</span></a>
       </div>
@@ -366,14 +366,14 @@ location.replace('https://'+location.host+location.pathname+location.search+loca
       <!-- PART 1 — V1                                                       -->
       <!-- ================================================================ -->
       <div class="part" id="v1-setup">
-        <div class="part-head"><span class="part-num">Part 1</span><span class="tag tag-v1">V1 · Classic</span></div>
-        <h2>Classic RaceDay (V1)</h2>
+        <div class="part-head"><span class="part-num">Part 1</span><span class="tag tag-v1">Classic</span></div>
+        <h2>Classic RaceDay</h2>
         <p class="part-dek">The original app, still running at tracks that started on it. Covers the full sign-up-to-standings
         loop, every device role, and the admin toolbox.</p>
       </div>
 
       <section class="scenario">
-        <h3>Setting up a new track <span class="tag tag-v1">V1</span></h3>
+        <h3>Setting up a new track <span class="tag tag-v1">Classic</span></h3>
         <p class="lede">A five-step wizard that only appears once — the very first time RaceDay is opened
         on a brand-new admin device.</p>
         <ol class="steps">
@@ -393,7 +393,7 @@ location.replace('https://'+location.host+location.pathname+location.search+loca
           class later can split its season-points history, and the wizard warns before that happens.</li>
           <li><b>Step 4 — Admin PIN (optional).</b> Set a 4–8 digit PIN to lock the Admin tab, or leave both
           fields blank to leave Admin open to anyone on this device. This can be changed any time later
-          from <span class="tag tag-v1" style="vertical-align:1px">V1</span> Admin → Admin PIN.</li>
+          from <span class="tag tag-v1" style="vertical-align:1px">Classic</span> Admin → Admin PIN.</li>
           <li><b>Step 5 — Other devices.</b> An explainer for the three other device roles (registration
           station, scoring station, spectator TV) and a pointer to Admin → Multi-device sync, where the
           actual join links/QR codes live. Tap <code class="ui">Done</code> to close the wizard and land on
@@ -409,13 +409,13 @@ location.replace('https://'+location.host+location.pathname+location.search+loca
       </section>
 
       <section class="scenario" id="v1-drivers">
-        <h3>Adding drivers <span class="tag tag-v1">V1</span></h3>
+        <h3>Adding drivers <span class="tag tag-v1">Classic</span></h3>
         <p class="lede">Three ways to get a driver on tonight's grid: they sign themselves up, an admin
         quick-adds them, or the whole field carries over from last week.</p>
 
         <h4 style="font-size:16px;margin-top:26px">The driver self-service flow (Sign up tab)</h4>
         <ol class="steps">
-          <li>Driver opens the <span class="tag tag-v1">V1</span> <code class="ui">Sign up</code> tab and types
+          <li>Driver opens the <span class="tag tag-v1">Classic</span> <code class="ui">Sign up</code> tab and types
           their name. As they type, a match list (<code class="ui">suggBox</code>) filters the returning-driver
           roster — if their name is already in the system, tapping it fills both name and number for them.
           When the name field is empty, the full alphabetical roster shows as a tap-list instead, so a
@@ -460,7 +460,7 @@ location.replace('https://'+location.host+location.pathname+location.search+loca
       </section>
 
       <section class="scenario" id="v1-raceday">
-        <h3>Running a race night, start to finish <span class="tag tag-v1">V1</span></h3>
+        <h3>Running a race night, start to finish <span class="tag tag-v1">Classic</span></h3>
 
         <h4 style="font-size:16px">Pick a race format — per class</h4>
         <p>Admin → Race classes → each class has its own <b>Format</b> dropdown:</p>
@@ -526,7 +526,7 @@ location.replace('https://'+location.host+location.pathname+location.search+loca
       </section>
 
       <section class="scenario" id="v1-points">
-        <h3>Points &amp; season standings <span class="tag tag-v1">V1</span></h3>
+        <h3>Points &amp; season standings <span class="tag tag-v1">Classic</span></h3>
         <p>Points calculate automatically from the feature finish once a class is marked as a points race
         for the night. Pick a table under Admin → Points series: Standard (10-8-6-5-4-3-2-1), F1-style
         (top 10, 25 down), Full-field linear (last place scores 1, first scores field size), Podium only
@@ -539,7 +539,7 @@ location.replace('https://'+location.host+location.pathname+location.search+loca
       </section>
 
       <section class="scenario" id="v1-roles">
-        <h3>Roles &amp; multi-device setup <span class="tag tag-v1">V1</span></h3>
+        <h3>Roles &amp; multi-device setup <span class="tag tag-v1">Classic</span></h3>
         <div class="tblwrap">
         <table class="ref">
           <tr><th>Role</th><th>Sees</th><th>Typical device</th></tr>
@@ -558,7 +558,7 @@ location.replace('https://'+location.host+location.pathname+location.search+loca
       </section>
 
       <section class="scenario" id="v1-backup">
-        <h3>Cloud backup &amp; restore-by-code <span class="tag tag-v1">V1</span></h3>
+        <h3>Cloud backup &amp; restore-by-code <span class="tag tag-v1">Classic</span></h3>
         <ol class="steps">
           <li>Admin → Backup &amp; export → check <b>Cloud backup</b>. A confirm dialog spells out exactly
           what's sent (classes, driver book, lineups, results, season history) and what's never sent
@@ -573,7 +573,7 @@ location.replace('https://'+location.host+location.pathname+location.search+loca
       </section>
 
       <section class="scenario" id="v1-other">
-        <h3>Other admin tools, at a glance <span class="tag tag-v1">V1</span></h3>
+        <h3>Other admin tools, at a glance <span class="tag tag-v1">Classic</span></h3>
         <div class="shots">
           <figure class="screen"><img src="field-manual/shot-18.jpg" loading="lazy" alt="V1 admin home tile grid"><figcaption>Admin home — the full tile grid</figcaption></figure>
           <figure class="screen"><img src="field-manual/shot-19.jpg" loading="lazy" alt="V1 today's entries section"><figcaption>Today's entries</figcaption></figure>
@@ -591,23 +591,23 @@ location.replace('https://'+location.host+location.pathname+location.search+loca
       <!-- PART 2 — V2                                                       -->
       <!-- ================================================================ -->
       <div class="part" id="v2-setup">
-        <div class="part-head"><span class="part-num">Part 2</span><span class="tag tag-v2">V2 · Live</span></div>
-        <h2>New RaceDay (V2)</h2>
+        <div class="part-head"><span class="part-num">Part 2</span><span class="tag tag-v2">Current</span></div>
+        <h2>RaceDay</h2>
         <p class="part-dek">A ground-up rewrite — same engine under the hood (points math, heat logic,
-        cloud backup all byte-identical to V1), reworked navigation and three big changes worth
+        cloud backup all byte-identical to Classic), reworked navigation and three big changes worth
         knowing about: a single-screen sign-up, an always-visible Race Control status bar, and a
         choice of three scoring styles.</p>
       </div>
 
       <section class="scenario">
-        <h3>Setting up a new track <span class="tag tag-v2">V2</span></h3>
-        <p class="lede">Same five steps as V1, same field names — the only difference is where it lives:
-        V2 opens the wizard as a slide-up sheet instead of a full-page modal.</p>
+        <h3>Setting up a new track <span class="tag tag-v2">Current</span></h3>
+        <p class="lede">Same five steps as Classic, same field names — the only difference is where it lives:
+        Current opens the wizard as a slide-up sheet instead of a full-page modal.</p>
         <ol class="steps v2">
-          <li>Fresh admin device, first load — the wizard opens automatically, exactly like V1. It can also
+          <li>Fresh admin device, first load — the wizard opens automatically, exactly like Classic. It can also
           be re-opened later from Admin → Danger zone → <code class="ui">Re-run the setup wizard</code>.</li>
-          <li><b>Step 1 — Welcome.</b> Same overview card as V1.</li>
-          <li><b>Step 2 — Your track.</b> Identical fields to V1: name (required), logo, length, surface,
+          <li><b>Step 1 — Welcome.</b> Same overview card as Classic.</li>
+          <li><b>Step 2 — Your track.</b> Identical fields to Classic: name (required), logo, length, surface,
           configuration, history.</li>
           <li><b>Step 3 — Race classes.</b> Same add/rename/reorder list, same rename-warning about
           splitting points history, plus a quick-add chip row pulling from any previously deleted class
@@ -625,21 +625,21 @@ location.replace('https://'+location.host+location.pathname+location.search+loca
       </section>
 
       <section class="scenario" id="v2-drivers">
-        <h3>Adding drivers <span class="tag tag-v2">V2</span></h3>
-        <p class="lede">This is the biggest real difference from V1. Sign-up is <b>one screen</b>, not
+        <h3>Adding drivers <span class="tag tag-v2">Current</span></h3>
+        <p class="lede">This is the biggest real difference from Classic. Sign-up is <b>one screen</b>, not
         three.</p>
         <ol class="steps v2">
           <li>Type a name into the single sign-up card. A live match list filters the roster as you type,
           and — while the name field is empty — the full alphabetical "raced here before?" list shows
-          instead, same as V1.</li>
+          instead, same as Classic.</li>
           <li>Type a vehicle number. There's no "Next" step: as soon as name and number are typed, the
           class <b>chips render live below</b>, right on the same screen. Tapping a returning driver's
           name also pre-ticks whichever classes they ran last time.</li>
           <li>Tap the class chip(s), tap <code class="ui">Draw my pills</code>. The same card swaps in
           place to show the pill reveal — still one screen the whole time.</li>
         </ol>
-        <div class="callout">In V1, an admin only found out a name/number matched an existing driver after
-        stepping to the classes screen. In V2 that "already entered" state shows the moment enough is
+        <div class="callout">In the classic app, an admin only found out a name/number matched an existing driver after
+        stepping to the classes screen. In Current that "already entered" state shows the moment enough is
         typed to know who it is — one less step, one less place for it to go stale.</div>
         <div class="shots">
           <figure class="screen"><img src="field-manual/shot-28.jpg" loading="lazy" alt="V2 single-screen sign-up with name typed"><figcaption>Name typed — chips already live</figcaption></figure>
@@ -647,22 +647,22 @@ location.replace('https://'+location.host+location.pathname+location.search+loca
           <figure class="screen"><img src="field-manual/shot-30.jpg" loading="lazy" alt="V2 sign-up pill reveal"><figcaption>Pill reveal</figcaption></figure>
         </div>
         <p>Admin-side quick-add, re-enter-last-night, and the editable entry list under Admin → Today's
-        entries all work identically to V1.</p>
+        entries all work identically to Classic.</p>
       </section>
 
       <section class="scenario" id="v2-raceday">
-        <h3>Running a race night, start to finish <span class="tag tag-v2">V2</span></h3>
+        <h3>Running a race night, start to finish <span class="tag tag-v2">Current</span></h3>
 
         <h4 style="font-size:16px">The Race Control bar</h4>
-        <p>New in V2: a persistent status strip at the top of every screen (except spectator/TV views)
+        <p>New in the current app: a persistent status strip at the top of every screen (except spectator/TV views)
         walking five phases — <b>Sign-up → Heats → B-mains → Features → Archive</b> — computed live from
         what's actually been entered, with one context-right button to jump straight to the next thing
-        that needs doing. V1 has no equivalent always-on progress indicator; this is worth calling out on
+        that needs doing. Classic has no equivalent always-on progress indicator; this is worth calling out on
         camera as the "at a glance, what do I do next" feature.</p>
         <figure class="screen wide"><img src="field-manual/shot-31.jpg" loading="lazy" alt="V2 Race Control status bar above the lineups grid"><figcaption>Race Control bar + Lineups</figcaption></figure>
 
         <h4 style="font-size:16px;margin-top:30px">Race formats, inverts &amp; B-main modes</h4>
-        <p>Identical to V1 — same three per-class formats (Pill draw · 2 heats / Qualifying · 1 heat /
+        <p>Identical to Classic — same three per-class formats (Pill draw · 2 heats / Qualifying · 1 heat /
         Qualifying · straight to mains), same heat/main invert controls, same single/parallel/cascade
         B-main modes, all under Admin → Season setup → Race classes / Race format. Qualifying-time entry
         works the same way too, just opens as a sheet instead of a modal:</p>
@@ -677,7 +677,7 @@ location.replace('https://'+location.host+location.pathname+location.search+loca
         <figure class="screen wide"><img src="field-manual/shot-33.jpg" loading="lazy" alt="V2 TV display overlay, as it appears on a TV"><figcaption>TV display overlay</figcaption></figure>
 
         <h4 style="font-size:16px;margin-top:30px">Scoring — three modes, your choice, per device</h4>
-        <p>The other headline V2 change. Every class's Score screen has a segmented control — pick a style
+        <p>The other headline change in the current app. Every class's Score screen has a segmented control — pick a style
         per device, any time, and it doesn't affect what anyone else sees:</p>
         <div class="decision">
           <div class="opt"><h4>Tap order</h4><p>A grid of driver cards. Tap in finishing order — each tap
@@ -686,7 +686,7 @@ location.replace('https://'+location.host+location.pathname+location.search+loca
           <div class="opt"><h4>Number pad</h4><p>Type each car number and hit Enter — it takes the next
           open slot, input refocuses automatically. Fastest for someone with a written running order in
           hand.</p></div>
-          <div class="opt"><h4>Dropdowns</h4><p>One select per driver, like V1's only mode. The only style
+          <div class="opt"><h4>Dropdowns</h4><p>One select per driver, like Classic's only mode. The only style
           that also shows transfer-origin tags and per-row heat totals inline — pick this one when you
           need that extra detail visible while scoring.</p></div>
         </div>
@@ -698,7 +698,7 @@ location.replace('https://'+location.host+location.pathname+location.search+loca
         </div>
 
         <h4 style="font-size:16px;margin-top:30px">Governance bar &amp; ending the night</h4>
-        <p>Same governance controls as V1 (Official/Unofficial, Lock, Override, Save/Restore version), and
+        <p>Same governance controls as Classic (Official/Unofficial, Lock, Override, Save/Restore version), and
         the same archive flow — reachable from Admin → Danger zone or straight from the Race Control bar's
         final <code class="ui">🏁 Archive &amp; start next race day</code> button once every feature is
         scored.</p>
@@ -709,8 +709,8 @@ location.replace('https://'+location.host+location.pathname+location.search+loca
       </section>
 
       <section class="scenario" id="v2-points">
-        <h3>Points &amp; season standings <span class="tag tag-v2">V2</span></h3>
-        <p>The calculation engine is unchanged from V1 — same presets, same by-class-name season
+        <h3>Points &amp; season standings <span class="tag tag-v2">Current</span></h3>
+        <p>The calculation engine is unchanged from Classic — same presets, same by-class-name season
         aggregation. Just note there are <b>two</b> different screens that share the word "Points": the
         main-nav <b>Points</b> tab (season standings, what most roles see) and Admin → Season setup →
         <b>Points series</b> (the scoring-table configuration, admin only). They're easy to mix up —
@@ -719,10 +719,10 @@ location.replace('https://'+location.host+location.pathname+location.search+loca
       </section>
 
       <section class="scenario" id="v2-roles">
-        <h3>Roles &amp; the responsive shell <span class="tag tag-v2">V2</span></h3>
-        <p>Same six roles as V1 (admin, register, scoring, tv, viewer, operator), same join-link and
+        <h3>Roles &amp; the responsive shell <span class="tag tag-v2">Current</span></h3>
+        <p>Same six roles as Classic (admin, register, scoring, tv, viewer, operator), same join-link and
         Spectator QR mechanism under Admin → Season setup → Multi-device sync. The visible difference is
-        the shell itself: V2 has a real breakpoint at 900px width — a left-hand navigation <b>rail</b> on
+        the shell itself: Current has a real breakpoint at 900px width — a left-hand navigation <b>rail</b> on
         tablet/desktop, a bottom <b>tab bar</b> on phone, built from the same navigation data so the two
         never drift out of sync.</p>
         <div class="shots">
@@ -732,15 +732,15 @@ location.replace('https://'+location.host+location.pathname+location.search+loca
       </section>
 
       <section class="scenario" id="v2-backup">
-        <h3>Cloud backup &amp; restore-by-code <span class="tag tag-v2">V2</span></h3>
-        <p>Identical mechanics and copy to V1 — the whole cloud-backup engine ported verbatim. Lives at
+        <h3>Cloud backup &amp; restore-by-code <span class="tag tag-v2">Current</span></h3>
+        <p>Identical mechanics and copy to Classic — the whole cloud-backup engine ported verbatim. Lives at
         Admin → Account → Backup &amp; export.</p>
         <figure class="screen wide"><img src="field-manual/shot-42.jpg" loading="lazy" alt="V2 cloud backup admin section"><figcaption>Admin → Account → Backup &amp; export</figcaption></figure>
       </section>
 
       <section class="scenario" id="v2-other">
-        <h3>Other admin tools, at a glance <span class="tag tag-v2">V2</span></h3>
-        <p>Admin is reorganized into <b>four doors</b> instead of V1's one flat tile grid — here's where everything moved:</p>
+        <h3>Other admin tools, at a glance <span class="tag tag-v2">Current</span></h3>
+        <p>Admin is reorganized into <b>four doors</b> instead of Classic's one flat tile grid — here's where everything moved:</p>
         <div class="tblwrap">
         <table class="ref">
           <tr><th>Door</th><th>Sections</th></tr>
@@ -752,15 +752,15 @@ location.replace('https://'+location.host+location.pathname+location.search+loca
         </div>
         <p>Admin home also gained a search box that jumps straight to a section by keyword (typing
         "invert" or "b-main" goes straight to the relevant control) — a genuinely new convenience, not a
-        V1 feature.</p>
+        Classic feature.</p>
         <div class="shots">
           <figure class="screen"><img src="field-manual/shot-43.jpg" loading="lazy" alt="V2 admin home with the four-door navigation"><figcaption>Admin home — four doors</figcaption></figure>
           <figure class="screen"><img src="field-manual/shot-44.jpg" loading="lazy" alt="V2 today's entries section"><figcaption>Today's entries</figcaption></figure>
           <figure class="screen"><img src="field-manual/shot-45.jpg" loading="lazy" alt="V2 race classes and format section"><figcaption>Race classes &amp; format</figcaption></figure>
           <figure class="screen"><img src="field-manual/shot-46.jpg" loading="lazy" alt="V2 race day history section"><figcaption>Race day history</figcaption></figure>
         </div>
-        <div class="callout"><strong>One dropped feature to know about:</strong> V1's desktop-only
-        folder-watch auto-import for timing-vendor files didn't carry over to V2 — manual file-pick import
+        <div class="callout"><strong>One dropped feature to know about:</strong> Classic's desktop-only
+        folder-watch auto-import for timing-vendor files didn't carry over to Current — manual file-pick import
         still works fully, the automatic folder-watch just isn't there. If you relied on it in the classic app,
         you'll pick each file by hand instead.</div>
       </section>
@@ -979,7 +979,7 @@ location.replace('https://'+location.host+location.pathname+location.search+loca
         <div class="bigone-body">
 
         <p style="margin-top:24px">Both versions use the same tool for this: <b>Admin → Fix season
-        points</b> (V1: under "Records." V2: under "Account," same name). The in-app copy states the rule
+        points</b> (Classic: under "Records." Current: under "Account," same name). The in-app copy states the rule
         plainly, and it's the one thing to get right before touching anything else:</p>
         <div class="callout warn"><strong>The one rule that matters:</strong> every saved entry in this
         form <em>adds</em> to that class's season total. It never overwrites. So the question before you
@@ -1007,7 +1007,7 @@ location.replace('https://'+location.host+location.pathname+location.search+loca
           <h3 style="font-size:22px">Scenario A — backfilling a missed or away night</h3>
           <p class="lede">The straightforward case. Both versions, same steps:</p>
           <ol class="steps">
-            <li>Admin → <span class="tag tag-v1">V1</span>: Records → <b>Fix season points</b>. <span class="tag tag-v2" style="margin-left:6px">V2</span>: Account → <b>Fix season points</b>.</li>
+            <li>Admin → <span class="tag tag-v1">Classic</span>: Records → <b>Fix season points</b>. <span class="tag tag-v2" style="margin-left:6px">Current</span>: Account → <b>Fix season points</b>.</li>
             <li>Set the <b>race date</b> — the actual date the night happened, not today.</li>
             <li>Pick the <b>class</b> — this form only ever writes one class per saved entry. Running a
             multi-class away night into your season points means repeating this whole flow once per
@@ -1024,9 +1024,9 @@ location.replace('https://'+location.host+location.pathname+location.search+loca
             immediately — there's no separate "apply" or "publish" step.</li>
           </ol>
           <div class="shots">
-            <figure class="screen"><img src="field-manual/shot-62.jpg" loading="lazy" alt="V1 Fix season points form, empty"><figcaption>V1 — empty form</figcaption></figure>
-            <figure class="screen"><img src="field-manual/shot-63.jpg" loading="lazy" alt="V1 Fix season points form, filled with a whole class"><figcaption>V1 — whole class added</figcaption></figure>
-            <figure class="screen"><img src="field-manual/shot-64.jpg" loading="lazy" alt="V2 Fix season points form, filled with a whole class"><figcaption>V2 — same flow</figcaption></figure>
+            <figure class="screen"><img src="field-manual/shot-62.jpg" loading="lazy" alt="V1 Fix season points form, empty"><figcaption>Classic — empty form</figcaption></figure>
+            <figure class="screen"><img src="field-manual/shot-63.jpg" loading="lazy" alt="V1 Fix season points form, filled with a whole class"><figcaption>Classic — whole class added</figcaption></figure>
+            <figure class="screen"><img src="field-manual/shot-64.jpg" loading="lazy" alt="V2 Fix season points form, filled with a whole class"><figcaption>Current — same flow</figcaption></figure>
           </div>
           <p><b>Multiple missed/away nights for the same class</b> need no special handling at all — just
           repeat this flow once per date. Season standings sum <em>every</em> history record that shares a
@@ -1071,17 +1071,17 @@ location.replace('https://'+location.host+location.pathname+location.search+loca
 
         <div class="callout" style="margin-top:10px"><strong>Every save here is logged.</strong> Both
         adding and editing a Fix-season-points entry write to the audit trail — Admin → Records &amp;
-        audit (V1) / Account → Records &amp; audit (V2) — with the class, date, and driver count, so a
+        audit (Classic) / Account → Records &amp; audit (Current) — with the class, date, and driver count, so a
         combined or corrected night is always traceable back to when and why it changed.</div>
 
         </div>
       </div>
 
       <footer class="pagefoot">
-        Captured from RaceDay V1, RaceDay V2, and Driven running with sample data.
+        Captured from classic RaceDay, current RaceDay, and Driven running with sample data.
         The apps keep improving, so a screen may look slightly different from
         its picture here — the steps stay the same.
-        <nav class="sitenav" aria-label="Site footer"><a href="/?home=1">Home</a><a href="/guides/">Guides</a><a href="/faq.html">FAQ</a><a href="/pricing.html">Pricing</a><a href="/raceday2/">Open RaceDay</a><a href="/drivers/">Driven</a><a href="https://www.facebook.com/victoryraceday" target="_blank" rel="noopener">Facebook</a><a href="https://www.linkedin.com/company/victoryraceday/" target="_blank" rel="noopener">LinkedIn</a><a href="https://www.youtube.com/@victoryraceday" target="_blank" rel="noopener">YouTube</a><a href="https://www.instagram.com/victoryraceday/" target="_blank" rel="noopener">Instagram</a></nav>
+        <nav class="sitenav" aria-label="Site footer"><a href="/?home=1">Home</a><a href="/guides/">Guides</a><a href="/faq.html">FAQ</a><a href="/pricing.html">Pricing</a><a href="/raceday/">Open RaceDay</a><a href="/drivers/">Driven</a><a href="https://www.facebook.com/victoryraceday" target="_blank" rel="noopener">Facebook</a><a href="https://www.linkedin.com/company/victoryraceday/" target="_blank" rel="noopener">LinkedIn</a><a href="https://www.youtube.com/@victoryraceday" target="_blank" rel="noopener">YouTube</a><a href="https://www.instagram.com/victoryraceday/" target="_blank" rel="noopener">Instagram</a></nav>
       </footer>
 
     </div>

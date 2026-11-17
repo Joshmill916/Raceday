@@ -11,8 +11,9 @@ RaceDay runs a race night from sign-up to checkered flag. Drivers register and d
 | Path | What it is |
 |---|---|
 | `index.html` | Marketing homepage. Returning app devices are redirected straight to the app. |
-| `raceday2/` | **The current RaceDay app** (what the site links to, and where `?demo=1` runs the live demo). |
-| `raceday/` | The original app, still served to devices that set up on it. |
+| `raceday/` | **The current RaceDay app** (what the site links to, and where `?demo=1` runs the live demo). |
+| `raceday-classic/` | The original app, still served to devices that set up on it. |
+| `raceday2/` | Forwards to `/raceday/` (the app's address until 2026-11-17), so old links and QR codes keep working. |
 | `driven/` | **Driven**, the driver-profile companion app: one profile that follows a driver to every RaceDay track. |
 | `timing-import.html` | Stand-alone timing CSV importer (MotoSponder, MYLAPS Orbits, Westhold, any CSV). |
 | `pricing.html`, `faq.html`, `field-manual.html`, `guides/` | Public site pages. |
@@ -30,7 +31,7 @@ RaceDay runs a race night from sign-up to checkered flag. Drivers register and d
 
 ## Running it
 
-It's a static site with no build step. Serve the repo root with any static server (`python3 -m http.server`) and open `/raceday2/`. Production is GitHub Pages on the `main` branch, behind the `CNAME` domain.
+It's a static site with no build step. Serve the repo root with any static server (`python3 -m http.server`) and open `/raceday/`. Production is GitHub Pages on the `main` branch, behind the `CNAME` domain.
 
 Data lives in the device's browser. Back up from **Admin → Backup**, or turn on cloud backup.
 

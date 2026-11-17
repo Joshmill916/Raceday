@@ -23,7 +23,7 @@ const check = (n, ok, x) => { if (ok) { pass++; console.log('  ✅ ' + n); } els
   await p.route(/^(?!http:\/\/localhost)/, r => r.abort());
   p.on('pageerror', e => errs.push(e.message));
   p.on('dialog', d => d.accept());
-  await p.goto(`http://localhost:${PORT}/raceday2/?demo=1`); await p.waitForTimeout(900);
+  await p.goto(`http://localhost:${PORT}/raceday/?demo=1`); await p.waitForTimeout(900);
   await p.evaluate(() => {
     localStorage.setItem('rd_role_v2', 'admin'); sessionStorage.setItem('rd_admin_ok', '1');
     Element.prototype.requestFullscreen = () => Promise.resolve();

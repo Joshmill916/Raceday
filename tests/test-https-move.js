@@ -66,8 +66,8 @@ const typeFor = (p) => ({ '.js': 'application/javascript', '.css': 'text/css', '
     await ctx.close();
   }
 
-  for (const app of ['raceday', 'raceday2']) {
-    const KEY = app === 'raceday' ? 'raceday_v1' : 'raceday_v2';
+  for (const app of ['raceday-classic', 'raceday']) {
+    const KEY = app === 'raceday-classic' ? 'raceday_v1' : 'raceday_v2';
     console.log('\n=== ' + app + ' ===');
     // ---- no data on http → forward
     {

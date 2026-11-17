@@ -13,7 +13,7 @@ const check = (name, ok, extra) => {
 
 (async () => {
   const server = http.createServer((req, res) => {
-    const rel = req.url.split('?')[0] === '/' ? 'raceday2/index.html' : req.url.split('?')[0];
+    const rel = req.url.split('?')[0] === '/' ? 'raceday/index.html' : req.url.split('?')[0];
     fs.readFile(path.join(ROOT, rel), (err, data) => {
       if (err) { res.writeHead(404); res.end(); return; }
       res.writeHead(200, { 'Content-Type': 'text/html' }); res.end(data);
@@ -199,9 +199,9 @@ const check = (name, ok, extra) => {
 
   console.log('\n— Typing the home page address finds the track again —');
   await phone.goto(base + '?sync=MYROOM&role=viewer'); await phone.waitForTimeout(500);
-  await phone.route(/\/raceday2\/$/, r => r.fulfill({ status: 200, contentType: 'text/html', body: 'ok' }));
+  await phone.route(/\/raceday\/$/, r => r.fulfill({ status: 200, contentType: 'text/html', body: 'ok' }));
   await phone.goto(base + 'index.html').catch(() => {}); await phone.waitForTimeout(500);
-  check('a phone that scanned a track goes from the home page back to RaceDay 2', /\/raceday2\/$/.test(phone.url()), phone.url());
+  check('a phone that scanned a track goes from the home page back to RaceDay 2', /\/raceday\/$/.test(phone.url()), phone.url());
 
   console.log('\n— A me= link cannot change what a device does —');
   await phone.goto(base + '?sync=MYROOM&role=admin&me=1003'); await phone.waitForTimeout(700);

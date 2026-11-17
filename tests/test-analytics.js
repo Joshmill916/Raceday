@@ -36,7 +36,7 @@ const TOKEN = '07e858325a984890a4f60c1cec1942bc';
   check('short links are noindex', ['fb', 'li', 'qr', 'fb/drivers', 'li/drivers', 'qr/drivers'].every(d => /name="robots" content="noindex"/.test(fs.readFileSync(path.join(ROOT, d, 'index.html'), 'utf8'))));
 
   console.log('\n=== 2. APP_VERSION follows each app\'s cache number ===');
-  for (const [app, prefix] of [['raceday', 'raceday-v'], ['raceday2', 'raceday2-v'], ['driven', 'driven-v']]) {
+  for (const [app, prefix] of [['raceday-classic', 'raceday-v'], ['raceday', 'raceday2-v'], ['driven', 'driven-v']]) {
     const ver = (fs.readFileSync(path.join(ROOT, app, 'index.html'), 'utf8').match(/const APP_VERSION = '([^']+)'/) || [])[1];
     const cache = (fs.readFileSync(path.join(ROOT, app, 'sw.js'), 'utf8').match(/const CACHE = '([^']+)'/) || [])[1];
     check(app + ': APP_VERSION (' + ver + ') ends with the sw.js CACHE number (' + cache + ')',
@@ -84,7 +84,7 @@ const TOKEN = '07e858325a984890a4f60c1cec1942bc';
   }
 
   console.log('\n=== 4. Pages and apps skip analytics on an opted-out device ===');
-  for (const p of ['/', '/drivers/', '/driven/', '/guides/', '/raceday/', '/raceday2/']) {
+  for (const p of ['/', '/drivers/', '/driven/', '/guides/', '/raceday-classic/', '/raceday/']) {
     const on = await fresh(false); await on.page.goto(base + p); await on.page.waitForTimeout(700);
     const off = await fresh(true); await off.page.goto(base + p); await off.page.waitForTimeout(700);
     check(p + ': beacon loads normally, not when opted out', on.hits.beacon >= 1 && off.hits.beacon === 0, on.hits.beacon + ' / ' + off.hits.beacon);
@@ -92,7 +92,7 @@ const TOKEN = '07e858325a984890a4f60c1cec1942bc';
   }
 
   console.log('\n=== 5. Usage rows: opted-out devices still report, labeled OWNER ===');
-  for (const app of ['raceday', 'raceday2']) {
+  for (const app of ['raceday-classic', 'raceday']) {
     const on = await fresh(false); await on.page.goto(base + '/' + app + '/'); await on.page.waitForTimeout(900);
     const off = await fresh(true); await off.page.goto(base + '/' + app + '/'); await off.page.waitForTimeout(900);
     const tracks = h => (h.rows || []).map(r => r.track);
@@ -150,26 +150,26 @@ const TOKEN = '07e858325a984890a4f60c1cec1942bc';
     check('Driven open row carries from:fb /drivers/', dvOpen && /(^|,)from:fb \/drivers\/$/.test(dvOpen.features), JSON.stringify(dvOpen));
     await a.ctx.close();
     // Landing straight in an app from a Facebook post (fbclid in the link, no referrer).
-    const b = await fresh(false); await b.page.goto(base + '/raceday2/?fbclid=abc123'); await b.page.waitForTimeout(900);
+    const b = await fresh(false); await b.page.goto(base + '/raceday/?fbclid=abc123'); await b.page.waitForTimeout(900);
     const rdOpen = (b.hits.rows || []).find(r => r.event === 'open');
-    check('RaceDay open row says from:facebook when the link had fbclid', rdOpen && rdOpen.features === 'from:facebook /raceday2/', JSON.stringify(rdOpen));
+    check('RaceDay open row says from:facebook when the link had fbclid', rdOpen && rdOpen.features === 'from:facebook /raceday/', JSON.stringify(rdOpen));
     check('…and never sends the fbclid itself', !JSON.stringify(b.hits.rows).includes('abc123'));
     await b.ctx.close();
-    const c = await fresh(false); await c.page.goto(base + '/raceday/'); await c.page.waitForTimeout(900);
+    const c = await fresh(false); await c.page.goto(base + '/raceday-classic/'); await c.page.waitForTimeout(900);
     const rd1 = (c.hits.rows || []).find(r => r.event === 'open');
-    check('typed-in / no-referrer visit reports from:direct', rd1 && rd1.features === 'from:direct /raceday/', JSON.stringify(rd1));
+    check('typed-in / no-referrer visit reports from:direct', rd1 && rd1.features === 'from:direct /raceday-classic/', JSON.stringify(rd1));
     await c.ctx.close();
   }
 
   console.log('\n=== 5b. A copy on this computer (tests, local preview) reports nothing ===');
   // Regression: on 2026-10-17 a full test run on a Mac with internet logged ~40 fake devices and
   // race nights into the usage sheet. Local hosts must stay silent unless rd_count_local is set.
-  for (const p of ['/', '/drivers/', '/raceday/', '/raceday2/']) {
+  for (const p of ['/', '/drivers/', '/raceday-classic/', '/raceday/']) {
     const t = await fresh(false, false); await t.page.goto(base + p); await t.page.waitForTimeout(900);
     check(p + ' on localhost: no beacon', t.hits.beacon === 0, String(t.hits.beacon));
     await t.ctx.close();
   }
-  for (const app of ['raceday', 'raceday2']) {
+  for (const app of ['raceday-classic', 'raceday']) {
     const t = await fresh(false, false); await t.page.goto(base + '/' + app + '/'); await t.page.waitForTimeout(900);
     await t.page.evaluate(() => { sendUsage('night', {}); reportCrash('Test crash', location.href, 1, 1, null); });
     await t.page.waitForTimeout(400);

@@ -27,7 +27,7 @@ const check = (name, ok, extra) => {
 (async () => {
   const server = http.createServer((req, res) => {
     const urlPath = req.url.split('?')[0];
-    const f = path.join(ROOT, urlPath === '/' ? 'raceday2/index.html' : urlPath);
+    const f = path.join(ROOT, urlPath === '/' ? 'raceday/index.html' : urlPath);
     fs.readFile(f, (err, data) => {
       if (err) { res.writeHead(404); res.end(); return; }
       const ext = path.extname(f);
@@ -886,7 +886,7 @@ const check = (name, ok, extra) => {
   check('the kept PIN still unlocks admin', await page.evaluate(() => { sessionStorage.removeItem('rd_admin_ok'); return adminOk(); }));
 
   console.log('\n=== 14. dayBanner + adminOk() stay locked for viewer/tv with NO PIN set ===');
-  // (v1 (raceday/index.html) shipped this fix in the same session v2's security suite was
+  // (v1 (raceday-classic/index.html) shipped this fix in the same session v2's security suite was
   //  ported — v2 never received it. checkDayBanner() here is just an alias for
   //  renderBanners(), which correctly hides dayBannerHtml() from viewer, but adminOk() had
   //  no role check at all: on a track with no PIN configured, a spectator OR tv device

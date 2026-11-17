@@ -57,13 +57,13 @@ const check = (name, ok, extra) => {
   // ============================================================================
   console.log('\n=== v2: the Device job button ===');
   for (const r of ['announcer', 'scoring', 'register', 'tech', 'tv']) {
-    const { ctx, page } = await open('raceday2');
+    const { ctx, page } = await open('raceday');
     await setRole(page, r, '');
     check(r + ' device shows ⚙ Device job', await page.evaluate(() => { renderHeader(); return !!document.getElementById('roleEscape'); }));
     await ctx.close();
   }
   for (const r of ['admin', 'viewer']) {
-    const { ctx, page } = await open('raceday2');
+    const { ctx, page } = await open('raceday');
     await setRole(page, r, '');
     check(r + ' device has no escape button', await page.evaluate(() => { renderHeader(); return !document.getElementById('roleEscape'); }));
     await ctx.close();
@@ -71,7 +71,7 @@ const check = (name, ok, extra) => {
 
   console.log('\n=== v2: announcer gets back to admin ===');
   {
-    const { ctx, page, st } = await open('raceday2');
+    const { ctx, page, st } = await open('raceday');
     await setRole(page, 'announcer', '');
     st.answers = [true, 'admin'];   // "no PIN set" warning, then the job prompt
     await page.evaluate(() => changeDeviceRole());
@@ -79,7 +79,7 @@ const check = (name, ok, extra) => {
     await ctx.close();
   }
   {
-    const { ctx, page, st } = await open('raceday2');
+    const { ctx, page, st } = await open('raceday');
     await setRole(page, 'announcer', '4321');
     st.answers = ['1111'];
     await page.evaluate(() => changeDeviceRole());
@@ -91,7 +91,7 @@ const check = (name, ok, extra) => {
     await ctx.close();
   }
   {
-    const { ctx, page, st } = await open('raceday2');
+    const { ctx, page, st } = await open('raceday');
     await setRole(page, 'tv', '4321');
     st.answers = ['4321', 'admin'];
     await page.evaluate(() => { if (typeof closeTV === 'function') try { closeTV(); } catch (e) {} changeDeviceRole(); });
@@ -102,7 +102,7 @@ const check = (name, ok, extra) => {
 
   console.log('\n=== v2: spectators can never switch ===');
   {
-    const { ctx, page, st } = await open('raceday2');
+    const { ctx, page, st } = await open('raceday');
     await setRole(page, 'viewer', '');
     st.answers = [true, 'admin'];
     await page.evaluate(() => changeDeviceRole());
@@ -112,7 +112,7 @@ const check = (name, ok, extra) => {
 
   console.log('\n=== v1: TV device with a PIN ===');
   {
-    const { ctx, page, st } = await open('raceday');
+    const { ctx, page, st } = await open('raceday-classic');
     await setRole(page, 'tv', '4321');
     check('v1 shows ⚙ Role on a TV device', await page.evaluate(() => getComputedStyle(document.getElementById('roleEscape')).display !== 'none'));
     st.answers = ['1111'];
@@ -124,7 +124,7 @@ const check = (name, ok, extra) => {
     await ctx.close();
   }
   {
-    const { ctx, page, st } = await open('raceday');
+    const { ctx, page, st } = await open('raceday-classic');
     await setRole(page, 'viewer', '');
     st.answers = [true, 'admin'];
     await page.evaluate(() => changeDeviceRole());

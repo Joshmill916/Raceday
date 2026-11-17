@@ -2628,7 +2628,7 @@ document.addEventListener('visibilitychange', function () { if (document.visibil
    with a pop-up and a buzz when a new one arrives while Driven is open. Read-only here. Refreshed on open, when the app comes back
    to the screen, and every 30 s while a card is showing. Everything shown is capped and escaped. */
 var LIVE = { rows: [], at: 0, timer: null, ok: {} };
-var LINEUP_BASE = 'https://victoryraceday.com/raceday2/';
+var LINEUP_BASE = 'https://victoryraceday.com/raceday/';
 function dvToday() { var d = new Date(); return d.getFullYear() + '-' + String(d.getMonth() + 1).padStart(2, '0') + '-' + String(d.getDate()).padStart(2, '0'); }
 // Every published driver and ride on this phone (a card can only be linked once it's published).
 function phoneProfiles() {
@@ -2802,7 +2802,7 @@ function deleteProfile() {
 // day, 'driven-profile' when someone makes a profile, 'driven-publish' the first time a card is
 // published, and crashes. No names, emails or numbers — only counts. The track column reads DRIVEN.
 // The part after the dot MUST match sw.js CACHE (tests/test-analytics.js) — bump both together.
-const APP_VERSION = '2026-11-17.v26';
+const APP_VERSION = '2026-11-17.v27';
 var TELEMETRY_URL = 'https://script.google.com/macros/s/AKfycbxa3i3y17TLp_NfXOOu2jM7-YzXH2fScxcXoQYmIh0-873rxWfxg0HdRP1DVsxZq6iR/exec';
 // Devices opted out at /me/ (the owner testing) still report, marked OWNER; copies on this
 // computer (localhost, *.test) report nothing unless rd_count_local='1' (the analytics test).

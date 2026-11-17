@@ -23,7 +23,7 @@ const check = (n, ok, x) => { if (ok) { pass++; console.log('  ✅ ' + n); } els
   await p.route(/^(?!http:\/\/localhost)/, r => r.abort());
   const errs = []; p.on('pageerror', e => errs.push(e.message));
   const dialogs = []; p.on('dialog', d => { dialogs.push(d.message()); d.accept(); });
-  await p.goto(`http://localhost:${PORT}/raceday2/`); await p.waitForTimeout(800);
+  await p.goto(`http://localhost:${PORT}/raceday/`); await p.waitForTimeout(800);
   await p.evaluate(() => {
     closeSheet(); localStorage.setItem('rd_role_v2', 'admin'); sessionStorage.setItem('rd_admin_ok', '1'); setDeviceRole('admin'); applyRole();
     S.track.name = 'Borrow Speedway'; S.track.id = S.track.id || 'trk_borrow1';

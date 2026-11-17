@@ -30,7 +30,7 @@ const PID = 'prof_qrfilltest001';
   const page = await ctx.newPage();
   page.on('pageerror', e => console.log('  ⚠️ page error:', e.message));
   page.on('dialog', d => d.accept());
-  await page.goto(`http://localhost:${PORT}/raceday2/`, { waitUntil: 'domcontentloaded' });
+  await page.goto(`http://localhost:${PORT}/raceday/`, { waitUntil: 'domcontentloaded' });
   // New tracks start with no classes (2026-11-12) — this suite needs some to race.
   await page.waitForTimeout(300);
   await page.evaluate(() => { if (!S.classes.length) { ['Junior 80cc', 'Senior 100cc', 'Open Shifter'].forEach(n => addClassNamed(n, 200)); save(); if (typeof render === 'function') render(curPage); } });

@@ -20,7 +20,7 @@ const TYPES = { '.html':'text/html', '.js':'application/javascript', '.json':'ap
 
 (async () => {
   const server = http.createServer((req, res) => {
-    const rel = req.url === '/' ? 'raceday2/index.html' : req.url.split('?')[0];
+    const rel = req.url === '/' ? 'raceday/index.html' : req.url.split('?')[0];
     fs.readFile(path.join(ROOT, rel), (e, d) => {
       if (e) { res.writeHead(404); res.end(); return; }
       res.writeHead(200, { 'Content-Type': TYPES[path.extname(rel)] || 'text/plain' }); res.end(d);
@@ -40,7 +40,7 @@ const TYPES = { '.html':'text/html', '.js':'application/javascript', '.json':'ap
   let v1Payload = null;
   {
     const p = await newPage();
-    await p.goto(`http://localhost:${PORT}/raceday/index.html`);
+    await p.goto(`http://localhost:${PORT}/raceday-classic/index.html`);
     await p.waitForTimeout(500);
     await p.evaluate(() => { hideModal('setupWizard'); seedFullDemoNight(); });
     await p.waitForTimeout(400);
@@ -96,7 +96,7 @@ const TYPES = { '.html':'text/html', '.js':'application/javascript', '.json':'ap
       points: dayPoints(c.id)
     })));
     const p1 = await newPage();
-    await p1.goto(`http://localhost:${PORT}/raceday/index.html`);
+    await p1.goto(`http://localhost:${PORT}/raceday-classic/index.html`);
     await p1.evaluate(pl => localStorage.setItem('raceday_v1', pl), v1Payload);
     await p1.reload(); await p1.waitForTimeout(400);
     const v1Calc = await p1.evaluate(() => S.classes.map(c => ({
@@ -213,7 +213,7 @@ const TYPES = { '.html':'text/html', '.js':'application/javascript', '.json':'ap
   console.log('— Offline / no-network assets —');
   {
     // The Cloudflare analytics beacon is fire-and-forget — the app runs fine without it offline.
-    const html = fs.readFileSync(path.join(ROOT, 'raceday2/index.html'), 'utf8')
+    const html = fs.readFileSync(path.join(ROOT, 'raceday/index.html'), 'utf8')
       .replace(/<script[^>]+src=["']https:\/\/static\.cloudflareinsights\.com\/beacon\.min\.js["'][^>]*><\/script>/g, '');
     check('no external font/stylesheet/script link in the shell',
       !/<link[^>]+href=["']https?:/i.test(html) && !/<script[^>]+src=["']https?:/i.test(html));

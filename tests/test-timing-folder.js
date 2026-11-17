@@ -1,4 +1,4 @@
-// Timing folder (v2, /raceday2/): setting up timing software must be easy. Regression for a
+// Timing folder (v2, /raceday/): setting up timing software must be easy. Regression for a
 // real report: v1 let a track point RaceDay at MotoSponder's export folder and new results
 // loaded on their own; v2 dropped that, so every session meant hunting for the file.
 // Guards: the first class set to a qualifying format asks where times come from (once);
@@ -59,7 +59,7 @@ const fakeFolderApi = () => {
     page.on('pageerror', e => errors.push(e.message));
     const dialogs = [];
     page.on('dialog', d => { dialogs.push(d.message()); d.accept(); });
-    await page.goto(`http://localhost:${PORT}/raceday2/`);
+    await page.goto(`http://localhost:${PORT}/raceday/`);
     await page.waitForTimeout(700);
     // A set-up track: two classes on pill draw, three drivers in the book (with transponders).
     await page.evaluate(() => {

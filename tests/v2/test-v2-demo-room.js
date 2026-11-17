@@ -22,7 +22,7 @@ const wait = ms => new Promise(r => setTimeout(r, ms));
       res.writeHead(200, { 'Content-Type': path.extname(u) === '.js' ? 'application/javascript' : 'text/html' }); res.end(d);
     });
   }).listen(PORT);
-  const base = `http://localhost:${PORT}/raceday2/`;
+  const base = `http://localhost:${PORT}/raceday/`;
   const browser = await chromium.launch({ executablePath: '/opt/pw-browsers/chromium' });
   const errs = [];
 
@@ -122,7 +122,7 @@ const wait = ms => new Promise(r => setTimeout(r, ms));
   check('the join QR is drawn', joinUrl.qr);
   check('the join link makes an admin screen with the staff key', /role=admin/.test(joinUrl.u) && /&st=[a-z0-9]{32}/.test(joinUrl.u));
   const { pg: guest } = await newPage();
-  await guest.goto(joinUrl.u.replace(/^https?:\/\/[^/]+\/raceday2\//, base)); await wait(1500);
+  await guest.goto(joinUrl.u.replace(/^https?:\/\/[^/]+\/raceday\//, base)); await wait(1500);
   const g = await guest.evaluate(() => ({ code: syncKey(), role: deviceRole(), track: S.track.name, entries: S.raceDay.entries.length, on: !!demoRoom(), host: demoRoomHost(), banner: document.getElementById('banners').textContent, wizard: sheetOpen() }));
   check('the prospect\'s phone is in the same room as an admin screen', g.code === st.code && g.role === 'admin', JSON.stringify(g).slice(0, 160));
   check('…with the sample night on it', g.track === 'Sample Speedway' && g.entries === 15, g.entries);

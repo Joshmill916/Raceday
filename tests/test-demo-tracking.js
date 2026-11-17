@@ -4,7 +4,7 @@
 // second visit the same day sent nothing, and nothing said what they looked at.
 // Now: demo rows say DEMO (or 'DEMO · <label>' from a personal ?demo=1&for= link), seeding
 // sends 'demo-start' and no 'night', and every visit sends a 'demo-use' row (tabs opened +
-// seconds) when the page is hidden. Both app versions (/raceday/ and /raceday2/).
+// seconds) when the page is hidden. Both app versions (/raceday-classic/ and /raceday/).
 const { chromium } = require('/opt/node22/lib/node_modules/playwright');
 const http = require('http');
 const fs = require('fs');
@@ -60,7 +60,7 @@ const check = (name, ok, extra) => {
     return ids.filter(p => p !== curPage && p !== 'admin').slice(0, 2);
   });
 
-  for (const app of ['raceday', 'raceday2']) {
+  for (const app of ['raceday-classic', 'raceday']) {
     console.log(`\n=== /${app}/: personal demo link ===`);
     const v = await visitor(false);
     let page = await open(v, `/${app}/?demo=1&for=Riverside%20Speedway`);

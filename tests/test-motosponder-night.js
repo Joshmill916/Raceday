@@ -1,4 +1,4 @@
-// MotoSponder timing import, end to end, in BOTH apps (/raceday/ and /raceday2/).
+// MotoSponder timing import, end to end, in BOTH apps (/raceday-classic/ and /raceday/).
 //
 // A. A real night's MotoSponder files, anonymized (test-data/motosponder-night/): drivers sign up in
 //    RaceDay, then every heat (Live Race … DIV n) and main (Results … MAIN) is imported. Every finish
@@ -41,7 +41,7 @@ const classNames = [...new Set(signups.map(s => s.cls))];
   }).listen(PORT);
   const browser = await chromium.launch({ executablePath: '/opt/pw-browsers/chromium' });
 
-  for (const APP of ['raceday', 'raceday2']) {
+  for (const APP of ['raceday-classic', 'raceday']) {
     const ctx = await browser.newContext({ viewport: { width: 1280, height: 900 } });
     const p = await ctx.newPage();
     const errors = [], dialogs = [];

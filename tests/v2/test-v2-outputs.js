@@ -15,7 +15,7 @@ const TYPES = { '.html':'text/html', '.js':'application/javascript', '.json':'ap
 
 (async () => {
   const server = http.createServer((req, res) => {
-    const rel = req.url === '/' ? 'raceday2/index.html' : req.url.split('?')[0];
+    const rel = req.url === '/' ? 'raceday/index.html' : req.url.split('?')[0];
     fs.readFile(path.join(ROOT, rel), (e, d) => {
       if (e) { res.writeHead(404); res.end(); return; }
       res.writeHead(200, { 'Content-Type': TYPES[path.extname(rel)] || 'text/plain' }); res.end(d);
@@ -41,7 +41,7 @@ const TYPES = { '.html':'text/html', '.js':'application/javascript', '.json':'ap
   let payload;
   {
     const v1 = await newPage();
-    await v1.goto(`http://localhost:${PORT}/raceday/index.html`); await v1.waitForTimeout(500);
+    await v1.goto(`http://localhost:${PORT}/raceday-classic/index.html`); await v1.waitForTimeout(500);
     await v1.evaluate(() => { hideModal('setupWizard'); seedFullDemoNight(); });
     await v1.waitForTimeout(400);
     payload = await v1.evaluate(() => localStorage.getItem('raceday_v1'));

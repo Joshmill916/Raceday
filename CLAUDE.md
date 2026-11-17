@@ -2,13 +2,23 @@
 
 ## What this is
 Single-file PWA for race-night management (sign-up, lineups, results, points).
-The app lives in `raceday/index.html` (~4,840 lines, ~308 KB). No build step, no
+The app lives in `raceday/index.html` (~9,500 lines). No build step, no
 package.json, no framework. Hosted on GitHub Pages at https://victoryraceday.com/ —
 the bare domain now serves a marketing homepage (root `index.html`), with the app
 itself at `/raceday/` and the Driven companion app at `/driven/`.
 
-## LEGACY: `raceday/` (v1) is frozen (Josh, 2026-11-11)
-RaceDay 2 (`raceday2/`) is the app. `raceday/` stays online for devices still using it, but gets **no new
+## App address (2026-11-17): `/raceday/` is the app; `/raceday/` forwards; classic is `/raceday-classic/`
+Josh: "Change RaceDay 2 to just RaceDay". The current app (formerly `raceday/`, "RaceDay 2"/v2) moved to `raceday/`;
+the classic app (v1) moved to `raceday-classic/`. `raceday/` is now only a forwarding page (`location.replace('/raceday/'
++ search + hash)`, so old links, QR posters and home-screen icons keep working) plus a retiring `sw.js` that unregisters
+itself. The app's head has a classic guard: a phone with a real classic track (`raceday_v1` with roster/history, not demo)
+and no track in this app (`raceday_v2`, Garage) goes to `/raceday-classic/`; a `?sync=` link only for its own classic room;
+`?new=1` skips it (the classic app's "Open the new version" link). Storage keys (`raceday_v2`, `rd_role_v2`, …) and the
+cache name prefix (`raceday2-v`) are unchanged on purpose. In code and tests, "v2" still means the current app.
+Guard: `tests/v2/test-v2-address-move.js`. Website copy says just "RaceDay" (FAQ "Still on the classic app?").
+
+## LEGACY: `raceday-classic/` (v1) is frozen (Josh, 2026-11-11)
+The app is `raceday/` (formerly `raceday/`). `raceday-classic/` stays online for devices still using it, but gets **no new
 features or polish**; it's OK for it to fall behind (e.g. it lacks the 2026-11-11 hostile-input limits and the
 file-name/Westhold import improvements). Fix it only for something that breaks a live night or loses data.
 
@@ -65,6 +75,7 @@ Point the same script at that file instead.
   `sw.js` is a **retired, minimal worker** (no manifest, no caching) that exists only to
   take over from the old root-scoped service worker on returning devices and clear its
   cache — do not add caching logic back to it.
+- **`/raceday-classic/`** — the frozen classic app (v1), see LEGACY above. **`/raceday2/`** only forwards to `/raceday/`.
 - **`/raceday/`** — the actual app (this is what "the app" means everywhere else in this
   doc). Own `manifest.webmanifest` + `sw.js` (scoped to `/raceday/` via relative paths).
 - **`/driven/`** — the Driven companion app, see below.
@@ -185,11 +196,11 @@ profile that follows them across every RaceDay track they race at.
 - After merging to main: VERIFY the GitHub Pages build succeeds (a deploy can fail transiently) before telling the user it's live; bump `raceday/sw.js` CACHE on cache-breaking changes
 - **Bumping an app's sw.js CACHE? Bump its `APP_VERSION` too** (`YYYY-MM-DD.vN`, N = the CACHE
   number) — `tests/test-analytics.js` fails if they drift. It's what usage/crash rows report.
-- **Pre-registrations** (2026-11-08, `raceday2/`): Admin → Pre-registrations imports a Google Form responses CSV
+- **Pre-registrations** (2026-11-08, `raceday/`): Admin → Pre-registrations imports a Google Form responses CSV
   (columns matched by wording, email/address never kept, unclear kart numbers flagged). Stored at
   `S.settings.preReg` (v2 adds no top-level fields — test-v2-compat), so it syncs with settings. Sign-up shows a
   Pre-registered list (Driven / Driven code / No Driven tags, `preDriven`); Check in fills the form. Import adds any class the file names that isn't set up (`preAddClassNames`, file's spelling, capitals ignored; shown at the top of the preview); drivers already imported with "not set up" classes get a one-tap fix in the list (`preAddListClasses`); the admin list points to Sign-up for check-in. Guard: `tests/v2/test-v2-prereg-import.js`
-- **Pre-registration from home** (2026-11-08, `raceday2/` + `enter/`): public page `/enter/?<ROOMCODE>` (REST, no
+- **Pre-registration from home** (2026-11-08, `raceday/` + `enter/`): public page `/enter/?<ROOMCODE>` (REST, no
   SDK, never asks email/phone/address). Admin → Pre-registrations opens/closes it (`S.settings.preOnline` →
   `preRegOpen/<code>`, staff write). Entries go to `preRegIn/<code>/<id>` (create-only while open and before
   `closes`; staff-read only — database.rules.json, **needs `firebase deploy --only database`**). Staff devices pull
@@ -197,7 +208,7 @@ profile that follows them across every RaceDay track they race at.
   `d.trans`; removed drivers go in `preOnline.skip` + are deleted online). **Withdraw** (2026-11-10): each entry carries a random `tok`
   kept on the driver's phone; "Withdraw my entry" (two steps) writes `preRegOut/<code>/<id>` = {tok, at}, accepted only when tok
   matches; staff pulls move them to `S.settings.preGone` (why: withdrew online, Undo) via `preApplyWithdrawals`. Guard: `tests/v2/test-v2-prereg-online.js`
-- **Build a race** (2026-11-10, `raceday2/`): Admin → Race night → Build a race (`renderRaceBuilder`). Name/day = the
+- **Build a race** (2026-11-10, `raceday/`): Admin → Race night → Build a race (`renderRaceBuilder`). Name/day = the
   pre-registration fields (`preOnline.title/date`), gates open = a `S.settings.schedule` row. Each class gets a FORMAT = a
   named bundle of EXISTING class settings (`FMT_KEYS`: heats, invert*, max*, laps; no new race logic). Built-ins
   `FORMAT_PRESETS` (leave sizes/laps alone); the track's own at `S.settings.formats`; `.json` files go through `fmtCheck()`,
@@ -250,7 +261,7 @@ profile that follows them across every RaceDay track they race at.
   now reconciles 'raceday' results per track: updates changed position/points, removes ones the track took back, never removes
   on an empty/failed read, never touches other sources. Guards: `tests/v2/test-v2-borrowed-tx-undo.js` +
   `tests/test-driven-results-reconcile.js`
-- **Racing today on Driven** (2026-11-17, `raceday2/` + Driven): a driver whose Driven card is linked and who is entered tonight
+- **Racing today on Driven** (2026-11-17, `raceday/` + Driven): a driver whose Driven card is linked and who is entered tonight
   sees their own night on Driven's Home: each class, every race's starting spot, on track / up next / finished (the fan view's
   `myNight()`), and "Open my lineup" (the `&me=` spectator link, no QR). RaceDay: `drivenLivePush()` (queued from `save()`,
   `syncApplySnapshot`, staff sign-in) writes `liveDriven/<profileId>/<room>` from registered staff devices only (rules: trackStaff of
@@ -261,19 +272,19 @@ profile that follows them across every RaceDay track they race at.
   10 min, earlier ones folded) with a pop-up + buzz once per note while Driven is open (`dv_note_seen`; not for notes over 30 min
   old). **Needs `firebase deploy --only database`.** Guards: `tests/v2/test-v2-driven-live.js` +
   `tests/test-driven-live.js`
-- **Hostile-input limits** (2026-11-11, `raceday2/`): driver names 40 chars with spaces collapsed (`signupVals()`, timing-import
+- **Hostile-input limits** (2026-11-11, `raceday/`): driver names 40 chars with spaces collapsed (`signupVals()`, timing-import
   new drivers), class names 60 with blank/duplicate refused (`addClass`/`addClassNamed`), lineup grids use `minmax(0,1fr)` and
   name rows wrap/trim so nothing widens a phone; `register()` ignores a tap after the form is gone; the DEMO watermark sits
   above the phone tab bar. Guard: `tests/v2/test-v2-breakit.js`
-- **No starter classes** (2026-11-12, `raceday2/`): `defaults()` has empty `classes`/`classLib` — a new track adds its own. The demos (`seedDemo`, `seedFullDemoNight`) add the three sample classes when there are none. Suites that need classes add them after load. Guard: `tests/v2/test-v2-admin.js`
-- **Live demo room** (2026-11-12, `raceday2/`): Admin → The Garage → Start live demo (only with the unlimited/forever
+- **No starter classes** (2026-11-12, `raceday/`): `defaults()` has empty `classes`/`classLib` — a new track adds its own. The demos (`seedDemo`, `seedFullDemoNight`) add the three sample classes when there are none. Suites that need classes add them after load. Guard: `tests/v2/test-v2-admin.js`
+- **Live demo room** (2026-11-12, `raceday/`): Admin → The Garage → Start live demo (only with the unlimited/forever
   license — never the public `rd_dont_count` mark; a room is free for `DEMO_ROOM_HOURS` = 12h). Opens a `DEMO…` sync room in its OWN Garage slot (real track untouched), seeds last week's scored
   night + tonight's board (`demoRoomBoot`), and shows a 19-step presenter script; each step the host shows is synced as `S.settings.demoRoom.step` and joined phones jump to the same page/Admin section/TV once (`demoRoomFollow`, "Stop following" on their banner, `rd_demo_follow_off`) (Timing import loads a sample Westhold Race Manager XML; "Lineups to the timing computer" opens the Race Manager lineup download, giving tonight's sample drivers sample transponders via `demoTx`) in the banner (`DEMO_STEPS`, Back / Show it /
   Next). The prospect scans the join QR (`staffLinkParams('admin')`) and becomes a second admin screen. `S.settings.demoRoom`
   (synced) makes every device in it skip license/trial (`canEnter`, `consumeTrialDay`), never publish to Driven / cloud backup,
   send no `night` row, and label usage `DEMO ROOM · <for>`. End demo writes `demoRoom.ended`; joined phones wipe the sample data,
   drop sync and reload fresh (`demoRoomCheckEnded`); the host goes back to its own track. Guard: `tests/v2/test-v2-demo-room.js`
-- **Race note alerts** (2026-11-13, `raceday2/`): posting a note (Admin → Schedule & notes, `postRaceNote`) also keeps
+- **Race note alerts** (2026-11-13, `raceday/`): posting a note (Admin → Schedule & notes, `postRaceNote`) also keeps
   tonight's list at `S.settings.raceNotes` (newest first, max 5, cleared by `newRaceDay`). A following phone (viewer) shows
   `raceNoteBanner()` (time, NEW for 10 min, "Earlier tonight") on Lineups + Results and, when synced data brings a note it
   hasn't seen (`rd_note_seen` = note `at`, per phone), pops `#noteAlert` + `navigator.vibrate` (`checkRaceNoteAlert`, called
@@ -294,8 +305,8 @@ profile that follows them across every RaceDay track they race at.
   every row from such a device but prefixes its track column `OWNER · ` (so the owner's testing
   sorts away from possible customers). Local copies (localhost, *.test — `devHost()`) send nothing
   unless `rd_count_local='1'` (the analytics test). Driven's rows (added 2026-10-28) go to the same sheet with track
-  `DRIVEN`: `driven-open` (daily, own `dv_open_ping` key), `driven-profile`, `driven-publish` (first publish), `crash`. **Demo visits** (added 2026-11-04, both `/raceday/` + `/raceday2/`): rows from a demo device say `DEMO` in the track column (`demoLabel()`), or `DEMO · <label>` from a personal link `?demo=1&for=<label>` (`rd_demo_for`, localStorage only); seeding sends `demo-start` and no `night`; each visit sends `demo-use` (`features` = tabs opened, `secs`) when the page is hidden. Guard: `tests/test-demo-tracking.js`. Never add a direct `<script src=…cloudflareinsights…>` tag. **Where visitors came from** (2026-11-10): every page's loader also records, once per device, `localStorage.rd_from` = `"<source> <first page>"` (`from=`/`utm_source=` param, `fbclid`, or the referrer's site; `direct`/`site` otherwise); short links forward with `?from=fb|li|qr`. The apps' `visitFrom()` (same code, for a device whose first page was the app) adds it to the daily open row's Features as `from:<source> <page>`. Never send click ids or full URLs. Usage rows also fall back to `S.track.name` when there's no license (was "unknown"). Guard: `tests/test-analytics.js` 5/5a2/6. Short links
+  `DRIVEN`: `driven-open` (daily, own `dv_open_ping` key), `driven-profile`, `driven-publish` (first publish), `crash`. **Demo visits** (added 2026-11-04, both `/raceday/` + `/raceday/`): rows from a demo device say `DEMO` in the track column (`demoLabel()`), or `DEMO · <label>` from a personal link `?demo=1&for=<label>` (`rd_demo_for`, localStorage only); seeding sends `demo-start` and no `night`; each visit sends `demo-use` (`features` = tabs opened, `secs`) when the page is hidden. Guard: `tests/test-demo-tracking.js`. Never add a direct `<script src=…cloudflareinsights…>` tag. **Where visitors came from** (2026-11-10): every page's loader also records, once per device, `localStorage.rd_from` = `"<source> <first page>"` (`from=`/`utm_source=` param, `fbclid`, or the referrer's site; `direct`/`site` otherwise); short links forward with `?from=fb|li|qr`. The apps' `visitFrom()` (same code, for a device whose first page was the app) adds it to the daily open row's Features as `from:<source> <page>`. Never send click ids or full URLs. Usage rows also fall back to `S.track.name` when there's no license (was "unknown"). Guard: `tests/test-analytics.js` 5/5a2/6. Short links
   `/fb/`, `/li/`, `/qr/` (+ `/drivers/` versions) record a visit, then forward — use them in posts.
 
 ## Logos
-Official logos (Josh, 2026-10-31): `img/logo-raceday.svg` (dark backgrounds), `img/logo-raceday-light.svg` (light), `img/logo-driven.svg` (dark). Use these files; never rebuild a logo from text or CSS. App icons: `raceday/icon-rd.png`, `raceday2/icon-rd.png`, `driven/icon-driven.png`.
+Official logos (Josh, 2026-10-31): `img/logo-raceday.svg` (dark backgrounds), `img/logo-raceday-light.svg` (light), `img/logo-driven.svg` (dark). Use these files; never rebuild a logo from text or CSS. App icons: `raceday/icon-rd.png`, `raceday-classic/icon-rd.png`, `driven/icon-driven.png`.
