@@ -257,7 +257,9 @@ profile that follows them across every RaceDay track they race at.
   that room, capped fields, `classes` a JSON string <= 4000), only changed rows, removes drivers who leave tonight; never demo / demo
   room / guest / spectator. `rd_driven_live` = what this device last wrote. Driven: `pullLive()` (open, back to screen, every 30 s
   while showing) for every published driver/ride on the phone, shown only for today and only when `tracks/<room>/roster` links that
-  card to that driver (`liveVerify`). **Needs `firebase deploy --only database`.** Guards: `tests/v2/test-v2-driven-live.js` +
+  card to that driver (`liveVerify`). Tonight's race notes ride along (`notes` = JSON `{c, e}` <= 1500): shown on the card (NEW for
+  10 min, earlier ones folded) with a pop-up + buzz once per note while Driven is open (`dv_note_seen`; not for notes over 30 min
+  old). **Needs `firebase deploy --only database`.** Guards: `tests/v2/test-v2-driven-live.js` +
   `tests/test-driven-live.js`
 - **Hostile-input limits** (2026-11-11, `raceday2/`): driver names 40 chars with spaces collapsed (`signupVals()`, timing-import
   new drivers), class names 60 with blank/duplicate refused (`addClass`/`addClassNamed`), lineup grids use `minmax(0,1fr)` and

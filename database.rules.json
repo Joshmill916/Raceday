@@ -184,6 +184,7 @@
           "num": { ".validate": "newData.isString() && newData.val().length <= 8" },
           "classes": { ".validate": "newData.isString() && newData.val().length <= 4000" },
           "next": { ".validate": "newData.isString() && newData.val().length <= 120" },
+          "notes": { ".validate": "newData.isString() && newData.val().length <= 1500" },
           "at": { ".validate": "newData.isNumber()" },
           "$other": { ".validate": false }
         }

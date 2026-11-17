@@ -132,6 +132,22 @@ const PA = 'prof_livea0001', PB = 'prof_liveb0002';
   const auto = await p.evaluate(() => __writes.map(x => x[1]));
   check('a sign-up (save) posts on its own a moment later', auto.includes('liveDriven/' + PB + '/ROOM1'), JSON.stringify(auto));
 
+  console.log('\n— Track announcements ride along —');
+  await p.evaluate(() => { S.settings.raceNote = { text: 'Rain delay: heats start at 2:00', at: Date.now() }; S.settings.raceNotes = [S.settings.raceNote, { text: 'Drivers meeting at noon', at: Date.now() - 3600000 }]; });
+  w = await push();
+  const nrow = (w.find(x => x[0] === 'set' && x[1] === 'liveDriven/' + PA + '/ROOM1') || [])[2] || {};
+  let nts = {}; try { nts = JSON.parse(nrow.notes); } catch (e) {}
+  check('posting a race note rewrites every linked driver\'s row', w.filter(x => x[0] === 'set').length === 2, JSON.stringify(w.map(x => x[1])));
+  check('…with the current note and the earlier ones', nts.c && nts.c.t === 'Rain delay: heats start at 2:00' && typeof nts.c.at === 'number' && nts.e.length === 1 && nts.e[0].t === 'Drivers meeting at noon', nrow.notes);
+  await p.evaluate(() => { delete S.settings.raceNote; });
+  w = await push();
+  try { nts = JSON.parse(((w.find(x => x[1] === 'liveDriven/' + PA + '/ROOM1') || [])[2] || {}).notes); } catch (e) { nts = {}; }
+  check('clearing the note keeps tonight\'s list, with no current note', nts.c === null && nts.e.length === 2, JSON.stringify(nts));
+  await p.evaluate(() => { delete S.settings.raceNotes; });
+  w = await push();
+  check('no notes, no notes field', w.length === 2 && w.every(x => !('notes' in x[2])), JSON.stringify(w.map(x => Object.keys(x[2]))));
+  check('the rule caps the notes field', /<= 1500/.test(L.$room.notes['.validate']));
+
   const p2 = await browser.newPage();
   const errs2 = []; p2.on('pageerror', e => errs2.push(e.message));
   await p2.route(/firebaseio\.com|gstatic\.com|cloudfunctions\.net|cloudflareinsights|script\.google\.com/, r => r.abort());

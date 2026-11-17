@@ -309,6 +309,13 @@
   .live-b.done { background: var(--ink-2); color: var(--td-mute); }
   .live-go { margin-top: 12px; text-align: center; display: block; }
   .live-upd { font-size: 12px; color: var(--td-mute); margin-top: 6px; text-align: center; }
+  .live-note-cur { margin-top: 8px; background: rgba(255,196,0,.12); border-radius: 8px; padding: 8px 10px; font-size: 14px; font-weight: 600; overflow-wrap: anywhere; }
+  .live-nl { display: block; font: 700 11px var(--display); letter-spacing: .12em; text-transform: uppercase; color: #ffc400; margin-bottom: 2px; }
+  .live-nt { font-size: 12px; font-weight: 600; color: var(--td-mute); }
+  .live-new { font-size: 10.5px; font-weight: 800; padding: 1px 6px; border-radius: 4px; background: #ffc400; color: #231a02; vertical-align: 1px; }
+  .live-earlier { margin-top: 6px; font-size: 13px; color: var(--td-mute); overflow-wrap: anywhere; }
+  .live-earlier summary { cursor: pointer; font-weight: 600; }
+  .live-earlier div { margin-top: 4px; }
   .dp-banner { position: relative; height: 180px; overflow: hidden; background: var(--ink-2) center/cover no-repeat; margin: -20px -20px 0; }
   .dp-banner.gen { background: linear-gradient(115deg, var(--ink-2) 0 50%, var(--tc) 50% 57%, var(--ink-2) 57% 59%, var(--tc2, var(--tc)) 59% 62.5%, var(--ink-2) 62.5% 64%, var(--tc3, var(--tc)) 64% 65.5%, var(--ink-1) 65.5%); }
   .dp-banner .bignum { position: absolute; right: 10px; bottom: -28px; font: italic 800 180px/1 var(--display); color: transparent; -webkit-text-stroke: 2px rgba(255,255,255,.18); letter-spacing: -.03em; }
@@ -2617,7 +2624,8 @@ document.addEventListener('visibilitychange', function () { if (document.visibil
    on track / up next / done, and the room for a one-tap lineup link — no QR code. Home shows it
    for every driver and ride on this phone, only for today's date, and only once the track's own
    lineup data (tracks/<room>/roster) confirms that card is linked to that driver, so nobody can
-   point a driver at a made-up lineup. Read-only here. Refreshed on open, when the app comes back
+   point a driver at a made-up lineup. The track's announcements (race notes) show on the card too,
+   with a pop-up and a buzz when a new one arrives while Driven is open. Read-only here. Refreshed on open, when the app comes back
    to the screen, and every 30 s while a card is showing. Everything shown is capped and escaped. */
 var LIVE = { rows: [], at: 0, timer: null, ok: {} };
 var LINEUP_BASE = 'https://victoryraceday.com/raceday2/';
@@ -2648,7 +2656,12 @@ function liveClean(pid, room, v) {
           d: !!r.d, f: typeof r.f === 'number' ? r.f : s(r.f, 10), w: s(r.w, 30), now: !!r.now };
       }) };
   });
-  return { pid: pid, room: room, me: v.me, trackName: s(v.trackName, 60), next: s(v.next, 120), at: typeof v.at === 'number' ? v.at : 0, classes: cls };
+  // The track's announcements tonight: c = the current one, e = earlier ones (newest first).
+  var nts = null;
+  try { nts = typeof v.notes === 'string' ? JSON.parse(v.notes.slice(0, 1500)) : null; } catch (e) { nts = null; }
+  var nOne = function (n) { return n && typeof n === 'object' && typeof n.t === 'string' && n.t ? { t: n.t.slice(0, 140), at: typeof n.at === 'number' ? n.at : 0 } : null; };
+  var notes = nts && typeof nts === 'object' ? { c: nOne(nts.c), e: (Array.isArray(nts.e) ? nts.e : []).slice(0, 5).map(nOne).filter(Boolean) } : { c: null, e: [] };
+  return { pid: pid, room: room, me: v.me, trackName: s(v.trackName, 60), next: s(v.next, 120), at: typeof v.at === 'number' ? v.at : 0, classes: cls, notes: notes };
 }
 // Only a yes is remembered: a card linked a moment ago may not have reached the lineup data yet.
 function liveVerify(row) {
@@ -2683,6 +2696,7 @@ function pullLive() {
     var changed = JSON.stringify(rows) !== JSON.stringify(LIVE.rows);
     LIVE.rows = rows; LIVE.at = Date.now();
     if (changed) { var el = $id('liveToday'); if (el) el.innerHTML = liveHtml(); }
+    liveNoteAlert(rows);
     clearTimeout(LIVE.timer); LIVE.timer = null;
     if (rows.length) LIVE.timer = setTimeout(function () { LIVE.timer = null; if (document.visibilityState === 'visible') pullLive(); }, 30000);
   }).catch(function () {});
@@ -2691,6 +2705,27 @@ function autoLive() {
   if (!P || Date.now() - LIVE.at < 20000) return;
   LIVE.at = Date.now();
   pullLive();
+}
+// A new announcement while Driven is open: a pop-up and a buzz, once per note (dv_note_seen = the
+// newest note's time seen on this phone). Notes over 30 minutes old when first seen just show on the card.
+function liveNoteAlert(rows) {
+  var seen = 0; try { seen = Number(localStorage.getItem('dv_note_seen')) || 0; } catch (e) {}
+  var top = null;
+  rows.forEach(function (r) { var c = r.notes && r.notes.c; if (c && c.at > seen && (!top || c.at > top.n.at)) top = { n: c, r: r }; });
+  if (!top) return;
+  try { localStorage.setItem('dv_note_seen', String(top.n.at)); } catch (e) {}
+  if (Date.now() - top.n.at > 30 * 60000) return;
+  resultsToast('Track update · ' + (top.r.trackName || 'the track') + ': ' + top.n.t);
+  try { if (navigator.vibrate) navigator.vibrate([220, 120, 220]); } catch (e) {}
+}
+function liveTime(at) { return at ? new Date(at).toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' }) : ''; }
+function liveNotesHtml(n) {
+  if (!n || (!n.c && !n.e.length)) return '';
+  return (n.c ? '<div class="live-note-cur"><span class="live-nl">Track update</span>' + esc(n.c.t)
+      + (n.c.at ? ' <span class="live-nt">' + esc(liveTime(n.c.at)) + '</span>' : '')
+      + (n.c.at && Date.now() - n.c.at < 10 * 60000 ? ' <span class="live-new">NEW</span>' : '') + '</div>' : '')
+    + (n.e.length ? '<details class="live-earlier"><summary>Earlier today (' + n.e.length + ')</summary>'
+      + n.e.map(function (x) { return '<div><span class="live-nt">' + esc(liveTime(x.at)) + '</span> ' + esc(x.t) + '</div>'; }).join('') + '</details>' : '');
 }
 function liveAgo(t) {
   var m = Math.round((Date.now() - t) / 60000);
@@ -2704,6 +2739,7 @@ function liveHtml() {
     return '<div class="live-card">'
       + '<div class="live-hd"><span class="live-dot" aria-hidden="true"></span><span class="dp-cap">Racing today</span></div>'
       + '<div class="live-tr">' + (many && r.who ? esc(r.who) + ' at ' : '') + esc(r.trackName || 'the track') + '</div>'
+      + liveNotesHtml(r.notes)
       + (r.next ? '<div class="live-next">Next: ' + esc(r.next) + '</div>' : '')
       + r.classes.map(function (c) {
           return '<div class="live-cls"><div class="live-cn"><b>' + esc(c.c) + '</b>'

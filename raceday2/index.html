@@ -2669,7 +2669,8 @@ function hintReshare(driverName, driverId) {
    one-tap link to their lineup (the spectator link with &me=), so nobody needs the QR code.
    Any registered staff device writes liveDriven/<profileId>/<room> (rules: staff of that room
    only); Driven shows it only for today and only when this room's own roster links that card
-   to that driver. Never from a demo, a demo room, a guest or a spectator. Only rows that
+   to that driver. Tonight's race notes (announcements) ride along on every row (`notes`).
+   Never from a demo, a demo room, a guest or a spectator. Only rows that
    changed are written; a driver who leaves tonight (cancelled, unlinked, new race day) is
    removed. rd_driven_live remembers what this device last wrote. */
 var LIVE_KEY = 'rd_driven_live', _liveT = null;   // var: save() can run during boot, before this line (a let would throw there)
@@ -2678,6 +2679,14 @@ function drivenLiveRows() {
   const rows = {};
   const date = S.raceDay.date || today();
   const cap = (v, n) => String(v == null ? '' : v).slice(0, n);
+  // Tonight's race notes go on every row too, so Driven shows the track's announcements on the card.
+  const cur = S.settings.raceNote && S.settings.raceNote.text ? S.settings.raceNote : null;
+  const nt = n => ({ t: cap(n.text, 140), at: typeof n.at === 'number' ? n.at : 0 });
+  let earlier = raceNotes().filter(n => !cur || n.at !== cur.at).slice(0, 5).map(nt), notes = '';
+  if (cur || earlier.length) {
+    notes = JSON.stringify({ c: cur ? nt(cur) : null, e: earlier });
+    while (notes.length > 1500 && earlier.length) { earlier = earlier.slice(0, -1); notes = JSON.stringify({ c: cur ? nt(cur) : null, e: earlier }); }
+  }
   [...new Set(S.raceDay.entries.map(e => e.driverId))].forEach(id => {
     const d = driverById(id);
     if (!d || !d.profileId || !/^prof_[a-z0-9]{4,40}$/.test(d.profileId)) return;
@@ -2695,6 +2704,7 @@ function drivenLiveRows() {
       trackName: cap(S.track.name || 'RaceDay', 60), date, me: id, name: cap(d.name, 40), num: cap(d.num, 8), classes: cj,
       next: n.next ? cap(n.next.cls.name + ' · ' + n.next.label + (n.next.when ? ' — ' + n.next.when : ''), 120) : ''
     };
+    if (notes) rows[d.profileId].notes = notes;
   });
   return rows;
 }
