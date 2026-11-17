@@ -290,6 +290,32 @@
   body.dp-dark .page.active .btn-primary, body.dp-dark .page.active .dp-team { background: var(--tc, var(--brand)); border-color: var(--tc, var(--brand)); color: #fff; }
   body.dp-dark .page.active .btn-go { background: var(--brand); border-color: var(--brand); color: #fff; }
   .dp-cap { font: 700 11.5px var(--display); letter-spacing: .12em; text-transform: uppercase; color: var(--td-mute); }
+  /* Racing today: the driver's own night, posted by the track */
+  .live-card { margin-top: 16px; background: var(--ink-1); border-left: 4px solid #2fbf78; border-radius: 12px; padding: 12px 14px 10px; color: var(--td); }
+  .live-hd { display: flex; align-items: center; gap: 8px; }
+  .live-dot { width: 9px; height: 9px; border-radius: 50%; background: #2fbf78; box-shadow: 0 0 0 4px rgba(47,191,120,.22); flex: none; }
+  .live-tr { font: 800 22px/1.1 var(--display); text-transform: uppercase; margin-top: 6px; overflow-wrap: anywhere; }
+  .live-next { font-size: 14px; font-weight: 600; color: #ffc400; margin-top: 4px; overflow-wrap: anywhere; }
+  .live-cls { margin-top: 10px; border-top: 1px solid var(--line-d); padding-top: 8px; }
+  .live-cn { display: flex; flex-wrap: wrap; align-items: baseline; gap: 4px 10px; font-size: 14.5px; overflow-wrap: anywhere; }
+  .live-cn span { font-size: 12.5px; color: var(--td-mute); }
+  .live-race { display: flex; flex-wrap: wrap; align-items: center; gap: 4px 10px; padding: 6px 0 0; font-size: 13.5px; min-width: 0; }
+  .live-race.now .live-lbl { color: #2fbf78; }
+  .live-lbl { font: 700 13px var(--display); letter-spacing: .08em; text-transform: uppercase; min-width: 70px; }
+  .live-spot { font-weight: 600; flex: 1; min-width: 0; }
+  .live-note { color: var(--td-mute); flex: 1; min-width: 0; }
+  .live-b { font-size: 12px; font-weight: 700; padding: 2px 9px; border-radius: 99px; background: rgba(255,196,0,.16); color: #ffc400; white-space: nowrap; }
+  .live-b.go { background: rgba(47,191,120,.2); color: #2fbf78; }
+  .live-b.done { background: var(--ink-2); color: var(--td-mute); }
+  .live-go { margin-top: 12px; text-align: center; display: block; }
+  .live-upd { font-size: 12px; color: var(--td-mute); margin-top: 6px; text-align: center; }
+  .live-note-cur { margin-top: 8px; background: rgba(255,196,0,.12); border-radius: 8px; padding: 8px 10px; font-size: 14px; font-weight: 600; overflow-wrap: anywhere; }
+  .live-nl { display: block; font: 700 11px var(--display); letter-spacing: .12em; text-transform: uppercase; color: #ffc400; margin-bottom: 2px; }
+  .live-nt { font-size: 12px; font-weight: 600; color: var(--td-mute); }
+  .live-new { font-size: 10.5px; font-weight: 800; padding: 1px 6px; border-radius: 4px; background: #ffc400; color: #231a02; vertical-align: 1px; }
+  .live-earlier { margin-top: 6px; font-size: 13px; color: var(--td-mute); overflow-wrap: anywhere; }
+  .live-earlier summary { cursor: pointer; font-weight: 600; }
+  .live-earlier div { margin-top: 4px; }
   .dp-banner { position: relative; height: 180px; overflow: hidden; background: var(--ink-2) center/cover no-repeat; margin: -20px -20px 0; }
   .dp-banner.gen { background: linear-gradient(115deg, var(--ink-2) 0 50%, var(--tc) 50% 57%, var(--ink-2) 57% 59%, var(--tc2, var(--tc)) 59% 62.5%, var(--ink-2) 62.5% 64%, var(--tc3, var(--tc)) 64% 65.5%, var(--ink-1) 65.5%); }
   .dp-banner .bignum { position: absolute; right: 10px; bottom: -28px; font: italic 800 180px/1 var(--display); color: transparent; -webkit-text-stroke: 2px rgba(255,255,255,.18); letter-spacing: -.03em; }
@@ -1691,6 +1717,7 @@ function renderHome() {
         ? '<button class="btn btn-primary" onclick="sharePublicPage()">Share my page</button><a class="btn" href="' + esc(publicPageUrl()) + '" target="_blank" rel="noopener">View</a>'
         : '<button class="btn btn-primary" onclick="publishNow()">Publish my card</button>')
     + '</div>';
+  h += '<div id="liveToday">' + liveHtml() + '</div>';
   h += finishCardHtml();
   if (!P.linkedTracks.length) {
     h += '<div class="card" style="margin-top:16px"><h3>Link your first track</h3><p class="empty">Give your link code at RaceDay sign-up (or import results) to start building your record.</p>'
@@ -2589,7 +2616,149 @@ function resultsToast(msg) {
   document.body.appendChild(t);
   setTimeout(function () { if (t.parentNode) t.parentNode.removeChild(t); }, 4000);
 }
-document.addEventListener('visibilitychange', function () { if (document.visibilityState === 'visible') autoPullResults(); });
+document.addEventListener('visibilitychange', function () { if (document.visibilityState === 'visible') { autoPullResults(); autoLive(); } });
+
+/* ---------- Racing today (2026-11-17) ----------
+   A RaceDay track that has signed this driver in today (card linked at sign-up) posts the
+   driver's own night to liveDriven/<profileId>/<room>: each class, every race's starting spot,
+   on track / up next / done, and the room for a one-tap lineup link — no QR code. Home shows it
+   for every driver and ride on this phone, only for today's date, and only once the track's own
+   lineup data (tracks/<room>/roster) confirms that card is linked to that driver, so nobody can
+   point a driver at a made-up lineup. The track's announcements (race notes) show on the card too,
+   with a pop-up and a buzz when a new one arrives while Driven is open. Read-only here. Refreshed on open, when the app comes back
+   to the screen, and every 30 s while a card is showing. Everything shown is capped and escaped. */
+var LIVE = { rows: [], at: 0, timer: null, ok: {} };
+var LINEUP_BASE = 'https://victoryraceday.com/raceday2/';
+function dvToday() { var d = new Date(); return d.getFullYear() + '-' + String(d.getMonth() + 1).padStart(2, '0') + '-' + String(d.getDate()).padStart(2, '0'); }
+// Every published driver and ride on this phone (a card can only be linked once it's published).
+function phoneProfiles() {
+  var out = [], seen = {};
+  function add(p) { if (p && p.profileId && p.publishedAt && !seen[p.profileId]) { seen[p.profileId] = 1; out.push({ pid: p.profileId, name: (p.driver && p.driver.name) || '' }); } }
+  if (!P) return out;
+  rideList().forEach(add);
+  if (familyOn()) Object.keys(FAM.stash).forEach(function (k) {
+    var m = FAM.stash[k]; if (!m) return;
+    add(m.p);
+    if (m.acct && m.acct.stash) Object.keys(m.acct.stash).forEach(function (r) { add(m.acct.stash[r]); });
+  });
+  return out;
+}
+function liveClean(pid, room, v) {
+  if (!v || typeof v !== 'object' || v.date !== dvToday() || typeof v.me !== 'number' || !/^[A-Z0-9]{1,40}$/.test(room)) return null;
+  var s = function (x, n) { return typeof x === 'string' ? x.slice(0, n) : ''; };
+  var cls = [];
+  try { cls = JSON.parse(typeof v.classes === 'string' ? v.classes.slice(0, 4000) : '[]'); } catch (e) { cls = []; }
+  if (!Array.isArray(cls)) cls = [];
+  cls = cls.slice(0, 8).filter(function (c) { return c && typeof c === 'object'; }).map(function (c) {
+    return { c: s(c.c, 60), t: s(c.t, 40), p: typeof c.p === 'number' ? c.p : null,
+      r: (Array.isArray(c.r) ? c.r : []).slice(0, 10).filter(function (r) { return r && typeof r === 'object'; }).map(function (r) {
+        return { l: s(r.l, 30), n: s(r.n, 80), s: s(r.s, 30), k: typeof r.k === 'number' && r.k > 0 && r.k < 1000 ? Math.round(r.k) : 0,
+          d: !!r.d, f: typeof r.f === 'number' ? r.f : s(r.f, 10), w: s(r.w, 30), now: !!r.now };
+      }) };
+  });
+  // The track's announcements tonight: c = the current one, e = earlier ones (newest first).
+  var nts = null;
+  try { nts = typeof v.notes === 'string' ? JSON.parse(v.notes.slice(0, 1500)) : null; } catch (e) { nts = null; }
+  var nOne = function (n) { return n && typeof n === 'object' && typeof n.t === 'string' && n.t ? { t: n.t.slice(0, 140), at: typeof n.at === 'number' ? n.at : 0 } : null; };
+  var notes = nts && typeof nts === 'object' ? { c: nOne(nts.c), e: (Array.isArray(nts.e) ? nts.e : []).slice(0, 5).map(nOne).filter(Boolean) } : { c: null, e: [] };
+  return { pid: pid, room: room, me: v.me, trackName: s(v.trackName, 60), next: s(v.next, 120), at: typeof v.at === 'number' ? v.at : 0, classes: cls, notes: notes };
+}
+// Only a yes is remembered: a card linked a moment ago may not have reached the lineup data yet.
+function liveVerify(row) {
+  var k = row.room + '|' + row.pid + '|' + row.me + '|' + dvToday();
+  if (LIVE.ok[k]) return Promise.resolve(true);
+  return firebase.database().ref('tracks/' + row.room + '/roster').once('value').then(function (snap) {
+    var raw = snap.val(), roster = [];
+    try { roster = typeof raw === 'string' ? JSON.parse(raw) : raw; } catch (e) { roster = []; }
+    var ok = Array.isArray(roster) && roster.some(function (d) { return d && d.id === row.me && d.profileId === row.pid; });
+    if (ok) LIVE.ok[k] = true;
+    return ok;
+  }).catch(function () { return false; });
+}
+function pullLive() {
+  var profs = phoneProfiles();
+  if (!profs.length) { LIVE.rows = []; return Promise.resolve(); }
+  return ensureFirebase().then(function () {
+    return Promise.all(profs.map(function (pr) {
+      return firebase.database().ref('liveDriven/' + pr.pid).once('value').then(function (snap) {
+        var v = snap.val() || {};
+        return Promise.all(Object.keys(v).slice(0, 5).map(function (room) {
+          var row = liveClean(pr.pid, room, v[room]);
+          if (!row) return null;
+          row.who = pr.name;
+          return liveVerify(row).then(function (ok) { return ok ? row : null; });
+        }));
+      }).catch(function () { return []; });
+    }));
+  }).then(function (lists) {
+    var rows = [];
+    (lists || []).forEach(function (l) { (l || []).forEach(function (r) { if (r) rows.push(r); }); });
+    var changed = JSON.stringify(rows) !== JSON.stringify(LIVE.rows);
+    LIVE.rows = rows; LIVE.at = Date.now();
+    if (changed) { var el = $id('liveToday'); if (el) el.innerHTML = liveHtml(); }
+    liveNoteAlert(rows);
+    clearTimeout(LIVE.timer); LIVE.timer = null;
+    if (rows.length) LIVE.timer = setTimeout(function () { LIVE.timer = null; if (document.visibilityState === 'visible') pullLive(); }, 30000);
+  }).catch(function () {});
+}
+function autoLive() {
+  if (!P || Date.now() - LIVE.at < 20000) return;
+  LIVE.at = Date.now();
+  pullLive();
+}
+// A new announcement while Driven is open: a pop-up and a buzz, once per note (dv_note_seen = the
+// newest note's time seen on this phone). Notes over 30 minutes old when first seen just show on the card.
+function liveNoteAlert(rows) {
+  var seen = 0; try { seen = Number(localStorage.getItem('dv_note_seen')) || 0; } catch (e) {}
+  var top = null;
+  rows.forEach(function (r) { var c = r.notes && r.notes.c; if (c && c.at > seen && (!top || c.at > top.n.at)) top = { n: c, r: r }; });
+  if (!top) return;
+  try { localStorage.setItem('dv_note_seen', String(top.n.at)); } catch (e) {}
+  if (Date.now() - top.n.at > 30 * 60000) return;
+  resultsToast('Track update · ' + (top.r.trackName || 'the track') + ': ' + top.n.t);
+  try { if (navigator.vibrate) navigator.vibrate([220, 120, 220]); } catch (e) {}
+}
+function liveTime(at) { return at ? new Date(at).toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' }) : ''; }
+function liveNotesHtml(n) {
+  if (!n || (!n.c && !n.e.length)) return '';
+  return (n.c ? '<div class="live-note-cur"><span class="live-nl">Track update</span>' + esc(n.c.t)
+      + (n.c.at ? ' <span class="live-nt">' + esc(liveTime(n.c.at)) + '</span>' : '')
+      + (n.c.at && Date.now() - n.c.at < 10 * 60000 ? ' <span class="live-new">NEW</span>' : '') + '</div>' : '')
+    + (n.e.length ? '<details class="live-earlier"><summary>Earlier today (' + n.e.length + ')</summary>'
+      + n.e.map(function (x) { return '<div><span class="live-nt">' + esc(liveTime(x.at)) + '</span> ' + esc(x.t) + '</div>'; }).join('') + '</details>' : '');
+}
+function liveAgo(t) {
+  var m = Math.round((Date.now() - t) / 60000);
+  return !t ? '' : m < 1 ? 'just now' : m === 1 ? '1 min ago' : m < 60 ? m + ' min ago' : 'over an hour ago';
+}
+function liveHtml() {
+  if (!LIVE.rows.length) return '';
+  var many = phoneProfiles().length > 1;
+  return LIVE.rows.map(function (r) {
+    var url = LINEUP_BASE + '?sync=' + encodeURIComponent(r.room) + '&role=viewer&me=' + encodeURIComponent(r.me);
+    return '<div class="live-card">'
+      + '<div class="live-hd"><span class="live-dot" aria-hidden="true"></span><span class="dp-cap">Racing today</span></div>'
+      + '<div class="live-tr">' + (many && r.who ? esc(r.who) + ' at ' : '') + esc(r.trackName || 'the track') + '</div>'
+      + liveNotesHtml(r.notes)
+      + (r.next ? '<div class="live-next">Next: ' + esc(r.next) + '</div>' : '')
+      + r.classes.map(function (c) {
+          return '<div class="live-cls"><div class="live-cn"><b>' + esc(c.c) + '</b>'
+            + [c.t, c.p != null ? c.p + ' pts today' : ''].filter(Boolean).map(function (t) { return '<span>' + esc(t) + '</span>'; }).join('') + '</div>'
+            + c.r.map(function (x) {
+                return '<div class="live-race' + (x.now ? ' now' : '') + '"><span class="live-lbl">' + esc(x.l) + '</span>'
+                  + (x.n ? '<span class="live-note">' + esc(x.n) + '</span>'
+                    : '<span class="live-spot">Start ' + esc(x.s) + (x.k ? ' · ' + x.k + ' laps' : '') + '</span>'
+                      + (x.d ? '<span class="live-b done">' + (typeof x.f === 'number' ? 'Finished P' + x.f : esc(x.f || 'Done')) + '</span>'
+                        : x.w ? '<span class="live-b' + (x.now ? ' go' : '') + '">' + esc(x.w) + '</span>' : ''))
+                  + '</div>';
+              }).join('')
+            + '</div>';
+        }).join('')
+      + '<a class="btn btn-primary btn-block live-go" href="' + esc(url) + '" target="_blank" rel="noopener">Open my lineup</a>'
+      + '<div class="live-upd">From the track' + (r.at ? ' · updated ' + liveAgo(r.at) : '') + '</div>'
+      + '</div>';
+  }).join('');
+}
 
 function deleteProfile() {
   var who = familyOn() ? P.driver.name + '\'s profile' : 'your profile';
@@ -2633,7 +2802,7 @@ function deleteProfile() {
 // day, 'driven-profile' when someone makes a profile, 'driven-publish' the first time a card is
 // published, and crashes. No names, emails or numbers — only counts. The track column reads DRIVEN.
 // The part after the dot MUST match sw.js CACHE (tests/test-analytics.js) — bump both together.
-const APP_VERSION = '2026-11-14.v25';
+const APP_VERSION = '2026-11-17.v26';
 var TELEMETRY_URL = 'https://script.google.com/macros/s/AKfycbxa3i3y17TLp_NfXOOu2jM7-YzXH2fScxcXoQYmIh0-873rxWfxg0HdRP1DVsxZq6iR/exec';
 // Devices opted out at /me/ (the owner testing) still report, marked OWNER; copies on this
 // computer (localhost, *.test) report nothing unless rd_count_local='1' (the analytics test).
@@ -2742,6 +2911,7 @@ handleBootParams();
 handleRestoreParam();
 syncFromPublished();
 offerSecureMove();
+autoLive();
 autoPullResults();
 </script>
 <!-- Cloudflare Web Analytics --><script>/* skipped on devices opted out at /me/ (the owner's own testing) and on local dev/test copies */try{if(localStorage.getItem('rd_dont_count')!=='1'&&!(/^(localhost|127\.0\.0\.1|\[::1\])$|\.(localhost|test)$/.test(location.hostname)&&localStorage.getItem('rd_count_local')!=='1')){var cfb=document.createElement('script');cfb.defer=true;cfb.src='https://static.cloudflareinsights.com/beacon.min.js';cfb.setAttribute('data-cf-beacon','{"token": "07e858325a984890a4f60c1cec1942bc"}');(document.body||document.head).appendChild(cfb);}}catch(e){}/* first visit: remember where this device first came from (rd_from = "<source> <landing path>"); the apps send it with their daily open row */try{if(!localStorage.getItem('rd_from')){var rdS=location.search,rdM=/[?&](?:from|utm_source)=([^&#]+)/.exec(rdS),rdH='',rdR;try{rdH=document.referrer?new URL(document.referrer).hostname.replace(/^(www|m|l|lm|mobile)\./,''):''}catch(e){}if(rdM)rdR=decodeURIComponent(rdM[1]);else if(/[?&]fbclid=/.test(rdS))rdR='facebook';else if(/[?&]gclid=/.test(rdS))rdR='google-ads';else if(!rdH)rdR='direct';else if(rdH===location.hostname)rdR='site';else rdR=/(^|\.)(facebook\.com|fb\.com|fb\.me)$/.test(rdH)?'facebook':/instagram\.com$/.test(rdH)?'instagram':/(^|\.)google\./.test(rdH)?'google':/(youtube\.com|youtu\.be)$/.test(rdH)?'youtube':/(linkedin\.com|lnkd\.in)$/.test(rdH)?'linkedin':/bing\.com$/.test(rdH)?'bing':/web\.app$/.test(rdH)?'shared-card':rdH;localStorage.setItem('rd_from',String(rdR).toLowerCase().replace(/[^a-z0-9.\-]/g,'').slice(0,30)+' '+location.pathname.slice(0,40))}}catch(e){}</script><!-- End Cloudflare Web Analytics -->
