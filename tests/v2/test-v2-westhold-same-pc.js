@@ -50,6 +50,9 @@ const RACERS = read('DEMO.CSV').trim().split(/\r?\n/).map(l => { const c = l.spl
   const p = await ctx.newPage();
   const errs = []; p.on('pageerror', e => errs.push(e.message)); p.on('dialog', d => d.accept());
   await p.goto(`http://localhost:${PORT}/raceday2/`); await p.waitForTimeout(800);
+  // Coming back to the page before the import sheet was ever opened must not throw (Imp undeclared, crash 11/14-11/16)
+  await p.evaluate(() => { window.dispatchEvent(new Event('focus')); document.dispatchEvent(new Event('visibilitychange')); });
+  check('focus / visibility before any import: no error', !errs.length, errs.join('; '));
   const setup = () => p.evaluate(racers => {
     closeSheet(); localStorage.setItem('rd_role_v2', 'admin'); sessionStorage.setItem('rd_admin_ok', '1'); setDeviceRole('admin'); applyRole();
     S.track.name = 'Same PC Speedway'; S.classes = [{ id: 1, name: 'Demo', maxPill: 200, heats: 1 }];

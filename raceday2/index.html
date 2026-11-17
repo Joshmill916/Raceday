@@ -867,7 +867,7 @@ const GARAGE_KEY = 'rd_garage_v2';
 const ACTIVE_TRACK_KEY = 'rd_active_track_v2';
 // Reported with every usage row and crash. The part after the dot MUST match this app's
 // sw.js CACHE number (tests/test-app-version.js) — bump both together on each release.
-const APP_VERSION = '2026-11-15.v42';
+const APP_VERSION = '2026-11-17.v43';
 const LEGAL_VERSION = '2026-06';   // bump when Terms / Privacy wording changes, so acceptances are versioned
 const TELEMETRY_URL = 'https://script.google.com/macros/s/AKfycbxa3i3y17TLp_NfXOOu2jM7-YzXH2fScxcXoQYmIh0-873rxWfxg0HdRP1DVsxZq6iR/exec';
 const FIREBASE_CONFIG = {
@@ -1228,6 +1228,10 @@ function restoreResVersion(clsId, idx) {
    The v1 globals, unchanged, plus the few v2 views need. Namespaced objects
    (UI / TV / Sync / Imp) rather than scattered bare `let`s, as in v1.
    ========================================================================= */
+
+// Timing import: null until the import sheet opens. Declared here because the focus/visibility
+// listeners read it on every page; left undeclared it threw "Imp is not defined" (crash reports 11/14-11/16).
+var Imp = null, impPreview = [];   // var (not let): stays on window, as it always was
 
 const UI = {
   viewClsId: null,        /* class selected on Lineups */
