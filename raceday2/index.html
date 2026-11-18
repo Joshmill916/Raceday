@@ -867,7 +867,7 @@ const GARAGE_KEY = 'rd_garage_v2';
 const ACTIVE_TRACK_KEY = 'rd_active_track_v2';
 // Reported with every usage row and crash. The part after the dot MUST match this app's
 // sw.js CACHE number (tests/test-app-version.js) — bump both together on each release.
-const APP_VERSION = '2026-11-17.v44';
+const APP_VERSION = '2026-11-18.v45';
 const LEGAL_VERSION = '2026-06';   // bump when Terms / Privacy wording changes, so acceptances are versioned
 const TELEMETRY_URL = 'https://script.google.com/macros/s/AKfycbxa3i3y17TLp_NfXOOu2jM7-YzXH2fScxcXoQYmIh0-873rxWfxg0HdRP1DVsxZq6iR/exec';
 const FIREBASE_CONFIG = {
@@ -2578,6 +2578,9 @@ function nightFinishOrder(snap, cls) {
   };
   const fins = (cls.featureFinish || []).slice().sort((a, b) => a.fin - b.fin);
   fins.forEach(f => add(f.driverId, f.name, f.num, f.fin));
+  // A backfilled past night (Admin -> Fix or backfill) only knows the finishes typed in or loaded
+  // from its timing file; points-only rows there are not finishing positions.
+  if (snap && snap.imported) return out;
   let next = fins.reduce((m, f) => Math.max(m, f.fin), 0);
   (cls.featureResults || []).filter(f => typeof f.fin !== 'number')
     .sort((a, b) => (OUT_ORDER[a.fin] || 9) - (OUT_ORDER[b.fin] || 9))
@@ -8763,7 +8766,7 @@ function savePoints() {
 function addImpRowDriver(id) {
   const d = driverById(id); if (!d) return;
   if (_impRows.some(r => r.driverId === id)) return;
-  _impRows.push({ driverId: id, name: d.name, num: d.num, pts: 0 });
+  _impRows.push({ driverId: id, name: d.name, num: d.num, pts: 0, fin: null });
   document.getElementById('impDriverSearch').value = '';
   document.getElementById('impSearchResults').innerHTML = '';
   renderImpRows();
@@ -8779,7 +8782,7 @@ function addImpRow() {
   if (!/^[A-Za-z0-9]{1,5}$/.test(num.trim())) { alert('Car number must be 1–5 letters or digits.'); return; }
   const d = { id: genDriverId(), name: q.trim(), num: num.trim(), noPoints: false };
   S.roster.push(d); save();
-  _impRows.push({ driverId: d.id, name: d.name, num: d.num, pts: 0 });
+  _impRows.push({ driverId: d.id, name: d.name, num: d.num, pts: 0, fin: null });
   document.getElementById('impDriverSearch').value = '';
   document.getElementById('impSearchResults').innerHTML = '';
   renderImpRows();
@@ -8795,7 +8798,7 @@ function addImpWholeClass() {
     const k = driverId != null ? 'd' + driverId : 'n' + String(name).toLowerCase();
     if (seen.has(k)) return;
     seen.add(k);
-    _impRows.push({ driverId: driverId, name: name, num: num, pts: 0 });
+    _impRows.push({ driverId: driverId, name: name, num: num, pts: 0, fin: null });
     added++;
   };
   classRacers(cls.id).forEach(r => push(r.id, r.name, r.num));
@@ -8815,7 +8818,11 @@ function editImportedRace(i) {
   const cls = S.classes.find(x => x.name.toLowerCase() === c.name.toLowerCase());
   if (!cls) { alert('The class "' + c.name + '" no longer exists, so this entry can\'t be edited.\n\nRe-add the class first, or delete this entry and enter it again.'); return; }
   _impEditIdx = i;
-  _impRows = (c.points || []).map(p => ({ driverId: p.driverId, name: p.name, num: p.num, pts: p.pts || 0 }));
+  const finOf = {}; (c.featureFinish || []).forEach(f => { finOf[String(f.driverId)] = f.fin; });
+  _impRows = (c.points || []).map(p => ({ driverId: p.driverId, name: p.name, num: p.num, pts: p.pts || 0, fin: finOf[String(p.driverId)] || null }));
+  // a finisher with no points row (a no-points driver) still keeps their finish
+  (c.featureFinish || []).forEach(f => { if (!_impRows.some(r => String(r.driverId) === String(f.driverId))) _impRows.push({ driverId: f.driverId, name: f.name, num: f.num, pts: 0, fin: f.fin }); });
+  impSortRows();
   admOpen('repair');
   renderImpForm();
   const d = document.getElementById('impDate'); if (d) d.value = hd.date;
@@ -8843,7 +8850,11 @@ function saveImportedRace() {
   // genuine shutout night. Still counts as a race day for everyone in it either way
   // (seriesStandings' day tally doesn't check pts), so silently saving it would quietly
   // inflate every driver's race count with a phantom, zero-value night.
-  if (_impRows.every(r => !r.pts) && !confirm('Every driver in this entry has 0 points. If you haven\'t filled in their points yet, go back and do that first.\n\nSave anyway?')) return;
+  const finRows = _impRows.filter(r => r.fin > 0);
+  const finSeen = {};
+  for (const r of finRows) { if (finSeen[r.fin]) { showImpMsg('Two drivers have finish ' + r.fin + ' (' + finSeen[r.fin] + ' and ' + r.name + '). Fix one, then save.', 'error'); return; } finSeen[r.fin] = r.name; }
+  if (finRows.length && date >= today() && !confirm('The race date is ' + date + ' (today). Is that the night these results are from?\n\nIf this was an earlier night, press Cancel and set its date first.')) return;
+  if (_impRows.every(r => !r.pts) && !finRows.length && !confirm('Every driver in this entry has 0 points. If you haven\'t filled in their points yet, go back and do that first.\n\nSave anyway?')) return;
   const entry = {
     date: date,
     savedAt: Date.now(),
@@ -8854,9 +8865,11 @@ function saveImportedRace() {
       points: _impRows.map(r => ({ driverId: r.driverId, name: r.name, num: r.num, pts: r.pts || 0 })),
       standings: [],
       feature: [],
-      featureFinish: []
+      featureFinish: finRows.slice().sort((a, b) => a.fin - b.fin).map(r => ({ driverId: r.driverId, name: r.name, num: r.num, fin: r.fin }))
     }]
   };
+  // Replacing a night that was already on Driven: keep that so "Share again" sends the fix.
+  if (editing && editing.published) { entry.published = true; entry.publishedAt = editing.publishedAt || 0; }
   const n = _impRows.length;
   if (editing) S.history[_impEditIdx] = entry; else S.history.push(entry);
   S.history.sort((a, b) => (b.date > a.date ? 1 : b.date < a.date ? -1 : 0));
@@ -8864,9 +8877,10 @@ function saveImportedRace() {
   logAudit(editing ? 'Edited imported race' : 'Imported past race', cls.name + ' · ' + date, n + ' drivers', '');
   save();
   clearImpForm();   // resets the form (and hides any stale message) before the new one shows
-  showImpMsg(editing
+  showImpMsg((editing
     ? 'Updated — ' + cls.name + ' on ' + date + ' now has ' + n + (n === 1 ? ' driver.' : ' drivers.')
-    : 'Saved — ' + n + ' drivers added to ' + cls.name + ' on ' + date + '.', 'ok');
+    : 'Saved — ' + n + ' drivers added to ' + cls.name + ' on ' + date + '.')
+    + (finRows.length ? ' To put it on drivers\' Driven cards, tap Share with Driven on that night in Race day history.' : ''), 'ok');
   UI.histOpen = null;
   renderHistory();
 }
@@ -10240,11 +10254,15 @@ function renderCloudBackupCard() {
 function secRepair() {
   return '<div class="card">'
     + '<p class="tiny" style="margin-bottom:6px">Fix or backfill season points. Use this when you started mid-season, ran nights without the app, or need to correct a night that was lost or entered wrong.</p>'
-    + '<p class="tiny" style="margin-bottom:12px">Enter one night per class at a time — every entry <b>adds</b> to that class\'s season total.</p>'
+    + '<p class="tiny" style="margin-bottom:6px">Enter one night per class at a time — every entry <b>adds</b> to that class\'s season total.</p>'
+    + '<p class="tiny" style="margin-bottom:12px"><b>Started RaceDay mid-season?</b> Load each class\'s feature results file from that night (MotoSponder, MYLAPS Orbits, Westhold Race Manager or a spreadsheet export), or type each driver\'s finish. Nights with finishes can go on drivers\' Driven cards from Race day history.</p>'
     + '<div id="impEditBanner" style="display:none" class="note note-warn"></div>'
     + '<div class="cols">'
     +   '<div class="field" style="margin:0"><label>Race date</label><input id="impDate" type="date"></div>'
     +   '<div class="field" style="margin:0"><label>Class</label><select id="impClass"></select></div></div>'
+    + '<div class="rowflex" style="margin:10px 0"><label class="btn btn-sm" style="cursor:pointer">Load a results file<input type="file" id="impPastFile" accept=".csv,.tsv,.txt,.xml,text/csv,text/plain,text/xml" style="display:none" onchange="impPastLoad(this)"></label>'
+    +   '<button class="btn btn-sm" onclick="impNumberInOrder()">Finish = list order</button>'
+    +   '<button class="btn btn-sm" onclick="impPointsFromFinish()">Points from finish</button></div>'
     + '<div id="impDriverRows" style="margin-bottom:8px"></div>'
     + '<div class="rowflex"><input id="impDriverSearch" type="text" placeholder="Search driver name or car #" style="flex:2;min-width:160px" oninput="renderImpSearch()">'
     +   '<button class="btn btn-sm" onclick="addImpRow()">+ Add driver</button>'
@@ -10280,10 +10298,113 @@ function renderImpRows() {
   const el = document.getElementById('impDriverRows');
   if (!el) return;
   if (!_impRows.length) { el.innerHTML = ''; return; }
-  el.innerHTML = '<div class="list">' + _impRows.map((r, i) =>
-    '<div class="lrow"><div class="nm">' + esc(r.name) + '<small>#' + esc(r.num) + '</small></div>'
-    + '<input type="number" min="0" value="' + (r.pts || 0) + '" style="width:74px" oninput="_impRows[' + i + '].pts=parseInt(this.value)||0">'
+  el.innerHTML = '<div class="lrow tiny" style="font-weight:700;padding-bottom:2px"><div class="nm" style="flex:1">Driver</div><div style="width:64px">Finish</div><div style="width:74px">Points</div><div style="width:38px"></div></div>'
+    + '<div class="list">' + _impRows.map((r, i) =>
+    '<div class="lrow"><div class="nm">' + esc(r.name) + '<small>#' + esc(r.num) + (r.out ? ' · ' + esc(r.out) : '') + '</small></div>'
+    + '<input type="number" min="1" placeholder="—" aria-label="Finish" value="' + (r.fin > 0 ? r.fin : '') + '" style="width:64px" oninput="_impRows[' + i + '].fin=parseInt(this.value)||null">'
+    + '<input type="number" min="0" aria-label="Points" value="' + (r.pts || 0) + '" style="width:74px" oninput="_impRows[' + i + '].pts=parseInt(this.value)||0">'
     + '<button class="btn btn-sm btn-danger" onclick="_impRows.splice(' + i + ',1);renderImpRows()">✕</button></div>').join('') + '</div>';
+}
+/* Past nights (2026-11-18): a track that starts RaceDay mid-season backfills each earlier night
+   with finishing positions, so those nights can go on drivers' Driven cards too. */
+function histHasFinish(hd) { return !!(hd && (hd.classes || []).some(c => (c.featureFinish || []).length)); }
+function impSortRows() {
+  _impRows.sort((a, b) => (a.fin > 0 ? a.fin : 1e6) - (b.fin > 0 ? b.fin : 1e6));
+}
+function impNumberInOrder() {
+  if (!_impRows.length) { showImpMsg('Add the drivers first, top finisher first.', 'error'); return; }
+  _impRows.forEach((r, i) => { r.fin = i + 1; });
+  renderImpRows();
+}
+function impPointsFromFinish() {
+  const clsEl = document.getElementById('impClass');
+  const cls = clsEl ? classById(parseInt(clsEl.value, 10)) : null;
+  if (!cls) { showImpMsg('Pick a class first.', 'error'); return; }
+  if (!_impRows.some(r => r.fin > 0)) { showImpMsg('Fill in the finishes first.', 'error'); return; }
+  const { mode, table, beyond } = classPointsCfg(cls);
+  const field = _impRows.filter(r => r.fin > 0).length;
+  _impRows.forEach(r => {
+    const d = r.driverId != null ? driverById(r.driverId) : null;
+    if (d && d.noPoints) { r.pts = 0; return; }
+    r.pts = !(r.fin > 0) ? beyond : mode === 'linear' ? Math.max(1, field - r.fin + 1) : (r.fin <= table.length ? table[r.fin - 1] : beyond);
+  });
+  renderImpRows();
+  showImpMsg('Points filled in from ' + cls.name + '\'s points table. Check them, then save.', 'ok');
+}
+/* Reads one finished session (a feature) from a timing export into the backfill rows.
+   Uses the timing import's own parsing and driver matching. A past night has no entries,
+   so a kart number alone is only trusted when the name agrees (numbers get reused). */
+function impPastRows(text, filename, cls) {
+  const xml = impXmlToCsv(text);
+  if (xml) {
+    if (xml.running) return { err: 'That Race Manager file is from a session still running. Use the one saved at Stop.' };
+    if (!xml.cars) return { err: 'That Race Manager file has no drivers in it.' };
+    text = xml.csv; filename = xml.fileName;
+  }
+  const rows = impParseCSV(String(text || ''), impDetectDelim(String(text || '')));
+  if (rows.length < 2) return { err: "That file doesn't look like a results file (no data rows)." };
+  const hi = impPickHeader(rows);
+  const cols = impGuessColumns(rows[hi]);
+  let data = rows.slice(hi + 1).filter(r => r.some(c => String(c || '').trim()));
+  const keep = Imp; Imp = { cols };
+  try {
+    // A file holding several classes: keep this class's rows.
+    if (cols.cls >= 0 && cls) {
+      const mine = data.filter(r => String(r[cols.cls] || '').trim().toLowerCase() === cls.name.toLowerCase());
+      if (mine.length) data = mine;
+    }
+    const out = [], made = [], taken = new Set(_impRows.map(r => String(r.driverId)));
+    let order = 0;
+    data.forEach(r => {
+      const m = impMatchDriver(r, 0);
+      if (!m.name && !m.num) return;
+      order++;
+      const p = impParseFinish(impCell(r, 'pos'));
+      let d = m.driver;
+      if (d && m.matchedBy === 'number' && m.nameConflict && m.name) d = null;   // someone else wore that number
+      if (d && taken.has(String(d.id))) d = null;
+      if (!d) {
+        const name = String(m.name || ('Kart ' + m.num)).replace(/\s+/g, ' ').trim().slice(0, 40);
+        const num = String(m.num || '').replace(/[^A-Za-z0-9]/g, '').slice(0, 5);
+        d = { id: genDriverId(), name: name, num: num, noPoints: false };
+        if (m.trans && impNormTrans(m.trans)) d.trans = impNormTrans(m.trans);
+        S.roster.push(d); made.push(name);
+      }
+      taken.add(String(d.id));
+      out.push({ driverId: d.id, name: d.name, num: d.num, pts: 0, pos: typeof p === 'number' ? p : null, out: typeof p === 'string' ? p : '', order });
+    });
+    // Finishers by their place, then DNF / DNS / DQ in file order, numbered after them.
+    const fins = out.filter(x => x.pos).sort((a, b) => a.pos - b.pos);
+    const rest = out.filter(x => !x.pos).sort((a, b) => a.order - b.order);
+    const noPosCol = cols.pos < 0;
+    const all = noPosCol ? out.slice().sort((a, b) => a.order - b.order) : fins.concat(rest);
+    all.forEach((x, i) => { x.fin = i + 1; delete x.pos; delete x.order; });
+    return { rows: all, made, filename };
+  } finally { Imp = keep; }
+}
+function impPastLoad(input) {
+  if (!adminOk()) return;
+  const f = input.files && input.files[0];
+  input.value = '';
+  if (!f) return;
+  const sel = document.getElementById('impClass');
+  impFileText(f).then(text => {
+    const xml = impXmlToCsv(String(text || ''));
+    const guess = impClassFromFilename(xml ? xml.fileName : f.name);
+    const hit = guess && S.classes.find(c => c.name.toLowerCase() === guess.toLowerCase());
+    if (hit && sel && _impEditIdx == null) sel.value = String(hit.id);
+    const cls = sel ? classById(parseInt(sel.value, 10)) : null;
+    if (!cls) { showImpMsg('Add the class in Race classes first, then load the file.', 'error'); return; }
+    const res = impPastRows(String(text || ''), f.name, cls);
+    if (res.err) { showImpMsg(res.err, 'error'); return; }
+    if (!res.rows.length) { showImpMsg('No drivers found in that file.', 'error'); return; }
+    _impRows = res.rows;
+    if (res.made.length) save();
+    impPointsFromFinish();
+    showImpMsg('Loaded ' + res.rows.length + ' drivers for ' + cls.name + ' from ' + f.name + '.'
+      + (res.made.length ? ' Added ' + res.made.length + ' new to the driver book.' : '')
+      + ' Set the race date, check finishes and points, then save.', 'ok');
+  }).catch(() => showImpMsg("Couldn't read that file.", 'error'));
 }
 function renderImpSearch() {
   const q = (document.getElementById('impDriverSearch').value || '').trim().toLowerCase();
@@ -10309,8 +10430,8 @@ function renderHistory() {
       + '<div class="rowflex" style="flex-wrap:wrap">'
       + '<button class="btn btn-sm" onclick="toggleHist(' + i + ')">' + (UI.histOpen === i ? 'Hide' : 'View') + '</button>'
       + '<button class="btn btn-sm" onclick="histCSV(' + i + ')">CSV</button>'
-      + (!hd.imported && deviceRole() === 'admin' ? '<button class="btn btn-sm" onclick="shareResultsWithDriven(' + i + ')" title="Send this night to every linked driver\'s Driven card">' + (hd.published ? 'Share again' : 'Share with Driven') + '</button>' : '')
-      + (!hd.imported && hd.published && deviceRole() === 'admin' ? '<button class="btn btn-sm" onclick="unshareResultsWithDriven(' + i + ')" title="Remove this night from every Driven card">Take back from Driven</button>' : '')
+      + ((!hd.imported || histHasFinish(hd)) && deviceRole() === 'admin' ? '<button class="btn btn-sm" onclick="shareResultsWithDriven(' + i + ')" title="Send this night to every linked driver\'s Driven card">' + (hd.published ? 'Share again' : 'Share with Driven') + '</button>' : '')
+      + ((!hd.imported || histHasFinish(hd)) && hd.published && deviceRole() === 'admin' ? '<button class="btn btn-sm" onclick="unshareResultsWithDriven(' + i + ')" title="Remove this night from every Driven card">Take back from Driven</button>' : '')
       + (hd.imported && hd.classes.length === 1 ? '<button class="btn btn-sm" onclick="editImportedRace(' + i + ')">Edit</button>' : '')
       + '<button class="btn btn-sm btn-danger" onclick="delHist(' + i + ')">Delete</button></div></div>';
     if (UI.histOpen === i) {
@@ -10318,8 +10439,15 @@ function renderHistory() {
         const isImported = hd.imported || (c.standings.length === 0 && c.points && c.points.length);
         h += '<div class="slbl" style="margin:10px 0 6px">' + esc(c.name) + (isImported ? ' <span class="tiny">(imported)</span>' : '') + '</div>';
         h += '<div class="scroll-x"><table class="tbl">' + (isImported
-          ? '<thead><tr><th>Driver</th><th>#</th><th class="r">Points</th></tr></thead><tbody>'
-            + (c.points || []).map(p => '<tr><td style="font-weight:600">' + esc(p.name) + '</td><td>#' + esc(p.num) + '</td><td class="r">' + p.pts + '</td></tr>').join('')
+          ? (() => {
+              const fo = {}; (c.featureFinish || []).forEach(f => { fo[String(f.driverId)] = f.fin; });
+              const hasFin = (c.featureFinish || []).length > 0;
+              const rows = (c.points || []).slice();
+              (c.featureFinish || []).forEach(f => { if (!rows.some(p => String(p.driverId) === String(f.driverId))) rows.push({ driverId: f.driverId, name: f.name, num: f.num, pts: '' }); });
+              if (hasFin) rows.sort((a, b) => (fo[String(a.driverId)] || 1e6) - (fo[String(b.driverId)] || 1e6));
+              return '<thead><tr>' + (hasFin ? '<th>Fin</th>' : '') + '<th>Driver</th><th>#</th><th class="r">Points</th></tr></thead><tbody>'
+                + rows.map(p => '<tr>' + (hasFin ? '<td>' + (fo[String(p.driverId)] || '·') + '</td>' : '') + '<td style="font-weight:600">' + esc(p.name) + '</td><td>#' + esc(p.num) + '</td><td class="r">' + p.pts + '</td></tr>').join('');
+            })()
           : '<thead><tr><th>Pos</th><th>Driver</th><th>#</th><th>Pill</th><th>H1</th><th>H2</th><th class="r">Total</th></tr></thead><tbody>'
             + c.standings.map(s => '<tr><td>' + s.pos + '</td><td style="font-weight:600">' + esc(s.name) + '</td><td>#' + esc(s.num) + '</td><td>' + s.pill + '</td>'
               + '<td>' + (s.f1 === '' ? '·' : esc(String(s.f1))) + '</td><td>' + (s.f2 === '' ? '·' : esc(String(s.f2))) + '</td><td class="r">' + (s.pts === '' ? '—' : s.pts) + '</td></tr>').join('')

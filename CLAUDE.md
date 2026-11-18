@@ -266,6 +266,12 @@ profile that follows them across every RaceDay track they race at.
   10 min, earlier ones folded) with a pop-up + buzz once per note while Driven is open (`dv_note_seen`; not for notes over 30 min
   old). **Needs `firebase deploy --only database`.** Guards: `tests/v2/test-v2-driven-live.js` +
   `tests/test-driven-live.js`
+- **Past nights on Driven** (2026-11-18, `raceday2/`): a track that starts mid-season backfills earlier nights in Admin → Fix or
+  backfill with FINISHES (`fin` per row): typed, "Finish = list order", or "Load a results file" (`impPastLoad`/`impPastRows`: the
+  timing import's parsing + `impMatchDriver`, class from the file name, a number alone never matches a different name, unknown drivers
+  added to the book), then "Points from finish" (`classPointsCfg`). Saved as `imported` with `featureFinish`, counted in driver stats;
+  `nightFinishOrder()` returns only the finishes for an imported night; Race day history offers Share with Driven / Take back only when
+  it has finishes (`histHasFinish`). Points-only backfills are unchanged. Guard: `tests/v2/test-v2-past-nights.js`
 - **Hostile-input limits** (2026-11-11, `raceday2/`): driver names 40 chars with spaces collapsed (`signupVals()`, timing-import
   new drivers), class names 60 with blank/duplicate refused (`addClass`/`addClassNamed`), lineup grids use `minmax(0,1fr)` and
   name rows wrap/trim so nothing widens a phone; `register()` ignores a tap after the form is gone; the DEMO watermark sits
