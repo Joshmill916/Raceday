@@ -162,6 +162,11 @@ profile that follows them across every RaceDay track they race at.
   hometown, bio, sponsors; never age; a hometown the driver hid counts as done), each "Add" → `finishField()` jumps to its
   Settings field (photo opens the picker in the same tap). "Not now" hides it on Home 7 days (`dv_finish_hide`); the Card
   page keeps a one-line `finishMiniHtml()` reminder (not on Preview Pro). Guard: `tests/test-driven-finish-card.js`
+- **Public page fell behind** (2026-11-17): a failed publish (refused / offline / too long) is kept as `P.publishFail` and shown on
+  Home + Card ("Your public page isn't up to date", Try again), cleared on the next success. On open (after `syncFromPublished`)
+  and on return to the app with a failure pending, `checkPublishedFresh()` republishes when the online card differs from
+  `cardPayload()` (`cardSame`) and this phone published last; never over a newer card from another device, never an unpublished
+  card. Why: Nov 10-17 every republish with "The ride" was refused (rules not deployed) and swallowed. Guard: `tests/test-driven-publish-retry.js`
 - **Add to home screen** (2026-11-09): Home + Settings card (`installCardHtml`). Android/Chrome fires the saved
   `beforeinstallprompt`; iPhone shows Share → Add to Home Screen steps. Hidden when standalone; "Not now" hides it on
   Home only (`dv_install_hide`). Guard: `tests/test-driven-install.js`
