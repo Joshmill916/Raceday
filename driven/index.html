@@ -290,6 +290,9 @@
   body.dp-dark .page.active .btn-primary, body.dp-dark .page.active .dp-team { background: var(--tc, var(--brand)); border-color: var(--tc, var(--brand)); color: #fff; }
   body.dp-dark .page.active .btn-go { background: var(--brand); border-color: var(--brand); color: #fff; }
   .dp-cap { font: 700 11.5px var(--display); letter-spacing: .12em; text-transform: uppercase; color: var(--td-mute); }
+  .pub-fail { margin-top: 14px; display: flex; flex-wrap: wrap; align-items: center; gap: 6px 12px; background: rgba(255,196,0,.12); border-left: 4px solid #ffc400; border-radius: 10px; padding: 10px 12px; color: var(--td); }
+  .pub-fail b { flex-basis: 100%; font-size: 14.5px; }
+  .pub-fail span { flex: 1; min-width: 160px; font-size: 13px; color: var(--td-mute); }
   /* Racing today: the driver's own night, posted by the track */
   .live-card { margin-top: 16px; background: var(--ink-1); border-left: 4px solid #2fbf78; border-radius: 12px; padding: 12px 14px 10px; color: var(--td); }
   .live-hd { display: flex; align-items: center; gap: 8px; }
@@ -1174,7 +1177,7 @@ function publishCard(silent) {
   // Reject over-cap payloads up front — otherwise the card write is silently refused by
   // the rules, leaving a claimed short code pointing at a stale/missing card.
   var tooLong = cardTooLong();
-  if (tooLong) { if (!silent) alert('⚠️ ' + tooLong); return Promise.reject(Object.assign(new Error(tooLong), { known: true })); }
+  if (tooLong) { if (!silent) alert('⚠️ ' + tooLong); publishFailed('toolong', tooLong); return Promise.reject(Object.assign(new Error(tooLong), { known: true })); }
   return ensureFirebase().then(function () {
     var db = firebase.database();
     // Claim a short link code once: derived from the id; extend on the rare collision.
@@ -1192,11 +1195,15 @@ function publishCard(silent) {
     }).then(function () {
       if (!P.publishedAt) sendUsage('driven-publish');
       P.publishedAt = Date.now();
+      var hadFail = !!P.publishFail;
+      delete P.publishFail;
       localStorage.setItem('profiles_v1', JSON.stringify(P));   // direct write: avoid save()'s republish loop
+      if (hadFail) publishFailRefresh();
       if (!silent) { alert('✅ Card published — give the track your link code: ' + P.shortCode); nav('card'); }
     });
   }).catch(function (e) {
     if (e && e.known) throw e;   // validation message already shown; don't mask it as a network error
+    publishFailed(e && e.code === 'PERMISSION_DENIED' ? 'denied' : 'offline');
     // A rules rejection (PERMISSION_DENIED) is deterministic, not transient — say so.
     if (!silent) alert(e && e.code === 'PERMISSION_DENIED'
       ? "Couldn't publish — your card was rejected by the server. Check that every field is a reasonable length and try again."
@@ -1205,6 +1212,55 @@ function publishCard(silent) {
   });
 }
 function publishNow() { publishCard(false).catch(function () {}); }
+/* A public page that quietly fell behind (2026-11-17): from Nov 10 to 17 every republish of a card
+   with "The ride" was refused by rules that hadn't been deployed, and the silent auto-republish in
+   save() swallowed it, so a driver's page showed week-old colors. Now: only a published card can
+   fall behind; a failed publish is kept on the profile (P.publishFail = {at, why, msg}) and shown
+   on Home and Card with Try again, cleared on the next success; on open and when the app comes
+   back to the screen, a card that's behind is republished (checkPublishedFresh: the server copy
+   differs from this phone's card and this phone published last, or a failure is pending). */
+function publishFailed(why, msg) {
+  if (!P || !P.publishedAt) return;
+  P.publishFail = { at: Date.now(), why: why, msg: msg ? String(msg).slice(0, 200) : '' };
+  try { localStorage.setItem('profiles_v1', JSON.stringify(P)); } catch (e) {}   // direct write: save() would republish
+  publishFailRefresh();
+}
+function publishFailHtml() {
+  if (!P || !P.publishedAt || !P.publishFail) return '';
+  var f = P.publishFail;
+  var why = f.why === 'offline' ? 'Your phone couldn\'t reach the internet. It will try again when you open Driven.'
+    : f.why === 'toolong' ? (f.msg || 'Something on your card is too long.')
+    : 'The update was turned down. Tap Try again; if it keeps happening, text Josh: (260) 207-4983.';
+  return '<div class="pub-fail" role="status"><b>Your public page isn\'t up to date</b><span>' + esc(why) + '</span>'
+    + '<button type="button" class="btn btn-sm" onclick="publishNow()">Try again</button></div>';
+}
+function publishFailRefresh() {
+  Array.prototype.forEach.call(document.querySelectorAll('.pub-fail-slot'), function (el) { el.innerHTML = publishFailHtml(); });
+}
+function cardSame(a, b) {
+  var norm = function (o) {
+    var out = {};
+    Object.keys(o || {}).sort().forEach(function (k) { var v = o[k]; if (k !== 'updatedAt' && v != null && v !== '') out[k] = v; });
+    return JSON.stringify(out);
+  };
+  return norm(a) === norm(b);
+}
+var _freshAt = 0;
+function checkPublishedFresh() {
+  if (!P || !P.profileId || !P.publishedAt || !P.shortCode) return Promise.resolve(false);
+  if (Date.now() - _freshAt < 60000) return Promise.resolve(false);
+  _freshAt = Date.now();
+  if (cardTooLong()) { publishFailed('toolong', cardTooLong()); return Promise.resolve(false); }
+  return ensureFirebase().then(function () {
+    return firebase.database().ref('profiles/' + P.profileId + '/card').once('value');
+  }).then(function (snap) {
+    var card = snap.val();
+    // Another device published after this one: syncFromPublished() takes that copy instead.
+    if (card && typeof card.updatedAt === 'number' && card.updatedAt > P.publishedAt + 5000) return false;
+    if (card && !P.publishFail && cardSame(card, cardPayload())) return false;
+    return publishCard(true).then(function () { return true; }, function () { return false; });
+  }).catch(function () { return false; });
+}
 function publicPageUrl() { return new URL('../d/?' + encodeURIComponent(P.shortCode), location.href).href; }
 // The link people SHARE. It opens the same page, but Facebook and texts show a picture of
 // this driver's own card instead of the plain Driven icon (functions/lib/driverCard.js,
@@ -1717,6 +1773,7 @@ function renderHome() {
         ? '<button class="btn btn-primary" onclick="sharePublicPage()">Share my page</button><a class="btn" href="' + esc(publicPageUrl()) + '" target="_blank" rel="noopener">View</a>'
         : '<button class="btn btn-primary" onclick="publishNow()">Publish my card</button>')
     + '</div>';
+  h += '<div class="pub-fail-slot">' + publishFailHtml() + '</div>';
   h += '<div id="liveToday">' + liveHtml() + '</div>';
   h += finishCardHtml();
   if (!P.linkedTracks.length) {
@@ -1760,7 +1817,7 @@ function renderCard() {
     + dpHero(showPro, preview)
     + '<p class="sub" style="margin:14px 0 0">' + (preview ? 'Your card with Pro. Only you see this preview.' : 'This is what fans see on your public page'
     + (currentTier().paid ? ' — <span class="prem-badge">' + esc(currentTier().label) + '</span>' : '') + '.') + '</p>'
-    + (preview ? '' : finishMiniHtml())
+    + (preview ? '' : '<div class="pub-fail-slot">' + publishFailHtml() + '</div>' + finishMiniHtml())
     + dpSummary(results, showPro)
     + (showPro ? dpRide(preview) : '');
   if (d.bio || d.highlights || crew.length) {
@@ -2616,7 +2673,7 @@ function resultsToast(msg) {
   document.body.appendChild(t);
   setTimeout(function () { if (t.parentNode) t.parentNode.removeChild(t); }, 4000);
 }
-document.addEventListener('visibilitychange', function () { if (document.visibilityState === 'visible') { autoPullResults(); autoLive(); } });
+document.addEventListener('visibilitychange', function () { if (document.visibilityState === 'visible') { autoPullResults(); autoLive(); if (P && P.publishFail) checkPublishedFresh(); } });
 
 /* ---------- Racing today (2026-11-17) ----------
    A RaceDay track that has signed this driver in today (card linked at sign-up) posts the
@@ -2802,7 +2859,7 @@ function deleteProfile() {
 // day, 'driven-profile' when someone makes a profile, 'driven-publish' the first time a card is
 // published, and crashes. No names, emails or numbers — only counts. The track column reads DRIVEN.
 // The part after the dot MUST match sw.js CACHE (tests/test-analytics.js) — bump both together.
-const APP_VERSION = '2026-11-17.v26';
+const APP_VERSION = '2026-11-17.v27';
 var TELEMETRY_URL = 'https://script.google.com/macros/s/AKfycbxa3i3y17TLp_NfXOOu2jM7-YzXH2fScxcXoQYmIh0-873rxWfxg0HdRP1DVsxZq6iR/exec';
 // Devices opted out at /me/ (the owner testing) still report, marked OWNER; copies on this
 // computer (localhost, *.test) report nothing unless rd_count_local='1' (the analytics test).
@@ -2909,7 +2966,7 @@ if (!P) { openOnboarding(); } else { nav('home'); }
 pingOpen();
 handleBootParams();
 handleRestoreParam();
-syncFromPublished();
+syncFromPublished().then(function (took) { if (!took) checkPublishedFresh(); });
 offerSecureMove();
 autoLive();
 autoPullResults();
