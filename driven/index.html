@@ -438,7 +438,8 @@
     <input type="text" id="obHometown" maxlength="60" placeholder="Columbus, OH">
     <label>Age (optional)</label>
     <input type="number" id="obAge" min="1" max="120" placeholder="16">
-    <button class="btn btn-go btn-block" id="obCreate" onclick="completeOnboarding()" style="margin-top:20px">Create my profile</button>
+    <button class="btn btn-go btn-block" id="obCreate" onclick="completeOnboarding()" style="margin-top:20px">Create my card</button>
+    <p class="sub" id="obLive" style="margin-top:10px;text-align:center">Your card goes live on a page you can share, and you get the link code tracks use to find you. Your email never shows. You can hide your hometown or age any time in Settings.</p>
     <button class="btn btn-block" id="obCancel" onclick="closeAddDriver()" style="margin-top:8px;display:none">Cancel</button>
     <p class="sub" style="margin-top:16px;text-align:center">
       <a href="#" id="restoreLink" onclick="toggleRestore(event)" style="color:inherit;text-decoration:underline">Already have a profile? Restore it</a>
@@ -1212,6 +1213,30 @@ function publishCard(silent) {
   });
 }
 function publishNow() { publishCard(false).catch(function () {}); }
+/* Cards that never went live (2026-11-22): of the profiles made Nov 15-22, none were published. A card
+   only went public when the driver found "Publish my card", and without it there's no link code for
+   the track. Now "Create my card" says the card goes live and publishes in the same tap (P.goLive);
+   if the phone is offline it tries again on open and when Driven comes back to the screen. A profile
+   made before this (no goLive) is never published on its own: Home asks with notLiveHtml(). */
+var _goLiveBusy = false;
+function goLiveNow() {
+  if (!P || P.publishedAt || !P.goLive || _goLiveBusy) return Promise.resolve(false);
+  _goLiveBusy = true;
+  return publishCard(true).then(function () { _goLiveBusy = false; refreshAfterLive(); return true; },
+    function () { _goLiveBusy = false; refreshAfterLive(); return false; });
+}
+function refreshAfterLive() {
+  var home = $id('page-home'), card = $id('page-card');
+  if (home && home.classList.contains('active')) renderHome();
+  else if (card && card.classList.contains('active')) renderCard();
+}
+function notLiveHtml() {
+  if (!P || P.publishedAt) return '';
+  var msg = P.goLive
+    ? (_goLiveBusy ? 'Putting your card online...' : 'Your phone couldn\'t reach the internet. It goes live as soon as Driven is back online.')
+    : 'Tracks can\'t find you yet, and you don\'t have a link code until your card is live.';
+  return '<div class="pub-fail dv-notlive" role="status"><b>Your card isn\'t live yet</b><span>' + esc(msg) + '</span></div>';
+}
 /* A public page that quietly fell behind (2026-11-17): from Nov 10 to 17 every republish of a card
    with "The ride" was refused by rules that hadn't been deployed, and the silent auto-republish in
    save() swallowed it, so a driver's page showed week-old colors. Now: only a published card can
@@ -1291,8 +1316,11 @@ function completeOnboarding() {
   joinFamily();
   ADDING_DRIVER = false;
   $id('onboardModal').style.display = 'none';
+  P.goLive = true;   // they tapped "Create my card", which says it goes live: publish now, and keep trying
+  save();
   nav('home');
   sendUsage('driven-profile');
+  goLiveNow();
 }
 
 function toggleRestore(e) {
@@ -1771,9 +1799,9 @@ function renderHome() {
     + '<div class="dp-actions">'
     + (P.publishedAt && P.shortCode
         ? '<button class="btn btn-primary" onclick="sharePublicPage()">Share my page</button><a class="btn" href="' + esc(publicPageUrl()) + '" target="_blank" rel="noopener">View</a>'
-        : '<button class="btn btn-primary" onclick="publishNow()">Publish my card</button>')
+        : '<button class="btn btn-primary" onclick="publishNow()">' + (P.goLive ? 'Try again' : 'Make my card live') + '</button>')
     + '</div>';
-  h += '<div class="pub-fail-slot">' + publishFailHtml() + '</div>';
+  h += '<div class="pub-fail-slot">' + publishFailHtml() + '</div>' + notLiveHtml();
   h += '<div id="liveToday">' + liveHtml() + '</div>';
   h += finishCardHtml();
   if (!P.linkedTracks.length) {
@@ -2673,7 +2701,7 @@ function resultsToast(msg) {
   document.body.appendChild(t);
   setTimeout(function () { if (t.parentNode) t.parentNode.removeChild(t); }, 4000);
 }
-document.addEventListener('visibilitychange', function () { if (document.visibilityState === 'visible') { autoPullResults(); autoLive(); if (P && P.publishFail) checkPublishedFresh(); } });
+document.addEventListener('visibilitychange', function () { if (document.visibilityState === 'visible') { autoPullResults(); autoLive(); if (P && P.publishFail) checkPublishedFresh(); goLiveNow(); } });
 
 /* ---------- Racing today (2026-11-17) ----------
    A RaceDay track that has signed this driver in today (card linked at sign-up) posts the
@@ -2859,7 +2887,7 @@ function deleteProfile() {
 // day, 'driven-profile' when someone makes a profile, 'driven-publish' the first time a card is
 // published, and crashes. No names, emails or numbers — only counts. The track column reads DRIVEN.
 // The part after the dot MUST match sw.js CACHE (tests/test-analytics.js) — bump both together.
-const APP_VERSION = '2026-11-17.v27';
+const APP_VERSION = '2026-11-22.v28';
 var TELEMETRY_URL = 'https://script.google.com/macros/s/AKfycbxa3i3y17TLp_NfXOOu2jM7-YzXH2fScxcXoQYmIh0-873rxWfxg0HdRP1DVsxZq6iR/exec';
 // Devices opted out at /me/ (the owner testing) still report, marked OWNER; copies on this
 // computer (localhost, *.test) report nothing unless rd_count_local='1' (the analytics test).
@@ -2966,7 +2994,7 @@ if (!P) { openOnboarding(); } else { nav('home'); }
 pingOpen();
 handleBootParams();
 handleRestoreParam();
-syncFromPublished().then(function (took) { if (!took) checkPublishedFresh(); });
+syncFromPublished().then(function (took) { if (!took) checkPublishedFresh(); goLiveNow(); });
 offerSecureMove();
 autoLive();
 autoPullResults();

@@ -167,6 +167,10 @@ profile that follows them across every RaceDay track they race at.
   and on return to the app with a failure pending, `checkPublishedFresh()` republishes when the online card differs from
   `cardPayload()` (`cardSame`) and this phone published last; never over a newer card from another device, never an unpublished
   card. Why: Nov 10-17 every republish with "The ride" was refused (rules not deployed) and swallowed. Guard: `tests/test-driven-publish-retry.js`
+- **Cards go live on create** (2026-11-22): every profile made Nov 15-22 stayed unpublished (no link code). "Create my card"
+  says the card goes live and publishes in the same tap (`P.goLive`, `goLiveNow()`); offline, Home says so and it retries on open /
+  back to the screen. A profile from before (no `goLive`) is never published on its own: Home shows `notLiveHtml()` and the top
+  button reads "Make my card live". Guard: `tests/test-driven-go-live.js`
 - **Add to home screen** (2026-11-09): Home + Settings card (`installCardHtml`). Android/Chrome fires the saved
   `beforeinstallprompt`; iPhone shows Share → Add to Home Screen steps. Hidden when standalone; "Not now" hides it on
   Home only (`dv_install_hide`). Guard: `tests/test-driven-install.js`
