@@ -96,6 +96,29 @@ const RACERS = read('DEMO.CSV').trim().split(/\r?\n/).map(l => { const c = l.spl
   check('a live racedata.xml at Stop imports too (NAME field, class from INFO)', ls.ok && ls.cls === 'Demo' && ls.st.match === 10, JSON.stringify(ls));
   await close();
 
+  // A real track's feature file (2026-11-22, names replaced): car numbers like 85L / 2e / 17D, a
+  // TIMING section of per-lap crossings after the cars, and one transponder Race Manager had no
+  // driver for (blank name and number, 4 laps).
+  console.log('\n=== A real track\'s feature file ===');
+  const REAL = 'Session 360 CLONE Feature.xml';
+  const realX = await p.evaluate(t => { const x = impXmlToCsv(t); return { cls: x.cls, mode: x.mode, cars: x.cars, live: x.live, started: x.started }; }, read(REAL));
+  check('real file: class 360 CLONE, RACE, 9 cars, a finished file (TIMING section ignored)', realX.cls === '360 CLONE' && realX.mode === 'RACE' && realX.cars === 9 && !realX.live && realX.started, JSON.stringify(realX));
+  await p.evaluate(() => {
+    S.classes.push({ id: 3, name: '360 Clone', maxPill: 200, heats: 1 });
+    const cars = [['Adam One', '21'], ['Bob Two', '11'], ['Carl Three', '1'], ['Dan Four', '121'], ['Eric Five', '85L'], ['Fred Six', '2e'], ['Greg Seven', '17D'], ['Hank Eight', '2m']];
+    cars.forEach(([name, num], i) => { S.roster.push({ id: 300 + i, name, num, trans: '' }); S.raceDay.entries.push({ driverId: 300 + i, classId: 3, pill: i + 1 }); });
+    save();
+  });
+  const realAuto = await load(REAL, read(REAL), 'ft', true);
+  const realSaved = await p.evaluate(() => !!(S.raceDay.featureResults && Object.keys(S.raceDay.featureResults).length) || Object.keys(getRes(3)).length > 0);
+  check('watched folder: the unknown transponder stops the auto-import for a look', !realSaved, JSON.stringify(realAuto));
+  await close();
+  const real = await load(REAL, read(REAL), 'ft');
+  const realRows = await p.evaluate(() => impPreview.map(r => [r.status, r.driver ? r.driver.num : 'T' + r.trans]));
+  check('real file: the 8 named cars match by number + name in 360 Clone (85L, 2e, 17D…)', real.cls === '360 Clone' && real.st.match === 8, JSON.stringify(realRows));
+  check('the nameless transponder shows as a new car to check, last', real.st.new === 1 && JSON.stringify(realRows[8]) === '["new","T79737"]', JSON.stringify(realRows));
+  await close();
+
   console.log('\n=== Lineups for Race Manager ===');
   await p.evaluate(() => {
     // The full 10-car field again (the 5-car demo qualifying cut it), every transponder learned.
