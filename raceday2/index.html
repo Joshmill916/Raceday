@@ -7555,6 +7555,14 @@ function impMatchDriver(row, clsId) {
     const c = prefer(roster.filter(d => effTrans(d) === nt));   // tonight's borrowed transponders count
     if (c.length) { driver = c[0]; matchedBy = 'transponder'; transShared = c.length > 1; }   // rentals, borrowed karts: say so
   }
+  // Rental tags get handed to someone else next week. When the tag's saved driver has neither the
+  // file's number nor its name, and another driver has both, the tag is stale: go by number + name.
+  let staleTx = '';
+  if (driver && matchedBy === 'transponder' && num && nn
+      && String(driver.num || '').toLowerCase() !== num.toLowerCase() && impNormName(driver.name) !== nn) {
+    const other = prefer(roster.filter(d => d.id !== driver.id && String(d.num || '').toLowerCase() === num.toLowerCase() && impNormName(d.name) === nn));
+    if (other.length) { staleTx = driver.name; driver = other[0]; matchedBy = 'number+name'; transShared = false; }
+  }
   if (!driver && num) {
     const numLc = num.toLowerCase();
     const all = roster.filter(d => String(d.num || '').toLowerCase() === numLc);
@@ -7579,7 +7587,7 @@ function impMatchDriver(row, clsId) {
   const nameConflict = !!(driver && name && driver.name && impNormName(driver.name) !== impNormName(name));
   const nameSuspect = impNameSuspect(name, num);
   const canCreate = !!(num || name || trans);
-  return { driver, matchedBy, num, name, trans, transConflict, numConflict, nameConflict, nameSuspect, canCreate, numShared, transShared };
+  return { driver, matchedBy, num, name, trans, transConflict, numConflict, nameConflict, nameSuspect, canCreate, numShared, transShared, staleTx };
 }
 
 function impClsResolve(row) {
@@ -7768,11 +7776,12 @@ function impComputePreview() {
         else if (!m.driver) status = 'new';
         else if (m.transConflict) status = 'conflict';
         if (pendName && status !== 'skip') note = (note ? note + ' · ' : '') + '+ new class “' + pendName + '”';
+        if (status !== 'skip' && m.staleTx) { status = 'conflict'; note = (note ? note + ' · ' : '') + 'Transponder ' + m.trans + ' is saved on ' + m.staleTx + ': going by number + name. Rented transponders? Turn that on in Admin → Race format'; }
         if (status !== 'skip') {
           // Dedupe by transponder when present (so two same-numbered cars with different
           // transponders both keep their grid spot); otherwise by number.
           const numLc = (m.driver ? String(m.driver.num||'') : m.num).toLowerCase();
-          const tnorm = impNormTrans(m.trans || (m.driver && m.driver.trans) || '');
+          const tnorm = impNormTrans(m.trans || effTrans(m.driver) || '');
           const dkey = tnorm ? 'T:' + tnorm : (numLc ? 'N:' + numLc : '');
           if (dkey && seen.has(dkey)) { status = 'skip'; note = tnorm ? 'Duplicate transponder (keeping first)' : 'Duplicate number (keeping first)'; }
           else if (dkey) seen.add(dkey);
@@ -7809,6 +7818,7 @@ function impComputePreview() {
         const inClass = (S.raceDay.entries||[]).some(e => e.driverId === m.driver.id && e.classId === cid);
         if (!inClass) { status = 'skip'; note = 'Not entered in this class (no pill yet)'; }
       }
+      if (status !== 'skip' && m.staleTx) { status = 'conflict'; note = (note ? note + ' · ' : '') + 'Transponder ' + m.trans + ' is saved on ' + m.staleTx + ': going by number + name. Rented transponders? Turn that on in Admin → Race format'; }
       if (status !== 'skip' && m.transShared && status !== 'conflict') { status = 'conflict'; note = (note ? note + ' · ' : '') + 'Transponder ' + m.trans + ' is saved on two drivers: check who ran it'; }
       if (status !== 'skip' && m.numShared && status !== 'conflict') { status = 'conflict'; note = (note ? note + ' · ' : '') + 'Two drivers wear #' + m.num + ' here: check it is the right one'; }
       if (Imp.target === 'bmain' && status !== 'skip') {
@@ -7906,13 +7916,14 @@ function impApply(opts) {
     if (!driver) {
       const nameVal = String(r.name || (r.num ? 'Car #' + r.num : 'Trans ' + r.trans)).replace(/\s+/g, ' ').trim().slice(0, 40);
       const numVal  = (r.num && /^[A-Za-z0-9]{1,5}$/.test(r.num)) ? r.num : '';
-      driver = { id: genDriverId(), name: nameVal, num: numVal, trans: impNormTrans(r.trans) };
+      driver = { id: genDriverId(), name: nameVal, num: numVal, trans: txRented() ? '' : impNormTrans(r.trans) };
       S.roster.push(driver);
     } else {
       // Learn a transponder only when the file's number AND name both agree with this driver, and
       // nobody else already has it: a wrong one learned here would go to Race Manager and make
       // every later session look right while crediting the wrong driver.
-      if (r.trans && !driver.trans && !txOverrideOf(driver.id)) {
+      if (txRented()) { /* tonight's tag is set after the entries exist (below) */ }
+      else if (r.trans && !driver.trans && !txOverrideOf(driver.id)) {
         const nt = impNormTrans(r.trans);
         const strong = r.num && r.name && !r.numConflict && !r.nameConflict && !r.nameSuspect;
         const taken = (S.roster || []).some(o => o.id !== driver.id && o.trans && impNormTrans(o.trans) === nt);
@@ -8019,6 +8030,14 @@ function impApply(opts) {
     }
   }
 
+  // Rented transponders: remember the tag each driver ran tonight (tonight only), when the file's
+  // number and name agree with them and nobody else has that tag tonight.
+  if (txRented()) resolved.forEach(r => {
+    const nt = impNormTrans(r.trans); if (!nt || !r.driver || txOverrideOf(r.driver.id)) return;
+    const strong = r.num && r.name && !r.numConflict && !r.nameConflict && !r.nameSuspect;
+    const mine = (S.raceDay.entries || []).filter(e => e.driverId === r.driver.id);
+    if (strong && mine.length && !txLentTonight(nt)) mine.forEach(e => { e.tx = nt; });
+  });
   if (createdEntry) consumeTrialDay();
   save();
   renderHeader();
@@ -8151,6 +8170,8 @@ function timingSourceCard() {
   return '<div class="card"><div class="spread"><span><b>Qualifying &amp; heat times</b><span class="tiny" style="display:block">' + line + '</span></span>'
     + '<button class="btn btn-sm push" onclick="openTimingSourceSheet()">' + (src ? 'Change' : 'Set up') + '</button></div>'
     + '<p class="tiny" style="margin:8px 0 0">Watching a folder needs Chrome or Edge on the computer that runs your timing software. <a href="/guides/timing-software.html" target="_blank" rel="noopener">What you need + flow chart →</a></p>'
+    + '<label class="rowflex" style="margin-top:10px;gap:8px;align-items:flex-start;cursor:pointer"><input type="checkbox" id="txRentedChk"' + (txRented() ? ' checked' : '') + ' onchange="toggleTxRented(this.checked)" style="margin-top:3px">'
+    + '<span><b>The track rents out transponders</b><span class="tiny" style="display:block">Tags change hands every night: results go by number and name, and a tag counts for tonight only, never saved on the driver.</span></span></label>'
     + '<div class="rowflex" style="margin-top:10px"><button class="btn btn-sm" id="rmLineupBtn" onclick="openRmLineups()">⬇ Lineups for Westhold Race Manager</button></div></div>';
 }
 /* Westhold Race Manager assignment file (format from Julian at Westhold, 2026-11-13): one line per
@@ -8168,9 +8189,20 @@ function timingSourceCard() {
    the duplicate check), and its owner counts as having lent it out. The driver book is unchanged. */
 function txOverrideOf(driverId) { const e = (S.raceDay.entries || []).find(x => x.driverId === driverId && x.tx); return e ? impNormTrans(e.tx) : ''; }
 function txLentTonight(t) { return !!t && (S.raceDay.entries || []).some(x => x.tx && impNormTrans(x.tx) === t); }
+/* Rental transponders (2026-11-23): a track that hands out its own tags each night turns on
+   S.settings.txRented (Admin → Race format). Then a saved transponder means nothing next week: only
+   tonight's (entry.tx, learned from tonight's files or typed on the driver card) is used anywhere. */
+function txRented() { return !!(S.settings && S.settings.txRented); }
+function toggleTxRented(on) {
+  if (!adminOk()) return;
+  S.settings.txRented = !!on; logAudit(on ? 'Transponders: rented each night' : 'Transponders: drivers own them', '', '', ''); save();
+  toast(on ? 'Rented transponders: results go by number and name, and tags count for tonight only.' : 'Drivers keep their own transponders.', 'ok');
+  render(curPage);
+}
 function effTrans(d) {
   if (!d) return '';
   const o = txOverrideOf(d.id); if (o) return o;
+  if (txRented()) return '';
   const t = impNormTrans(d.trans);
   return t && txLentTonight(t) ? '' : t;
 }
