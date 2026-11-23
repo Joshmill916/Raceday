@@ -81,6 +81,24 @@ const CARS = [['Adam One', '21', '79703'], ['Bob Two', '11', '9622'], ['Carl Thr
     const h = S.roster.find(d => d.name === 'Hank Eight'); return !!h && !h.trans;
   }, XML));
 
+  console.log('\n=== Race Manager assigns the tags at check-in ===');
+  const rm = await p.evaluate(async () => {
+    S.raceDay.entries.forEach((e, i) => { e.tx = String(5000 + i); }); save();
+    const written = [];
+    const fakeDir = { name: 'Assign', getFileHandle: async (n, o) => { if (!o) throw new Error('none'); return { createWritable: async () => ({ write: async b => written.push([n, b]), close: async () => {} }) }; } };
+    RmSync.dir = fakeDir; RmSync.ok = true; RmSync.last = {}; RmSync.held = {};
+    const n = await rmSyncNow();
+    openRmLineups(); const txt = document.body.innerText;
+    closeSheet(); RmSync.dir = null; RmSync.ok = false;
+    return { n, written: written.length, notNeeded: /Not needed at your track/.test(txt), download: /Download/.test(txt) };
+  });
+  check('RaceDay never writes lineup files into Race Manager\'s Assign folder', rm.n === 0 && rm.written === 0, JSON.stringify(rm));
+  check('the Lineups for Race Manager sheet says it isn\'t needed (no downloads)', rm.notNeeded && !rm.download, JSON.stringify(rm));
+  await setup(true);
+  rows = await load(XML.replace('<FIRSTNAME>Bob</FIRSTNAME>', '<FIRSTNAME>Bobby</FIRSTNAME>'), false);
+  check('a name typed differently at check-in (Bobby Two) still matches by car number in the class', rows[1].to === 'Bob Two', JSON.stringify(rows[1]));
+  check('…but that tag isn\'t remembered tonight (name and number must both agree)', await p.evaluate(() => { impApplyClick(); return !txOverrideOf(301) && txOverrideOf(300) === '79703'; }));
+
   console.log('\n=== The setting ===');
   await p.evaluate(() => { try { closeImport(); } catch (e) {} S.settings.txRented = false; save(); });
   const ui = await p.evaluate(() => { const box = document.createElement('div'); box.innerHTML = timingSourceCard(); document.body.appendChild(box);

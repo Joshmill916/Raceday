@@ -252,7 +252,8 @@ profile that follows them across every RaceDay track they race at.
   database`.** Guard: `tests/v2/test-v2-live-timing.js`
 - **Rental transponders** (2026-11-23, v2; Hogbarn rents tags nightly): `S.settings.txRented` (Admin → Race format checkbox,
   `toggleTxRented`) makes `effTrans()` ignore saved tags (tonight's `entry.tx` only); import learns tags into tonight's entries,
-  never `d.trans`. Setting off: `impMatchDriver` treats a tag whose saved driver has neither the file's number nor name, while
+  never `d.trans`; `rmSyncNow` writes nothing and `openRmLineups` says it isn't needed (the track assigns tags in Race
+  Manager at check-in). Setting off: `impMatchDriver` treats a tag whose saved driver has neither the file's number nor name, while
   another driver has both, as stale (`staleTx`): goes by number + name as a Conflict (never auto-imported). Before this, shuffled
   tags put every result on last week's renter as a clean match. Guard: `tests/v2/test-v2-rental-tx.js`
 - **Driver identity guards** (2026-11-14, v2): a transponder saved on 2+ drivers entered tonight (`dupTransTonight()`) is a

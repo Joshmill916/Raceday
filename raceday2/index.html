@@ -8171,7 +8171,7 @@ function timingSourceCard() {
     + '<button class="btn btn-sm push" onclick="openTimingSourceSheet()">' + (src ? 'Change' : 'Set up') + '</button></div>'
     + '<p class="tiny" style="margin:8px 0 0">Watching a folder needs Chrome or Edge on the computer that runs your timing software. <a href="/guides/timing-software.html" target="_blank" rel="noopener">What you need + flow chart →</a></p>'
     + '<label class="rowflex" style="margin-top:10px;gap:8px;align-items:flex-start;cursor:pointer"><input type="checkbox" id="txRentedChk"' + (txRented() ? ' checked' : '') + ' onchange="toggleTxRented(this.checked)" style="margin-top:3px">'
-    + '<span><b>The track rents out transponders</b><span class="tiny" style="display:block">Tags change hands every night: results go by number and name, and a tag counts for tonight only, never saved on the driver.</span></span></label>'
+    + '<span><b>The track rents out transponders</b><span class="tiny" style="display:block">Tags are handed out and assigned in Race Manager at check-in: results go by number and name, a tag counts for tonight only, and RaceDay sends no lineups to Race Manager.</span></span></label>'
     + '<div class="rowflex" style="margin-top:10px"><button class="btn btn-sm" id="rmLineupBtn" onclick="openRmLineups()">⬇ Lineups for Westhold Race Manager</button></div></div>';
 }
 /* Westhold Race Manager assignment file (format from Julian at Westhold, 2026-11-13): one line per
@@ -8327,6 +8327,7 @@ function rmQueueSync() {
 }
 async function rmSyncNow(force) {
   if (!RmSync.dir || !RmSync.ok) return 0;
+  if (txRented()) return 0;   // rental tracks assign tags in Race Manager at check-in: never write over that
   let wrote = 0;
   for (const c of S.classes) {
     const body = rmSyncContent(c.id);
@@ -8372,6 +8373,13 @@ function rmAssignCard() {
     + '<button class="btn btn-go btn-sm" onclick="rmPickAssign()">📁 Pick the Assign folder</button></div>';
 }
 function openRmLineups() {
+  if (txRented()) {
+    openSheet('Lineups for Race Manager', '<div class="card"><b>Not needed at your track</b><p class="tiny" style="margin:4px 0 0">Your track rents out transponders'
+      + ' (Admin → Race format), so tags are handed out and assigned in Race Manager at check-in. RaceDay doesn\'t send lineups there, so it never'
+      + ' writes over those assignments. Results still come back in: RaceDay matches them by car number and name.</p></div>',
+      '<button class="btn push" onclick="closeSheet()">Done</button>');
+    return;
+  }
   const list = S.classes.map(c => {
     const n = classRacers(c.id).length;
     if (!n) return '';
