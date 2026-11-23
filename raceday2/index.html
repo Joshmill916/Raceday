@@ -610,6 +610,18 @@ body.kiosk .wrap-narrow { max-width:600px; width:100%; }
 .tv-sched span { font-family:var(--display); font-weight:800; text-transform:uppercase; }
 .tv-sched b { font-variant-numeric:tabular-nums; color:#9a9da6; }
 .fan-note { background:var(--plate); color:var(--plate-ink); font-weight:700; border-radius:var(--r-lg); padding:10px 14px; margin-bottom:12px; }
+.live-card { border:1px solid var(--line); }
+.live-tag { font-weight:800; font-size:12px; letter-spacing:.08em; color:#e5484d; }
+.live-tag.done { color:var(--muted); }
+.live-cls { flex:1; margin-left:8px; min-width:0; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+.live-flag { font-size:12px; font-weight:800; padding:2px 8px; border-radius:999px; background:var(--line); color:var(--ink); }
+.live-flag.g { background:#1f9d55; color:#fff; } .live-flag.y { background:#f5c518; color:#111; } .live-flag.r { background:#e5484d; color:#fff; }
+.live-flag.w { background:#fff; color:#111; border:1px solid var(--line); } .live-flag.c { background:#111; color:#fff; }
+.live-row { display:grid; grid-template-columns:20px 30px minmax(0,1fr) 30px 54px 54px; gap:5px; padding:5px 0; border-top:1px solid var(--line); font-variant-numeric:tabular-nums; font-size:14px; align-items:center; }
+.live-head { font-size:11px; font-weight:700; color:var(--muted); text-transform:uppercase; border-top:0; }
+.live-pos { font-weight:800; }
+.live-nm { overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+.live-best { color:#8e4ec6; font-weight:800; }
 .fan-note .note-time { font-weight:600; opacity:.7; font-size:12px; white-space:nowrap; }
 .note-new { display:inline-block; font-size:10px; font-weight:800; letter-spacing:.08em; background:var(--plate-ink); color:var(--plate); border-radius:4px; padding:1px 6px; vertical-align:1px; }
 .note-earlier { margin:-4px 0 12px; font-size:13px; color:var(--muted); }
@@ -867,7 +879,7 @@ const GARAGE_KEY = 'rd_garage_v2';
 const ACTIVE_TRACK_KEY = 'rd_active_track_v2';
 // Reported with every usage row and crash. The part after the dot MUST match this app's
 // sw.js CACHE number (tests/test-app-version.js) — bump both together on each release.
-const APP_VERSION = '2026-11-18.v45';
+const APP_VERSION = '2026-11-22.v46';
 const LEGAL_VERSION = '2026-06';   // bump when Terms / Privacy wording changes, so acceptances are versioned
 const TELEMETRY_URL = 'https://script.google.com/macros/s/AKfycbxa3i3y17TLp_NfXOOu2jM7-YzXH2fScxcXoQYmIh0-873rxWfxg0HdRP1DVsxZq6iR/exec';
 const FIREBASE_CONFIG = {
@@ -2227,6 +2239,7 @@ function initSync() {
       if (!firebase.apps.length) firebase.initializeApp(FIREBASE_CONFIG);
       if (Sync.db) { try { Sync.db.off(); } catch (e) {} }
       Sync.db = firebase.database().ref('tracks/' + syncKey());
+      liveTimingListen();
       firebase.database().ref('.info/connected').on('value', snap => { Sync.connected = !!snap.val(); renderHeader(); }, () => {});
       SYNC_FIELDS.forEach(f => { _syncLast[f] = JSON.stringify(syncGet(f) === undefined ? null : syncGet(f)); });
       const attach = () => Sync.db && Sync.db.on('value', snap => {
@@ -2347,7 +2360,7 @@ function syncMakeSource() {
 }
 function syncDisable() {
   if (!confirm('Turn off live sync on this device? It will go back to working on its own. The track\'s synced data stays in the cloud.')) return;
-  if (Sync.db) { try { Sync.db.off(); } catch (e) {} Sync.db = null; }
+  if (Sync.db) { try { Sync.db.off(); } catch (e) {} Sync.db = null; liveTimingOff(); }
   Sync.connected = false;
   S.sync.enabled = false;
   staffStop();
@@ -2734,6 +2747,103 @@ function drivenLivePush() {
   if (!jobs.length) return;
   Promise.all(jobs).then(() => { try { localStorage.setItem(LIVE_KEY, JSON.stringify(last)); } catch (e) {} });   // this device's memory, not race data
 }
+/* ---------- Live running order (2026-11-22) ----------
+   Westhold Race Manager rewrites racedata.xml (Setup → Web Data) on every crossing. The staff
+   computer watching the timing folder reads it as it changes (liveTimingScan, from impScanFolder;
+   no 1.5 s settle wait: a half-written file just fails the </RACEDATA> check) and writes the
+   running order to liveTiming/<room> (public read, staff write, database.rules.json; NOT under
+   tracks/<room>, whose whole-room listener would re-apply the night on every lap). Only changed
+   orders are written; never from demo / demo room / guest / viewer / announcer / an operator only
+   watching. Following phones listen (liveTimingListen) and show liveTimingCard() on the fan view
+   and viewer Results: running = within 2 min of the last write; Stop shows "Finished" for 10 min.
+   Read only: nothing here imports results (the Stop file still goes through the normal import). */
+const LiveTiming = { ref: null, data: null, sent: '', seen: {}, running: {}, tick: null };
+const LIVE_STALE_MS = 2 * 60000, LIVE_DONE_MS = 10 * 60000, LIVE_MAX_CARS = 60;
+async function liveTimingScan(found) {
+  for (const f of found) {
+    if (!/racedata/i.test(f.name) || LiveTiming.seen[f.name] === f.lastModified) continue;
+    let t; try { t = await impFileText(f.file); } catch (e) { continue; }   // held by Race Manager: next scan
+    if (!/<\/RACEDATA\s*>/i.test(t)) continue;                               // caught mid-write: next scan
+    LiveTiming.seen[f.name] = f.lastModified;
+    const x = impXmlToCsv(t);
+    if (!x || !x.live) continue;
+    if (x.running) LiveTiming.running[f.name] = f.lastModified; else delete LiveTiming.running[f.name];
+    liveTimingPush(x);
+  }
+}
+function livePayload(x) {
+  const cut = (v, n) => String(v == null ? '' : v).replace(/\s+/g, ' ').trim().slice(0, n);
+  const rows = (x.rows || []).slice(0, LIVE_MAX_CARS).map(r => [cut(r[0], 4), cut(r[1], 8), cut(r[2], 40), cut(r[4], 5), cut(r[6], 12), cut(r[7], 12), cut(r[5], 14)]);
+  return { cls: cut(x.cls, 60), mode: cut(x.mode, 12), flag: cut(x.flag || (x.running ? 'Green' : 'Stop'), 20),
+    lap: cut(x.lap, 6), togo: cut(x.togo, 6), left: cut(x.left, 12), rows: JSON.stringify(rows) };
+}
+function liveTimingPush(x) {
+  if (GUEST || S.demo || demoRoom() || !syncOn() || !syncKey() || !Staff.ok) return;
+  if (deviceRole() === 'viewer' || deviceRole() === 'announcer' || operatorWatching()) return;
+  if (!window.firebase || !firebase.apps || !firebase.apps.length) return;
+  const p = livePayload(x), h = JSON.stringify(p);
+  if (h === LiveTiming.sent) return;
+  LiveTiming.sent = h;
+  firebase.database().ref('liveTiming/' + syncKey()).set(Object.assign({ at: Date.now() }, p)).catch(() => { LiveTiming.sent = ''; });
+}
+function liveTimingListen() {
+  liveTimingOff();
+  if (!syncKey() || S.demo || demoRoom()) return;
+  LiveTiming.ref = firebase.database().ref('liveTiming/' + syncKey());
+  LiveTiming.ref.on('value', snap => { LiveTiming.data = liveClean(snap.val()); liveTimingRefresh(); }, () => {});
+  LiveTiming.tick = setInterval(liveTimingRefresh, 30000);   // so a race that went quiet drops off
+}
+function liveTimingOff() {
+  if (LiveTiming.ref) { try { LiveTiming.ref.off(); } catch (e) {} }
+  if (LiveTiming.tick) clearInterval(LiveTiming.tick);
+  LiveTiming.ref = null; LiveTiming.tick = null; LiveTiming.data = null;
+}
+// What arrives is public data: check every field before it reaches the page.
+function liveClean(v) {
+  if (!v || typeof v !== 'object' || typeof v.at !== 'number') return null;
+  const str = (k, n) => typeof v[k] === 'string' ? v[k].slice(0, n) : '';
+  let rows = [];
+  try { rows = JSON.parse(typeof v.rows === 'string' ? v.rows : '[]'); } catch (e) { rows = []; }
+  if (!Array.isArray(rows)) rows = [];
+  rows = rows.slice(0, LIVE_MAX_CARS).filter(Array.isArray).map(r => [0, 1, 2, 3, 4, 5, 6].map(i => String(r[i] == null ? '' : r[i]).slice(0, 40)));
+  return { at: v.at, cls: str('cls', 60), mode: str('mode', 12), flag: str('flag', 20), lap: str('lap', 6), togo: str('togo', 6), left: str('left', 12), rows };
+}
+function liveShowing(d) {
+  if (!d || !d.rows.length) return false;
+  const age = Date.now() - d.at;
+  return /^stop/i.test(d.flag) ? age < LIVE_DONE_MS : age < LIVE_STALE_MS;
+}
+function liveFlagClass(f) {
+  f = String(f || '').toLowerCase();
+  return f.startsWith('green') ? 'g' : f.startsWith('yellow') || f.startsWith('caution') ? 'y' : f.startsWith('red') ? 'r'
+    : f.startsWith('white') ? 'w' : f.startsWith('check') || f.startsWith('finish') ? 'c' : f.startsWith('stop') ? 's' : '';
+}
+function liveTimeVal(t) {
+  const m = String(t || '').match(/^(?:(\d+):)?(\d+(?:\.\d+)?)$/);
+  return m ? (m[1] ? +m[1] * 60 : 0) + parseFloat(m[2]) : Infinity;
+}
+function liveTimingCard() {
+  const d = LiveTiming.data;
+  if (!liveShowing(d)) return '';
+  const done = /^stop/i.test(d.flag), qual = /QUAL/i.test(d.mode);
+  const best = d.rows.reduce((b, r) => Math.min(b, liveTimeVal(r[5])), Infinity);
+  const clock = done ? 'Finished · official results coming'
+    : [d.lap ? 'Lap ' + d.lap : '', d.togo && d.togo !== '0' ? d.togo + ' to go' : '', d.left ? d.left + ' left' : ''].filter(Boolean).join(' · ');
+  const fc = liveFlagClass(d.flag);
+  return '<div class="card live-card"><div class="spread"><span class="live-tag' + (done ? ' done' : '') + '">' + (done ? 'FINAL' : '● LIVE') + '</span>'
+    + '<b class="live-cls">' + esc(d.cls || 'On track') + (qual ? ' · Qualifying' : '') + '</b>'
+    + (d.flag && !done ? '<span class="live-flag ' + fc + '">' + esc(d.flag) + '</span>' : '') + '</div>'
+    + (clock ? '<div class="tiny" style="margin:4px 0 8px">' + esc(clock) + '</div>' : '')
+    + '<div class="live-rows"><div class="live-row live-head"><span>P</span><span>#</span><span>Driver</span><span>Laps</span><span>Last</span><span>Best</span></div>'
+    + d.rows.map(r => '<div class="live-row"><span class="live-pos">' + esc(r[0]) + '</span><span>' + esc(r[1]) + '</span><span class="live-nm">' + esc(r[2]) + '</span>'
+      + '<span>' + esc(r[3]) + '</span><span>' + esc(r[4]) + '</span><span' + (liveTimeVal(r[5]) === best && best < Infinity ? ' class="live-best"' : '') + '>' + esc(r[5]) + '</span></div>').join('')
+    + '</div><p class="tiny" style="margin:8px 0 0">From the track\'s timing system. Not official until posted.</p></div>';
+}
+function liveTimingSlot() { return '<div id="liveTiming">' + liveTimingCard() + '</div>'; }
+function liveTimingRefresh() {
+  const el = document.getElementById('liveTiming');
+  if (el) el.innerHTML = liveTimingCard();
+}
 function csvCell(v) { v = String(v == null ? '' : v); return /[",\n]/.test(v) ? '"' + v.replace(/"/g, '""') + '"' : v; }
 function csvRows(rows) { return rows.map(r => r.map(csvCell).join(',')).join('\n'); }
 function downloadFile(name, content, type) {
@@ -3108,7 +3218,7 @@ function demoRoomBoot() {
 function demoRoomCheckEnded() {
   const d = S.settings && S.settings.demoRoom;
   if (!d || !d.ended || !/^DEMO/.test(syncKey()) || demoRoomHost()) return;
-  if (Sync.db) { try { Sync.db.off(); } catch (e) {} Sync.db = null; }
+  if (Sync.db) { try { Sync.db.off(); } catch (e) {} Sync.db = null; liveTimingOff(); }
   Sync.connected = false;
   staffStop();
   const bye = () => setTimeout(() => {
@@ -3131,7 +3241,7 @@ function demoRoomEnd() {
   if (!Sync.connected) alert('This device is offline, so the other phones won\'t hear that the demo ended until they reconnect. Ending it here anyway.');
   S.settings.demoRoom = Object.assign({}, S.settings.demoRoom, { ended: Date.now() });
   const done = () => {
-    if (Sync.db) { try { Sync.db.off(); } catch (e) {} Sync.db = null; }
+    if (Sync.db) { try { Sync.db.off(); } catch (e) {} Sync.db = null; liveTimingOff(); }
     staffStop();
     try {
       if (slot !== KEY) localStorage.removeItem(slot);
@@ -3615,7 +3725,7 @@ function opBackToWatch() {
 function opStop() {
   if (!opPinOk('stop monitoring')) return;
   _operatorControl = false;
-  if (Sync.db) { try { Sync.db.off(); } catch (e) {} Sync.db = null; }
+  if (Sync.db) { try { Sync.db.off(); } catch (e) {} Sync.db = null; liveTimingOff(); }
   Sync.connected = false;
   S.sync.enabled = false;
   staffStop();
@@ -6736,7 +6846,7 @@ function fanHero() {
   const t = S.track;
   const { phase, cls } = fanNowNext();
   const sched = nightSchedule();
-  return raceNoteBanner()
+  return raceNoteBanner() + liveTimingSlot()
     + '<div class="fan-hero">'
     + '<div class="eyebrow">' + esc(t.name || 'RaceDay') + (t.length || t.surface ? ' · ' + [t.surface, t.length].filter(Boolean).join(' · ') : '') + '</div>'
     + '<h3>' + esc(phase.note) + '</h3>'
@@ -7041,7 +7151,7 @@ function renderFinals() {
   if (UI.finalsNight == null || UI.finalsNight === '' || !hist[UI.finalsNight]) UI.finalsNight = '';
   const snap = UI.finalsNight === '' ? null : hist[UI.finalsNight];
   const classes = snap ? finalsFromSnap(snap) : finalsTonight();
-  let h = (deviceRole() === 'viewer' ? raceNoteBanner() : '') + '<h2>Results</h2>'
+  let h = (deviceRole() === 'viewer' ? raceNoteBanner() + liveTimingSlot() : '') + '<h2>Results</h2>'
     + '<p class="sub">Every class\'s feature, with where each car started and the Hard Charger — the driver who gained the most spots.</p>';
   if (hist.length) {
     h += '<select onchange="setFinalsNight(this.value)" style="margin-bottom:14px;max-width:320px">'
@@ -7364,7 +7474,8 @@ function impXmlToCsv(text) {
   const fileName = [cls, heat, mode === 'QUALIFY' ? 'Qualifying' : ''].filter(Boolean).join(' ') + '.xml';
   // Race Manager also writes a file into UploadXML when a session STARTS: cars listed, nobody has a lap.
   const started = rows.slice(1).some(r => parseInt(r[4], 10) > 0);
-  return { csv: csvRows(rows), cls, heat, mode, flag, live, running: live && !/^stop/i.test(flag), started, cars: rows.length - 1, fileName };
+  return { csv: csvRows(rows), cls, heat, mode, flag, live, running: live && !/^stop/i.test(flag), started, cars: rows.length - 1, fileName,
+    rows: rows.slice(1), lap: tag(sess, 'LAP'), togo: tag(sess, 'LAPSTOGO'), left: tag(sess, 'TIMEREMAINING') };
 }
 /* Race Manager writes ISO-8859-1 XML; reading it as UTF-8 would garble accented names. */
 async function impFileText(file) {
@@ -8458,6 +8569,7 @@ function impWatchMarkup() {
     +   '<button class="btn btn-sm" id="impWatchStop" onclick="impStopWatch()" style="display:none">■ Stop watching</button>'
     + '</div>'
     + '<p class="tiny" id="impWatchStatus" style="margin-top:8px">Each new results file your timing software saves there loads by itself — no hunting for files. Leave this open while you race. <a href="/guides/timing-software.html" target="_blank" rel="noopener">What you need + flow chart →</a></p>'
+    + '<p class="tiny" style="margin-top:6px"><b>Live running order:</b> with Westhold Race Manager, set Setup → Web Data → Set Data Path to this same folder. While a race runs, fans following on their phones see the order lap by lap.</p>'
     + '<label class="check" style="margin-top:6px"><input type="checkbox" id="impAutoApply" checked onchange="if(Imp)Imp.watchAuto=this.checked">Import clean files automatically (every driver matched, no warnings)</label>'
     + '</div>';
 }
@@ -8519,12 +8631,16 @@ async function impScanFolder() {
       }
     }
     if (!Imp || Imp.watchDir !== dir) return;
+    await liveTimingScan(found);
+    if (!Imp || Imp.watchDir !== dir) return;
     if (!Imp.watchPrimed) {
       found.forEach(f => { Imp.watchSeen[f.name] = f.lastModified; });
       Imp.watchPrimed = true;
       return;
     }
-    const changed = found.filter(f => Imp.watchSeen[f.name] !== f.lastModified);
+    // A live racedata.xml mid-race is rewritten on every crossing: it's the running order, not
+    // results, and it would always be "newest" and starve the results files saved beside it.
+    const changed = found.filter(f => Imp.watchSeen[f.name] !== f.lastModified && LiveTiming.running[f.name] !== f.lastModified);
     if (!changed.length) return;
     const newest = changed.reduce((a, b) => a.lastModified > b.lastModified ? a : b);
     // Still being written (saved within the last ~1.5s)? Wait for the next scan.
