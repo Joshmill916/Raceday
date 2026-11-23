@@ -243,6 +243,19 @@ profile that follows them across every RaceDay track they race at.
   `visibilitychange`/`focus` scan at once (hidden pages' timers are slowed). Lineups save straight into Race Manager's Assign folder
   (`RmSync`, handle in IndexedDB `rd_timing` 'assign', `rmSyncNow` on `save()` + `syncApplySnapshot`, lines sorted by number so pill
   draws never rewrite them; Resume after reopen). Guard: `tests/v2/test-v2-westhold-same-pc.js`
+- **Live running order** (2026-11-22, v2): Race Manager rewrites `racedata.xml` (Setup → Web Data → Set Data Path = the watched
+  folder) on every crossing. The watching staff computer reads it as it changes (`liveTimingScan` from `impScanFolder`, no settle wait,
+  half-written files skipped) and writes the order to `liveTiming/<room>` (NOT under `tracks/`, whose whole-room listener would re-apply
+  the night every lap); only changes, never demo/demo room/guest/viewer/announcer/watching operator. A running racedata.xml never
+  starves results files beside it (`LiveTiming.running`). Phones show `liveTimingCard()` on the fan view + viewer Results: LIVE within
+  2 min, FINAL 10 min after Stop; `liveClean()` checks every field. Read only, nothing imported. **Needs `firebase deploy --only
+  database`.** Guard: `tests/v2/test-v2-live-timing.js`
+- **Rental transponders** (2026-11-23, v2; Hogbarn rents tags nightly): `S.settings.txRented` (Admin → Race format checkbox,
+  `toggleTxRented`) makes `effTrans()` ignore saved tags (tonight's `entry.tx` only); import learns tags into tonight's entries,
+  never `d.trans`; `rmSyncNow` writes nothing and `openRmLineups` says it isn't needed (the track assigns tags in Race
+  Manager at check-in). Setting off: `impMatchDriver` treats a tag whose saved driver has neither the file's number nor name, while
+  another driver has both, as stale (`staleTx`): goes by number + name as a Conflict (never auto-imported). Before this, shuffled
+  tags put every result on last week's renter as a clean match. Guard: `tests/v2/test-v2-rental-tx.js`
 - **Driver identity guards** (2026-11-14, v2): a transponder saved on 2+ drivers entered tonight (`dupTransTonight()`) is a
   Conflict on import (`transShared`, never auto-imported), is left out of Race Manager lineup files with a warning, and warns at
   sign-up. Import learns a transponder only when the file's number AND name both agree and nobody else has it (`notLearned`,

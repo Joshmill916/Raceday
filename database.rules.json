@@ -171,6 +171,22 @@
         }
       }
     },
+    "liveTiming": {
+      "$room": {
+        ".read": true,
+        ".write": "auth != null && root.child('trackStaff').child($room).child(auth.uid).exists()",
+        ".validate": "newData.hasChildren(['at','flag','rows'])",
+        "at": { ".validate": "newData.isNumber()" },
+        "cls": { ".validate": "newData.isString() && newData.val().length <= 60" },
+        "mode": { ".validate": "newData.isString() && newData.val().length <= 12" },
+        "flag": { ".validate": "newData.isString() && newData.val().length <= 20" },
+        "lap": { ".validate": "newData.isString() && newData.val().length <= 6" },
+        "togo": { ".validate": "newData.isString() && newData.val().length <= 6" },
+        "left": { ".validate": "newData.isString() && newData.val().length <= 12" },
+        "rows": { ".validate": "newData.isString() && newData.val().length <= 9000" },
+        "$other": { ".validate": false }
+      }
+    },
     "liveDriven": {
       "$profileId": {
         ".read": true,
