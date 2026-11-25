@@ -112,6 +112,44 @@ const fx = f => fs.readFileSync(path.join(ROOT, 'test-data', f), 'utf8');
     check('times like 48,110 sort correctly into the grid', grid.join() === '12,45,7,88,23,07', grid.join());
   }
 
+  // Orbits 5 manual (pp. 72-73, 96-97): results export as txt (tab) or csv (comma), header on the
+  // first line, columns picked by the operator. A DNF/DQ can keep its position number; the mark is
+  // in the Status column.
+  console.log('\n— MYLAPS Orbits comma CSV with a Status column —');
+  {
+    await seed();
+    const r = await ingest('heat', fx('mylaps-orbits-status.csv'), 'Late Model Heat 1.csv');
+    check('a comma-separated Orbits file says MYLAPS Orbits (not MotoSponder)', r.vendor === 'MYLAPS Orbits', r.vendor);
+    check('the Status column is found', r.cols.status === 10, JSON.stringify(r.cols));
+    await apply();
+    const h1 = await resultsByNum('h1_');
+    check('a DQ left at its position imports as DQ, a DNF as DNF', h1['88'] === 'DQ' && h1['45'] === 'DNF', JSON.stringify(h1));
+    check('everyone else keeps their finish', h1['07'] === 1 && h1['23'] === 2 && h1['7'] === 4 && h1['12'] === 5, JSON.stringify(h1));
+    const past = await page.evaluate(t => impPastRows(t, 'Late Model Feature.csv', S.classes[0]), fx('mylaps-orbits-status.csv'));
+    const pf = {}; (past.rows || []).forEach(x => { pf[x.num] = x.out || x.fin; });
+    check('a past night loaded from the file also reads the Status column', !past.err && pf['88'] === 'DQ' && pf['45'] === 'DNF' && pf['07'] === 1 && pf['12'] === 4, JSON.stringify(past.err || pf));
+  }
+
+  console.log('\n— Orbits exports RaceDay cannot score from say so —');
+  {
+    await seed();
+    const tryFile = (text, file) => page.evaluate(([text, file]) => {
+      openImport('heat'); const said = []; const ot = window.toast; window.toast = m => said.push(m);
+      const ok = impIngestText(text, file); window.toast = ot;
+      return { ok, said: said.join(' '), rows: Imp.rows.length };
+    }, [text, file]);
+    const html = await tryFile('<html><body><table><tr><th>Pos</th><th>No.</th><th>Name</th></tr><tr><td>1</td><td>07</td><td>Jax King</td></tr></table></body></html>', 'Late Model Heat 1.html');
+    check('an HTML export is refused with what to export instead', !html.ok && /HTML/.test(html.said) && /txt or csv/.test(html.said), html.said);
+    const xml = await tryFile('<?xml version="1.0"?><Results><Competitor Pos="1" No="07" Name="Jax King"/></Results>', 'Late Model Heat 1.xml');
+    check('a non-Race Manager XML is refused with what to export instead', !xml.ok && /XML/.test(xml.said) && /txt or csv/.test(xml.said), xml.said);
+    const laps = await tryFile(['No.\tName\tLap\tLap Tm\tTime of Day', '07\tJax King\t1\t00:48.100\t19:02:11', '07\tJax King\t2\t00:47.811\t19:02:59', '23\tCasey Rivera\t1\t00:48.300\t19:02:11'].join('\r\n'), 'Late Model Heat 1 laps.txt');
+    check('a lap-times export is refused, not shown as results', !laps.ok && /lap-times/.test(laps.said) && laps.rows === 0, JSON.stringify(laps));
+    const pastHtml = await page.evaluate(() => impPastRows('<html><table><tr><td>1</td></tr></table></html>', 'x.html', S.classes[0]));
+    check('Fix or backfill gives the same message for an HTML file', /HTML/.test(pastHtml.err || ''), JSON.stringify(pastHtml));
+    const ws = await ingest('feat', fx('westhold-race.csv'), 'westhold-race.csv');
+    check('ordinary results files are not affected', ws.rows === 6 && ws.vendor === 'Westhold', JSON.stringify(ws.vendor));
+  }
+
   console.log('\n— MotoSponder still works the same —');
   {
     await seed();

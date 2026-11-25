@@ -227,6 +227,11 @@ profile that follows them across every RaceDay track they race at.
   words, and matches an existing class before dropping numbers ("Junior 2"); the missed-read check falls back to the middle
   last lap when a file has no best-lap column (Westhold race files); laps-down is not flagged in qualifying. Guard:
   `tests/v2/test-v2-timing-night.js` (a whole night per layout: Orbits, Westhold, spreadsheet export + 21 file names).
+- **MYLAPS Orbits** (2026-11-25, v2): checked against the Orbits 5 manual (no real track file yet). Orbits only writes a
+  results file when the operator runs Publish tasks → Export results to file (txt = tab, csv = comma, columns they pick).
+  A `Status` column's DNF/DQ/DNS wins over the position number (`impRowFinish`); comma files with `No.` + `Name` + Best Tm/
+  Total Tm/Diff are labeled Orbits; HTML, non-Race-Manager XML and lap-times exports are refused with what to export
+  instead (`impWrongFileText`/`impWrongFileRows`, also in Fix or backfill). Guard: `tests/v2/test-v2-timing-formats.js`
 - **Westhold Race Manager XML + lineups** (2026-11-13, v2 only; format from Julian at Westhold): `impXmlToCsv()` turns Race
   Manager's `<RACEDATA>` XML (XMLExport file at Stop: CLASS/HEAT/MODE + FIRSTNAME/LASTNAME; live `racedata.xml`: INFO/FLAG + NAME)
   into Westhold CSV rows, class via a stand-in file name; a live file whose FLAG isn't Stop is never imported, nor a start-of-session

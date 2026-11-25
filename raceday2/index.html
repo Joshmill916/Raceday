@@ -867,7 +867,7 @@ const GARAGE_KEY = 'rd_garage_v2';
 const ACTIVE_TRACK_KEY = 'rd_active_track_v2';
 // Reported with every usage row and crash. The part after the dot MUST match this app's
 // sw.js CACHE number (tests/test-app-version.js) — bump both together on each release.
-const APP_VERSION = '2026-11-18.v45';
+const APP_VERSION = '2026-11-25.v47';
 const LEGAL_VERSION = '2026-06';   // bump when Terms / Privacy wording changes, so acceptances are versioned
 const TELEMETRY_URL = 'https://script.google.com/macros/s/AKfycbxa3i3y17TLp_NfXOOu2jM7-YzXH2fScxcXoQYmIh0-873rxWfxg0HdRP1DVsxZq6iR/exec';
 const FIREBASE_CONFIG = {
@@ -7264,8 +7264,13 @@ const IMP_SYN = {
 const IMP_VENDORS = [
   // Westhold Race Manager: Place, No., Name, Trns ID, Laps, Lag, Scored Time, Total Time.
   { name: 'Westhold', detect: h => h.includes('trns id') || (h.includes('scored time') && h.includes('lag')) },
-  // MYLAPS Orbits results export (usually tab-separated): a transponder column with Best Tm / Diff.
-  { name: 'MYLAPS Orbits', detect: (h, delim) => delim === '\t' && h.some(c => c === 'transponder' || c === 'transponder no.' || c === 'transponder id') && (h.includes('best tm') || h.includes('diff')) },
+  // MYLAPS Orbits results export (txt = tab-separated, or csv): a transponder column with Best Tm /
+  // Diff, or Orbits' own "No." + "Name" with Best Tm / Total Tm / Diff (the operator picks the columns).
+  { name: 'MYLAPS Orbits', detect: (h, delim) => {
+      const orbTime = h.includes('best tm') || h.includes('total tm') || h.includes('diff');
+      const trans = h.some(c => c === 'transponder' || c === 'transponder no.' || c === 'transponder id');
+      return orbTime && ((delim === '\t' && trans) || (h.includes('no.') && (h.includes('name') || h.includes('competitor'))));
+  } },
   { name: 'MotoSponder', detect: h => {
       const has = t => h.some(c => c === t);
       const hasFirstLast = (has('first') || has('first name')) && (has('last') || has('last name'));
@@ -7343,6 +7348,31 @@ function impParseCSV(text, delim) {
    RACE files are in finish order, QUALIFY files in fast-time order. Both become the same rows as
    Race Manager's CSV results (Trns ID → Westhold detected) so the rest of the engine is unchanged.
    A live file whose flag isn't Stop is a race still running: never imported. */
+/* Timing software offers exports RaceDay can't score from: a web page (HTML), other XML, or one
+   row per LAP. Say which, and what to export instead, rather than show an empty or odd preview. */
+const IMP_EXPORT_HINT = 'Export the results as a .txt or .csv file instead (MYLAPS Orbits: Publish tasks → Export results to file → txt or csv).';
+function impWrongFileText(text) {
+  const head = String(text || '').replace(/^\uFEFF/, '').slice(0, 4000);
+  if (/^\s*(<!doctype\s+html|<html|<table)/i.test(head) || /<(table|tr|td|th)[\s>]/i.test(head)) return "That's a web page (HTML) file, not a results file RaceDay can read. " + IMP_EXPORT_HINT;
+  if (/^\s*<(\?xml|[a-z])/i.test(head)) return "RaceDay reads Westhold Race Manager XML, but not this XML file. " + IMP_EXPORT_HINT;
+  return '';
+}
+function impWrongFileRows(header, rows, cols) {
+  const h = header.map(v => String(v || '').trim().toLowerCase());
+  const lapNo = h.some(c => c === 'lap' || c === 'lap no' || c === 'lap no.' || c === 'lap #' || c === 'lap nr' || c === 'lap number');
+  if (!lapNo || cols.pos >= 0) return '';
+  const key = cols.trans >= 0 ? cols.trans : cols.num >= 0 ? cols.num : cols.name;
+  if (key < 0) return '';
+  const seen = new Set();
+  const repeats = rows.some(r => { const k = String(r[key] || '').trim(); if (!k) return false; if (seen.has(k)) return true; seen.add(k); return false; });
+  return repeats ? "That looks like a lap-times file (one row per lap), not race results. Export the results file instead (MYLAPS Orbits: Export results to file, not Export lap times)." : '';
+}
+/* A row's finish: a DNF / DQ / DNS in a Status column wins over the position number beside it. */
+function impRowFinish(row) {
+  const st = impParseFinish(impCell(row, 'status'));
+  if (st === 'DNF' || st === 'DNS' || st === 'DQ') return st;
+  return Imp.cols.pos >= 0 ? impParseFinish(impCell(row, 'pos')) : null;
+}
 function impXmlToCsv(text) {
   const s = String(text || '');
   if (!/<RACEDATA[\s>]/i.test(s)) return null;
@@ -7393,6 +7423,9 @@ function impGuessColumns(hdr) {
   if (out.name < 0) out.name = h.findIndex(c => (c.includes('name') || c.includes('driver')) && !timeish(c));
   if (out.time < 0) out.time = h.findIndex(c => c.includes('time') || c.includes('lap') || c.includes('best'));
   if (out.pos < 0) out.pos = h.findIndex(c => c.includes('pos') || c.includes('place') || c.includes('rank') || c.includes('finish'));
+  // MYLAPS Orbits can mark a car DNF / DQ / DNS and still leave it at its position number; the
+  // mark is in a separate Status column (Active, DNF, DQ, DNS, Garage).
+  out.status = h.findIndex(c => c === 'status' || c === 'result status' || c === 'state');
   return out;
 }
 function impDetectVendor(hdr, delim) {
@@ -7635,7 +7668,7 @@ function impComputePreview() {
       if (clsId === -1) unknown.add(impCell(row, 'cls'));
       if (cr.newName && clsId <= -2) Imp.pendingCls[clsId] = cr.newName;
       const m = impMatchDriver(row, clsId);
-      const rawPos  = Imp.cols.pos  >= 0 ? impParseFinish(impCell(row,'pos'))  : null;
+      const rawPos  = impRowFinish(row);
       const timeStr = Imp.cols.time >= 0 ? impCell(row,'time') : '';
       const rawTime = timeStr ? impParseLapTime(timeStr) : Infinity;
       const qchk = ((Imp.rc && Imp.rc.get(row)) || []).filter(c => c.kind !== 'down');   // qualifying: karts run different lap counts
@@ -7681,7 +7714,7 @@ function impComputePreview() {
       const divKnown = (Imp.target === 'heat' && Imp.div != null);
       if (cr.newName && clsId <= -2 && (Imp.target === 'feat' || divKnown)) Imp.pendingCls[clsId] = cr.newName;
       const m = impMatchDriver(row, clsId);
-      const finish = Imp.cols.pos >= 0 ? impParseFinish(impCell(row,'pos')) : null;
+      const finish = impRowFinish(row);
       const cid = parseInt(clsId);
       const cobj = classById(cid);
       const pendName = Imp.pendingCls[clsId];
@@ -8308,6 +8341,9 @@ function impIngestText(text, filename, fromWatch) {
     if (!xml.cars) { if (!fromWatch) toast('That Race Manager file has no drivers in it.', 'err'); return false; }
     if (!xml.started) { if (!fromWatch) toast('That Race Manager file is from the start of a session: nobody has a lap yet. Load the one saved at Stop.', 'err'); return false; }
     text = xml.csv; filename = xml.fileName;
+  } else {
+    const bad = impWrongFileText(text);
+    if (bad) { if (!fromWatch) toast(bad, 'err'); return false; }
   }
   Imp.lastHash = impHash(String(text || ''));
   const delim = impDetectDelim(String(text || ''));
@@ -8318,6 +8354,10 @@ function impIngestText(text, filename, fromWatch) {
   Imp.header = rows[hi];
   Imp.rows = rows.slice(hi + 1);
   Imp.cols = impGuessColumns(Imp.header);
+  {
+    const bad = impWrongFileRows(Imp.header, Imp.rows, Imp.cols);
+    if (bad) { Imp.rows = []; if (!fromWatch) toast(bad, 'err'); return false; }
+  }
   Imp.rc = impReadChecks(Imp.header, Imp.rows);
   {
     const isPrac = /(^|[^a-z])practice([^a-z]|$)/i.test(String(shownName || '') + ' ' + String(filename || ''));
@@ -10340,11 +10380,15 @@ function impPastRows(text, filename, cls) {
     if (xml.running) return { err: 'That Race Manager file is from a session still running. Use the one saved at Stop.' };
     if (!xml.cars) return { err: 'That Race Manager file has no drivers in it.' };
     text = xml.csv; filename = xml.fileName;
+  } else {
+    const bad = impWrongFileText(text);
+    if (bad) return { err: bad };
   }
   const rows = impParseCSV(String(text || ''), impDetectDelim(String(text || '')));
   if (rows.length < 2) return { err: "That file doesn't look like a results file (no data rows)." };
   const hi = impPickHeader(rows);
   const cols = impGuessColumns(rows[hi]);
+  { const bad = impWrongFileRows(rows[hi], rows.slice(hi + 1), cols); if (bad) return { err: bad }; }
   let data = rows.slice(hi + 1).filter(r => r.some(c => String(c || '').trim()));
   const keep = Imp; Imp = { cols };
   try {
@@ -10359,7 +10403,7 @@ function impPastRows(text, filename, cls) {
       const m = impMatchDriver(r, 0);
       if (!m.name && !m.num) return;
       order++;
-      const p = impParseFinish(impCell(r, 'pos'));
+      const p = impRowFinish(r);
       let d = m.driver;
       if (d && m.matchedBy === 'number' && m.nameConflict && m.name) d = null;   // someone else wore that number
       if (d && taken.has(String(d.id))) d = null;
