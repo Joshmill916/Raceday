@@ -70,3 +70,9 @@ B-mains immediately.
 `python3 generate.py` (stdlib only, deterministic) rewrites every file. Edit the
 `CLASSES` list at the top to change sizes/names; the script asserts that Pro Stock still
 yields exactly two B-mains and that IDs stay unique.
+
+## MYLAPS Orbits
+- `mylaps-orbits.tsv`: tab-separated (Orbits "txt" export) with two title lines above the header.
+- `mylaps-orbits-status.csv`: comma "csv" export, every field quoted, header on the first line (Orbits 5
+  manual pp. 96-97), with a `Status` column: car 88 is DQ and car 45 DNF while keeping their position
+  numbers (manual pp. 72-73). Both are built from the manual, not from a real track's file yet.
