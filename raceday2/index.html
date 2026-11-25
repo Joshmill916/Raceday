@@ -7576,6 +7576,7 @@ function impReadChecks(header, rows) {
   const iLast = col(['last lap', 'last tm', 'last lap time', 'last time', 'last']);
   const iBest = col(['best lap', 'best tm', 'best time', 'best lap time', 'fast time', 'bestlap']);
   const iPos = col(['pos', 'position', 'place', 'finish', 'pos.']);
+  const iStat = col(['status', 'result status', 'state']);   // Orbits: DNF / DQ kept at their position
   const out = new Map();
   if (iLaps < 0 && iLast < 0 && iBest < 0) return out;
   const sec = v => impParseLapTime(v);
@@ -7589,7 +7590,8 @@ function impReadChecks(header, rows) {
   const clock = s => { const m = Math.floor(s / 60), x = (s - m * 60).toFixed(1); return m ? m + ':' + (x < 10 ? '0' : '') + x : x + 's'; };
   rows.forEach(r => {
     const list = [];
-    const out_ = iPos >= 0 && /^(DNF|DNS|DQ|DSQ|NC|RET)$/i.test(String(r[iPos] || '').trim());
+    const isOut = i => i >= 0 && /^(DNF|DNS|DQ|DSQ|NC|RET)$/i.test(String(r[i] || '').trim());
+    const out_ = isOut(iPos) || isOut(iStat);
     if (!out_ && typical && iLast >= 0) {
       const l = sec(r[iLast]);
       if (isFinite(l) && l > 3 * typical) list.push({ t: 'a lap of ' + clock(l) + ' (about ' + Math.round(l / typical) + ' laps long): likely a missed tag read', hard: true, kind: 'read' });
@@ -8479,7 +8481,9 @@ function impRenderPreview() {
     return '<div class="lrow"><span class="badge ' + badge[0] + '" style="flex:none">' + badge[1] + '</span>'
       + '<div class="nm">' + esc(label) + (r.num ? '<small>#' + esc(r.num) + ' · ' + esc(cls.name) + (r.note ? ' · ' + esc(r.note) : '') + '</small>' : (r.note ? '<small>' + esc(r.note) + '</small>' : '')) + '</div>'
       + (r.chk && r.status !== 'skip' ? '<small class="imp-chk" style="display:block;color:var(--flag-amber-ink,#8a5a00)">⚠ ' + esc(r.chk.map(c => c.t).join(' · ')) + '</small>' : '')
-      + (typeof r.finish === 'number' ? '<span class="pts">P' + r.finish + '</span>' : (typeof r.rank === 'number' ? '<span class="pts">P' + r.rank + '</span>' : '')) + '</div>';
+      + (typeof r.finish === 'number' ? '<span class="pts">P' + r.finish + '</span>'
+        : typeof r.finish === 'string' && r.finish ? '<span class="pts">' + esc(r.finish) + '</span>'
+        : (typeof r.rank === 'number' ? '<span class="pts">P' + r.rank + '</span>' : '')) + '</div>';
   }).join('') + (impPreview.length > 300 ? '<div class="lrow"><span class="tiny">…and ' + (impPreview.length - 300) + ' more rows</span></div>' : '');
 }
 
